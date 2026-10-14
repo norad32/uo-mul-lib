@@ -1,4 +1,9 @@
-add_library(uomul map.cpp)
+add_library(
+    uomul
+    map/map_diff.cpp
+    map/map_editor.cpp
+    map/map_helper.cpp
+    map/map_reader.cpp)
 set_target_properties(uomul PROPERTIES EXPORT_NAME uomul)
 target_link_libraries(uomul PUBLIC application_options)
 target_include_directories(
