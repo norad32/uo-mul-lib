@@ -1,7 +1,10 @@
 include(CMakePackageConfigHelpers)
 
 install(
-    TARGETS application_options core uomul app
+    TARGETS application_options
+            core
+            uomul
+            app
     EXPORT ${CMAKE_PACKAGE_NAME}Targets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)

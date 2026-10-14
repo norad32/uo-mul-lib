@@ -135,7 +135,11 @@ else()
     target_compile_definitions(${EXECUTABLE_NAME} PRIVATE HAS_GUI=0)
 endif()
 
-set(compile_targets core uomul app ${EXECUTABLE_NAME})
+set(compile_targets
+    core
+    uomul
+    app
+    ${EXECUTABLE_NAME})
 
 if(BUILD_GUI)
     list(APPEND compile_targets gui)
@@ -155,7 +159,11 @@ endif()
 
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
-    set(clang_tidy_targets core app ${EXECUTABLE_NAME})
+    set(clang_tidy_targets
+        core
+        uomul
+        app
+        ${EXECUTABLE_NAME})
     if(BUILD_GUI)
         list(APPEND clang_tidy_targets gui)
         if(BUILD_GUI_RUNTIME)

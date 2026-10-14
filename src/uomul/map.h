@@ -15,9 +15,9 @@ namespace uomul
 
 inline constexpr std::size_t landBlockTileCount = 64;
 inline constexpr std::size_t landBlockByteCount = 196;
-inline constexpr std::uint64_t landBlockDimension = 8;
+inline constexpr std::uint32_t landBlockDimension = 8;
 
-enum class ErrorCode
+enum class ErrorCode : std::uint8_t
 {
     io,
     invalidDimensions,
