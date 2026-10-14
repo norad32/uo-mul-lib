@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "ms-vscode.cpptools",
+        "xaver.clang-format",
+        "ms-vscode.cmake-tools",
+        "shakram02.bash-beautify",
+        "esbenp.prettier-vscode",
+        "redhat.vscode-yaml"
+    ]
+}

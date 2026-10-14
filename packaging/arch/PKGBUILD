@@ -1,0 +1,57 @@
+pkgbase=@DISTRIBUTION_NAME@
+pkgname=('@ARCH_RUNTIME_PACKAGE_NAME@' '@ARCH_GUI_PACKAGE_NAME@' '@ARCH_DEVELOPMENT_PACKAGE_NAME@')
+pkgver=@PROJECT_VERSION@
+pkgrel=@ARCH_PACKAGE_RELEASE@
+pkgdesc='@PROJECT_DESCRIPTION@'
+arch=(@ARCH_PACKAGE_ARCHITECTURES@)
+url='@PROJECT_HOMEPAGE_URL@'
+license=('@PROJECT_LICENSE@')
+makedepends=(@ARCH_BUILD_DEPENDENCIES@)
+source=("@DISTRIBUTION_NAME@-${pkgver}.tar.gz::@PROJECT_SOURCE_ARCHIVE_URL@")
+sha256sums=('SKIP')
+
+build() {
+    cmake -S "${srcdir}/@DISTRIBUTION_NAME@-${pkgver}" -B "${srcdir}/build-headless" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_COMPILER=g++ \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTS=OFF \
+    -DBUILD_GUI=OFF \
+    -DINSTALL_GUI=OFF \
+    -DPACKAGE_NAME=@DISTRIBUTION_NAME@
+    cmake --build "${srcdir}/build-headless" --parallel
+    
+    cmake -S "${srcdir}/@DISTRIBUTION_NAME@-${pkgver}" -B "${srcdir}/build-gui" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CXX_COMPILER=g++ \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTS=OFF \
+    -DBUILD_GUI=ON \
+    -DINSTALL_GUI=ON \
+    -DBUILD_GUI_RUNTIME=ON \
+    -DPACKAGE_NAME=@DISTRIBUTION_NAME@
+    
+    cmake --build "${srcdir}/build-gui" --parallel
+}
+
+package_@ARCH_RUNTIME_PACKAGE_NAME@() {
+    pkgdesc='@RUNTIME_PACKAGE_DESCRIPTION@'
+    depends=(@ARCH_RUNTIME_PACKAGE_DEPENDENCIES@)
+    DESTDIR="${pkgdir}" cmake --install "${srcdir}/build-headless" --prefix /usr --component Runtime
+    install -Dm644 "${srcdir}/@DISTRIBUTION_NAME@-${pkgver}/LICENSE" "${pkgdir}/usr/share/licenses/@ARCH_RUNTIME_PACKAGE_NAME@/LICENSE"
+}
+
+package_@ARCH_GUI_PACKAGE_NAME@() {
+    pkgdesc='@GUI_PACKAGE_DESCRIPTION@'
+    depends=(@ARCH_GUI_PACKAGE_DEPENDENCIES@)
+    DESTDIR="${pkgdir}" cmake --install "${srcdir}/build-gui" --prefix /usr --component Gui
+    install -Dm644 "${srcdir}/@DISTRIBUTION_NAME@-${pkgver}/LICENSE" "${pkgdir}/usr/share/licenses/@ARCH_GUI_PACKAGE_NAME@/LICENSE"
+}
+
+package_@ARCH_DEVELOPMENT_PACKAGE_NAME@() {
+    pkgdesc='@DEVELOPMENT_PACKAGE_DESCRIPTION@'
+    depends=(@ARCH_DEVELOPMENT_PACKAGE_DEPENDENCIES@)
+    DESTDIR="${pkgdir}" cmake --install "${srcdir}/build-headless" --prefix /usr --component Development
+    DESTDIR="${pkgdir}" cmake --install "${srcdir}/build-gui" --prefix /usr --component Development
+    install -Dm644 "${srcdir}/@DISTRIBUTION_NAME@-${pkgver}/LICENSE" "${pkgdir}/usr/share/licenses/@ARCH_DEVELOPMENT_PACKAGE_NAME@/LICENSE"
+}

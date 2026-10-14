@@ -1,0 +1,30 @@
+@PACKAGE_INIT@
+
+set(_PACKAGE_NAME "@CMAKE_PACKAGE_NAME@")
+
+include(CMakeFindDependencyMacro)
+find_dependency(spdlog @SPDLOG_MINIMUM_VERSION@ CONFIG)
+set(${_PACKAGE_NAME}_app_FOUND TRUE)
+set(${_PACKAGE_NAME}_development_FOUND TRUE)
+if(@BUILD_GUI@)
+    set(${_PACKAGE_NAME}_gui_FOUND TRUE)
+    list(LENGTH ${_PACKAGE_NAME}_FIND_COMPONENTS _component_count)
+    if("gui" IN_LIST ${_PACKAGE_NAME}_FIND_COMPONENTS OR _component_count EQUAL
+                                                         0)
+        find_dependency(OpenGL)
+        find_dependency(glfw3 CONFIG)
+        if(NOT TARGET glfw)
+            find_dependency(PkgConfig)
+            pkg_check_modules(
+                GLFW3
+                REQUIRED
+                IMPORTED_TARGET
+                glfw3)
+            add_library(glfw ALIAS PkgConfig::GLFW3)
+        endif()
+    endif()
+    unset(_component_count)
+endif()
+include("${CMAKE_CURRENT_LIST_DIR}/@CMAKE_PACKAGE_NAME@Targets.cmake")
+check_required_components("${_PACKAGE_NAME}")
+unset(_PACKAGE_NAME)

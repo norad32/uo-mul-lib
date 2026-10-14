@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=I'm C++
+Comment=C++23 desktop application
+Exec=@GUI_DESKTOP_EXECUTABLE@
+Icon=@DISTRIBUTION_NAME@
+StartupWMClass=@APPLICATION_ID@
+Terminal=false
+Categories=Development;IDE;

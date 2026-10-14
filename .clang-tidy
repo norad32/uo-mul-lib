@@ -1,0 +1,91 @@
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-derived-method-shadowing-base-method,
+  -bugprone-easily-swappable-parameters,
+  cert-*,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-pro-type-static-cast-downcast,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-avoid-goto,
+  misc-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  performance-*,
+  portability-*,
+  -portability-avoid-pragma-once,
+  -portability-template-virtual-member-function,
+  readability-*,
+  -readability-identifier-length,
+  google-build-using-namespace,
+  google-explicit-constructor
+
+# Files and warnings
+WarningsAsErrors: >
+  *,
+  -portability-template-virtual-member-function
+HeaderFilterRegex: ".*"
+ExcludeHeaderFilterRegex: ".*(_deps|thirdparty|submodule|mock|Mock).*"
+FormatStyle: file
+ExtraArgsBefore:
+  - -Wno-unknown-warning-option
+
+CheckOptions:
+  - key: cppcoreguidelines-avoid-magic-numbers.IgnoreEnums
+    value: "1"
+  - key: cppcoreguidelines-init-variables.StrictMode
+    value: 1
+  - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value: true
+  - key: modernize-deprecated-headers.CheckHeaderFile
+    value: true
+  - key: modernize-use-override.IgnoreDestructors
+    value: "0"
+  - key: modernize-use-auto.MinTypeNameLength
+    value: "99" # Discourage auto except for complex types
+  - key: misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+    value: true
+  - key: misc-unused-parameters.StrictMode
+    value: 1
+  - key: portability-simd-intrinsics.WarnOnUnsupported
+    value: 1
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  - key: readability-identifier-naming.NamespaceNamingStyle
+    value: lower_case
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.ClassIgnoredRegexp
+    value: "^[A-Z][A-Za-z0-9]*(_[A-Z][A-Za-z0-9]*)+$"
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructIgnoredRegexp
+    value: "^[A-Z][A-Za-z0-9]*(_[A-Z][A-Za-z0-9]*)+$"
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
+  - key: readability-identifier-naming.FunctionIgnoredRegexp
+    value: "^PrintTo$"
+  - key: readability-identifier-naming.MemberCase
+    value: camelBack
+  - key: readability-identifier-naming.MemberIgnoredRegexp
+    value: "^[a-z][a-zA-Z0-9]*_[a-z]+$"
+  - key: readability-identifier-naming.MethodCase
+    value: camelBack
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: "_"
+  - key: readability-identifier-naming.VariableCase
+    value: camelBack
+  - key: readability-identifier-naming.VariableIgnoredRegexp
+    value: "^[a-z][a-zA-Z0-9]*_[a-z]+$"
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: camelBack
+  - key: readability-identifier-naming.GlobalConstantIgnoredRegexp
+    value: "^[a-z][a-zA-Z0-9]*_[a-z]+$"
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: 2

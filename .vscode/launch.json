@@ -1,0 +1,45 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug GUI",
+      "type": "cppdbg",
+      "request": "launch",
+      "preLaunchTask": "Build Debug GUI",
+      "program": "${workspaceFolder}/build/debug-gui/im-cpp",
+      "args": ["gui", "-l", "TRACE"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable GDB pretty-printing",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "name": "Debug Headless",
+      "type": "cppdbg",
+      "request": "launch",
+      "preLaunchTask": "Build Debug Headless",
+      "program": "${workspaceFolder}/build/debug-headless/im-cpp",
+      "args": ["check", "-l", "TRACE"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable GDB pretty-printing",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    }
+  ]
+}

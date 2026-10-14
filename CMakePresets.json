@@ -1,0 +1,135 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "common",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_WITH_INSTALL_RPATH": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug (Ninja)",
+      "inherits": "common",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_INSTALL_PREFIX": "$env{HOME}/.local",
+        "ENABLE_COVERAGE": "ON",
+        "BUILD_TESTS": "ON",
+        "BUILD_GUI": "ON",
+        "ENABLE_CLANG_TIDY": "ON",
+        "BUILD_GUI_RUNTIME": "OFF",
+        "INSTALL_GUI": "ON"
+      }
+    },
+    {
+      "name": "debug-gui",
+      "displayName": "Debug GUI (Ninja)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/debug-gui"
+    },
+    {
+      "name": "debug-headless",
+      "displayName": "Debug Headless (Ninja)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/debug-headless",
+      "cacheVariables": {
+        "BUILD_GUI": "OFF",
+        "INSTALL_GUI": "OFF"
+      }
+    },
+    {
+      "name": "release-base",
+      "hidden": true,
+      "inherits": "common",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "ENABLE_COVERAGE": "OFF",
+        "BUILD_TESTS": "ON",
+        "ENABLE_CLANG_TIDY": "OFF",
+        "INSTALL_GUI": "OFF"
+      }
+    },
+    {
+      "name": "release-gui",
+      "displayName": "Release GUI (Ninja)",
+      "inherits": "release-base",
+      "binaryDir": "${sourceDir}/build/release-gui",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/install/release-gui",
+        "BUILD_GUI_RUNTIME": "ON",
+        "BUILD_GUI": "ON"
+      }
+    },
+    {
+      "name": "release-headless",
+      "displayName": "Release Headless (Ninja)",
+      "inherits": "release-base",
+      "binaryDir": "${sourceDir}/build/release-headless",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/install/release-headless",
+        "BUILD_GUI": "OFF",
+        "BUILD_GUI_RUNTIME": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "debug-gui",
+      "configurePreset": "debug-gui"
+    },
+    {
+      "name": "debug-headless",
+      "configurePreset": "debug-headless"
+    },
+    {
+      "name": "release-gui",
+      "configurePreset": "release-gui"
+    },
+    {
+      "name": "release-headless",
+      "configurePreset": "release-headless"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "debug",
+      "inherits": "test-base",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "debug-gui",
+      "inherits": "test-base",
+      "configurePreset": "debug-gui"
+    },
+    {
+      "name": "debug-headless",
+      "inherits": "test-base",
+      "configurePreset": "debug-headless"
+    },
+    {
+      "name": "release-gui",
+      "inherits": "test-base",
+      "configurePreset": "release-gui"
+    },
+    {
+      "name": "release-headless",
+      "inherits": "test-base",
+      "configurePreset": "release-headless"
+    }
+  ]
+}

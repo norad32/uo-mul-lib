@@ -1,0 +1,175 @@
+include(CMakePackageConfigHelpers)
+
+install(
+    TARGETS application_options core app
+    EXPORT ${CMAKE_PACKAGE_NAME}Targets
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)
+
+if(BUILD_GUI)
+    install(
+        TARGETS gui imgui
+        EXPORT ${CMAKE_PACKAGE_NAME}Targets
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)
+
+    install(
+        DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/gui"
+        COMPONENT Development
+        FILES_MATCHING
+        PATTERN "*.h")
+
+    install(
+        FILES "${IMGUI_SOURCE_DIR}/imgui.h"
+              "${IMGUI_SOURCE_DIR}/imconfig.h"
+              "${IMGUI_SOURCE_DIR}/imgui_internal.h"
+              "${IMGUI_SOURCE_DIR}/imstb_rectpack.h"
+              "${IMGUI_SOURCE_DIR}/imstb_textedit.h"
+              "${IMGUI_SOURCE_DIR}/imstb_truetype.h"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/imgui"
+        COMPONENT Development)
+
+    install(
+        FILES "${IMGUI_SOURCE_DIR}/backends/imgui_impl_glfw.h"
+              "${IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.h"
+        DESTINATION
+            "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/imgui/backends"
+        COMPONENT Development)
+
+    install(
+        FILES "${IMGUI_SOURCE_DIR}/LICENSE.txt"
+        DESTINATION
+            "${CMAKE_INSTALL_DATADIR}/licenses/${DISTRIBUTION_NAME}/third-party"
+        RENAME imgui-LICENSE.txt
+        COMPONENT Runtime)
+endif()
+if(DEFINED CLI11_SOURCE_DIR AND EXISTS "${CLI11_SOURCE_DIR}/LICENSE")
+    install(
+        FILES "${CLI11_SOURCE_DIR}/LICENSE"
+        DESTINATION
+            "${CMAKE_INSTALL_DATADIR}/licenses/${DISTRIBUTION_NAME}/third-party"
+        RENAME CLI11-LICENSE.txt
+        COMPONENT Runtime)
+endif()
+if(DEFINED spdlog_SOURCE_DIR AND EXISTS "${spdlog_SOURCE_DIR}/LICENSE")
+    install(
+        FILES "${spdlog_SOURCE_DIR}/LICENSE"
+        DESTINATION
+            "${CMAKE_INSTALL_DATADIR}/licenses/${DISTRIBUTION_NAME}/third-party"
+        RENAME spdlog-LICENSE.txt
+        COMPONENT Runtime)
+endif()
+install(TARGETS ${EXECUTABLE_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+                                           COMPONENT Runtime)
+if(BUILD_GUI_RUNTIME)
+    install(TARGETS ${GUI_EXECUTABLE_NAME}
+            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Gui)
+endif()
+if(BUILD_GUI)
+    install(
+        FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/app_icon.xpm"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}"
+        COMPONENT Runtime)
+    if(BUILD_GUI_RUNTIME OR INSTALL_GUI)
+        if(BUILD_GUI_RUNTIME)
+            set(GUI_DESKTOP_EXECUTABLE "${GUI_EXECUTABLE_NAME}")
+            set(GUI_DESKTOP_COMPONENT Gui)
+        else()
+            set(GUI_DESKTOP_EXECUTABLE "${EXECUTABLE_NAME} gui")
+            set(GUI_DESKTOP_COMPONENT Runtime)
+        endif()
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/${DISTRIBUTION_NAME}.desktop"
+            "${CMAKE_CURRENT_BINARY_DIR}/${DISTRIBUTION_NAME}.desktop" @ONLY)
+        install(
+            FILES "${CMAKE_CURRENT_BINARY_DIR}/${DISTRIBUTION_NAME}.desktop"
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/applications"
+            COMPONENT "${GUI_DESKTOP_COMPONENT}")
+        install(
+            FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/app_icon.svg"
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps"
+            RENAME "${DISTRIBUTION_NAME}.svg"
+            COMPONENT "${GUI_DESKTOP_COMPONENT}")
+    endif()
+endif()
+if(BUILD_GUI_RUNTIME)
+    install(
+        FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/app_icon.xpm"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}"
+        COMPONENT Gui)
+endif()
+
+install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}"
+    COMPONENT Development
+    FILES_MATCHING
+    PATTERN "*.h")
+install(
+    FILES "${GENERATED_METADATA_HEADER}"
+    DESTINATION
+        "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/${METADATA_INCLUDE_DIR}"
+    COMPONENT Development)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/appConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PACKAGE_NAME}Config.cmake"
+    INSTALL_DESTINATION "${INSTALL_CMAKEDIR}")
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PACKAGE_NAME}ConfigVersion.cmake"
+    VERSION "${PROJECT_VERSION}"
+    COMPATIBILITY SameMajorVersion)
+
+install(
+    EXPORT ${CMAKE_PACKAGE_NAME}Targets
+    FILE "${CMAKE_PACKAGE_NAME}Targets.cmake"
+    NAMESPACE "${PACKAGE_NAMESPACE}"
+    DESTINATION "${INSTALL_CMAKEDIR}"
+    COMPONENT Development)
+install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PACKAGE_NAME}Config.cmake"
+          "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PACKAGE_NAME}ConfigVersion.cmake"
+    DESTINATION "${INSTALL_CMAKEDIR}"
+    COMPONENT Development)
+
+set(CPACK_PACKAGE_NAME "${PACKAGE_NAME}")
+set(CPACK_DEBIAN_PACKAGE_NAME "${DEBIAN_PACKAGE_NAME}")
+set(CPACK_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
+set(CPACK_PACKAGE_FILE_NAME
+    "${DISTRIBUTION_NAME}-${PROJECT_VERSION}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_VENDOR "${PROJECT_VENDOR}")
+set(CPACK_PACKAGE_CONTACT "${PROJECT_CONTACT}")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_LICENSE "${PROJECT_LICENSE}")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${PROJECT_CONTACT}")
+set(CPACK_DEBIAN_PACKAGE_SECTION "${PACKAGE_SECTION}")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME "${DEBIAN_RUNTIME_PACKAGE_NAME}")
+set(CPACK_DEBIAN_RUNTIME_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_DEVELOPMENT_PACKAGE_NAME "${DEBIAN_DEVELOPMENT_PACKAGE_NAME}")
+set(CPACK_DEBIAN_GUI_PACKAGE_NAME "${DEBIAN_GUI_PACKAGE_NAME}")
+set(development_package_dependencies
+    "${DEBIAN_RUNTIME_PACKAGE_NAME} (= ${PROJECT_VERSION})")
+set(CPACK_DEBIAN_DEVELOPMENT_PACKAGE_DEPENDS
+    "${development_package_dependencies}")
+set(CPACK_DEB_COMPONENT_INSTALL ON)
+set(CPACK_COMPONENTS_ALL Runtime Development)
+if(BUILD_GUI_RUNTIME)
+    set(CPACK_DEBIAN_GUI_PACKAGE_DEPENDS "${DEBIAN_GUI_PACKAGE_DEPENDENCIES}")
+    string(APPEND development_package_dependencies
+           ", ${DEBIAN_GUI_PACKAGE_NAME} (= ${PROJECT_VERSION})")
+    set(CPACK_DEBIAN_DEVELOPMENT_PACKAGE_DEPENDS
+        "${development_package_dependencies}")
+    list(APPEND CPACK_COMPONENTS_ALL Gui)
+endif()
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+if(BUILD_GUI_RUNTIME)
+    set(CPACK_DEB_COMPONENT_INSTALL ON)
+    set(CPACK_DEBIAN_COMPONENT_INSTALL ON)
+    set(CPACK_DEBIAN_GUI_FILE_NAME DEB-DEFAULT)
+    set(CPACK_DEBIAN_GUI_PACKAGE_SHLIBDEPS ON)
+endif()
+include(CPack)

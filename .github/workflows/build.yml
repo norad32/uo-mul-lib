@@ -1,0 +1,91 @@
+name: Build and test
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [release-headless, release-gui]
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential catch2 g++-14 libglfw3-dev libgl1-mesa-dev libspdlog-dev ninja-build pkg-config
+
+      - name: Configure
+        run: cmake --preset "${{ matrix.preset }}" -DCMAKE_CXX_COMPILER=g++-14
+
+      - name: Build
+        run: cmake --build --preset "${{ matrix.preset }}" --parallel 2
+
+      - name: Test
+        run: ctest --preset "${{ matrix.preset }}"
+
+  coverage:
+    if: github.event_name == 'pull_request'
+    needs: build-and-test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install coverage dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential catch2 g++-14 gcovr libglfw3-dev libgl1-mesa-dev libspdlog-dev ninja-build pkg-config
+
+      - name: Configure coverage build
+        run: cmake --preset debug -DCMAKE_CXX_COMPILER=g++-14 -DENABLE_CLANG_TIDY=OFF
+
+      - name: Build coverage tests
+        run: cmake --build --preset debug --parallel 2
+
+      - name: Run coverage tests
+        run: ctest --preset debug
+
+      - name: Generate coverage summary
+        run: gcovr --gcov-executable gcov-14 --merge-mode-functions=merge-use-line-min --root . --filter 'src/' --txt-summary > build/debug/coverage.txt
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr-coverage-report
+          path: build/debug/coverage.txt
+          if-no-files-found: error
+
+      - name: Post coverage report to pull request
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          distribution_name="$(awk -F '"' '/set[(]DISTRIBUTION_NAME/ {print $2}' cmake/ProjectMetadata.cmake)"
+          coverage_marker="## ${distribution_name} code coverage"
+          report_file="$RUNNER_TEMP/coverage-comment.md"
+          {
+            printf '## %s code coverage\n\n```text\n' "$distribution_name"
+            cat build/debug/coverage.txt
+            printf '\n```\n'
+          } > "$report_file"
+          body="$(cat "$report_file")"
+          comment_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" | jq -sr --arg marker "$coverage_marker" 'add | map(select(.body | startswith($marker) and .user.login == "github-actions[bot]")) | last | .id // empty')"
+          if [ -n "$comment_id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" -f body="$body"
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body"
+          fi

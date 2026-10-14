@@ -1,0 +1,16 @@
+#pragma once
+
+#include <string_view>
+
+namespace im_cpp::core::metadata
+{
+
+inline constexpr std::string_view applicationName{"@EXECUTABLE_NAME@"};
+inline constexpr std::string_view applicationId{"@APPLICATION_ID@"};
+inline constexpr std::string_view applicationVersion{"@PROJECT_VERSION@"};
+inline constexpr std::string_view applicationDescription{"@PROJECT_DESCRIPTION@"};
+inline constexpr std::string_view applicationHomepage{"@PROJECT_HOMEPAGE_URL@"};
+inline constexpr std::string_view applicationLicense{"@PROJECT_LICENSE@"};
+inline constexpr std::string_view applicationAuthor{"@PROJECT_AUTHOR@"};
+
+} // namespace im_cpp::core::metadata
