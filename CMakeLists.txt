@@ -122,6 +122,7 @@ if(NOT CLI11_FOUND)
 endif()
 
 add_subdirectory(src/core)
+add_subdirectory(src/uomul)
 add_subdirectory(src/app)
 
 add_executable(${EXECUTABLE_NAME} "${APPLICATION_SOURCE_DIR}/src/main.cpp")
@@ -134,7 +135,7 @@ else()
     target_compile_definitions(${EXECUTABLE_NAME} PRIVATE HAS_GUI=0)
 endif()
 
-set(compile_targets core app ${EXECUTABLE_NAME})
+set(compile_targets core uomul app ${EXECUTABLE_NAME})
 
 if(BUILD_GUI)
     list(APPEND compile_targets gui)

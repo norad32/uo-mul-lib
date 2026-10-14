@@ -9,7 +9,8 @@ file(
     test_sources
     CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/uomul/*.cpp")
 if(BUILD_GUI)
     file(
         GLOB_RECURSE
@@ -34,7 +35,7 @@ apply_unit_test_compile_options(tests)
 if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     apply_coverage_compile_options(tests)
     apply_unit_test_link_options(tests)
-    foreach(target IN ITEMS core app)
+    foreach(target IN ITEMS core uomul app)
         apply_coverage_compile_options(${target})
     endforeach()
     target_link_options(

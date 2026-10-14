@@ -4,7 +4,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/ProjectMetadata.cmake")
 
 project(package_consumer LANGUAGES CXX)
 
-find_package(${CMAKE_PACKAGE_NAME} CONFIG REQUIRED COMPONENTS app)
+find_package(${CMAKE_PACKAGE_NAME} CONFIG REQUIRED COMPONENTS app uomul)
 
 add_executable(package_consumer main.cpp)
-target_link_libraries(package_consumer PRIVATE ${PACKAGE_NAMESPACE}app)
+target_link_libraries(package_consumer PRIVATE ${PACKAGE_NAMESPACE}uomul)
+target_compile_features(package_consumer PRIVATE cxx_std_23)

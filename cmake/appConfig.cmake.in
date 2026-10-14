@@ -3,9 +3,10 @@
 set(_PACKAGE_NAME "@CMAKE_PACKAGE_NAME@")
 
 include(CMakeFindDependencyMacro)
-find_dependency(spdlog @SPDLOG_MINIMUM_VERSION@ CONFIG)
 set(${_PACKAGE_NAME}_app_FOUND TRUE)
+set(${_PACKAGE_NAME}_uomul_FOUND TRUE)
 set(${_PACKAGE_NAME}_development_FOUND TRUE)
+set(${_PACKAGE_NAME}_uomul_FOUND TRUE)
 if(@BUILD_GUI@)
     set(${_PACKAGE_NAME}_gui_FOUND TRUE)
     list(LENGTH ${_PACKAGE_NAME}_FIND_COMPONENTS _component_count)

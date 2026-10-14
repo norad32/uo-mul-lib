@@ -1,7 +1,7 @@
 include(CMakePackageConfigHelpers)
 
 install(
-    TARGETS application_options core app
+    TARGETS application_options core uomul app
     EXPORT ${CMAKE_PACKAGE_NAME}Targets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)
@@ -100,6 +100,12 @@ if(BUILD_GUI_RUNTIME)
         COMPONENT Gui)
 endif()
 
+install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/uomul/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/uomul"
+    COMPONENT Development
+    FILES_MATCHING
+    PATTERN "*.h")
 install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}"
