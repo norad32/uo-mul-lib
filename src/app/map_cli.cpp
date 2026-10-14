@@ -183,6 +183,234 @@ CLI::App * configureMapCommand(CLI::App & application, MapCommandOptions & optio
     return map;
 }
 
+namespace
+{
+
+[[nodiscard]] bool validEditValues(const MapCommandOptions & options)
+{
+    constexpr std::int32_t minimumElevationValue =
+        -static_cast<std::int32_t>(std::numeric_limits<std::uint8_t>::max() / 2U) - 1;
+    constexpr std::int32_t maximumElevationValue = static_cast<std::int32_t>(std::numeric_limits<std::uint8_t>::max() / 2U);
+    constexpr std::uint32_t maximumLandId = std::numeric_limits<std::uint16_t>::max();
+    return options.landId <= maximumLandId && options.fromId <= maximumLandId && options.toId <= maximumLandId &&
+           options.z >= minimumElevationValue && options.z <= maximumElevationValue && options.fromZ >= minimumElevationValue &&
+           options.fromZ <= maximumElevationValue && options.toZ >= minimumElevationValue &&
+           options.toZ <= maximumElevationValue;
+}
+
+[[nodiscard]] int
+runMapInspect(const MapCommandOptions & options, uomul::Dimensions dimensionsValue, std::ostream & output, std::ostream & error)
+{
+    auto reader =
+        uomul::MapReader::open(options.path, dimensionsValue, uomul::OpenOptions{.recoverTruncatedMap = options.recover});
+    if (!reader)
+    {
+        return fail(reader.error(), error);
+    }
+    if (reader->ignoredTrailingBytes() != 0 || reader->missingBlocks() != 0)
+    {
+        error << "Warning: recovery ignored trailing_bytes=" << reader->ignoredTrailingBytes()
+              << " and missingBlocks=" << reader->missingBlocks() << '\n';
+    }
+    if (options.useBlock)
+    {
+        auto block = reader->readLandBlock({.x = options.blockX, .y = options.blockY});
+        if (!block)
+        {
+            return fail(block.error(), error);
+        }
+        output << "block " << options.blockX << ',' << options.blockY << '\n';
+        std::size_t index = 0;
+        for (const auto & tile : *block)
+        {
+            output << index << ' ' << tile.id << ' ' << static_cast<int>(tile.z) << '\n';
+            ++index;
+        }
+        return 0;
+    }
+    if (options.useTile)
+    {
+        auto tile = reader->readLandTile({.x = options.tileX, .y = options.tileY});
+        if (!tile)
+        {
+            return fail(tile.error(), error);
+        }
+        output << "tile " << options.tileX << ',' << options.tileY << " id=" << tile->id << " z=" << static_cast<int>(tile->z)
+               << '\n';
+        return 0;
+    }
+    output << "dimensions=" << dimensionsValue.widthTiles << 'x' << dimensionsValue.heightTiles
+           << " blocks=" << reader->completeBlocks() << " bytes_ignored=" << reader->ignoredTrailingBytes() << '\n';
+    return 0;
+}
+
+[[nodiscard]] std::expected<uomul::TileRegion, std::string>
+editTileRegion(const MapCommandOptions & options, uomul::Dimensions dimensionsValue, bool defaultToOne)
+{
+    std::uint32_t width = options.regionWidth;
+    std::uint32_t height = options.regionHeight;
+    if (defaultToOne)
+    {
+        if (width == 0)
+        {
+            width = 1;
+        }
+        if (height == 0)
+        {
+            height = 1;
+        }
+    }
+    else
+    {
+        if (width == 0 && options.x <= dimensionsValue.widthTiles)
+        {
+            width = dimensionsValue.widthTiles - options.x;
+        }
+        if (height == 0 && options.y <= dimensionsValue.heightTiles)
+        {
+            height = dimensionsValue.heightTiles - options.y;
+        }
+    }
+    if (options.x > std::numeric_limits<std::uint32_t>::max() - width ||
+        options.y > std::numeric_limits<std::uint32_t>::max() - height)
+    {
+        return std::unexpected("region coordinates overflow");
+    }
+    return uomul::TileRegion{
+        .min = {.x = options.x, .y = options.y},
+        .maxExclusive = {.x = options.x + width, .y = options.y + height},
+    };
+}
+
+[[nodiscard]] int applySelectedEdit(uomul::MapEditor & editor,
+                                    const MapCommandOptions & options,
+                                    uomul::Dimensions dimensionsValue,
+                                    std::ostream & error)
+{
+    std::expected<void, uomul::Error> result;
+    if (options.fillRegion)
+    {
+        auto region = editTileRegion(options, dimensionsValue, true);
+        if (!region)
+        {
+            error << region.error() << '\n';
+            return 2;
+        }
+        result =
+            editor.fill(*region, {.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
+    }
+    else if (options.replaceIdsSelected || options.replaceZSelected)
+    {
+        auto region = editTileRegion(options, dimensionsValue, false);
+        if (!region)
+        {
+            error << region.error() << '\n';
+            return 2;
+        }
+        if (options.replaceIdsSelected)
+        {
+            result = editor.replaceIds(
+                *region, static_cast<std::uint16_t>(options.fromId), static_cast<std::uint16_t>(options.toId));
+        }
+        else
+        {
+            result = editor.replaceZ(*region, static_cast<std::int8_t>(options.fromZ), static_cast<std::int8_t>(options.toZ));
+        }
+    }
+    else if (options.useBlock)
+    {
+        uomul::LandBlock block{};
+        block.fill({.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
+        result = editor.writeLandBlock({.x = options.blockX, .y = options.blockY}, block);
+    }
+    else if (options.useTile)
+    {
+        result =
+            editor.writeLandTile({.x = options.tileX, .y = options.tileY},
+                                 {.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
+    }
+    else
+    {
+        error << "Specify --tile-x/--tile-y, --block-x/--block-y, --fill --x/--y, --from-id/--to-id, or --from-z/--to-z\n";
+        return 2;
+    }
+    if (!result)
+    {
+        return fail(result.error(), error);
+    }
+    return 0;
+}
+
+[[nodiscard]] int
+runMapEdit(const MapCommandOptions & options, uomul::Dimensions dimensionsValue, std::ostream & output, std::ostream & error)
+{
+    auto editor = uomul::MapEditor::create(
+        options.path, options.outputPath, dimensionsValue, uomul::EditOptions{.overwriteOutput = options.overwrite});
+    if (!editor)
+    {
+        return fail(editor.error(), error);
+    }
+    const int editResult = applySelectedEdit(*editor, options, dimensionsValue, error);
+    if (editResult != 0)
+    {
+        return editResult;
+    }
+    auto result = editor->commit();
+    if (!result)
+    {
+        return fail(result.error(), error);
+    }
+    output << "Wrote " << options.outputPath << '\n';
+    return 0;
+}
+
+[[nodiscard]] int runMapDiffGenerate(const MapCommandOptions & options,
+                                     uomul::Dimensions dimensionsValue,
+                                     std::ostream & output,
+                                     std::ostream & error)
+{
+    auto result = uomul::MapDiff::generate(
+        options.path, options.otherPath, options.diffDirectory, options.mapIndex, dimensionsValue, options.overwrite);
+    if (!result)
+    {
+        return fail(result.error(), error);
+    }
+    output << "changed_blocks=" << result->landBlocksChanged << " changed_tiles=" << result->landTilesChanged << '\n';
+    return 0;
+}
+
+[[nodiscard]] int runMapDiffApply(const MapCommandOptions & options,
+                                  uomul::Dimensions dimensionsValue,
+                                  std::ostream & output,
+                                  std::ostream & error)
+{
+    auto result = uomul::MapDiff::apply(
+        options.path, options.diffDirectory, options.outputPath, options.mapIndex, dimensionsValue, options.overwrite);
+    if (!result)
+    {
+        return fail(result.error(), error);
+    }
+    output << "Wrote " << options.outputPath << '\n';
+    return 0;
+}
+
+[[nodiscard]] int runMapDiffReport(const MapCommandOptions & options,
+                                   uomul::Dimensions dimensionsValue,
+                                   std::ostream & output,
+                                   std::ostream & error)
+{
+    auto result =
+        uomul::MapDiff::report(options.path, options.otherPath, options.reportPath, dimensionsValue, options.overwrite);
+    if (!result)
+    {
+        return fail(result.error(), error);
+    }
+    output << "changed_blocks=" << result->landBlocksChanged << " changed_tiles=" << result->landTilesChanged << '\n';
+    return 0;
+}
+
+} // namespace
+
 int runMapCommand(const MapCommandOptions & options, std::ostream & output, std::ostream & error)
 {
     const auto mapDimensions = dimensions(options);
@@ -192,183 +420,30 @@ int runMapCommand(const MapCommandOptions & options, std::ostream & output, std:
         return 2;
     }
     const uomul::Dimensions dimensionsValue = *mapDimensions;
-    constexpr std::int32_t minimumElevationValue = std::numeric_limits<std::int8_t>::min();
-    constexpr std::int32_t maximumElevationValue = std::numeric_limits<std::int8_t>::max();
-    constexpr std::uint32_t maximumLandId = std::numeric_limits<std::uint16_t>::max();
-    if (options.operation == "edit" &&
-        ((options.landId > maximumLandId) || (options.fromId > maximumLandId) || (options.toId > maximumLandId) ||
-         options.z < minimumElevationValue || options.z > maximumElevationValue || options.fromZ < minimumElevationValue ||
-         options.fromZ > maximumElevationValue || options.toZ < minimumElevationValue || options.toZ > maximumElevationValue))
+    if (options.operation == "edit" && !validEditValues(options))
     {
         error << "land IDs must be in [0, 65535] and elevations in [-128, 127]\n";
         return 2;
     }
     if (options.operation == "inspect")
     {
-        auto reader =
-            uomul::MapReader::open(options.path, dimensionsValue, uomul::OpenOptions{.recoverTruncatedMap = options.recover});
-        if (!reader)
-        {
-            return fail(reader.error(), error);
-        }
-        if (reader->ignoredTrailingBytes() != 0 || reader->missingBlocks() != 0)
-        {
-            error << "Warning: recovery ignored trailing_bytes=" << reader->ignoredTrailingBytes()
-                  << " and missingBlocks=" << reader->missingBlocks() << '\n';
-        }
-        if (options.useBlock)
-        {
-            auto block = reader->readLandBlock({.x = options.blockX, .y = options.blockY});
-            if (!block)
-            {
-                return fail(block.error(), error);
-            }
-            output << "block " << options.blockX << ',' << options.blockY << '\n';
-            std::size_t index = 0;
-            for (const auto & tile : *block)
-            {
-                output << index << ' ' << tile.id << ' ' << static_cast<int>(tile.z) << '\n';
-                ++index;
-            }
-            return 0;
-        }
-        if (options.useTile)
-        {
-            auto tile = reader->readLandTile({.x = options.tileX, .y = options.tileY});
-            if (!tile)
-            {
-                return fail(tile.error(), error);
-            }
-            output << "tile " << options.tileX << ',' << options.tileY << " id=" << tile->id
-                   << " z=" << static_cast<int>(tile->z) << '\n';
-            return 0;
-        }
-        output << "dimensions=" << dimensionsValue.widthTiles << 'x' << dimensionsValue.heightTiles
-               << " blocks=" << reader->completeBlocks() << " bytes_ignored=" << reader->ignoredTrailingBytes() << '\n';
-        return 0;
+        return runMapInspect(options, dimensionsValue, output, error);
     }
     if (options.operation == "edit")
     {
-        auto editor = uomul::MapEditor::create(
-            options.path, options.outputPath, dimensionsValue, uomul::EditOptions{.overwriteOutput = options.overwrite});
-        if (!editor)
-        {
-            return fail(editor.error(), error);
-        }
-        std::expected<void, uomul::Error> result;
-        if (options.fillRegion)
-        {
-            const std::uint32_t width = options.regionWidth == 0 ? 1 : options.regionWidth;
-            const std::uint32_t height = options.regionHeight == 0 ? 1 : options.regionHeight;
-            if (options.x > std::numeric_limits<std::uint32_t>::max() - width ||
-                options.y > std::numeric_limits<std::uint32_t>::max() - height)
-            {
-                error << "region coordinates overflow\n";
-                return 2;
-            }
-            result = editor->fill(
-                {.min = {.x = options.x, .y = options.y}, .maxExclusive = {.x = options.x + width, .y = options.y + height}},
-                {.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
-        }
-        else if (options.replaceIdsSelected)
-        {
-            const std::uint32_t width = options.regionWidth == 0 && options.x <= dimensionsValue.widthTiles
-                                            ? dimensionsValue.widthTiles - options.x
-                                            : options.regionWidth;
-            const std::uint32_t height = options.regionHeight == 0 && options.y <= dimensionsValue.heightTiles
-                                             ? dimensionsValue.heightTiles - options.y
-                                             : options.regionHeight;
-            if (options.x > std::numeric_limits<std::uint32_t>::max() - width ||
-                options.y > std::numeric_limits<std::uint32_t>::max() - height)
-            {
-                error << "region coordinates overflow\n";
-                return 2;
-            }
-            result = editor->replaceIds(
-                {.min = {.x = options.x, .y = options.y}, .maxExclusive = {.x = options.x + width, .y = options.y + height}},
-                static_cast<std::uint16_t>(options.fromId),
-                static_cast<std::uint16_t>(options.toId));
-        }
-        else if (options.replaceZSelected)
-        {
-            const std::uint32_t width = options.regionWidth == 0 && options.x <= dimensionsValue.widthTiles
-                                            ? dimensionsValue.widthTiles - options.x
-                                            : options.regionWidth;
-            const std::uint32_t height = options.regionHeight == 0 && options.y <= dimensionsValue.heightTiles
-                                             ? dimensionsValue.heightTiles - options.y
-                                             : options.regionHeight;
-            if (options.x > std::numeric_limits<std::uint32_t>::max() - width ||
-                options.y > std::numeric_limits<std::uint32_t>::max() - height)
-            {
-                error << "region coordinates overflow\n";
-                return 2;
-            }
-            result = editor->replaceZ(
-                {.min = {.x = options.x, .y = options.y}, .maxExclusive = {.x = options.x + width, .y = options.y + height}},
-                static_cast<std::int8_t>(options.fromZ),
-                static_cast<std::int8_t>(options.toZ));
-        }
-        else if (options.useBlock)
-        {
-            auto block = uomul::LandBlock{};
-            block.fill({.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
-            result = editor->writeLandBlock({.x = options.blockX, .y = options.blockY}, block);
-        }
-        else if (options.useTile)
-        {
-            result = editor->writeLandTile(
-                {.x = options.tileX, .y = options.tileY},
-                {.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
-        }
-        else
-        {
-            error << "Specify --tile-x/--tile-y, --block-x/--block-y, --fill --x/--y, --from-id/--to-id, or --from-z/--to-z\n";
-            return 2;
-        }
-        if (!result)
-        {
-            return fail(result.error(), error);
-        }
-        result = editor->commit();
-        if (!result)
-        {
-            return fail(result.error(), error);
-        }
-        output << "Wrote " << options.outputPath << '\n';
-        return 0;
+        return runMapEdit(options, dimensionsValue, output, error);
     }
     if (options.operation == "generate")
     {
-        auto result = uomul::MapDiff::generate(
-            options.path, options.otherPath, options.diffDirectory, options.mapIndex, dimensionsValue, options.overwrite);
-        if (!result)
-        {
-            return fail(result.error(), error);
-        }
-        output << "changed_blocks=" << result->landBlocksChanged << " changed_tiles=" << result->landTilesChanged << '\n';
-        return 0;
+        return runMapDiffGenerate(options, dimensionsValue, output, error);
     }
     if (options.operation == "apply")
     {
-        auto result = uomul::MapDiff::apply(
-            options.path, options.diffDirectory, options.outputPath, options.mapIndex, dimensionsValue, options.overwrite);
-        if (!result)
-        {
-            return fail(result.error(), error);
-        }
-        output << "Wrote " << options.outputPath << '\n';
-        return 0;
+        return runMapDiffApply(options, dimensionsValue, output, error);
     }
     if (options.operation == "report")
     {
-        auto result =
-            uomul::MapDiff::report(options.path, options.otherPath, options.reportPath, dimensionsValue, options.overwrite);
-        if (!result)
-        {
-            return fail(result.error(), error);
-        }
-        output << "changed_blocks=" << result->landBlocksChanged << " changed_tiles=" << result->landTilesChanged << '\n';
-        return 0;
+        return runMapDiffReport(options, dimensionsValue, output, error);
     }
     error << "No map operation selected\n";
     return 2;

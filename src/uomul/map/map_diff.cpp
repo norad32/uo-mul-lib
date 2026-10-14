@@ -33,17 +33,49 @@ using detail::MapHelper;
 namespace
 {
 
-constexpr std::uint32_t bitsPerByte = MapHelper::bitsPerByte;
 constexpr std::uint32_t mapBlockIdByteCount = 4;
+
+std::uint64_t countChangedTiles(const LandBlock & left, const LandBlock & right)
+{
+    std::uint64_t changedTiles = 0;
+    for (std::size_t tile = 0; tile < left.size(); ++tile)
+    {
+        changedTiles += left.at(tile) != right.at(tile) ? 1U : 0U;
+    }
+    return changedTiles;
+}
+
+struct LandBlockComparison
+{
+    LandBlockBytes targetRaw{};
+    std::uint64_t changedTiles = 0;
+};
+
+std::expected<LandBlockComparison, Error> compareLandBlocks(int targetDescriptor,
+                                                            const std::filesystem::path & targetPath,
+                                                            Dimensions dimensions,
+                                                            BlockCoord coordinate,
+                                                            const LandBlockBytes & sourceRaw)
+{
+    LandBlockComparison comparison{};
+    const auto offset = MapHelper::blockOffset(coordinate, dimensions);
+    if (!MapHelper::readExact(targetDescriptor, comparison.targetRaw.data(), comparison.targetRaw.size(), offset))
+    {
+        return std::unexpected(
+            MapHelper::makeError(ErrorCode::truncatedInput, targetPath, offset, "could not read target block"));
+    }
+    const auto sourceBlock = MapHelper::decodeBlock(sourceRaw);
+    const auto targetBlock = MapHelper::decodeBlock(comparison.targetRaw);
+    comparison.changedTiles = countChangedTiles(sourceBlock, targetBlock);
+    return comparison;
+}
 
 bool writeLe32(std::ostream & stream, std::uint32_t value)
 {
-    const std::array<char, mapBlockIdByteCount> bytes{
-        static_cast<char>(value & MapHelper::byteMask),
-        static_cast<char>((value >> bitsPerByte) & MapHelper::byteMask),
-        static_cast<char>((value >> (2 * bitsPerByte)) & MapHelper::byteMask),
-        static_cast<char>((value >> (3 * bitsPerByte)) & MapHelper::byteMask),
-    };
+    const auto encoded = detail::encodeLittleEndian<std::uint32_t, mapBlockIdByteCount>(value);
+    std::array<char, mapBlockIdByteCount> bytes{};
+    std::ranges::transform(
+        encoded, bytes.begin(), [](std::byte byte) { return static_cast<char>(std::to_integer<unsigned char>(byte)); });
     stream.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
     return stream.good();
 }
@@ -163,31 +195,22 @@ bool readLe32(std::istream & stream, std::uint32_t & value)
         return false;
     }
 
-    value = static_cast<std::uint32_t>(static_cast<unsigned char>(bytes.at(0))) |
-            (static_cast<std::uint32_t>(static_cast<unsigned char>(bytes.at(1))) << bitsPerByte) |
-            (static_cast<std::uint32_t>(static_cast<unsigned char>(bytes.at(2))) << (2 * bitsPerByte)) |
-            (static_cast<std::uint32_t>(static_cast<unsigned char>(bytes.at(3))) << (3 * bitsPerByte));
+    std::array<std::byte, mapBlockIdByteCount> encoded{};
+    std::ranges::transform(
+        bytes, encoded.begin(), [](char byte) { return static_cast<std::byte>(static_cast<unsigned char>(byte)); });
+    value = detail::decodeLittleEndian<std::uint32_t, mapBlockIdByteCount>(encoded);
     return true;
 }
 
 std::expected<void, Error>
 appendChangedDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const LandBlockBytes & sourceRaw)
 {
-    LandBlockBytes targetRaw{};
-    const auto offset = MapHelper::blockOffset(coordinate, state.dimensions);
-    if (!MapHelper::readExact(state.targetDescriptor, targetRaw.data(), targetRaw.size(), offset))
+    auto comparison = compareLandBlocks(state.targetDescriptor, state.targetPath, state.dimensions, coordinate, sourceRaw);
+    if (!comparison)
     {
-        return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, state.targetPath, offset, "could not read target block"));
+        return std::unexpected(comparison.error());
     }
-
-    const auto sourceBlock = MapHelper::decodeBlock(sourceRaw);
-    const auto targetBlock = MapHelper::decodeBlock(targetRaw);
-    std::uint64_t changedTiles = 0;
-    for (std::size_t tile = 0; tile < sourceBlock.size(); ++tile)
-    {
-        changedTiles += sourceBlock.at(tile) != targetBlock.at(tile) ? 1U : 0U;
-    }
+    const auto changedTiles = comparison->changedTiles;
     if (changedTiles == 0)
     {
         return {};
@@ -198,7 +221,7 @@ appendChangedDiffBlock(const DiffGenerationState & state, BlockCoord coordinate,
     {
         return std::unexpected(MapHelper::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
     }
-    for (const auto byte : targetRaw)
+    for (const auto byte : comparison->targetRaw)
     {
         state.data->put(static_cast<char>(std::to_integer<unsigned char>(byte)));
     }
@@ -342,24 +365,32 @@ void removeDiffBackups(const DiffBackups & backups)
     }
 }
 
-std::expected<DiffReport, Error>
-publishDiffWithoutOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles & files, DiffReport report)
+std::expected<void, Error> installDiffPair(const DiffOutputPaths & outputs, const DiffTemporaryFiles & files)
 {
     if (::link(files.data.c_str(), outputs.data.c_str()) != 0)
     {
-        const auto error = MapHelper::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno));
-        removeDiffTemporaries(files);
-        return std::unexpected(error);
+        return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno)));
     }
     static_cast<void>(::unlink(files.data.c_str()));
     if (::link(files.index.c_str(), outputs.index.c_str()) != 0)
     {
         const int savedErrno = errno;
         static_cast<void>(::unlink(outputs.data.c_str()));
-        removeDiffTemporaries(files);
         return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, outputs.index, 0, std::strerror(savedErrno)));
     }
     static_cast<void>(::unlink(files.index.c_str()));
+    return {};
+}
+
+std::expected<DiffReport, Error>
+publishDiffWithoutOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles & files, DiffReport report)
+{
+    auto installed = installDiffPair(outputs, files);
+    if (!installed)
+    {
+        removeDiffTemporaries(files);
+        return std::unexpected(installed.error());
+    }
     return report;
 }
 
@@ -371,23 +402,13 @@ publishDiffWithOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles & f
     {
         return std::unexpected(backups.error());
     }
-    if (::link(files.data.c_str(), outputs.data.c_str()) != 0)
+    auto installed = installDiffPair(outputs, files);
+    if (!installed)
     {
-        const auto error = MapHelper::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno));
         restoreDiffBackups(*backups, outputs);
         removeDiffTemporaries(files);
-        return std::unexpected(error);
+        return std::unexpected(installed.error());
     }
-    static_cast<void>(::unlink(files.data.c_str()));
-    if (::link(files.index.c_str(), outputs.index.c_str()) != 0)
-    {
-        const int savedErrno = errno;
-        static_cast<void>(::unlink(outputs.data.c_str()));
-        restoreDiffBackups(*backups, outputs);
-        removeDiffTemporaries(files);
-        return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, outputs.index, 0, std::strerror(savedErrno)));
-    }
-    static_cast<void>(::unlink(files.index.c_str()));
     removeDiffBackups(*backups);
     return report;
 }
@@ -435,6 +456,30 @@ std::expected<DiffLengths, Error> validateDiffLengths(std::istream & data,
     return DiffLengths{.blockCount = indexBytes / mapBlockIdByteCount};
 }
 
+std::expected<std::pair<BlockCoord, LandBlock>, Error>
+readDiffReplacement(std::istream & data, const std::filesystem::path & dataPath, Dimensions dimensions, std::uint32_t id)
+{
+    LandBlockBytes raw{};
+    for (auto & byte : raw)
+    {
+        const auto value = data.get();
+        if (value == std::char_traits<char>::eof())
+        {
+            break;
+        }
+        byte = static_cast<std::byte>(static_cast<unsigned char>(value));
+    }
+    if (!data)
+    {
+        return std::unexpected(MapHelper::makeError(
+            ErrorCode::truncatedInput, dataPath, static_cast<std::uint64_t>(data.tellg()), "diff block is truncated"));
+    }
+
+    const auto blockHeight = dimensions.heightTiles / landBlockDimension;
+    const BlockCoord coordinate{.x = id / blockHeight, .y = id % blockHeight};
+    return std::pair{coordinate, MapHelper::decodeBlock(raw)};
+}
+
 std::expected<std::vector<std::pair<BlockCoord, LandBlock>>, Error>
 readDiffReplacements(std::istream & data,
                      std::istream & index,
@@ -447,7 +492,6 @@ readDiffReplacements(std::istream & data,
     std::vector<bool> seen(static_cast<std::size_t>(expectedBlockCount));
     std::vector<std::pair<BlockCoord, LandBlock>> replacements;
     replacements.reserve(static_cast<std::size_t>(replacementCount));
-    LandBlockBytes raw{};
     std::uint32_t id = 0;
     while (readLe32(index, id))
     {
@@ -459,24 +503,12 @@ readDiffReplacements(std::istream & data,
                                                         "diff contains an out-of-range or duplicate block ID"));
         }
         seen.at(id) = true;
-        for (auto & byte : raw)
+        auto replacement = readDiffReplacement(data, dataPath, dimensions, id);
+        if (!replacement)
         {
-            const auto value = data.get();
-            if (value == std::char_traits<char>::eof())
-            {
-                break;
-            }
-            byte = static_cast<std::byte>(static_cast<unsigned char>(value));
+            return std::unexpected(replacement.error());
         }
-        if (!data)
-        {
-            return std::unexpected(MapHelper::makeError(
-                ErrorCode::truncatedInput, dataPath, static_cast<std::uint64_t>(data.tellg()), "diff block is truncated"));
-        }
-
-        const auto blockHeight = dimensions.heightTiles / landBlockDimension;
-        const BlockCoord coordinate{.x = id / blockHeight, .y = id % blockHeight};
-        replacements.emplace_back(coordinate, MapHelper::decodeBlock(raw));
+        replacements.push_back(std::move(*replacement));
     }
     if (!index.eof())
     {
@@ -531,20 +563,14 @@ std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourc
         source->readRawLandBlocks(fullRegion,
                                   [&](BlockCoord coordinate, const LandBlockBytes & sourceRaw) -> std::expected<void, Error>
                                   {
-                                      LandBlockBytes targetRaw{};
-                                      const auto offset = MapHelper::blockOffset(coordinate, dimensions);
-                                      if (!MapHelper::readExact(targetDescriptor, targetRaw.data(), targetRaw.size(), offset))
+                                      auto comparison =
+                                          compareLandBlocks(targetDescriptor, targetPath, dimensions, coordinate, sourceRaw);
+                                      if (!comparison)
                                       {
-                                          return std::unexpected(MapHelper::makeError(
-                                              ErrorCode::truncatedInput, targetPath, offset, "could not read target block"));
+                                          return std::unexpected(comparison.error());
                                       }
-                                      const auto left = MapHelper::decodeBlock(sourceRaw);
-                                      const auto right = MapHelper::decodeBlock(targetRaw);
-                                      std::uint64_t changedTiles = 0;
-                                      for (std::size_t index = 0; index < left.size(); ++index)
-                                      {
-                                          changedTiles += left.at(index) != right.at(index) ? 1U : 0U;
-                                      }
+                                      const auto changedTiles = comparison->changedTiles;
+
                                       if (changedTiles != 0)
                                       {
                                           ++report.landBlocksChanged;

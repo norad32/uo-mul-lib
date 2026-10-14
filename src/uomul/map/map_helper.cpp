@@ -27,6 +27,29 @@ namespace
 constexpr int maximumAttempts = 16;
 std::atomic<std::uint64_t> temporarySequence{0};
 
+template <typename Byte, typename Transfer>
+bool transferExact(int descriptor, Byte * bytes, std::size_t size, std::uint64_t offset, Transfer transfer)
+{
+    std::size_t transferred = 0;
+    while (transferred < size)
+    {
+        const auto result = transfer(descriptor,
+                                     std::next(bytes, static_cast<std::ptrdiff_t>(transferred)),
+                                     size - transferred,
+                                     static_cast<off_t>(offset + transferred));
+        if (result < 0 && errno == EINTR)
+        {
+            continue;
+        }
+        if (result <= 0)
+        {
+            return false;
+        }
+        transferred += static_cast<std::size_t>(result);
+    }
+    return true;
+}
+
 } // namespace
 
 Error MapHelper::makeError(ErrorCode code, const std::filesystem::path & path, std::uint64_t offset, std::string message)
@@ -86,50 +109,12 @@ std::uint64_t MapHelper::blockOffset(BlockCoord block, Dimensions dimensions)
 
 bool MapHelper::readExact(int descriptor, void * data, std::size_t size, std::uint64_t offset)
 {
-    auto * bytes = static_cast<std::byte *>(data);
-    std::size_t readBytes = 0;
-    while (readBytes < size)
-    {
-        const auto result = ::pread(descriptor,
-                                    std::next(bytes, static_cast<std::ptrdiff_t>(readBytes)),
-                                    size - readBytes,
-                                    static_cast<off_t>(offset + readBytes));
-        if (result < 0 && errno == EINTR)
-        {
-            continue;
-        }
-        if (result <= 0)
-        {
-            return false;
-        }
-        readBytes += static_cast<std::size_t>(result);
-    }
-
-    return true;
+    return transferExact(descriptor, static_cast<std::byte *>(data), size, offset, ::pread);
 }
 
 bool MapHelper::writeExact(int descriptor, const void * data, std::size_t size, std::uint64_t offset)
 {
-    const auto * bytes = static_cast<const std::byte *>(data);
-    std::size_t bytesWritten = 0;
-    while (bytesWritten < size)
-    {
-        const auto result = ::pwrite(descriptor,
-                                     std::next(bytes, static_cast<std::ptrdiff_t>(bytesWritten)),
-                                     size - bytesWritten,
-                                     static_cast<off_t>(offset + bytesWritten));
-        if (result < 0 && errno == EINTR)
-        {
-            continue;
-        }
-        if (result <= 0)
-        {
-            return false;
-        }
-        bytesWritten += static_cast<std::size_t>(result);
-    }
-
-    return true;
+    return transferExact(descriptor, static_cast<const std::byte *>(data), size, offset, ::pwrite);
 }
 
 LandBlock MapHelper::decodeBlock(const LandBlockBytes & raw)

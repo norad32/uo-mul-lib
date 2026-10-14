@@ -2,13 +2,94 @@
 
 #include "uomul/map.h"
 
+#include <algorithm>
+#include <array>
 #include <expected>
 #include <filesystem>
 #include <limits>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 namespace uomul::detail
 {
+
+[[nodiscard]] constexpr BlockRegion blockRegionForTiles(TileRegion region)
+{
+    return {
+        .min = {.x = region.min.x / landBlockDimension, .y = region.min.y / landBlockDimension},
+        .maxExclusive =
+            {
+                .x = (region.maxExclusive.x / landBlockDimension) + (region.maxExclusive.x % landBlockDimension == 0 ? 0U : 1U),
+                .y = (region.maxExclusive.y / landBlockDimension) + (region.maxExclusive.y % landBlockDimension == 0 ? 0U : 1U),
+            },
+    };
+}
+
+[[nodiscard]] constexpr std::size_t tileIndexInBlock(TileCoord tile)
+{
+    return ((tile.y % landBlockDimension) * landBlockDimension) + (tile.x % landBlockDimension);
+}
+
+[[nodiscard]] constexpr TileRegion clipTilesToBlock(TileRegion region, BlockCoord block)
+{
+    const auto blockMinX = block.x * landBlockDimension;
+    const auto blockMinY = block.y * landBlockDimension;
+    return {
+        .min = {.x = std::max(region.min.x, blockMinX), .y = std::max(region.min.y, blockMinY)},
+        .maxExclusive =
+            {
+                .x = std::min(region.maxExclusive.x, blockMinX + landBlockDimension),
+                .y = std::min(region.maxExclusive.y, blockMinY + landBlockDimension),
+            },
+    };
+}
+
+template <typename Visitor>
+[[nodiscard]] constexpr std::expected<void, Error> visitTilesInBlock(TileRegion region, BlockCoord block, Visitor visitor)
+{
+    const auto tiles = clipTilesToBlock(region, block);
+    for (std::uint32_t x = tiles.min.x; x < tiles.maxExclusive.x; ++x)
+    {
+        for (std::uint32_t y = tiles.min.y; y < tiles.maxExclusive.y; ++y)
+        {
+            const TileCoord tile{.x = x, .y = y};
+            auto result = visitor(tile, tileIndexInBlock(tile));
+            if (!result)
+            {
+                return std::unexpected(result.error());
+            }
+        }
+    }
+    return {};
+}
+
+template <typename T, std::size_t Size = sizeof(T)>
+    requires(std::is_unsigned_v<T> && Size <= sizeof(T))
+[[nodiscard]] constexpr std::array<std::byte, Size> encodeLittleEndian(T value)
+{
+    std::array<std::byte, Size> bytes{};
+    for (std::size_t index = 0; index < Size; ++index)
+    {
+        bytes.at(index) = static_cast<std::byte>((value >> (index * std::numeric_limits<unsigned char>::digits)) &
+                                                 std::numeric_limits<unsigned char>::max());
+    }
+    return bytes;
+}
+
+template <typename T, std::size_t Size = sizeof(T), std::size_t ContainerSize>
+    requires(std::is_unsigned_v<T> && Size <= ContainerSize)
+[[nodiscard]] constexpr T decodeLittleEndian(const std::array<std::byte, ContainerSize> & bytes)
+{
+    static_assert(Size <= sizeof(T));
+    T value = 0;
+    for (std::size_t index = 0; index < Size; ++index)
+    {
+        value |= static_cast<T>(std::to_integer<unsigned char>(bytes.at(index)))
+                 << (index * std::numeric_limits<unsigned char>::digits);
+    }
+    return value;
+}
 
 class MapHelper
 {

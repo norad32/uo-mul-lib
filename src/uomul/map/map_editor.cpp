@@ -27,6 +27,15 @@ namespace
 
 constexpr std::size_t bufferSize = 1'048'576U;
 
+std::expected<void, Error> ensureEditorActive(bool committed, int descriptor, bool failed, const std::filesystem::path & output)
+{
+    if (committed || descriptor < 0 || failed)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, output, 0, "editor is no longer active"));
+    }
+    return {};
+}
+
 std::expected<LandBlock, Error>
 readRawBlock(int descriptor, const std::filesystem::path & path, Dimensions dimensions, BlockCoord block)
 {
@@ -181,9 +190,9 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
 
 std::expected<void, Error> MapEditor::writeLandBlock(BlockCoord block, const LandBlock & data)
 {
-    if (impl_->committed || impl_->descriptor < 0 || impl_->failed)
+    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, impl_->output, 0, "editor is no longer active"));
+        return active;
     }
     if (auto valid = MapHelper::validateBlock(block, impl_->dimensions, impl_->source); !valid)
     {
@@ -207,9 +216,9 @@ std::expected<void, Error> MapEditor::writeLandBlock(BlockCoord block, const Lan
 
 std::expected<void, Error> MapEditor::writeLandTile(TileCoord tile, LandTile data)
 {
-    if (impl_->committed || impl_->descriptor < 0 || impl_->failed)
+    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, impl_->output, 0, "editor is no longer active"));
+        return active;
     }
     if (auto valid = MapHelper::validateTile(tile, impl_->dimensions, impl_->source); !valid)
     {
@@ -222,7 +231,7 @@ std::expected<void, Error> MapEditor::writeLandTile(TileCoord tile, LandTile dat
     {
         return std::unexpected(block.error());
     }
-    block->at(((tile.y % landBlockDimension) * MapHelper::blockLocalWidth) + (tile.x % landBlockDimension)) = data;
+    block->at(detail::tileIndexInBlock(tile)) = data;
     return writeLandBlock(coordinate, *block);
 }
 
@@ -231,6 +240,11 @@ namespace
 
 constexpr std::uint64_t journalHeaderBytes = sizeof(std::uint64_t);
 constexpr std::uint64_t journalEntryBytes = journalHeaderBytes + (2 * MapHelper::landBlockByteSize);
+
+std::uint64_t journalOffset(const std::array<std::byte, journalEntryBytes> & entry)
+{
+    return detail::decodeLittleEndian<std::uint64_t, sizeof(std::uint64_t)>(entry);
+}
 
 std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
                                                      const std::filesystem::path & staging,
@@ -261,10 +275,8 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
             LandBlockBytes after = before;
             MapHelper::encodeBlock(after, *changed);
             std::array<std::byte, journalEntryBytes> entry{};
-            for (std::size_t byte = 0; byte < sizeof(offset); ++byte)
-            {
-                entry.at(byte) = static_cast<std::byte>((offset >> (byte * MapHelper::bitsPerByte)) & MapHelper::byteMask);
-            }
+            const auto encodedOffset = detail::encodeLittleEndian(offset);
+            std::ranges::copy(encodedOffset, entry.begin());
             const auto beforeOffset = static_cast<std::size_t>(journalHeaderBytes);
             const auto afterOffset = beforeOffset + static_cast<std::size_t>(MapHelper::landBlockByteSize);
             std::ranges::copy(before, std::next(entry.begin(), static_cast<std::ptrdiff_t>(beforeOffset)));
@@ -290,12 +302,7 @@ bool replayEditJournal(int stagedDescriptor, int journal, std::uint64_t entryCou
         {
             return false;
         }
-        std::uint64_t offset = 0;
-        for (std::size_t byte = 0; byte < sizeof(offset); ++byte)
-        {
-            offset |= static_cast<std::uint64_t>(std::to_integer<std::uint8_t>(entry.at(byte)))
-                      << (byte * MapHelper::bitsPerByte);
-        }
+        const auto offset = journalOffset(entry);
         const auto afterOffset = static_cast<std::size_t>(journalHeaderBytes + MapHelper::landBlockByteSize);
         if (!MapHelper::writeExact(stagedDescriptor,
                                    std::next(entry.begin(), static_cast<std::ptrdiff_t>(afterOffset)),
@@ -321,12 +328,7 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
             rollbackSucceeded = false;
             continue;
         }
-        std::uint64_t offset = 0;
-        for (std::size_t byte = 0; byte < sizeof(offset); ++byte)
-        {
-            offset |= static_cast<std::uint64_t>(std::to_integer<std::uint8_t>(entry.at(byte)))
-                      << (byte * MapHelper::bitsPerByte);
-        }
+        const auto offset = journalOffset(entry);
         const auto beforeOffset = static_cast<std::size_t>(journalHeaderBytes);
         if (!MapHelper::writeExact(stagedDescriptor,
                                    std::next(entry.begin(), static_cast<std::ptrdiff_t>(beforeOffset)),
@@ -346,32 +348,22 @@ void discardEditJournal(int journal, const std::filesystem::path & journalPath)
     static_cast<void>(::unlink(journalPath.c_str()));
 }
 
-} // namespace
-
-std::expected<void, Error> MapEditor::editLandBlocks(BlockRegion region, const LandBlockEdit & callback)
+std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
+                                              const std::filesystem::path & staging,
+                                              const std::filesystem::path & output,
+                                              Dimensions dimensions,
+                                              BlockRegion region,
+                                              const LandBlockEdit & callback,
+                                              bool & failed)
 {
-    if (impl_->committed || impl_->descriptor < 0 || impl_->failed)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, impl_->output, 0, "editor is no longer active"));
-    }
-    if (!callback)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->source, 0, "edit callback is empty"));
-    }
-    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->source); !valid)
-    {
-        return valid;
-    }
-
     std::filesystem::path journalPath;
-    auto journalDescriptor = MapHelper::createTemporary(impl_->output, journalPath);
+    auto journalDescriptor = MapHelper::createTemporary(output, journalPath);
     if (!journalDescriptor)
     {
         return std::unexpected(journalDescriptor.error());
     }
     const int journal = *journalDescriptor;
-    auto entryCount =
-        writeEditJournal(impl_->descriptor, impl_->staging, journal, journalPath, impl_->dimensions, region, callback);
+    auto entryCount = writeEditJournal(stagedDescriptor, staging, journal, journalPath, dimensions, region, callback);
     if (!entryCount)
     {
         discardEditJournal(journal, journalPath);
@@ -379,16 +371,16 @@ std::expected<void, Error> MapEditor::editLandBlocks(BlockRegion region, const L
     }
 
     std::uint64_t attempted = 0;
-    if (!replayEditJournal(impl_->descriptor, journal, *entryCount, attempted))
+    if (!replayEditJournal(stagedDescriptor, journal, *entryCount, attempted))
     {
-        const bool rollbackSucceeded = rollbackEditJournal(impl_->descriptor, journal, attempted);
+        const bool rollbackSucceeded = rollbackEditJournal(stagedDescriptor, journal, attempted);
         discardEditJournal(journal, journalPath);
         if (!rollbackSucceeded)
         {
-            impl_->failed = true;
+            failed = true;
         }
         return std::unexpected(MapHelper::makeError(ErrorCode::io,
-                                                    impl_->staging,
+                                                    staging,
                                                     0,
                                                     rollbackSucceeded ? "edit journal failed; staged changes were rolled back"
                                                                       : "edit failed and rollback was incomplete"));
@@ -398,11 +390,13 @@ std::expected<void, Error> MapEditor::editLandBlocks(BlockRegion region, const L
     return {};
 }
 
-std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const LandTileEdit & callback)
+} // namespace
+
+std::expected<void, Error> MapEditor::editLandBlocks(BlockRegion region, const LandBlockEdit & callback)
 {
-    if (impl_->committed || impl_->descriptor < 0 || impl_->failed)
+    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, impl_->output, 0, "editor is no longer active"));
+        return active;
     }
     if (!callback)
     {
@@ -413,38 +407,48 @@ std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const Lan
         return valid;
     }
 
-    const BlockRegion blocks{
-        .min = {.x = region.min.x / landBlockDimension, .y = region.min.y / landBlockDimension},
-        .maxExclusive =
-            {
-                .x = (region.maxExclusive.x / landBlockDimension) + (region.maxExclusive.x % landBlockDimension == 0 ? 0U : 1U),
-                .y = (region.maxExclusive.y / landBlockDimension) + (region.maxExclusive.y % landBlockDimension == 0 ? 0U : 1U),
-            },
-    };
+    return applyJournaledEdit(
+        impl_->descriptor, impl_->staging, impl_->output, impl_->dimensions, region, callback, impl_->failed);
+}
+
+std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const LandTileEdit & callback)
+{
+    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
+    {
+        return active;
+    }
+    if (!callback)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->source, 0, "edit callback is empty"));
+    }
+    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->source); !valid)
+    {
+        return valid;
+    }
+
+    const auto blocks = detail::blockRegionForTiles(region);
     return editLandBlocks(
         blocks,
         [&region, &callback](BlockCoord coordinate, const LandBlock & current) -> std::expected<LandBlock, Error>
         {
             LandBlock changed = current;
-            const auto minX = std::max(region.min.x, coordinate.x * landBlockDimension);
-            const auto minY = std::max(region.min.y, coordinate.y * landBlockDimension);
-            const auto maxX = std::min(region.maxExclusive.x, (coordinate.x * landBlockDimension) + MapHelper::blockLocalWidth);
-            const auto maxY = std::min(region.maxExclusive.y, (coordinate.y * landBlockDimension) + MapHelper::blockLocalWidth);
-            for (std::uint32_t x = minX; x < maxX; ++x)
-            {
-                for (std::uint32_t y = minY; y < maxY; ++y)
+            auto visited = detail::visitTilesInBlock(
+                region,
+                coordinate,
+                [&callback, &changed, &current](TileCoord tile, std::size_t index) -> std::expected<void, Error>
                 {
-                    const TileCoord tile{.x = x, .y = y};
-                    const auto index = ((y % landBlockDimension) * MapHelper::blockLocalWidth) + (x % landBlockDimension);
                     auto result = callback(tile, current.at(index));
                     if (!result)
                     {
                         return std::unexpected(result.error());
                     }
                     changed.at(index) = *result;
-                }
+                    return {};
+                });
+            if (!visited)
+            {
+                return std::unexpected(visited.error());
             }
-
             return changed;
         });
 }

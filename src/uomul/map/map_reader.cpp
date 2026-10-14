@@ -19,6 +19,28 @@ namespace uomul
 
 using detail::MapHelper;
 
+namespace
+{
+
+std::expected<void, Error> readRawLandBlock(int descriptor,
+                                            std::uint64_t completeBlocks,
+                                            BlockCoord block,
+                                            Dimensions dimensions,
+                                            const std::filesystem::path & path,
+                                            LandBlockBytes & raw)
+{
+    const auto offset = MapHelper::blockOffset(block, dimensions);
+    if (MapHelper::blockId(block, dimensions) >= completeBlocks ||
+        !MapHelper::readExact(descriptor, raw.data(), raw.size(), offset))
+    {
+        return std::unexpected(
+            MapHelper::makeError(ErrorCode::truncatedInput, path, offset, "land block is missing or truncated"));
+    }
+    return {};
+}
+
+} // namespace
+
 struct MapReader::Impl
 {
     std::filesystem::path path;
@@ -143,14 +165,10 @@ std::expected<LandBlock, Error> MapReader::readLandBlock(BlockCoord block) const
     }
 
     LandBlockBytes raw{};
-    const auto offset = MapHelper::blockOffset(block, impl_->dimensions);
-    if (MapHelper::blockId(block, impl_->dimensions) >= impl_->blocks ||
-        !MapHelper::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
+    if (auto loaded = readRawLandBlock(impl_->descriptor, impl_->blocks, block, impl_->dimensions, impl_->path, raw); !loaded)
     {
-        return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, impl_->path, offset, "land block is missing or truncated"));
+        return std::unexpected(loaded.error());
     }
-
     return MapHelper::decodeBlock(raw);
 }
 
@@ -167,7 +185,7 @@ std::expected<LandTile, Error> MapReader::readLandTile(TileCoord tile) const
         return std::unexpected(block.error());
     }
 
-    return block->at(((tile.y % landBlockDimension) * MapHelper::blockLocalWidth) + (tile.x % landBlockDimension));
+    return block->at(detail::tileIndexInBlock(tile));
 }
 
 std::expected<void, Error> MapReader::readLandBlocks(BlockRegion region, const LandBlockRead & callback) const
@@ -218,12 +236,11 @@ std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, cons
         for (std::uint32_t y = region.min.y; y < region.maxExclusive.y; ++y)
         {
             const BlockCoord coordinate{.x = x, .y = y};
-            const auto offset = MapHelper::blockOffset(coordinate, impl_->dimensions);
-            if (MapHelper::blockId(coordinate, impl_->dimensions) >= impl_->blocks ||
-                !MapHelper::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
+            if (auto loaded =
+                    readRawLandBlock(impl_->descriptor, impl_->blocks, coordinate, impl_->dimensions, impl_->path, raw);
+                !loaded)
             {
-                return std::unexpected(
-                    MapHelper::makeError(ErrorCode::truncatedInput, impl_->path, offset, "land block is missing or truncated"));
+                return std::unexpected(loaded.error());
             }
             auto result = callback(coordinate, raw);
             if (!result)
@@ -247,38 +264,24 @@ std::expected<void, Error> MapReader::readLandTiles(TileRegion region, const Lan
         return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->path, 0, "read callback is empty"));
     }
 
-    const std::uint32_t firstBlockX = region.min.x / landBlockDimension;
-    const std::uint32_t firstBlockY = region.min.y / landBlockDimension;
-    const std::uint32_t lastBlockX =
-        (region.maxExclusive.x / landBlockDimension) + (region.maxExclusive.x % landBlockDimension == 0 ? 0U : 1U);
-    const std::uint32_t lastBlockY =
-        (region.maxExclusive.y / landBlockDimension) + (region.maxExclusive.y % landBlockDimension == 0 ? 0U : 1U);
+    const auto blocks = detail::blockRegionForTiles(region);
 
-    for (std::uint32_t blockX = firstBlockX; blockX < lastBlockX; ++blockX)
+    for (std::uint32_t blockX = blocks.min.x; blockX < blocks.maxExclusive.x; ++blockX)
     {
-        for (std::uint32_t blockY = firstBlockY; blockY < lastBlockY; ++blockY)
+        for (std::uint32_t blockY = blocks.min.y; blockY < blocks.maxExclusive.y; ++blockY)
         {
             auto block = readLandBlock({.x = blockX, .y = blockY});
             if (!block)
             {
                 return std::unexpected(block.error());
             }
-            const auto minX = std::max(region.min.x, blockX * landBlockDimension);
-            const auto minY = std::max(region.min.y, blockY * landBlockDimension);
-            const auto maxX = std::min(region.maxExclusive.x, (blockX * landBlockDimension) + MapHelper::blockLocalWidth);
-            const auto maxY = std::min(region.maxExclusive.y, (blockY * landBlockDimension) + MapHelper::blockLocalWidth);
-            for (std::uint32_t x = minX; x < maxX; ++x)
+            auto visited = detail::visitTilesInBlock(region,
+                                                     BlockCoord{.x = blockX, .y = blockY},
+                                                     [&callback, &block](TileCoord tile, std::size_t index)
+                                                     { return callback(tile, block->at(index)); });
+            if (!visited)
             {
-                for (std::uint32_t y = minY; y < maxY; ++y)
-                {
-                    auto const result =
-                        callback(TileCoord{.x = x, .y = y},
-                                 block->at(((y % landBlockDimension) * MapHelper::blockLocalWidth) + (x % landBlockDimension)));
-                    if (!result)
-                    {
-                        return result;
-                    }
-                }
+                return visited;
             }
         }
     }
