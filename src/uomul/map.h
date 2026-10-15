@@ -7,7 +7,6 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
-#include <span>
 #include <string>
 
 namespace uomul

@@ -1,6 +1,5 @@
-#include "map_helper.hpp"
+#include "map_helper.h"
 #include "uomul/map.h"
-
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -34,6 +33,27 @@ std::expected<void, Error> ensureEditorActive(bool committed, int descriptor, bo
         return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, output, 0, "editor is no longer active"));
     }
     return {};
+}
+
+template <typename Region, typename Callback>
+std::expected<void, Error> validateEditRequest(bool committed,
+                                               int descriptor,
+                                               bool failed,
+                                               const std::filesystem::path & output,
+                                               const std::filesystem::path & source,
+                                               Region region,
+                                               const Callback & callback,
+                                               Dimensions dimensions)
+{
+    if (auto active = ensureEditorActive(committed, descriptor, failed, output); !active)
+    {
+        return active;
+    }
+    if (!callback)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, source, 0, "edit callback is empty"));
+    }
+    return MapHelper::validateRegion(region, dimensions, source);
 }
 
 std::expected<LandBlock, Error>
@@ -145,46 +165,34 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
     {
         return std::unexpected(temporaryDescriptor.error());
     }
-    impl->descriptor = *temporaryDescriptor;
-
-    const int sourceDescriptor = ::open(sourceMap.c_str(), O_RDONLY | O_CLOEXEC);
-    if (sourceDescriptor < 0)
+    detail::TemporaryPath stagingCleanup(impl->staging);
+    detail::ScopedDescriptor stagedDescriptor(*temporaryDescriptor);
+    const detail::ScopedDescriptor sourceDescriptor(::open(sourceMap.c_str(), O_RDONLY | O_CLOEXEC));
+    if (sourceDescriptor.get() < 0)
     {
-        const auto error = MapHelper::makeError(ErrorCode::io, sourceMap, 0, std::strerror(errno));
-        static_cast<void>(::close(impl->descriptor));
-        static_cast<void>(::unlink(impl->staging.c_str()));
-        return std::unexpected(error);
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, sourceMap, 0, std::strerror(errno)));
     }
     std::array<std::byte, bufferSize> buffer{};
     std::uint64_t offset = 0;
     const auto totalBytes = source->completeBlocks() * MapHelper::landBlockByteSize;
     struct stat sourceStatus{};
-    if (::fstat(sourceDescriptor, &sourceStatus) != 0 || !S_ISREG(sourceStatus.st_mode))
+    if (::fstat(sourceDescriptor.get(), &sourceStatus) != 0 || !S_ISREG(sourceStatus.st_mode))
     {
-        const auto error = MapHelper::makeError(ErrorCode::io, sourceMap, 0, "map input must be a regular file");
-        static_cast<void>(::close(sourceDescriptor));
-        static_cast<void>(::close(impl->descriptor));
-        impl->descriptor = -1;
-        static_cast<void>(::unlink(impl->staging.c_str()));
-        return std::unexpected(error);
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, sourceMap, 0, "map input must be a regular file"));
     }
     while (offset < totalBytes)
     {
         const auto amount = static_cast<std::size_t>(std::min<std::uint64_t>(buffer.size(), totalBytes - offset));
-        if (!MapHelper::readExact(sourceDescriptor, buffer.data(), amount, offset) ||
-            !MapHelper::writeExact(impl->descriptor, buffer.data(), amount, offset))
+        if (!MapHelper::readExact(sourceDescriptor.get(), buffer.data(), amount, offset) ||
+            !MapHelper::writeExact(stagedDescriptor.get(), buffer.data(), amount, offset))
         {
-            const auto error = MapHelper::makeError(ErrorCode::io, impl->staging, offset, "failed to stage source map");
-            static_cast<void>(::close(sourceDescriptor));
-            static_cast<void>(::close(impl->descriptor));
-            impl->descriptor = -1;
-            static_cast<void>(::unlink(impl->staging.c_str()));
-            return std::unexpected(error);
+            return std::unexpected(MapHelper::makeError(ErrorCode::io, impl->staging, offset, "failed to stage source map"));
         }
         offset += amount;
     }
 
-    static_cast<void>(::close(sourceDescriptor));
+    impl->descriptor = stagedDescriptor.release();
+    stagingCleanup.release();
     return MapEditor(std::move(impl));
 }
 
@@ -342,12 +350,6 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
     return rollbackSucceeded;
 }
 
-void discardEditJournal(int journal, const std::filesystem::path & journalPath)
-{
-    static_cast<void>(::close(journal));
-    static_cast<void>(::unlink(journalPath.c_str()));
-}
-
 std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
                                               const std::filesystem::path & staging,
                                               const std::filesystem::path & output,
@@ -362,19 +364,18 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
     {
         return std::unexpected(journalDescriptor.error());
     }
-    const int journal = *journalDescriptor;
-    auto entryCount = writeEditJournal(stagedDescriptor, staging, journal, journalPath, dimensions, region, callback);
+    const detail::TemporaryPath journalCleanup(journalPath);
+    const detail::ScopedDescriptor journal(*journalDescriptor);
+    auto entryCount = writeEditJournal(stagedDescriptor, staging, journal.get(), journalPath, dimensions, region, callback);
     if (!entryCount)
     {
-        discardEditJournal(journal, journalPath);
         return std::unexpected(entryCount.error());
     }
 
     std::uint64_t attempted = 0;
-    if (!replayEditJournal(stagedDescriptor, journal, *entryCount, attempted))
+    if (!replayEditJournal(stagedDescriptor, journal.get(), *entryCount, attempted))
     {
-        const bool rollbackSucceeded = rollbackEditJournal(stagedDescriptor, journal, attempted);
-        discardEditJournal(journal, journalPath);
+        const bool rollbackSucceeded = rollbackEditJournal(stagedDescriptor, journal.get(), attempted);
         if (!rollbackSucceeded)
         {
             failed = true;
@@ -386,7 +387,6 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
                                                                       : "edit failed and rollback was incomplete"));
     }
 
-    discardEditJournal(journal, journalPath);
     return {};
 }
 
@@ -394,15 +394,15 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
 
 std::expected<void, Error> MapEditor::editLandBlocks(BlockRegion region, const LandBlockEdit & callback)
 {
-    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
-    {
-        return active;
-    }
-    if (!callback)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->source, 0, "edit callback is empty"));
-    }
-    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->source); !valid)
+    if (auto valid = validateEditRequest(impl_->committed,
+                                         impl_->descriptor,
+                                         impl_->failed,
+                                         impl_->output,
+                                         impl_->source,
+                                         region,
+                                         callback,
+                                         impl_->dimensions);
+        !valid)
     {
         return valid;
     }
@@ -413,21 +413,25 @@ std::expected<void, Error> MapEditor::editLandBlocks(BlockRegion region, const L
 
 std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const LandTileEdit & callback)
 {
-    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
-    {
-        return active;
-    }
-    if (!callback)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->source, 0, "edit callback is empty"));
-    }
-    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->source); !valid)
+    if (auto valid = validateEditRequest(impl_->committed,
+                                         impl_->descriptor,
+                                         impl_->failed,
+                                         impl_->output,
+                                         impl_->source,
+                                         region,
+                                         callback,
+                                         impl_->dimensions);
+        !valid)
     {
         return valid;
     }
 
     const auto blocks = detail::blockRegionForTiles(region);
-    return editLandBlocks(
+    return applyJournaledEdit(
+        impl_->descriptor,
+        impl_->staging,
+        impl_->output,
+        impl_->dimensions,
         blocks,
         [&region, &callback](BlockCoord coordinate, const LandBlock & current) -> std::expected<LandBlock, Error>
         {
@@ -450,7 +454,8 @@ std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const Lan
                 return std::unexpected(visited.error());
             }
             return changed;
-        });
+        },
+        impl_->failed);
 }
 
 std::expected<void, Error> MapEditor::fill(TileRegion region, LandTile value)

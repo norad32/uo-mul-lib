@@ -101,6 +101,28 @@ TEST_CASE("generate_Should_WriteEmptyDiff_If_MapsAreIdentical")
     REQUIRE(readBytes(applied) == readBytes(base));
 }
 
+TEST_CASE("generate_Should_ReplaceExistingDiffPair_If_OverwriteIsEnabled")
+{
+    const TestDirectory directory;
+    const auto base = directory.path() / "base.mul";
+    const auto target = directory.path() / "target.mul";
+    const auto editedTarget = directory.path() / "edited-target.mul";
+    const auto diffDirectory = directory.path() / "diff";
+    std::filesystem::create_directories(diffDirectory);
+    writeFixture(base);
+    writeFixture(target);
+    auto editor = uomul::MapEditor::create(target, editedTarget, dimensions);
+    REQUIRE(editor);
+    REQUIRE(editor->writeLandTile({.x = 9, .y = 9}, {.id = changedTileId, .z = changedTileElevation}));
+    REQUIRE(editor->commit());
+
+    REQUIRE(uomul::MapDiff::generate(base, editedTarget, diffDirectory, 0, dimensions));
+    REQUIRE(std::filesystem::file_size(diffDirectory / "mapdif0.mul") == mapBlockByteCount);
+    REQUIRE(uomul::MapDiff::generate(base, base, diffDirectory, 0, dimensions, true));
+    REQUIRE(std::filesystem::file_size(diffDirectory / "mapdif0.mul") == 0);
+    REQUIRE(std::filesystem::file_size(diffDirectory / "mapdifl0.mul") == 0);
+}
+
 TEST_CASE("generate_Should_PreserveColumnMajorBlockIDs_If_FacetIsRectangular")
 {
     const TestDirectory directory;

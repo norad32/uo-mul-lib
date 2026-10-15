@@ -1,6 +1,5 @@
-#include "map_helper.hpp"
+#include "map_helper.h"
 #include "uomul/map.h"
-
 #include <atomic>
 #include <cerrno>
 #include <cstddef>
@@ -25,6 +24,22 @@ namespace
 {
 
 constexpr int maximumAttempts = 16;
+
+template <typename Region>
+std::expected<void, Error> validateRegionBounds(Region region,
+                                                Dimensions dimensions,
+                                                std::uint32_t unit,
+                                                const std::filesystem::path & path,
+                                                const char * message)
+{
+    if (region.min.x > region.maxExclusive.x || region.min.y > region.maxExclusive.y ||
+        region.maxExclusive.x > dimensions.widthTiles / unit || region.maxExclusive.y > dimensions.heightTiles / unit)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::invalidCoordinate, path, 0, message));
+    }
+    return {};
+}
+
 std::atomic<std::uint64_t> temporarySequence{0};
 
 template <typename Byte, typename Transfer>
@@ -51,6 +66,68 @@ bool transferExact(int descriptor, Byte * bytes, std::size_t size, std::uint64_t
 }
 
 } // namespace
+
+ScopedDescriptor::ScopedDescriptor(int descriptor) noexcept : descriptor_(descriptor)
+{
+}
+
+ScopedDescriptor::ScopedDescriptor(ScopedDescriptor && other) noexcept : descriptor_(other.release())
+{
+}
+
+ScopedDescriptor & ScopedDescriptor::operator=(ScopedDescriptor && other) noexcept
+{
+    if (this != &other)
+    {
+        static_cast<void>(close());
+        descriptor_ = other.release();
+    }
+    return *this;
+}
+
+ScopedDescriptor::~ScopedDescriptor()
+{
+    static_cast<void>(close());
+}
+
+int ScopedDescriptor::get() const noexcept
+{
+    return descriptor_;
+}
+
+int ScopedDescriptor::release() noexcept
+{
+    const int descriptor = descriptor_;
+    descriptor_ = -1;
+    return descriptor;
+}
+
+int ScopedDescriptor::close() noexcept
+{
+    if (descriptor_ < 0)
+    {
+        return 0;
+    }
+    const int descriptor = release();
+    return ::close(descriptor);
+}
+
+TemporaryPath::TemporaryPath(std::filesystem::path path) : path_(std::move(path))
+{
+}
+
+TemporaryPath::~TemporaryPath()
+{
+    if (active_ && !path_.empty())
+    {
+        static_cast<void>(::unlink(path_.c_str()));
+    }
+}
+
+void TemporaryPath::release() noexcept
+{
+    active_ = false;
+}
 
 Error MapHelper::makeError(ErrorCode code, const std::filesystem::path & path, std::uint64_t offset, std::string message)
 {
@@ -215,28 +292,14 @@ MapHelper::publishFile(const std::filesystem::path & temporary, const std::files
 std::expected<void, Error>
 MapHelper::validateRegion(BlockRegion region, Dimensions dimensions, const std::filesystem::path & path)
 {
-    if (region.min.x > region.maxExclusive.x || region.min.y > region.maxExclusive.y ||
-        region.maxExclusive.x > dimensions.widthTiles / landBlockDimension ||
-        region.maxExclusive.y > dimensions.heightTiles / landBlockDimension)
-    {
-        return std::unexpected(
-            makeError(ErrorCode::invalidCoordinate, path, 0, "block region is invalid or exceeds map dimensions"));
-    }
-
-    return {};
+    return validateRegionBounds(
+        region, dimensions, landBlockDimension, path, "block region is invalid or exceeds map dimensions");
 }
 
 std::expected<void, Error>
 MapHelper::validateRegion(TileRegion region, Dimensions dimensions, const std::filesystem::path & path)
 {
-    if (region.min.x > region.maxExclusive.x || region.min.y > region.maxExclusive.y ||
-        region.maxExclusive.x > dimensions.widthTiles || region.maxExclusive.y > dimensions.heightTiles)
-    {
-        return std::unexpected(
-            makeError(ErrorCode::invalidCoordinate, path, 0, "tile region is invalid or exceeds map dimensions"));
-    }
-
-    return {};
+    return validateRegionBounds(region, dimensions, 1, path, "tile region is invalid or exceeds map dimensions");
 }
 
 std::expected<void, Error> MapHelper::checkOutputPath(const std::filesystem::path & path, bool overwrite)

@@ -1,6 +1,5 @@
-#include "map_helper.hpp"
+#include "map_helper.h"
 #include "uomul/map.h"
-
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -149,6 +148,31 @@ void removeDiffTemporaries(DiffTemporaryFiles & files)
     }
 }
 
+class DiffTemporaryCleanup
+{
+public:
+    explicit DiffTemporaryCleanup(DiffTemporaryFiles & files) : files_(files) {}
+
+    DiffTemporaryCleanup(const DiffTemporaryCleanup &) = delete;
+    DiffTemporaryCleanup & operator=(const DiffTemporaryCleanup &) = delete;
+    DiffTemporaryCleanup(DiffTemporaryCleanup &&) = delete;
+    DiffTemporaryCleanup & operator=(DiffTemporaryCleanup &&) = delete;
+
+    ~DiffTemporaryCleanup()
+    {
+        if (active_)
+        {
+            removeDiffTemporaries(files_);
+        }
+    }
+
+    void release() noexcept { active_ = false; }
+
+private:
+    DiffTemporaryFiles & files_;
+    bool active_ = true;
+};
+
 std::expected<DiffTemporaryFiles, Error>
 prepareDiffTemporaries(const std::filesystem::path & directory, std::uint32_t mapIndex, bool overwrite)
 {
@@ -240,13 +264,11 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
                                                      Dimensions dimensions,
                                                      DiffTemporaryFiles & files)
 {
+    DiffTemporaryCleanup cleanup(files);
     std::ofstream data(files.data, std::ios::binary | std::ios::trunc);
     std::ofstream index(files.index, std::ios::binary | std::ios::trunc);
     if (!data || !index)
     {
-        data.close();
-        index.close();
-        removeDiffTemporaries(files);
         return std::unexpected(
             MapHelper::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not create diff files"));
     }
@@ -255,23 +277,13 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
     auto target = MapReader::open(targetMap, dimensions);
     if (!source || !target)
     {
-        data.close();
-        index.close();
-        removeDiffTemporaries(files);
         return std::unexpected(!source ? source.error() : target.error());
     }
 
     struct stat targetStatus{};
-    const int targetDescriptor = ::open(targetMap.c_str(), O_RDONLY | O_CLOEXEC);
-    if (targetDescriptor < 0 || ::fstat(targetDescriptor, &targetStatus) != 0 || !S_ISREG(targetStatus.st_mode))
+    const detail::ScopedDescriptor targetDescriptor(::open(targetMap.c_str(), O_RDONLY | O_CLOEXEC));
+    if (targetDescriptor.get() < 0 || ::fstat(targetDescriptor.get(), &targetStatus) != 0 || !S_ISREG(targetStatus.st_mode))
     {
-        if (targetDescriptor >= 0)
-        {
-            static_cast<void>(::close(targetDescriptor));
-        }
-        data.close();
-        index.close();
-        removeDiffTemporaries(files);
         return std::unexpected(MapHelper::makeError(ErrorCode::io, targetMap, 0, std::strerror(errno)));
     }
 
@@ -281,7 +293,7 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
         .dataTemporary = files.data,
         .indexTemporary = files.index,
         .dimensions = dimensions,
-        .targetDescriptor = targetDescriptor,
+        .targetDescriptor = targetDescriptor.get(),
         .data = &data,
         .index = &index,
         .report = &report,
@@ -293,23 +305,20 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
     auto compared = source->readRawLandBlocks(fullRegion,
                                               [&state](BlockCoord coordinate, const LandBlockBytes & sourceRaw)
                                               { return appendChangedDiffBlock(state, coordinate, sourceRaw); });
-    static_cast<void>(::close(targetDescriptor));
-    data.close();
-    index.close();
-    closeDiffDescriptors(files);
     if (!compared)
     {
-        removeDiffTemporaries(files);
         return std::unexpected(compared.error());
     }
+
+    data.close();
+    index.close();
     if (!data || !index)
     {
-        const auto error =
-            MapHelper::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not write diff files");
-        removeDiffTemporaries(files);
-        return std::unexpected(error);
+        return std::unexpected(
+            MapHelper::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not write diff files"));
     }
-
+    closeDiffDescriptors(files);
+    cleanup.release();
     return report;
 }
 
@@ -365,6 +374,32 @@ void removeDiffBackups(const DiffBackups & backups)
     }
 }
 
+class DiffBackupCleanup
+{
+public:
+    DiffBackupCleanup(const DiffBackups & backups, const DiffOutputPaths & outputs) : backups_(backups), outputs_(outputs) {}
+
+    DiffBackupCleanup(const DiffBackupCleanup &) = delete;
+    DiffBackupCleanup & operator=(const DiffBackupCleanup &) = delete;
+    DiffBackupCleanup(DiffBackupCleanup &&) = delete;
+    DiffBackupCleanup & operator=(DiffBackupCleanup &&) = delete;
+
+    ~DiffBackupCleanup()
+    {
+        if (active_)
+        {
+            restoreDiffBackups(backups_, outputs_);
+        }
+    }
+
+    void release() noexcept { active_ = false; }
+
+private:
+    const DiffBackups & backups_;
+    const DiffOutputPaths & outputs_;
+    bool active_ = true;
+};
+
 std::expected<void, Error> installDiffPair(const DiffOutputPaths & outputs, const DiffTemporaryFiles & files)
 {
     if (::link(files.data.c_str(), outputs.data.c_str()) != 0)
@@ -402,13 +437,14 @@ publishDiffWithOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles & f
     {
         return std::unexpected(backups.error());
     }
+    DiffBackupCleanup rollback(*backups, outputs);
     auto installed = installDiffPair(outputs, files);
     if (!installed)
     {
-        restoreDiffBackups(*backups, outputs);
         removeDiffTemporaries(files);
         return std::unexpected(installed.error());
     }
+    rollback.release();
     removeDiffBackups(*backups);
     return report;
 }

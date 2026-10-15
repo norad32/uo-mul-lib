@@ -1,7 +1,6 @@
 #pragma once
 
 #include "uomul/map.h"
-
 #include <algorithm>
 #include <array>
 #include <expected>
@@ -9,10 +8,44 @@
 #include <limits>
 #include <string>
 #include <type_traits>
-#include <utility>
 
 namespace uomul::detail
 {
+
+class ScopedDescriptor
+{
+public:
+    explicit ScopedDescriptor(int descriptor = -1) noexcept;
+    ScopedDescriptor(const ScopedDescriptor &) = delete;
+    ScopedDescriptor & operator=(const ScopedDescriptor &) = delete;
+    ScopedDescriptor(ScopedDescriptor && other) noexcept;
+    ScopedDescriptor & operator=(ScopedDescriptor && other) noexcept;
+    ~ScopedDescriptor();
+
+    [[nodiscard]] int get() const noexcept;
+    [[nodiscard]] int release() noexcept;
+    int close() noexcept;
+
+private:
+    int descriptor_;
+};
+
+class TemporaryPath
+{
+public:
+    explicit TemporaryPath(std::filesystem::path path);
+    TemporaryPath(const TemporaryPath &) = delete;
+    TemporaryPath & operator=(const TemporaryPath &) = delete;
+    TemporaryPath(TemporaryPath &&) = delete;
+    TemporaryPath & operator=(TemporaryPath &&) = delete;
+    ~TemporaryPath();
+
+    void release() noexcept;
+
+private:
+    std::filesystem::path path_;
+    bool active_ = true;
+};
 
 [[nodiscard]] constexpr BlockRegion blockRegionForTiles(TileRegion region)
 {

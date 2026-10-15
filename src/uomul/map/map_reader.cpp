@@ -1,6 +1,5 @@
-#include "map_helper.hpp"
+#include "map_helper.h"
 #include "uomul/map.h"
-
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -39,6 +38,38 @@ std::expected<void, Error> readRawLandBlock(int descriptor,
     return {};
 }
 
+template <typename Region, typename Callback>
+std::expected<void, Error>
+validateReadRequest(Region region, const Callback & callback, Dimensions dimensions, const std::filesystem::path & path)
+{
+    if (auto valid = MapHelper::validateRegion(region, dimensions, path); !valid)
+    {
+        return valid;
+    }
+    if (!callback)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, "read callback is empty"));
+    }
+    return {};
+}
+
+template <typename Visitor>
+std::expected<void, Error> visitBlocks(BlockRegion region, Visitor visitor)
+{
+    for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; ++x)
+    {
+        for (std::uint32_t y = region.min.y; y < region.maxExclusive.y; ++y)
+        {
+            auto result = visitor(BlockCoord{.x = x, .y = y});
+            if (!result)
+            {
+                return result;
+            }
+        }
+    }
+    return {};
+}
+
 } // namespace
 
 struct MapReader::Impl
@@ -73,24 +104,20 @@ std::expected<MapReader, Error> MapReader::open(const std::filesystem::path & pa
         return std::unexpected(count.error());
     }
 
-    const int descriptor = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
-    if (descriptor < 0)
+    detail::ScopedDescriptor descriptor(::open(path.c_str(), O_RDONLY | O_CLOEXEC));
+    if (descriptor.get() < 0)
     {
         return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
     }
 
     struct stat fileStatus{};
-    if (::fstat(descriptor, &fileStatus) != 0)
+    if (::fstat(descriptor.get(), &fileStatus) != 0)
     {
-        const auto error = MapHelper::makeError(ErrorCode::io, path, 0, std::strerror(errno));
-        static_cast<void>(::close(descriptor));
-        return std::unexpected(error);
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
     }
     if (fileStatus.st_size < 0)
     {
-        const auto error = MapHelper::makeError(ErrorCode::io, path, 0, "could not determine map size");
-        static_cast<void>(::close(descriptor));
-        return std::unexpected(error);
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, "could not determine map size"));
     }
 
     const auto fileSize = static_cast<std::uint64_t>(fileStatus.st_size);
@@ -98,39 +125,31 @@ std::expected<MapReader, Error> MapReader::open(const std::filesystem::path & pa
     const auto completeBlockCount = fileSize / MapHelper::landBlockByteSize;
     if (fileSize % MapHelper::landBlockByteSize != 0 && (fileSize > expectedSize || !options.recoverTruncatedMap))
     {
-        const auto error =
-            MapHelper::makeError(ErrorCode::truncatedInput, path, fileSize, "map has trailing bytes beyond complete blocks");
-        static_cast<void>(::close(descriptor));
-        return std::unexpected(error);
+        return std::unexpected(
+            MapHelper::makeError(ErrorCode::truncatedInput, path, fileSize, "map has trailing bytes beyond complete blocks"));
     }
 
     if (!options.recoverTruncatedMap && fileSize != expectedSize)
     {
-        const auto error = MapHelper::makeError(
-            ErrorCode::truncatedInput, path, fileSize, "map size does not match dimensions and complete blocks");
-        static_cast<void>(::close(descriptor));
-        return std::unexpected(error);
+        return std::unexpected(MapHelper::makeError(
+            ErrorCode::truncatedInput, path, fileSize, "map size does not match dimensions and complete blocks"));
     }
 
     if (fileSize > expectedSize)
     {
-        const auto error = MapHelper::makeError(
-            ErrorCode::truncatedInput, path, expectedSize, "map contains more blocks than specified dimensions");
-        static_cast<void>(::close(descriptor));
-        return std::unexpected(error);
+        return std::unexpected(MapHelper::makeError(
+            ErrorCode::truncatedInput, path, expectedSize, "map contains more blocks than specified dimensions"));
     }
 
     if (!S_ISREG(fileStatus.st_mode))
     {
-        const auto error = MapHelper::makeError(ErrorCode::io, path, 0, "map input must be a regular file");
-        static_cast<void>(::close(descriptor));
-        return std::unexpected(error);
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, "map input must be a regular file"));
     }
 
     auto impl = std::make_unique<Impl>();
     impl->path = path;
     impl->dimensions = dimensions;
-    impl->descriptor = descriptor;
+    impl->descriptor = descriptor.release();
     impl->blocks = std::min(*count, completeBlockCount);
     impl->missingBlocks = *count - impl->blocks;
     impl->ignoredBytes = fileSize % MapHelper::landBlockByteSize;
@@ -190,78 +209,49 @@ std::expected<LandTile, Error> MapReader::readLandTile(TileCoord tile) const
 
 std::expected<void, Error> MapReader::readLandBlocks(BlockRegion region, const LandBlockRead & callback) const
 {
-    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->path); !valid)
+    if (auto valid = validateReadRequest(region, callback, impl_->dimensions, impl_->path); !valid)
     {
         return valid;
     }
-    if (!callback)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->path, 0, "read callback is empty"));
-    }
 
-    for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; ++x)
-    {
-        for (std::uint32_t y = region.min.y; y < region.maxExclusive.y; ++y)
-        {
-            auto block = readLandBlock({.x = x, .y = y});
-            if (!block)
-            {
-                return std::unexpected(block.error());
-            }
-            auto result = callback(BlockCoord{.x = x, .y = y}, *block);
-            if (!result)
-            {
-                return result;
-            }
-        }
-    }
-
-    return {};
+    return visitBlocks(region,
+                       [this, &callback](BlockCoord coordinate) -> std::expected<void, Error>
+                       {
+                           auto block = readLandBlock(coordinate);
+                           if (!block)
+                           {
+                               return std::unexpected(block.error());
+                           }
+                           return callback(coordinate, *block);
+                       });
 }
 
 std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, const LandBlockBytesRead & callback) const
 {
-    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->path); !valid)
+    if (auto valid = validateReadRequest(region, callback, impl_->dimensions, impl_->path); !valid)
     {
         return valid;
     }
 
     LandBlockBytes raw{};
-    if (!callback)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->path, 0, "read callback is empty"));
-    }
-    for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; ++x)
-    {
-        for (std::uint32_t y = region.min.y; y < region.maxExclusive.y; ++y)
-        {
-            const BlockCoord coordinate{.x = x, .y = y};
-            if (auto loaded =
-                    readRawLandBlock(impl_->descriptor, impl_->blocks, coordinate, impl_->dimensions, impl_->path, raw);
-                !loaded)
-            {
-                return std::unexpected(loaded.error());
-            }
-            auto result = callback(coordinate, raw);
-            if (!result)
-            {
-                return result;
-            }
-        }
-    }
-
-    return {};
+    return visitBlocks(region,
+                       [this, &callback, &raw](BlockCoord coordinate) -> std::expected<void, Error>
+                       {
+                           if (auto loaded = readRawLandBlock(
+                                   impl_->descriptor, impl_->blocks, coordinate, impl_->dimensions, impl_->path, raw);
+                               !loaded)
+                           {
+                               return std::unexpected(loaded.error());
+                           }
+                           return callback(coordinate, raw);
+                       });
 }
 
 std::expected<void, Error> MapReader::readLandTiles(TileRegion region, const LandTileRead & callback) const
 {
-    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->path); !valid)
+    if (auto valid = validateReadRequest(region, callback, impl_->dimensions, impl_->path); !valid)
     {
         return valid;
-    }
-    if (!callback)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->path, 0, "read callback is empty"));
     }
 
     const auto blocks = detail::blockRegionForTiles(region);
