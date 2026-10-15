@@ -296,8 +296,8 @@ editTileRegion(const MapCommandOptions & options, uomul::Dimensions dimensionsVa
             error << region.error() << '\n';
             return 2;
         }
-        result =
-            editor.fill(*region, {.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
+        result = editor.fillTiles(*region,
+                                  {.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
     }
     else if (options.replaceIdsSelected || options.replaceZSelected)
     {
@@ -309,12 +309,13 @@ editTileRegion(const MapCommandOptions & options, uomul::Dimensions dimensionsVa
         }
         if (options.replaceIdsSelected)
         {
-            result = editor.replaceIds(
+            result = editor.replaceTileIds(
                 *region, static_cast<std::uint16_t>(options.fromId), static_cast<std::uint16_t>(options.toId));
         }
         else
         {
-            result = editor.replaceZ(*region, static_cast<std::int8_t>(options.fromZ), static_cast<std::int8_t>(options.toZ));
+            result =
+                editor.replaceTilesZ(*region, static_cast<std::int8_t>(options.fromZ), static_cast<std::int8_t>(options.toZ));
         }
     }
     else if (options.useBlock)

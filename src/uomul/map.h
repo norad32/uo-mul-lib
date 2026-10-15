@@ -175,6 +175,10 @@ public:
      */
     [[nodiscard]] std::expected<void, Error> readLandTiles(TileRegion region, const LandTileRead & callback) const;
 
+    [[nodiscard]] std::expected<MapStats, Error> stats();
+    [[nodiscard]] std::expected<MapStats, Error> tileStats(TileRegion region);
+    [[nodiscard]] std::expected<MapStats, Error> blockStats(TileRegion region);
+
 private:
     struct Impl;
     explicit MapReader(std::unique_ptr<Impl> impl);
@@ -236,13 +240,19 @@ public:
      */
     [[nodiscard]] std::expected<void, Error> editLandTiles(TileRegion region, const LandTileEdit & callback);
 
+    [[nodiscard]] std::expected<void, Error> fill(LandTile value);
+
     /** @brief Fills a half-open tile region with one value.
      *  @param region Global tile coordinates from min inclusive to maxExclusive exclusive.
      *  @param value Tile value to write.
      *  @retval value Success when the fill is staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> fill(TileRegion region, LandTile value);
+    [[nodiscard]] std::expected<void, Error> fillTiles(TileRegion region, LandTile value);
+
+    [[nodiscard]] std::expected<void, Error> fillBlocks(BlockRegion region, LandTile value);
+
+    [[nodiscard]] std::expected<void, Error> replaceIds(TileRegion region, std::uint16_t from, std::uint16_t to);
 
     /** @brief Replaces land IDs in a half-open tile region.
      *  @param region Global tile coordinates from min inclusive to maxExclusive exclusive.
@@ -251,7 +261,11 @@ public:
      *  @retval value Success when replacements are staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> replaceIds(TileRegion region, std::uint16_t from, std::uint16_t to);
+    [[nodiscard]] std::expected<void, Error> replaceTileIds(TileRegion region, std::uint16_t from, std::uint16_t to);
+
+    [[nodiscard]] std::expected<void, Error> replaceBlockIds(BlockRegion region, std::uint16_t from, std::uint16_t to);
+
+    [[nodiscard]] std::expected<void, Error> replaceZ(TileRegion region, std::int8_t from, std::int8_t to);
 
     /** @brief Replaces elevations in a half-open tile region.
      *  @param region Global tile coordinates from min inclusive to maxExclusive exclusive.
@@ -260,7 +274,9 @@ public:
      *  @retval value Success when replacements are staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> replaceZ(TileRegion region, std::int8_t from, std::int8_t to);
+    [[nodiscard]] std::expected<void, Error> replaceTileZ(TileRegion region, std::int8_t from, std::int8_t to);
+
+    [[nodiscard]] std::expected<void, Error> replaceBlockZ(BlockRegion region, std::int8_t from, std::int8_t to);
 
     /** @brief Publishes staged changes to the output path.
      *  @retval value Output committed successfully.
@@ -296,6 +312,22 @@ public:
                                                                    std::uint32_t mapIndex,
                                                                    Dimensions dimensions,
                                                                    bool overwrite = false);
+
+    [[nodiscard]] static std::expected<DiffReport, Error> generateFromTileRegion(const std::filesystem::path & baseMap,
+                                                                                 const std::filesystem::path & targetMap,
+                                                                                 const std::filesystem::path & diffDirectory,
+                                                                                 std::uint32_t mapIndex,
+                                                                                 Dimensions dimensions,
+                                                                                 TileRegion region,
+                                                                                 bool overwrite = false);
+
+    [[nodiscard]] static std::expected<DiffReport, Error> generateFromBlockRegion(const std::filesystem::path & baseMap,
+                                                                                  const std::filesystem::path & targetMap,
+                                                                                  const std::filesystem::path & diffDirectory,
+                                                                                  std::uint32_t mapIndex,
+                                                                                  Dimensions dimensions,
+                                                                                  BlockRegion region,
+                                                                                  bool overwrite = false);
 
     /** @brief Applies a legacy map diff to a base map and publishes the result.
      *  @param baseMap Map to patch.

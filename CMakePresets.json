@@ -21,6 +21,7 @@
         "BUILD_TESTS": "ON",
         "BUILD_GUI": "ON",
         "ENABLE_CLANG_TIDY": "ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "1",
         "BUILD_GUI_RUNTIME": "OFF",
         "INSTALL_GUI": "ON"
       }

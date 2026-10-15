@@ -458,12 +458,12 @@ std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const Lan
         impl_->failed);
 }
 
-std::expected<void, Error> MapEditor::fill(TileRegion region, LandTile value)
+std::expected<void, Error> MapEditor::fillTiles(TileRegion region, LandTile value)
 {
     return editLandTiles(region, [value](TileCoord, const LandTile &) -> std::expected<LandTile, Error> { return value; });
 }
 
-std::expected<void, Error> MapEditor::replaceIds(TileRegion region, std::uint16_t from, std::uint16_t to)
+std::expected<void, Error> MapEditor::replaceTileIds(TileRegion region, std::uint16_t from, std::uint16_t to)
 {
     return editLandTiles(region,
                          [from, to](TileCoord, const LandTile & tile) -> std::expected<LandTile, Error>
@@ -477,7 +477,7 @@ std::expected<void, Error> MapEditor::replaceIds(TileRegion region, std::uint16_
                          });
 }
 
-std::expected<void, Error> MapEditor::replaceZ(TileRegion region, std::int8_t from, std::int8_t to)
+std::expected<void, Error> MapEditor::replaceTileZ(TileRegion region, std::int8_t from, std::int8_t to)
 {
     return editLandTiles(region,
                          [from, to](TileCoord, const LandTile & tile) -> std::expected<LandTile, Error>
