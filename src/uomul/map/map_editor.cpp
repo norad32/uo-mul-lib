@@ -13,6 +13,11 @@
 #include <memory>
 #include <span>
 #include <sys/stat.h>
+#include <sys/types.h>
+#ifdef __linux__
+#include <linux/fs.h>
+#include <sys/ioctl.h>
+#endif
 #include <system_error>
 #include <unistd.h>
 #include <utility>
@@ -27,6 +32,70 @@ namespace
 {
 
 constexpr std::size_t bufferSize = 1'048'576U;
+
+std::expected<void, Error> stageSourceMap(int sourceDescriptor,
+                                          int stagedDescriptor,
+                                          std::uint64_t totalBytes,
+                                          const std::filesystem::path & source,
+                                          const std::filesystem::path & staging)
+{
+    struct stat sourceStatus{};
+    if (::fstat(sourceDescriptor, &sourceStatus) != 0 || !S_ISREG(sourceStatus.st_mode))
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, source, 0, "map input must be a regular file"));
+    }
+#ifdef __linux__
+    if (::ioctl(stagedDescriptor, FICLONE, sourceDescriptor) == 0)
+    {
+        return {};
+    }
+    if (::ftruncate(stagedDescriptor, 0) != 0)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, staging, 0, "could not reset staging file"));
+    }
+    std::uint64_t copiedBytes = 0;
+    bool copyRangeSupported = true;
+    while (copiedBytes < totalBytes)
+    {
+        const auto amount = static_cast<std::size_t>(std::min<std::uint64_t>(bufferSize, totalBytes - copiedBytes));
+        auto inputOffset = static_cast<off_t>(copiedBytes);
+        auto outputOffset = static_cast<off_t>(copiedBytes);
+        const auto copied = ::copy_file_range(sourceDescriptor, &inputOffset, stagedDescriptor, &outputOffset, amount, 0);
+        if (copied < 0 && errno == EINTR)
+        {
+            continue;
+        }
+        if (copied <= 0)
+        {
+            copyRangeSupported = false;
+            break;
+        }
+        copiedBytes += static_cast<std::uint64_t>(copied);
+    }
+    if (copyRangeSupported)
+    {
+        return {};
+    }
+#endif
+    if (::ftruncate(stagedDescriptor, 0) != 0)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, staging, 0, "could not reset staging file"));
+    }
+
+    std::array<std::byte, bufferSize> buffer{};
+    std::uint64_t offset = 0;
+    while (offset < totalBytes)
+    {
+        const auto amount = static_cast<std::size_t>(std::min<std::uint64_t>(buffer.size(), totalBytes - offset));
+        if (!MapHelper::readExact(sourceDescriptor, buffer.data(), amount, offset) ||
+            !MapHelper::writeExact(stagedDescriptor, buffer.data(), amount, offset))
+        {
+            return std::unexpected(MapHelper::makeError(ErrorCode::io, staging, offset, "failed to stage source map"));
+        }
+        offset += amount;
+    }
+    return {};
+}
 
 std::expected<void, Error> ensureEditorActive(bool committed, int descriptor, bool failed, const std::filesystem::path & output)
 {
@@ -155,23 +224,11 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
     {
         return std::unexpected(MapHelper::makeError(ErrorCode::io, sourceMap, 0, std::strerror(errno)));
     }
-    std::array<std::byte, bufferSize> buffer{};
-    std::uint64_t offset = 0;
     const auto totalBytes = source->completeBlocks() * MapHelper::landBlockByteSize;
-    struct stat sourceStatus{};
-    if (::fstat(sourceDescriptor.get(), &sourceStatus) != 0 || !S_ISREG(sourceStatus.st_mode))
+    if (auto staged = stageSourceMap(sourceDescriptor.get(), stagedDescriptor.get(), totalBytes, sourceMap, impl->staging);
+        !staged)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, sourceMap, 0, "map input must be a regular file"));
-    }
-    while (offset < totalBytes)
-    {
-        const auto amount = static_cast<std::size_t>(std::min<std::uint64_t>(buffer.size(), totalBytes - offset));
-        if (!MapHelper::readExact(sourceDescriptor.get(), buffer.data(), amount, offset) ||
-            !MapHelper::writeExact(stagedDescriptor.get(), buffer.data(), amount, offset))
-        {
-            return std::unexpected(MapHelper::makeError(ErrorCode::io, impl->staging, offset, "failed to stage source map"));
-        }
-        offset += amount;
+        return std::unexpected(staged.error());
     }
 
     impl->descriptor = stagedDescriptor.release();
@@ -217,21 +274,23 @@ std::expected<void, Error> MapEditor::writeLandTile(TileCoord tile, LandTile dat
     }
 
     const BlockCoord coordinate{.x = tile.x / landBlockDimension, .y = tile.y / landBlockDimension};
-    LandBlockBytes raw{};
-    const auto offset = MapHelper::blockOffset(coordinate, impl_->dimensions);
-    if (!MapHelper::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
+    const auto tileOffset = MapHelper::blockOffset(coordinate, impl_->dimensions) + MapHelper::landHeaderByteSize +
+                            (detail::tileIndexInBlock(tile) * MapHelper::landTileByteSize);
+    const std::array<std::byte, MapHelper::landTileByteSize> raw{
+        static_cast<std::byte>(data.id & MapHelper::byteMask),
+        static_cast<std::byte>(data.id >> MapHelper::bitsPerByte),
+        static_cast<std::byte>(static_cast<std::uint8_t>(data.z)),
+    };
+    struct stat stagedStatus{};
+    if (::fstat(impl_->descriptor, &stagedStatus) != 0 || stagedStatus.st_size < 0 ||
+        static_cast<std::uint64_t>(stagedStatus.st_size) < tileOffset + raw.size())
     {
         return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, impl_->staging, offset, "could not read complete land block"));
+            MapHelper::makeError(ErrorCode::truncatedInput, impl_->staging, tileOffset, "could not read complete land block"));
     }
-    const auto tileOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) +
-                            (detail::tileIndexInBlock(tile) * static_cast<std::size_t>(MapHelper::landTileByteSize));
-    raw.at(tileOffset) = static_cast<std::byte>(data.id & MapHelper::byteMask);
-    raw.at(tileOffset + 1) = static_cast<std::byte>(data.id >> MapHelper::bitsPerByte);
-    raw.at(tileOffset + 2) = static_cast<std::byte>(static_cast<std::uint8_t>(data.z));
-    if (!MapHelper::writeExact(impl_->descriptor, raw.data(), raw.size(), offset))
+    if (!MapHelper::writeExact(impl_->descriptor, raw.data(), raw.size(), tileOffset))
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->staging, offset, "could not stage land tile"));
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->staging, tileOffset, "could not stage land tile"));
     }
     return {};
 }
@@ -332,7 +391,8 @@ bool transferJournalBlocks(int stagedDescriptor,
     while (attempted < entryCount)
     {
         const auto chunkStart = attempted;
-        const auto entryCountInChunk = static_cast<std::size_t>(std::min<std::uint64_t>(entriesPerRead, entryCount - chunkStart));
+        const auto entryCountInChunk =
+            static_cast<std::size_t>(std::min<std::uint64_t>(entriesPerRead, entryCount - chunkStart));
         const auto entriesBytes = entryCountInChunk * static_cast<std::size_t>(journalEntryBytes);
         if (!MapHelper::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
         {
@@ -344,7 +404,7 @@ bool transferJournalBlocks(int stagedDescriptor,
         {
             const auto firstEntryOffset = runStart * static_cast<std::size_t>(journalEntryBytes);
             const std::span<const std::byte, journalEntryBytes> firstEntry(entries.data() + firstEntryOffset,
-                                                                            journalEntryBytes);
+                                                                           journalEntryBytes);
             const auto blockOffset = journalOffset(firstEntry);
             std::size_t runEnd = runStart + 1;
             while (runEnd < entryCountInChunk)
@@ -400,7 +460,8 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
     while (attempted < entryCount)
     {
         const auto chunkStart = attempted;
-        const auto entryCountInChunk = static_cast<std::size_t>(std::min<std::uint64_t>(entriesPerRead, entryCount - chunkStart));
+        const auto entryCountInChunk =
+            static_cast<std::size_t>(std::min<std::uint64_t>(entriesPerRead, entryCount - chunkStart));
         const auto entriesBytes = entryCountInChunk * static_cast<std::size_t>(journalEntryBytes);
         if (!MapHelper::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
         {
@@ -414,7 +475,7 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
         {
             const auto firstEntryOffset = runStart * static_cast<std::size_t>(journalEntryBytes);
             const std::span<const std::byte, journalEntryBytes> firstEntry(entries.data() + firstEntryOffset,
-                                                                            journalEntryBytes);
+                                                                           journalEntryBytes);
             const auto blockOffset = journalOffset(firstEntry);
             std::size_t runEnd = runStart + 1;
             while (runEnd < entryCountInChunk)
