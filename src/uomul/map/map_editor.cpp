@@ -33,6 +33,68 @@ namespace
 
 constexpr std::size_t bufferSize = 1'048'576U;
 
+[[nodiscard]] BlockRegion wholeMapBlockRegion(Dimensions dimensions)
+{
+    return {
+        .min = {.x = 0, .y = 0},
+        .maxExclusive =
+            {
+                .x = dimensions.widthTiles / landBlockDimension,
+                .y = dimensions.heightTiles / landBlockDimension,
+            },
+    };
+}
+
+std::expected<void, Error>
+validateEditorPaths(const std::filesystem::path & source, const std::filesystem::path & output, bool overwrite)
+{
+    std::error_code pathError;
+    const auto sourceAbsolute = std::filesystem::absolute(source, pathError).lexically_normal();
+    if (pathError)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, source, 0, pathError.message()));
+    }
+    const auto outputAbsolute = std::filesystem::absolute(output, pathError).lexically_normal();
+    if (pathError)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, output, 0, pathError.message()));
+    }
+    if (sourceAbsolute == outputAbsolute)
+    {
+        return std::unexpected(
+            MapHelper::makeError(ErrorCode::io, output, 0, "in-place editing is not supported; choose a separate output path"));
+    }
+
+    pathError.clear();
+    const bool outputExists = std::filesystem::exists(output, pathError);
+    if (pathError)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, output, 0, pathError.message()));
+    }
+    if (outputExists && std::filesystem::equivalent(source, output, pathError))
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, output, 0, "output path resolves to the source map"));
+    }
+    if (pathError)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, output, 0, pathError.message()));
+    }
+    if (auto check = MapHelper::checkOutputPath(output, overwrite); !check)
+    {
+        return check;
+    }
+
+    const auto parent = output.parent_path();
+    std::error_code directoryError;
+    const bool parentExists = parent.empty() || std::filesystem::is_directory(parent, directoryError);
+    if (directoryError || !parentExists)
+    {
+        return std::unexpected(MapHelper::makeError(
+            ErrorCode::io, parent, 0, directoryError ? directoryError.message() : "output directory does not exist"));
+    }
+    return {};
+}
+
 std::expected<void, Error> stageSourceMap(int sourceDescriptor,
                                           int stagedDescriptor,
                                           std::uint64_t totalBytes,
@@ -146,7 +208,15 @@ MapEditor::MapEditor(std::unique_ptr<Impl> impl) : impl_(std::move(impl))
 }
 
 MapEditor::MapEditor(MapEditor &&) noexcept = default;
-MapEditor & MapEditor::operator=(MapEditor &&) noexcept = default;
+MapEditor & MapEditor::operator=(MapEditor && other) noexcept
+{
+    if (this != &other)
+    {
+        abort();
+        impl_ = std::move(other.impl_);
+    }
+    return *this;
+}
 MapEditor::~MapEditor()
 {
     abort();
@@ -163,48 +233,9 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
         return std::unexpected(source.error());
     }
 
-    std::error_code pathError;
-    const auto sourceAbsolute = std::filesystem::absolute(sourceMap, pathError).lexically_normal();
-    if (pathError)
+    if (auto validPaths = validateEditorPaths(sourceMap, outputMap, options.overwriteOutput); !validPaths)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, sourceMap, 0, pathError.message()));
-    }
-    const auto outputAbsolute = std::filesystem::absolute(outputMap, pathError).lexically_normal();
-    if (pathError)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, outputMap, 0, pathError.message()));
-    }
-    if (sourceAbsolute == outputAbsolute)
-    {
-        return std::unexpected(MapHelper::makeError(
-            ErrorCode::io, outputMap, 0, "in-place editing is not supported; choose a separate output path"));
-    }
-    pathError.clear();
-    const bool outputExists = std::filesystem::exists(outputMap, pathError);
-    if (pathError)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, outputMap, 0, pathError.message()));
-    }
-    if (outputExists && std::filesystem::equivalent(sourceMap, outputMap, pathError))
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, outputMap, 0, "output path resolves to the source map"));
-    }
-    if (pathError)
-    {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, outputMap, 0, pathError.message()));
-    }
-    if (auto check = MapHelper::checkOutputPath(outputMap, options.overwriteOutput); !check)
-    {
-        return std::unexpected(check.error());
-    }
-
-    const auto parent = outputMap.parent_path();
-    std::error_code directoryError;
-    const bool parentExists = parent.empty() || std::filesystem::is_directory(parent, directoryError);
-    if (directoryError || !parentExists)
-    {
-        return std::unexpected(MapHelper::makeError(
-            ErrorCode::io, parent, 0, directoryError ? directoryError.message() : "output directory does not exist"));
+        return std::unexpected(validPaths.error());
     }
 
     auto impl = std::make_unique<Impl>();
@@ -300,12 +331,71 @@ namespace
 
 constexpr std::uint64_t journalHeaderBytes = sizeof(std::uint64_t);
 constexpr std::size_t journalEntryBytes = static_cast<std::size_t>(journalHeaderBytes + (2 * MapHelper::landBlockByteSize));
+constexpr std::size_t journalEntriesPerWrite = 4096;
+constexpr std::size_t journalEntriesPerRead = 1024;
+constexpr std::size_t journalBlockBytes = static_cast<std::size_t>(MapHelper::landBlockByteSize);
 
 std::uint64_t journalOffset(std::span<const std::byte, journalEntryBytes> entry)
 {
     std::array<std::byte, sizeof(std::uint64_t)> encoded{};
     std::ranges::copy_n(entry.begin(), encoded.size(), encoded.begin());
     return detail::decodeLittleEndian<std::uint64_t>(encoded);
+}
+
+[[nodiscard]] std::uint64_t journalEntryOffset(std::uint64_t entryIndex)
+{
+    return entryIndex * journalEntryBytes;
+}
+
+std::expected<void, Error> flushJournal(int journal,
+                                        const std::filesystem::path & journalPath,
+                                        const std::vector<std::byte> & buffer,
+                                        std::size_t bufferedEntries,
+                                        std::uint64_t firstEntry)
+{
+    const auto offset = journalEntryOffset(firstEntry);
+    const auto byteCount = bufferedEntries * journalEntryBytes;
+    if (!MapHelper::writeExact(journal, buffer.data(), byteCount, offset))
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, journalPath, offset, "could not write edit journal"));
+    }
+    return {};
+}
+
+[[nodiscard]] std::size_t journalRunEnd(const std::vector<std::byte> & entries, std::size_t runStart, std::size_t entryCount)
+{
+    const auto firstEntryOffset = runStart * journalEntryBytes;
+    const std::span<const std::byte, journalEntryBytes> firstEntry(entries.data() + firstEntryOffset, journalEntryBytes);
+    const auto blockOffset = journalOffset(firstEntry);
+    std::size_t runEnd = runStart + 1;
+    while (runEnd < entryCount)
+    {
+        const auto entryOffset = runEnd * journalEntryBytes;
+        const std::span<const std::byte, journalEntryBytes> entry(entries.data() + entryOffset, journalEntryBytes);
+        if (journalOffset(entry) != blockOffset + ((runEnd - runStart) * MapHelper::landBlockByteSize))
+        {
+            break;
+        }
+        ++runEnd;
+    }
+    return runEnd;
+}
+
+void copyJournalRun(const std::vector<std::byte> & entries,
+                    std::vector<std::byte> & blocks,
+                    std::size_t runStart,
+                    std::size_t runEnd,
+                    std::size_t dataOffset)
+{
+    for (std::size_t index = runStart; index < runEnd; ++index)
+    {
+        const auto entryOffset = index * journalEntryBytes;
+        const auto sourceOffset = entryOffset + dataOffset;
+        const auto destinationOffset = (index - runStart) * journalBlockBytes;
+        std::ranges::copy_n(std::next(entries.begin(), static_cast<std::ptrdiff_t>(sourceOffset)),
+                            journalBlockBytes,
+                            std::next(blocks.begin(), static_cast<std::ptrdiff_t>(destinationOffset)));
+    }
 }
 
 std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
@@ -316,8 +406,7 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
                                                      BlockRegion region,
                                                      const LandBlockEdit & callback)
 {
-    constexpr std::size_t entriesPerWrite = 4096;
-    std::vector<std::byte> buffer(entriesPerWrite * static_cast<std::size_t>(journalEntryBytes));
+    std::vector<std::byte> buffer(journalEntriesPerWrite * journalEntryBytes);
     std::size_t bufferedEntries = 0;
     std::uint64_t entryCount = 0;
     for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; ++x)
@@ -350,14 +439,12 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
             std::ranges::copy(entry, std::next(buffer.begin(), static_cast<std::ptrdiff_t>(bufferOffset)));
             ++bufferedEntries;
             ++entryCount;
-            if (bufferedEntries == entriesPerWrite)
+            if (bufferedEntries == journalEntriesPerWrite)
             {
-                const auto journalOffset = (entryCount - bufferedEntries) * journalEntryBytes;
-                const auto byteCount = bufferedEntries * static_cast<std::size_t>(journalEntryBytes);
-                if (!MapHelper::writeExact(journal, buffer.data(), byteCount, journalOffset))
+                if (auto flushed = flushJournal(journal, journalPath, buffer, bufferedEntries, entryCount - bufferedEntries);
+                    !flushed)
                 {
-                    return std::unexpected(
-                        MapHelper::makeError(ErrorCode::io, journalPath, journalOffset, "could not write edit journal"));
+                    return std::unexpected(flushed.error());
                 }
                 bufferedEntries = 0;
             }
@@ -365,12 +452,9 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
     }
     if (bufferedEntries != 0)
     {
-        const auto journalOffset = (entryCount - bufferedEntries) * journalEntryBytes;
-        const auto byteCount = bufferedEntries * static_cast<std::size_t>(journalEntryBytes);
-        if (!MapHelper::writeExact(journal, buffer.data(), byteCount, journalOffset))
+        if (auto flushed = flushJournal(journal, journalPath, buffer, bufferedEntries, entryCount - bufferedEntries); !flushed)
         {
-            return std::unexpected(
-                MapHelper::makeError(ErrorCode::io, journalPath, journalOffset, "could not write edit journal"));
+            return std::unexpected(flushed.error());
         }
     }
 
@@ -383,16 +467,14 @@ bool transferJournalBlocks(int stagedDescriptor,
                            std::uint64_t & attempted,
                            std::size_t dataOffset)
 {
-    constexpr std::size_t entriesPerRead = 1024;
-    constexpr std::size_t blockBytes = static_cast<std::size_t>(MapHelper::landBlockByteSize);
-    std::vector<std::byte> entries(entriesPerRead * static_cast<std::size_t>(journalEntryBytes));
-    std::vector<std::byte> blocks(entriesPerRead * blockBytes);
+    std::vector<std::byte> entries(journalEntriesPerRead * journalEntryBytes);
+    std::vector<std::byte> blocks(journalEntriesPerRead * journalBlockBytes);
     attempted = 0;
     while (attempted < entryCount)
     {
         const auto chunkStart = attempted;
         const auto entryCountInChunk =
-            static_cast<std::size_t>(std::min<std::uint64_t>(entriesPerRead, entryCount - chunkStart));
+            static_cast<std::size_t>(std::min<std::uint64_t>(journalEntriesPerRead, entryCount - chunkStart));
         const auto entriesBytes = entryCountInChunk * static_cast<std::size_t>(journalEntryBytes);
         if (!MapHelper::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
         {
@@ -402,33 +484,12 @@ bool transferJournalBlocks(int stagedDescriptor,
         std::size_t runStart = 0;
         while (runStart < entryCountInChunk)
         {
-            const auto firstEntryOffset = runStart * static_cast<std::size_t>(journalEntryBytes);
-            const std::span<const std::byte, journalEntryBytes> firstEntry(entries.data() + firstEntryOffset,
-                                                                           journalEntryBytes);
-            const auto blockOffset = journalOffset(firstEntry);
-            std::size_t runEnd = runStart + 1;
-            while (runEnd < entryCountInChunk)
-            {
-                const auto entryOffset = runEnd * static_cast<std::size_t>(journalEntryBytes);
-                const std::span<const std::byte, journalEntryBytes> entry(entries.data() + entryOffset, journalEntryBytes);
-                if (journalOffset(entry) != blockOffset + ((runEnd - runStart) * MapHelper::landBlockByteSize))
-                {
-                    break;
-                }
-                ++runEnd;
-            }
-
-            for (std::size_t index = runStart; index < runEnd; ++index)
-            {
-                const auto entryOffset = index * static_cast<std::size_t>(journalEntryBytes);
-                const auto sourceOffset = entryOffset + dataOffset;
-                const auto destinationOffset = (index - runStart) * blockBytes;
-                std::ranges::copy_n(std::next(entries.begin(), static_cast<std::ptrdiff_t>(sourceOffset)),
-                                    blockBytes,
-                                    std::next(blocks.begin(), static_cast<std::ptrdiff_t>(destinationOffset)));
-            }
+            const auto blockOffset = journalOffset(std::span<const std::byte, journalEntryBytes>(
+                entries.data() + runStart * journalEntryBytes, journalEntryBytes));
+            const auto runEnd = journalRunEnd(entries, runStart, entryCountInChunk);
+            copyJournalRun(entries, blocks, runStart, runEnd, dataOffset);
             attempted = chunkStart + runEnd;
-            const auto runBytes = (runEnd - runStart) * blockBytes;
+            const auto runBytes = (runEnd - runStart) * journalBlockBytes;
             if (!MapHelper::writeExact(stagedDescriptor, blocks.data(), runBytes, blockOffset))
             {
                 return false;
@@ -452,16 +513,14 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
 {
     std::uint64_t attempted = 0;
     bool rollbackSucceeded = true;
-    constexpr std::size_t entriesPerRead = 1024;
-    constexpr std::size_t blockBytes = static_cast<std::size_t>(MapHelper::landBlockByteSize);
     const auto beforeOffset = static_cast<std::size_t>(journalHeaderBytes);
-    std::vector<std::byte> entries(entriesPerRead * static_cast<std::size_t>(journalEntryBytes));
-    std::vector<std::byte> blocks(entriesPerRead * blockBytes);
+    std::vector<std::byte> entries(journalEntriesPerRead * journalEntryBytes);
+    std::vector<std::byte> blocks(journalEntriesPerRead * journalBlockBytes);
     while (attempted < entryCount)
     {
         const auto chunkStart = attempted;
         const auto entryCountInChunk =
-            static_cast<std::size_t>(std::min<std::uint64_t>(entriesPerRead, entryCount - chunkStart));
+            static_cast<std::size_t>(std::min<std::uint64_t>(journalEntriesPerRead, entryCount - chunkStart));
         const auto entriesBytes = entryCountInChunk * static_cast<std::size_t>(journalEntryBytes);
         if (!MapHelper::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
         {
@@ -473,32 +532,11 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
         std::size_t runStart = 0;
         while (runStart < entryCountInChunk)
         {
-            const auto firstEntryOffset = runStart * static_cast<std::size_t>(journalEntryBytes);
-            const std::span<const std::byte, journalEntryBytes> firstEntry(entries.data() + firstEntryOffset,
-                                                                           journalEntryBytes);
-            const auto blockOffset = journalOffset(firstEntry);
-            std::size_t runEnd = runStart + 1;
-            while (runEnd < entryCountInChunk)
-            {
-                const auto entryOffset = runEnd * static_cast<std::size_t>(journalEntryBytes);
-                const std::span<const std::byte, journalEntryBytes> entry(entries.data() + entryOffset, journalEntryBytes);
-                if (journalOffset(entry) != blockOffset + ((runEnd - runStart) * MapHelper::landBlockByteSize))
-                {
-                    break;
-                }
-                ++runEnd;
-            }
-
-            for (std::size_t index = runStart; index < runEnd; ++index)
-            {
-                const auto entryOffset = index * static_cast<std::size_t>(journalEntryBytes);
-                const auto sourceOffset = entryOffset + beforeOffset;
-                const auto destinationOffset = (index - runStart) * blockBytes;
-                std::ranges::copy_n(std::next(entries.begin(), static_cast<std::ptrdiff_t>(sourceOffset)),
-                                    blockBytes,
-                                    std::next(blocks.begin(), static_cast<std::ptrdiff_t>(destinationOffset)));
-            }
-            const auto runBytes = (runEnd - runStart) * blockBytes;
+            const auto blockOffset = journalOffset(std::span<const std::byte, journalEntryBytes>(
+                entries.data() + runStart * journalEntryBytes, journalEntryBytes));
+            const auto runEnd = journalRunEnd(entries, runStart, entryCountInChunk);
+            copyJournalRun(entries, blocks, runStart, runEnd, beforeOffset);
+            const auto runBytes = (runEnd - runStart) * journalBlockBytes;
             if (!MapHelper::writeExact(stagedDescriptor, blocks.data(), runBytes, blockOffset))
             {
                 rollbackSucceeded = false;
@@ -621,19 +659,7 @@ std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const Lan
 
 std::expected<void, Error> MapEditor::fill(LandTile value)
 {
-    const BlockRegion region{
-        .min =
-            {
-                .x = 0,
-                .y = 0,
-            },
-        .maxExclusive =
-            {
-                .x = impl_->dimensions.widthTiles / landBlockDimension,
-                .y = impl_->dimensions.heightTiles / landBlockDimension,
-            },
-    };
-    return fillBlocks(region, value);
+    return fillBlocks(wholeMapBlockRegion(impl_->dimensions), value);
 }
 
 std::expected<void, Error> MapEditor::fillBlocks(BlockRegion region, LandTile value)
@@ -654,36 +680,12 @@ std::expected<void, Error> MapEditor::fillTiles(TileRegion region, LandTile valu
 
 std::expected<void, Error> MapEditor::replaceIds(std::uint16_t from, std::uint16_t to)
 {
-    const BlockRegion region{
-        .min =
-            {
-                .x = 0,
-                .y = 0,
-            },
-        .maxExclusive =
-            {
-                .x = impl_->dimensions.widthTiles / landBlockDimension,
-                .y = impl_->dimensions.heightTiles / landBlockDimension,
-            },
-    };
-    return replaceBlockIds(region, from, to);
+    return replaceBlockIds(wholeMapBlockRegion(impl_->dimensions), from, to);
 }
 
 std::expected<void, Error> MapEditor::replaceZ(std::int8_t from, std::int8_t to)
 {
-    const BlockRegion region{
-        .min =
-            {
-                .x = 0,
-                .y = 0,
-            },
-        .maxExclusive =
-            {
-                .x = impl_->dimensions.widthTiles / landBlockDimension,
-                .y = impl_->dimensions.heightTiles / landBlockDimension,
-            },
-    };
-    return replaceBlockZ(region, from, to);
+    return replaceBlockZ(wholeMapBlockRegion(impl_->dimensions), from, to);
 }
 
 std::expected<void, Error> MapEditor::replaceTileIds(TileRegion region, std::uint16_t from, std::uint16_t to)
@@ -750,9 +752,9 @@ std::expected<void, Error> MapEditor::replaceBlockZ(BlockRegion region, std::int
 
 std::expected<void, Error> MapEditor::commit()
 {
-    if (impl_->committed || impl_->descriptor < 0)
+    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, impl_->output, 0, "editor is no longer active"));
+        return active;
     }
     if (::fsync(impl_->descriptor) != 0)
     {

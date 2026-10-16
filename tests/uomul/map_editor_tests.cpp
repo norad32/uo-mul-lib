@@ -214,6 +214,38 @@ TEST_CASE("moveAssignment_Should_TransferActiveEditor_If_DestinationIsAlreadyCom
     REQUIRE(reader->readLandTile({0, 0}) == uomul::LandTile{.id = stagedTileId, .z = stagedTileElevation});
 }
 
+TEST_CASE("moveAssignment_Should_DiscardDestinationStaging_If_DestinationIsActive")
+{
+    const TestDirectory directory;
+    const auto source = directory.path() / "source.mul";
+    const auto firstOutput = directory.path() / "first.mul";
+    const auto secondOutput = directory.path() / "second.mul";
+    writeFixture(source);
+    auto first = uomul::MapEditor::create(source, firstOutput, dimensions);
+    auto second = uomul::MapEditor::create(source, secondOutput, dimensions);
+    REQUIRE(first);
+    REQUIRE(second);
+    std::vector<std::filesystem::path> firstStagingFiles;
+    for (const auto & entry : std::filesystem::directory_iterator(directory.path()))
+    {
+        if (entry.path().filename().string().starts_with("first.mul.uomul-tmp-"))
+        {
+            firstStagingFiles.push_back(entry.path());
+        }
+    }
+    REQUIRE(firstStagingFiles.size() == 1);
+
+    *first = std::move(*second);
+
+    REQUIRE_FALSE(std::filesystem::exists(firstStagingFiles.front()));
+    REQUIRE(first->writeLandTile({0, 0}, {.id = stagedTileId, .z = stagedTileElevation}));
+    REQUIRE(first->commit());
+    REQUIRE_FALSE(std::filesystem::exists(firstOutput));
+    const auto reader = uomul::MapReader::open(secondOutput, dimensions);
+    REQUIRE(reader);
+    REQUIRE(reader->readLandTile({0, 0}) == uomul::LandTile{.id = stagedTileId, .z = stagedTileElevation});
+}
+
 TEST_CASE("create_Should_AcceptRelativeOutputPath_If_OutputIsInCurrentDirectory")
 {
     const TestDirectory directory;

@@ -28,6 +28,43 @@ namespace
 {
 
 constexpr double medianDivisor = 2.0;
+constexpr std::size_t maximumBlocksPerBatch = 4096;
+constexpr std::size_t landIdCount = static_cast<std::size_t>(std::numeric_limits<std::uint16_t>::max()) + 1U;
+constexpr std::size_t elevationCount = static_cast<std::size_t>(std::numeric_limits<std::uint8_t>::max()) + 1U;
+
+LandTile decodeLandTile(const std::byte * bytes)
+{
+    const auto low = std::to_integer<std::uint8_t>(bytes[0]);
+    const auto high = std::to_integer<std::uint8_t>(bytes[1]);
+    return LandTile{
+        .id = static_cast<std::uint16_t>(static_cast<std::uint32_t>(low) |
+                                         (static_cast<std::uint32_t>(high) << MapHelper::bitsPerByte)),
+        .z = std::bit_cast<std::int8_t>(std::to_integer<std::uint8_t>(bytes[2])),
+    };
+}
+
+std::expected<void, Error>
+validateMapFileSize(const std::filesystem::path & path, std::uint64_t fileSize, std::uint64_t expectedSize, OpenOptions options)
+{
+    if (fileSize % MapHelper::landBlockByteSize != 0 && (fileSize > expectedSize || !options.recoverTruncatedMap))
+    {
+        return std::unexpected(
+            MapHelper::makeError(ErrorCode::truncatedInput, path, fileSize, "map has trailing bytes beyond complete blocks"));
+    }
+
+    if (!options.recoverTruncatedMap && fileSize != expectedSize)
+    {
+        return std::unexpected(MapHelper::makeError(
+            ErrorCode::truncatedInput, path, fileSize, "map size does not match dimensions and complete blocks"));
+    }
+
+    if (fileSize > expectedSize)
+    {
+        return std::unexpected(MapHelper::makeError(
+            ErrorCode::truncatedInput, path, expectedSize, "map contains more blocks than specified dimensions"));
+    }
+    return {};
+}
 
 std::expected<void, Error> readRawLandBlock(int descriptor,
                                             std::uint64_t completeBlocks,
@@ -61,6 +98,101 @@ validateReadRequest(Region region, const Callback & callback, Dimensions dimensi
     return {};
 }
 
+class StatsAccumulator
+{
+public:
+    void add(LandTile tile)
+    {
+        ++idCounts_[tile.id];
+        const auto elevationIndex =
+            static_cast<std::size_t>(static_cast<int>(tile.z) - std::numeric_limits<std::int8_t>::min());
+        ++elevationCounts_[elevationIndex];
+        elevationTotal_ += tile.z;
+        ++tileCount_;
+    }
+
+    [[nodiscard]] MapStats finish() const
+    {
+        MapStats result{};
+        result.tileCount = tileCount_;
+        if (tileCount_ == 0)
+        {
+            return result;
+        }
+
+        const double sampleCount = static_cast<double>(tileCount_);
+        appendIdStats(result, sampleCount);
+        appendElevationStats(result, sampleCount);
+        result.averageZ = static_cast<double>(elevationTotal_ / static_cast<long double>(tileCount_));
+        result.medianZ = medianElevation();
+        return result;
+    }
+
+private:
+    void appendIdStats(MapStats & result, double sampleCount) const
+    {
+        for (std::size_t id = 0; id < idCounts_.size(); ++id)
+        {
+            const auto count = idCounts_[id];
+            if (count != 0)
+            {
+                result.tileIds.push_back(ValueStats{.value = static_cast<std::uint16_t>(id),
+                                                    .count = count,
+                                                    .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+            }
+        }
+    }
+
+    void appendElevationStats(MapStats & result, double sampleCount) const
+    {
+        for (std::size_t index = 0; index < elevationCounts_.size(); ++index)
+        {
+            const auto count = elevationCounts_[index];
+            if (count != 0)
+            {
+                const auto elevation =
+                    static_cast<std::int8_t>(static_cast<int>(index) + std::numeric_limits<std::int8_t>::min());
+                result.zs.push_back(ValueStats{
+                    .value = elevation, .count = count, .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+            }
+        }
+    }
+
+    [[nodiscard]] std::optional<double> medianElevation() const
+    {
+        const std::uint64_t lowerMiddleIndex = (tileCount_ - 1) / 2;
+        const std::uint64_t upperMiddleIndex = tileCount_ / 2;
+        std::uint64_t currentIndex = 0;
+        std::optional<std::int8_t> lowerMiddle;
+        std::optional<std::int8_t> upperMiddle;
+        for (std::size_t index = 0; index < elevationCounts_.size(); ++index)
+        {
+            const auto nextIndex = currentIndex + elevationCounts_[index];
+            const auto elevation = static_cast<std::int8_t>(static_cast<int>(index) + std::numeric_limits<std::int8_t>::min());
+            if (!lowerMiddle && lowerMiddleIndex < nextIndex)
+            {
+                lowerMiddle = elevation;
+            }
+            if (upperMiddleIndex < nextIndex)
+            {
+                upperMiddle = elevation;
+                break;
+            }
+            currentIndex = nextIndex;
+        }
+        if (!lowerMiddle || !upperMiddle)
+        {
+            return std::nullopt;
+        }
+        return (static_cast<double>(*lowerMiddle) + static_cast<double>(*upperMiddle)) / medianDivisor;
+    }
+
+    std::vector<std::uint64_t> idCounts_ = std::vector<std::uint64_t>(landIdCount);
+    std::array<std::uint64_t, elevationCount> elevationCounts_{};
+    long double elevationTotal_ = 0.0L;
+    std::uint64_t tileCount_ = 0;
+};
+
 std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion region)
 {
     if (region.min.x == region.maxExclusive.x || region.min.y == region.maxExclusive.y)
@@ -68,33 +200,21 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
         return MapStats{};
     }
 
-    std::vector<std::uint64_t> idCounts(static_cast<std::size_t>(std::numeric_limits<std::uint16_t>::max()) + 1U);
-    std::array<std::uint64_t, static_cast<std::size_t>(std::numeric_limits<std::uint8_t>::max()) + 1U> zCounts{};
-    long double elevationTotal = 0.0L;
-    MapStats result{};
+    StatsAccumulator stats;
     const auto blocks = detail::blockRegionForTiles(region);
     auto read = reader.readRawLandBlocks(
         blocks,
-        [&idCounts, &zCounts, &elevationTotal, &result, region](BlockCoord coordinate,
-                                                                const LandBlockBytes & raw) -> std::expected<void, Error>
+        [&stats, region](BlockCoord coordinate, const LandBlockBytes & raw) -> std::expected<void, Error>
         {
             const auto tiles = detail::clipTilesToBlock(region, coordinate);
             for (std::uint32_t x = tiles.min.x; x < tiles.maxExclusive.x; ++x)
             {
                 for (std::uint32_t y = tiles.min.y; y < tiles.maxExclusive.y; ++y)
                 {
-                    const auto index = detail::tileIndexInBlock({.x = x, .y = y});
-                    const auto offset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) +
-                                        (index * static_cast<std::size_t>(MapHelper::landTileByteSize));
-                    const auto id = static_cast<std::uint16_t>(
-                        static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(raw.at(offset))) |
-                        (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(raw.at(offset + 1)))
-                         << MapHelper::bitsPerByte));
-                    const auto z = static_cast<std::int8_t>(std::to_integer<std::uint8_t>(raw.at(offset + 2)));
-                    ++idCounts.at(id);
-                    ++zCounts.at(static_cast<std::size_t>(static_cast<int>(z) - std::numeric_limits<std::int8_t>::min()));
-                    elevationTotal += z;
-                    ++result.tileCount;
+                    const auto tileIndex = detail::tileIndexInBlock({.x = x, .y = y});
+                    const auto tileOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) +
+                                            (tileIndex * static_cast<std::size_t>(MapHelper::landTileByteSize));
+                    stats.add(decodeLandTile(raw.data() + tileOffset));
                 }
             }
             return {};
@@ -103,59 +223,7 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
     {
         return std::unexpected(read.error());
     }
-    if (result.tileCount == 0)
-    {
-        return result;
-    }
-
-    const double sampleCount = static_cast<double>(result.tileCount);
-    for (std::size_t value = 0; value < idCounts.size(); ++value)
-    {
-        const auto count = idCounts.at(value);
-        if (count != 0)
-        {
-            result.tileIds.push_back(ValueStats{.value = static_cast<std::uint16_t>(value),
-                                                .count = count,
-                                                .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
-        }
-    }
-    for (std::size_t index = 0; index < zCounts.size(); ++index)
-    {
-        const auto count = zCounts.at(index);
-        if (count != 0)
-        {
-            const auto value = static_cast<std::int8_t>(static_cast<int>(index) + std::numeric_limits<std::int8_t>::min());
-            result.zs.push_back(
-                ValueStats{.value = value, .count = count, .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
-        }
-    }
-    result.averageZ = static_cast<double>(elevationTotal / static_cast<long double>(result.tileCount));
-    const std::uint64_t lowerMiddleIndex = (result.tileCount - 1) / 2;
-    const std::uint64_t upperMiddleIndex = result.tileCount / 2;
-    std::uint64_t currentIndex = 0;
-    std::optional<std::int8_t> lowerMiddle;
-    std::optional<std::int8_t> upperMiddle;
-    for (std::size_t index = 0; index < zCounts.size(); ++index)
-    {
-        const auto count = zCounts.at(index);
-        const auto nextIndex = currentIndex + count;
-        const auto value = static_cast<std::int8_t>(static_cast<int>(index) + std::numeric_limits<std::int8_t>::min());
-        if (!lowerMiddle && lowerMiddleIndex < nextIndex)
-        {
-            lowerMiddle = value;
-        }
-        if (upperMiddleIndex < nextIndex)
-        {
-            upperMiddle = value;
-            break;
-        }
-        currentIndex = nextIndex;
-    }
-    if (lowerMiddle && upperMiddle)
-    {
-        result.medianZ = (static_cast<double>(lowerMiddle.value()) + static_cast<double>(upperMiddle.value())) / medianDivisor;
-    }
-    return result;
+    return stats.finish();
 }
 
 } // namespace
@@ -210,24 +278,11 @@ std::expected<MapReader, Error> MapReader::open(const std::filesystem::path & pa
 
     const auto fileSize = static_cast<std::uint64_t>(fileStatus.st_size);
     const auto expectedSize = *count * MapHelper::landBlockByteSize;
+    if (auto validSize = validateMapFileSize(path, fileSize, expectedSize, options); !validSize)
+    {
+        return std::unexpected(validSize.error());
+    }
     const auto completeBlockCount = fileSize / MapHelper::landBlockByteSize;
-    if (fileSize % MapHelper::landBlockByteSize != 0 && (fileSize > expectedSize || !options.recoverTruncatedMap))
-    {
-        return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, path, fileSize, "map has trailing bytes beyond complete blocks"));
-    }
-
-    if (!options.recoverTruncatedMap && fileSize != expectedSize)
-    {
-        return std::unexpected(MapHelper::makeError(
-            ErrorCode::truncatedInput, path, fileSize, "map size does not match dimensions and complete blocks"));
-    }
-
-    if (fileSize > expectedSize)
-    {
-        return std::unexpected(MapHelper::makeError(
-            ErrorCode::truncatedInput, path, expectedSize, "map contains more blocks than specified dimensions"));
-    }
 
     if (!S_ISREG(fileStatus.st_mode))
     {
@@ -313,12 +368,7 @@ std::expected<LandTile, Error> MapReader::readLandTile(TileCoord tile) const
             MapHelper::makeError(ErrorCode::truncatedInput, impl_->path, offset, "land tile is missing or truncated"));
     }
 
-    const auto low = std::to_integer<std::uint16_t>(raw.at(0));
-    const auto high = std::to_integer<std::uint16_t>(raw.at(1));
-    return LandTile{
-        .id = static_cast<std::uint16_t>(low | static_cast<std::uint16_t>(high << MapHelper::bitsPerByte)),
-        .z = std::bit_cast<std::int8_t>(std::to_integer<std::uint8_t>(raw.at(2))),
-    };
+    return decodeLandTile(raw.data());
 }
 
 std::expected<void, Error> MapReader::readLandBlocks(BlockRegion region, const LandBlockRead & callback) const
@@ -340,8 +390,7 @@ std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, cons
         return valid;
     }
 
-    constexpr std::size_t maximumBlocksPerRead = 4096;
-    const auto blocksPerRead = std::min(maximumBlocksPerRead, static_cast<std::size_t>(region.maxExclusive.y - region.min.y));
+    const auto blocksPerRead = std::min(maximumBlocksPerBatch, static_cast<std::size_t>(region.maxExclusive.y - region.min.y));
     std::vector<std::byte> buffer(blocksPerRead * static_cast<std::size_t>(MapHelper::landBlockByteSize));
     for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; ++x)
     {
