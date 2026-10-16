@@ -141,17 +141,12 @@ BlockTileSelection selectTilesInBlock(BlockCoord coordinate, TileRegion region)
     };
 }
 
-struct LandBlockComparison
-{
-    std::uint64_t changedTiles = 0;
-};
-
-LandBlockComparison
+std::uint64_t
 compareLandBlocks(BlockTileSelection selection, std::span<const std::byte> sourceRaw, std::span<const std::byte> targetRaw)
 {
     if (selection.coversWholeBlock())
     {
-        return {.changedTiles = countChangedTiles(sourceRaw, targetRaw)};
+        return countChangedTiles(sourceRaw, targetRaw);
     }
 
     std::uint64_t changedTiles = 0;
@@ -166,7 +161,7 @@ compareLandBlocks(BlockTileSelection selection, std::span<const std::byte> sourc
             changedTiles += !std::ranges::equal(sourceTile, targetTile) ? 1U : 0U;
         }
     }
-    return {.changedTiles = changedTiles};
+    return changedTiles;
 }
 
 bool writeLe32(std::ostream & stream, std::uint32_t value)
@@ -187,6 +182,14 @@ constexpr std::uint32_t malasWidth = 2560;
 constexpr std::uint32_t malasHeight = 2048;
 constexpr std::uint32_t tokunoSize = 1448;
 constexpr std::uint32_t termurWidth = 1280;
+
+BlockRegion fullBlockRegion(Dimensions dimensions)
+{
+    return {
+        .min = {.x = 0, .y = 0},
+        .maxExclusive = {.x = dimensions.widthTiles / landBlockDimension, .y = dimensions.heightTiles / landBlockDimension},
+    };
+}
 
 struct DiffOutputPaths
 {
@@ -214,9 +217,9 @@ struct DiffGenerationState
     std::filesystem::path dataTemporary;
     std::filesystem::path indexTemporary;
     Dimensions dimensions{};
-    std::ofstream * data = nullptr;
-    std::ofstream * index = nullptr;
-    DiffReport * report = nullptr;
+    std::ofstream & data;
+    std::ofstream & index;
+    DiffReport & report;
     std::optional<TileRegion> tileRegion;
 };
 
@@ -331,8 +334,7 @@ std::expected<void, Error> appendChangedDiffBlock(const DiffGenerationState & st
                                                   std::span<const std::byte> targetRaw)
 {
     const auto selection = state.tileRegion ? selectTilesInBlock(coordinate, *state.tileRegion) : BlockTileSelection{};
-    const auto comparison = compareLandBlocks(selection, sourceRaw, targetRaw);
-    const auto changedTiles = comparison.changedTiles;
+    const auto changedTiles = compareLandBlocks(selection, sourceRaw, targetRaw);
     if (changedTiles == 0)
     {
         return {};
@@ -373,21 +375,21 @@ std::expected<void, Error> appendChangedDiffBlock(const DiffGenerationState & st
     }
 
     const auto id = MapHelper::blockId(coordinate, state.dimensions);
-    if (id > std::numeric_limits<std::uint32_t>::max() || !writeLe32(*state.index, static_cast<std::uint32_t>(id)))
+    if (id > std::numeric_limits<std::uint32_t>::max() || !writeLe32(state.index, static_cast<std::uint32_t>(id)))
     {
         return std::unexpected(MapHelper::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
     }
     std::array<char, MapHelper::landBlockByteSize> bytes{};
     std::ranges::transform(
         outputRaw, bytes.begin(), [](std::byte byte) { return static_cast<char>(std::to_integer<unsigned char>(byte)); });
-    state.data->write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-    if (!*state.data)
+    state.data.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    if (!state.data)
     {
         return std::unexpected(MapHelper::makeError(ErrorCode::io, state.dataTemporary, 0, "could not write diff block data"));
     }
 
-    ++state.report->landBlocksChanged;
-    state.report->landTilesChanged += changedTiles;
+    ++state.report.landBlocksChanged;
+    state.report.landTilesChanged += changedTiles;
     return {};
 }
 
@@ -426,9 +428,9 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
         .dataTemporary = files.data,
         .indexTemporary = files.index,
         .dimensions = dimensions,
-        .data = &data,
-        .index = &index,
-        .report = &report,
+        .data = data,
+        .index = index,
+        .report = report,
         .tileRegion = tileRegion,
     };
     TargetBlockBatchReader targetBlocks(targetDescriptor.get(), targetMap, dimensions, region);
@@ -722,18 +724,15 @@ std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourc
     {
         return std::unexpected(target.error());
     }
-    const int targetDescriptor = ::open(targetPath.c_str(), O_RDONLY | O_CLOEXEC);
-    if (targetDescriptor < 0)
+    const detail::ScopedDescriptor targetDescriptor(::open(targetPath.c_str(), O_RDONLY | O_CLOEXEC));
+    if (targetDescriptor.get() < 0)
     {
         return std::unexpected(MapHelper::makeError(ErrorCode::io, targetPath, 0, std::strerror(errno)));
     }
 
     DiffReport report{};
-    const BlockRegion fullRegion{
-        .min = {.x = 0, .y = 0},
-        .maxExclusive = {.x = dimensions.widthTiles / landBlockDimension, .y = dimensions.heightTiles / landBlockDimension},
-    };
-    TargetBlockBatchReader targetBlocks(targetDescriptor, targetPath, dimensions, fullRegion);
+    const auto fullRegion = fullBlockRegion(dimensions);
+    TargetBlockBatchReader targetBlocks(targetDescriptor.get(), targetPath, dimensions, fullRegion);
     auto scan =
         source->readRawLandBlocks(fullRegion,
                                   [&](BlockCoord coordinate, const LandBlockBytes & sourceRaw) -> std::expected<void, Error>
@@ -743,9 +742,7 @@ std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourc
                                       {
                                           return std::unexpected(loaded.error());
                                       }
-                                      const auto comparison = compareLandBlocks(BlockTileSelection(), sourceRaw, targetRaw);
-                                      const auto changedTiles = comparison.changedTiles;
-
+                                      const auto changedTiles = compareLandBlocks(BlockTileSelection(), sourceRaw, targetRaw);
                                       if (changedTiles != 0)
                                       {
                                           ++report.landBlocksChanged;
@@ -758,7 +755,6 @@ std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourc
 
                                       return {};
                                   });
-    static_cast<void>(::close(targetDescriptor));
     if (!scan)
     {
         return std::unexpected(scan.error());
@@ -825,6 +821,31 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
     return *compared;
 }
 
+std::expected<DiffReport, Error> generateDiffForRegion(const std::filesystem::path & baseMap,
+                                                       const std::filesystem::path & targetMap,
+                                                       const std::filesystem::path & diffDirectory,
+                                                       std::uint32_t mapIndex,
+                                                       Dimensions dimensions,
+                                                       BlockRegion blockRegion,
+                                                       std::optional<TileRegion> tileRegion,
+                                                       bool overwrite)
+{
+    auto filesResult = prepareDiffTemporaries(diffDirectory, mapIndex, overwrite);
+    if (!filesResult)
+    {
+        return std::unexpected(filesResult.error());
+    }
+
+    auto files = std::move(*filesResult);
+    auto report = scanDiffTemporaries(baseMap, targetMap, dimensions, files, blockRegion, tileRegion);
+    if (!report)
+    {
+        return std::unexpected(report.error());
+    }
+
+    return publishDiffFiles(files.outputs, files, overwrite, *report);
+}
+
 } // namespace
 
 std::expected<DiffReport, Error> MapDiff::generate(const std::filesystem::path & baseMap,
@@ -834,20 +855,8 @@ std::expected<DiffReport, Error> MapDiff::generate(const std::filesystem::path &
                                                    Dimensions dimensions,
                                                    bool overwrite)
 {
-    const BlockRegion fullRegion{
-        .min =
-            {
-                .x = 0,
-                .y = 0,
-            },
-        .maxExclusive =
-            {
-                .x = dimensions.widthTiles / landBlockDimension,
-                .y = dimensions.heightTiles / landBlockDimension,
-            },
-    };
-
-    return generateFromBlockRegion(baseMap, targetMap, diffDirectory, mapIndex, dimensions, fullRegion, overwrite);
+    return generateFromBlockRegion(
+        baseMap, targetMap, diffDirectory, mapIndex, dimensions, fullBlockRegion(dimensions), overwrite);
 }
 
 std::expected<DiffReport, Error> MapDiff::generateFromTileRegion(const std::filesystem::path & baseMap,
@@ -866,18 +875,8 @@ std::expected<DiffReport, Error> MapDiff::generateFromTileRegion(const std::file
     {
         return std::unexpected(valid.error());
     }
-    auto filesResult = prepareDiffTemporaries(diffDirectory, mapIndex, overwrite);
-    if (!filesResult)
-    {
-        return std::unexpected(filesResult.error());
-    }
-    auto files = std::move(*filesResult);
-    auto report = scanDiffTemporaries(baseMap, targetMap, dimensions, files, detail::blockRegionForTiles(region), region);
-    if (!report)
-    {
-        return std::unexpected(report.error());
-    }
-    return publishDiffFiles(files.outputs, files, overwrite, *report);
+    return generateDiffForRegion(
+        baseMap, targetMap, diffDirectory, mapIndex, dimensions, detail::blockRegionForTiles(region), region, overwrite);
 }
 
 std::expected<DiffReport, Error> MapDiff::generateFromBlockRegion(const std::filesystem::path & baseMap,
@@ -896,18 +895,7 @@ std::expected<DiffReport, Error> MapDiff::generateFromBlockRegion(const std::fil
     {
         return std::unexpected(valid.error());
     }
-    auto filesResult = prepareDiffTemporaries(diffDirectory, mapIndex, overwrite);
-    if (!filesResult)
-    {
-        return std::unexpected(filesResult.error());
-    }
-    auto files = std::move(*filesResult);
-    auto report = scanDiffTemporaries(baseMap, targetMap, dimensions, files, region);
-    if (!report)
-    {
-        return std::unexpected(report.error());
-    }
-    return publishDiffFiles(files.outputs, files, overwrite, *report);
+    return generateDiffForRegion(baseMap, targetMap, diffDirectory, mapIndex, dimensions, region, std::nullopt, overwrite);
 }
 
 std::expected<void, Error> MapDiff::apply(const std::filesystem::path & baseMap,
