@@ -8,7 +8,9 @@
 #include <expected>
 #include <fcntl.h>
 #include <filesystem>
+#include <map>
 #include <memory>
+#include <optional>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <utility>
@@ -20,6 +22,8 @@ using detail::MapHelper;
 
 namespace
 {
+
+constexpr double medianDivisor = 2.0;
 
 std::expected<void, Error> readRawLandBlock(int descriptor,
                                             std::uint64_t completeBlocks,
@@ -68,6 +72,74 @@ std::expected<void, Error> visitBlocks(BlockRegion region, Visitor visitor)
         }
     }
     return {};
+}
+
+std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion region)
+{
+    if (region.min.x == region.maxExclusive.x || region.min.y == region.maxExclusive.y)
+    {
+        return MapStats{};
+    }
+
+    std::map<std::uint16_t, std::uint64_t> idCounts;
+    std::map<std::int8_t, std::uint64_t> zCounts;
+    long double elevationTotal = 0.0L;
+    MapStats result{};
+    auto read = reader.readLandTiles(
+        region,
+        [&idCounts, &zCounts, &elevationTotal, &result](TileCoord, const LandTile & tile) -> std::expected<void, Error>
+        {
+            ++idCounts[tile.id];
+            ++zCounts[tile.z];
+            elevationTotal += tile.z;
+            ++result.tileCount;
+            return {};
+        });
+    if (!read)
+    {
+        return std::unexpected(read.error());
+    }
+    if (result.tileCount == 0)
+    {
+        return result;
+    }
+
+    const double sampleCount = static_cast<double>(result.tileCount);
+    for (const auto & [value, count] : idCounts)
+    {
+        result.tileIds.push_back(
+            ValueStats{.value = value, .count = count, .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+    }
+    for (const auto & [value, count] : zCounts)
+    {
+        result.zs.push_back(
+            ValueStats{.value = value, .count = count, .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+    }
+    result.averageZ = static_cast<double>(elevationTotal / static_cast<long double>(result.tileCount));
+    const std::uint64_t lowerMiddleIndex = (result.tileCount - 1) / 2;
+    const std::uint64_t upperMiddleIndex = result.tileCount / 2;
+    std::uint64_t currentIndex = 0;
+    std::optional<std::int8_t> lowerMiddle;
+    std::optional<std::int8_t> upperMiddle;
+    for (const auto & [value, count] : zCounts)
+    {
+        const auto nextIndex = currentIndex + count;
+        if (!lowerMiddle && lowerMiddleIndex < nextIndex)
+        {
+            lowerMiddle = value;
+        }
+        if (upperMiddleIndex < nextIndex)
+        {
+            upperMiddle = value;
+            break;
+        }
+        currentIndex = nextIndex;
+    }
+    if (lowerMiddle && upperMiddle)
+    {
+        result.medianZ = (static_cast<double>(lowerMiddle.value()) + static_cast<double>(upperMiddle.value())) / medianDivisor;
+    }
+    return result;
 }
 
 } // namespace
@@ -245,6 +317,34 @@ std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, cons
                            }
                            return callback(coordinate, raw);
                        });
+}
+
+std::expected<MapStats, Error> MapReader::stats() const
+{
+    return tileStats(
+        {.min = {.x = 0, .y = 0}, .maxExclusive = {.x = impl_->dimensions.widthTiles, .y = impl_->dimensions.heightTiles}});
+}
+
+std::expected<MapStats, Error> MapReader::tileStats(TileRegion region) const
+{
+    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->path); !valid)
+    {
+        return std::unexpected(valid.error());
+    }
+    return collectStats(*this, region);
+}
+
+std::expected<MapStats, Error> MapReader::blockStats(BlockRegion region) const
+{
+    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->path); !valid)
+    {
+        return std::unexpected(valid.error());
+    }
+    const TileRegion tiles{
+        .min = {.x = region.min.x * landBlockDimension, .y = region.min.y * landBlockDimension},
+        .maxExclusive = {.x = region.maxExclusive.x * landBlockDimension, .y = region.maxExclusive.y * landBlockDimension},
+    };
+    return collectStats(*this, tiles);
 }
 
 std::expected<void, Error> MapReader::readLandTiles(TileRegion region, const LandTileRead & callback) const

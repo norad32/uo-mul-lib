@@ -608,6 +608,50 @@ TEST_CASE("fill_Should_FillRegion_If_RegionIsValid")
     REQUIRE(reader->readLandTile({2, 2})->id == 18);
 }
 
+TEST_CASE("fillAndReplace_Should_SupportWholeMapAndBlockRegions")
+{
+    const TestDirectory directory;
+    const auto source = directory.path() / "source.mul";
+    const auto output = directory.path() / "output.mul";
+    writeFixture(source);
+    auto editor = uomul::MapEditor::create(source, output, dimensions);
+    REQUIRE(editor);
+
+    REQUIRE(editor->fillBlocks({.min = {0, 0}, .maxExclusive = {1, 1}}, {.id = stagedTileId, .z = stagedTileElevation}));
+    REQUIRE(editor->replaceBlockIds({.min = {1, 1}, .maxExclusive = {2, 2}}, 363, editedTileId));
+    REQUIRE(editor->replaceBlockZ({.min = {1, 1}, .maxExclusive = {2, 2}}, 63, 9));
+    REQUIRE(editor->commit());
+
+    const auto reader = uomul::MapReader::open(output, dimensions);
+    REQUIRE(reader);
+    REQUIRE(reader->readLandTile({0, 0}) == uomul::LandTile{.id = stagedTileId, .z = stagedTileElevation});
+    REQUIRE(reader->readLandTile({7, 7}) == uomul::LandTile{.id = stagedTileId, .z = stagedTileElevation});
+    REQUIRE(reader->readLandTile({15, 15}) == uomul::LandTile{.id = editedTileId, .z = 9});
+    REQUIRE(reader->readLandTile({8, 0}) == uomul::LandTile{.id = 200, .z = -1});
+
+    const auto replacedOutput = directory.path() / "replaced.mul";
+    auto replacedEditor = uomul::MapEditor::create(source, replacedOutput, dimensions);
+    REQUIRE(replacedEditor);
+    REQUIRE(replacedEditor->replaceIds(0, 77));
+    REQUIRE(replacedEditor->replaceZ(-1, 5));
+    REQUIRE(replacedEditor->commit());
+    const auto replacedReader = uomul::MapReader::open(replacedOutput, dimensions);
+    REQUIRE(replacedReader);
+    REQUIRE(replacedReader->readLandTile({0, 0}) == uomul::LandTile{.id = 77, .z = 5});
+    REQUIRE(replacedReader->readLandTile({15, 15}) == uomul::LandTile{.id = 363, .z = 63});
+    REQUIRE(replacedReader->readLandTile({8, 0}) == uomul::LandTile{.id = 200, .z = 5});
+    REQUIRE(replacedReader->readLandTile({8, 1}) == uomul::LandTile{.id = 208, .z = 8});
+
+    const auto fullOutput = directory.path() / "full.mul";
+    auto fullEditor = uomul::MapEditor::create(source, fullOutput, dimensions);
+    REQUIRE(fullEditor);
+    REQUIRE(fullEditor->fill({.id = editedTileId, .z = stagedTileElevation}));
+    REQUIRE(fullEditor->commit());
+    const auto fullReader = uomul::MapReader::open(fullOutput, dimensions);
+    REQUIRE(fullReader);
+    REQUIRE(fullReader->readLandTile({15, 15}) == uomul::LandTile{.id = editedTileId, .z = stagedTileElevation});
+}
+
 TEST_CASE("editLandTiles_Should_UseEarlierStagedValues_If_RegionIsEditedAgain")
 {
     const TestDirectory directory;

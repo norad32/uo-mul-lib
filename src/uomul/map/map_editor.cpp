@@ -458,9 +458,71 @@ std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const Lan
         impl_->failed);
 }
 
+std::expected<void, Error> MapEditor::fill(LandTile value)
+{
+    const BlockRegion region{
+        .min =
+            {
+                .x = 0,
+                .y = 0,
+            },
+        .maxExclusive =
+            {
+                .x = impl_->dimensions.widthTiles / landBlockDimension,
+                .y = impl_->dimensions.heightTiles / landBlockDimension,
+            },
+    };
+    return fillBlocks(region, value);
+}
+
+std::expected<void, Error> MapEditor::fillBlocks(BlockRegion region, LandTile value)
+{
+    return editLandBlocks(region,
+                          [value](BlockCoord, const LandBlock &) -> std::expected<LandBlock, Error>
+                          {
+                              LandBlock result{};
+                              result.fill(value);
+                              return result;
+                          });
+}
+
 std::expected<void, Error> MapEditor::fillTiles(TileRegion region, LandTile value)
 {
     return editLandTiles(region, [value](TileCoord, const LandTile &) -> std::expected<LandTile, Error> { return value; });
+}
+
+std::expected<void, Error> MapEditor::replaceIds(std::uint16_t from, std::uint16_t to)
+{
+    const BlockRegion region{
+        .min =
+            {
+                .x = 0,
+                .y = 0,
+            },
+        .maxExclusive =
+            {
+                .x = impl_->dimensions.widthTiles / landBlockDimension,
+                .y = impl_->dimensions.heightTiles / landBlockDimension,
+            },
+    };
+    return replaceBlockIds(region, from, to);
+}
+
+std::expected<void, Error> MapEditor::replaceZ(std::int8_t from, std::int8_t to)
+{
+    const BlockRegion region{
+        .min =
+            {
+                .x = 0,
+                .y = 0,
+            },
+        .maxExclusive =
+            {
+                .x = impl_->dimensions.widthTiles / landBlockDimension,
+                .y = impl_->dimensions.heightTiles / landBlockDimension,
+            },
+    };
+    return replaceBlockZ(region, from, to);
 }
 
 std::expected<void, Error> MapEditor::replaceTileIds(TileRegion region, std::uint16_t from, std::uint16_t to)
@@ -477,6 +539,23 @@ std::expected<void, Error> MapEditor::replaceTileIds(TileRegion region, std::uin
                          });
 }
 
+std::expected<void, Error> MapEditor::replaceBlockIds(BlockRegion region, std::uint16_t from, std::uint16_t to)
+{
+    return editLandBlocks(region,
+                          [from, to](BlockCoord, const LandBlock & current) -> std::expected<LandBlock, Error>
+                          {
+                              LandBlock result = current;
+                              for (auto & tile : result)
+                              {
+                                  if (tile.id == from)
+                                  {
+                                      tile.id = to;
+                                  }
+                              }
+                              return result;
+                          });
+}
+
 std::expected<void, Error> MapEditor::replaceTileZ(TileRegion region, std::int8_t from, std::int8_t to)
 {
     return editLandTiles(region,
@@ -489,6 +568,23 @@ std::expected<void, Error> MapEditor::replaceTileZ(TileRegion region, std::int8_
                              }
                              return result;
                          });
+}
+
+std::expected<void, Error> MapEditor::replaceBlockZ(BlockRegion region, std::int8_t from, std::int8_t to)
+{
+    return editLandBlocks(region,
+                          [from, to](BlockCoord, const LandBlock & current) -> std::expected<LandBlock, Error>
+                          {
+                              LandBlock result = current;
+                              for (auto & tile : result)
+                              {
+                                  if (tile.z == from)
+                                  {
+                                      tile.z = to;
+                                  }
+                              }
+                              return result;
+                          });
 }
 
 std::expected<void, Error> MapEditor::commit()

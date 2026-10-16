@@ -269,6 +269,82 @@ TEST_CASE("generateAndApply_Should_RoundTripChangedBlocks_If_TargetDiffersFromBa
     REQUIRE(uomul::test::readBytes(output) == uomul::test::readBytes(target));
 }
 
+TEST_CASE("generateFromTileRegionAndApply_Should_OnlyPatchSelectedTiles_If_RegionCutsAcrossBlocks")
+{
+    const TestDirectory directory;
+    const auto base = directory.path() / "base.mul";
+    const auto target = directory.path() / "target.mul";
+    const auto diffDirectory = directory.path() / "diff";
+    const auto output = directory.path() / "output.mul";
+    std::filesystem::create_directories(diffDirectory);
+    writeFixture(base);
+    writeFixture(target);
+    REQUIRE(createChangedMap(target,
+                             directory.path() / "edited.mul",
+                             {{{0, 0}, {.id = 5000, .z = 10}},
+                              {{1, 1}, {.id = 5001, .z = 11}},
+                              {{7, 7}, {.id = 5002, .z = 12}},
+                              {{8, 8}, {.id = 5003, .z = 13}}}));
+    std::filesystem::rename(directory.path() / "edited.mul", target);
+    const uomul::TileRegion region{.min = {1, 1}, .maxExclusive = {4, 4}};
+
+    const auto generated = uomul::MapDiff::generateFromTileRegion(base, target, diffDirectory, mapIndex, dimensions, region);
+
+    REQUIRE(generated);
+    REQUIRE(generated->landBlocksChanged == 1);
+    REQUIRE(generated->landTilesChanged == 1);
+    REQUIRE(std::filesystem::file_size(diffDataPath(diffDirectory)) == uomul::landBlockByteCount);
+    REQUIRE(std::filesystem::file_size(diffIndexPath(diffDirectory)) == sizeof(std::uint32_t));
+    REQUIRE(uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions));
+
+    const auto result = uomul::MapReader::open(output, dimensions);
+    const auto original = uomul::MapReader::open(base, dimensions);
+    const auto targetReader = uomul::MapReader::open(target, dimensions);
+    REQUIRE(result);
+    REQUIRE(original);
+    REQUIRE(targetReader);
+    for (std::uint32_t x = 0; x < dimensions.widthTiles; ++x)
+    {
+        for (std::uint32_t y = 0; y < dimensions.heightTiles; ++y)
+        {
+            const uomul::TileCoord tile{.x = x, .y = y};
+            const bool selected =
+                x >= region.min.x && x < region.maxExclusive.x && y >= region.min.y && y < region.maxExclusive.y;
+            const auto expected = selected ? targetReader->readLandTile(tile).value() : original->readLandTile(tile).value();
+            REQUIRE(result->readLandTile(tile).value() == expected);
+        }
+    }
+}
+
+TEST_CASE("generateFromBlockRegionAndApply_Should_OnlyPatchSelectedBlocks")
+{
+    const TestDirectory directory;
+    const auto base = directory.path() / "base.mul";
+    const auto target = directory.path() / "target.mul";
+    const auto diffDirectory = directory.path() / "diff";
+    const auto output = directory.path() / "output.mul";
+    std::filesystem::create_directories(diffDirectory);
+    writeFixture(base);
+    writeFixture(target);
+    REQUIRE(createChangedMap(
+        target, directory.path() / "edited.mul", {{{1, 1}, {.id = 5000, .z = 10}}, {{9, 9}, {.id = 5001, .z = 11}}}));
+    std::filesystem::rename(directory.path() / "edited.mul", target);
+
+    const auto generated = uomul::MapDiff::generateFromBlockRegion(
+        base, target, diffDirectory, mapIndex, dimensions, {.min = {0, 0}, .maxExclusive = {1, 1}});
+
+    REQUIRE(generated);
+    REQUIRE(generated->landBlocksChanged == 1);
+    REQUIRE(generated->landTilesChanged == 1);
+    REQUIRE(uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions));
+    const auto result = uomul::MapReader::open(output, dimensions);
+    const auto original = uomul::MapReader::open(base, dimensions);
+    REQUIRE(result);
+    REQUIRE(original);
+    REQUIRE(result->readLandTile({1, 1}) == uomul::LandTile{.id = 5000, .z = 10});
+    REQUIRE(result->readLandTile({9, 9}).value() == original->readLandTile({9, 9}).value());
+}
+
 TEST_CASE("apply_Should_RejectDiff_If_DataOrIndexFileIsMissing")
 {
     const TestDirectory directory;

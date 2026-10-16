@@ -7,7 +7,9 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace uomul
 {
@@ -39,6 +41,11 @@ struct Dimensions
     std::uint32_t widthTiles = 0;
     std::uint32_t heightTiles = 0;
 
+    /** @brief Compares tile dimensions for equality.
+     *  @param other Dimensions to compare.
+     *  @retval true Both width and height are equal.
+     *  @retval false At least one dimension differs.
+     */
     bool operator==(const Dimensions & other) const = default;
 };
 
@@ -70,7 +77,13 @@ struct LandTile
 {
     std::uint16_t id = 0;
     std::int8_t z = 0;
-    bool operator==(const LandTile &) const = default;
+
+    /** @brief Compares a land tile with another tile.
+     *  @param other Tile to compare.
+     *  @retval true Both land ID and elevation are equal.
+     *  @retval false The ID or elevation differs.
+     */
+    bool operator==(const LandTile & other) const = default;
 };
 
 using LandBlock = std::array<LandTile, landBlockTileCount>;
@@ -97,15 +110,31 @@ struct DiffReport
     std::uint64_t landTilesChanged = 0;
 };
 
+struct ValueStats
+{
+    std::int32_t value = 0;
+    std::uint64_t count = 0;
+    double percentage = 0.0;
+};
+
+struct MapStats
+{
+    std::uint64_t tileCount = 0;
+    std::vector<ValueStats> tileIds;
+    std::vector<ValueStats> zs;
+    std::optional<double> averageZ;
+    std::optional<double> medianZ;
+};
+
 class MapReader
 {
 public:
     MapReader(MapReader && other) noexcept;
     MapReader & operator=(MapReader && other) noexcept;
-    ~MapReader();
-
     MapReader(const MapReader &) = delete;
     MapReader & operator=(const MapReader &) = delete;
+
+    ~MapReader();
 
     /** @brief Opens a map using the supplied tile dimensions.
      *  @param path Map file to open.
@@ -175,9 +204,27 @@ public:
      */
     [[nodiscard]] std::expected<void, Error> readLandTiles(TileRegion region, const LandTileRead & callback) const;
 
-    [[nodiscard]] std::expected<MapStats, Error> stats();
-    [[nodiscard]] std::expected<MapStats, Error> tileStats(TileRegion region);
-    [[nodiscard]] std::expected<MapStats, Error> blockStats(TileRegion region);
+    /** @brief Calculates whole-map ID and elevation statistics.
+     *  ID and elevation frequencies are sparse and sorted by value. Percentages use all sampled tiles as the denominator.
+     *  The average and median are unset when the map has no sampled tiles.
+     *  @retval value Whole-map counts, distributions, average elevation, and median elevation.
+     *  @retval error A required map block is unavailable or a read fails.
+     */
+    [[nodiscard]] std::expected<MapStats, Error> stats() const;
+
+    /** @brief Calculates ID and elevation statistics for an exact half-open tile region.
+     *  @param region Global tile coordinates from min inclusive to maxExclusive exclusive.
+     *  @retval value Statistics for sampled tiles; empty regions have empty distributions and unset averages.
+     *  @retval error Invalid region or a required map block is unavailable.
+     */
+    [[nodiscard]] std::expected<MapStats, Error> tileStats(TileRegion region) const;
+
+    /** @brief Calculates ID and elevation statistics for all tiles in a half-open block region.
+     *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
+     *  @retval value Statistics for all tiles in selected blocks; empty regions have no samples.
+     *  @retval error Invalid region or a required map block is unavailable.
+     */
+    [[nodiscard]] std::expected<MapStats, Error> blockStats(BlockRegion region) const;
 
 private:
     struct Impl;
@@ -190,10 +237,9 @@ class MapEditor
 public:
     MapEditor(MapEditor && other) noexcept;
     MapEditor & operator=(MapEditor && other) noexcept;
-    ~MapEditor();
-
     MapEditor(const MapEditor &) = delete;
     MapEditor & operator=(const MapEditor &) = delete;
+    ~MapEditor();
 
     /** @brief Creates an editor by staging a source map to a separate output path.
      *  @param sourceMap Map to copy and edit.
@@ -240,6 +286,11 @@ public:
      */
     [[nodiscard]] std::expected<void, Error> editLandTiles(TileRegion region, const LandTileEdit & callback);
 
+    /** @brief Fills the entire staged map with one tile value.
+     *  @param value Tile value written to every map tile.
+     *  @retval value Success when the fill is staged.
+     *  @retval error Inactive editor or staging I/O failure details.
+     */
     [[nodiscard]] std::expected<void, Error> fill(LandTile value);
 
     /** @brief Fills a half-open tile region with one value.
@@ -250,11 +301,23 @@ public:
      */
     [[nodiscard]] std::expected<void, Error> fillTiles(TileRegion region, LandTile value);
 
+    /** @brief Fills a half-open block region across all tiles in each selected block.
+     *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
+     *  @param value Tile value written to all tiles in each selected block.
+     *  @retval value Success when the fill is staged.
+     *  @retval error Validation, callback, journal, or I/O failure details.
+     */
     [[nodiscard]] std::expected<void, Error> fillBlocks(BlockRegion region, LandTile value);
 
-    [[nodiscard]] std::expected<void, Error> replaceIds(TileRegion region, std::uint16_t from, std::uint16_t to);
+    /** @brief Replaces matching land IDs across the entire staged map.
+     *  @param from Land ID to find.
+     *  @param to Replacement land ID.
+     *  @retval value Success when replacements are staged.
+     *  @retval error Inactive editor or staging I/O failure details.
+     */
+    [[nodiscard]] std::expected<void, Error> replaceIds(std::uint16_t from, std::uint16_t to);
 
-    /** @brief Replaces land IDs in a half-open tile region.
+    /** @brief Replaces matching land IDs in a half-open tile region.
      *  @param region Global tile coordinates from min inclusive to maxExclusive exclusive.
      *  @param from ID to find.
      *  @param to Replacement ID.
@@ -263,9 +326,22 @@ public:
      */
     [[nodiscard]] std::expected<void, Error> replaceTileIds(TileRegion region, std::uint16_t from, std::uint16_t to);
 
+    /** @brief Replaces matching land IDs across all tiles in a half-open block region.
+     *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
+     *  @param from Land ID to find.
+     *  @param to Replacement land ID.
+     *  @retval value Success when replacements are staged.
+     *  @retval error Validation, callback, journal, or I/O failure details.
+     */
     [[nodiscard]] std::expected<void, Error> replaceBlockIds(BlockRegion region, std::uint16_t from, std::uint16_t to);
 
-    [[nodiscard]] std::expected<void, Error> replaceZ(TileRegion region, std::int8_t from, std::int8_t to);
+    /** @brief Replaces matching elevations across the entire staged map.
+     *  @param from Elevation to find.
+     *  @param to Replacement elevation.
+     *  @retval value Success when replacements are staged.
+     *  @retval error Inactive editor or staging I/O failure details.
+     */
+    [[nodiscard]] std::expected<void, Error> replaceZ(std::int8_t from, std::int8_t to);
 
     /** @brief Replaces elevations in a half-open tile region.
      *  @param region Global tile coordinates from min inclusive to maxExclusive exclusive.
@@ -276,6 +352,13 @@ public:
      */
     [[nodiscard]] std::expected<void, Error> replaceTileZ(TileRegion region, std::int8_t from, std::int8_t to);
 
+    /** @brief Replaces matching elevations across all tiles in a half-open block region.
+     *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
+     *  @param from Elevation to find.
+     *  @param to Replacement elevation.
+     *  @retval value Success when replacements are staged.
+     *  @retval error Validation, callback, journal, or I/O failure details.
+     */
     [[nodiscard]] std::expected<void, Error> replaceBlockZ(BlockRegion region, std::int8_t from, std::int8_t to);
 
     /** @brief Publishes staged changes to the output path.
@@ -284,11 +367,16 @@ public:
      */
     [[nodiscard]] std::expected<void, Error> commit();
 
-    /** @brief Discards staged changes without publishing them. */
+    /** @brief Discards staged changes without publishing them.
+     *  Safe to call more than once; the editor cannot be used after aborting.
+     */
     void abort() noexcept;
 
 private:
     struct Impl;
+    /** @brief Constructs an editor from its owned implementation state.
+     *  @param impl Active editor state.
+     */
     explicit MapEditor(std::unique_ptr<Impl> impl);
     std::unique_ptr<Impl> impl_;
 };
@@ -313,6 +401,18 @@ public:
                                                                    Dimensions dimensions,
                                                                    bool overwrite = false);
 
+    /** @brief Generates a diff containing only changes inside a tile region.
+     *  Boundary blocks preserve base tiles outside the region; apply this diff to the same base map.
+     *  @param baseMap Original map.
+     *  @param targetMap Map whose in-region tiles are included.
+     *  @param diffDirectory Destination directory.
+     *  @param mapIndex Facet index used in output filenames.
+     *  @param dimensions Dimensions shared by both maps.
+     *  @param region Half-open tile region to compare.
+     *  @param overwrite Whether existing output files may be replaced.
+     *  @retval value Counts of changed blocks and in-region tiles.
+     *  @retval error Invalid maps, region, diff output, or I/O failure details.
+     */
     [[nodiscard]] static std::expected<DiffReport, Error> generateFromTileRegion(const std::filesystem::path & baseMap,
                                                                                  const std::filesystem::path & targetMap,
                                                                                  const std::filesystem::path & diffDirectory,
@@ -321,6 +421,17 @@ public:
                                                                                  TileRegion region,
                                                                                  bool overwrite = false);
 
+    /** @brief Generates a diff containing only changes inside a block region.
+     *  @param baseMap Original map.
+     *  @param targetMap Map whose selected blocks are included.
+     *  @param diffDirectory Destination directory.
+     *  @param mapIndex Facet index used in output filenames.
+     *  @param dimensions Dimensions shared by both maps.
+     *  @param region Half-open block region to compare.
+     *  @param overwrite Whether existing output files may be replaced.
+     *  @retval value Counts of changed blocks and tiles.
+     *  @retval error Invalid maps, region, diff output, or I/O failure details.
+     */
     [[nodiscard]] static std::expected<DiffReport, Error> generateFromBlockRegion(const std::filesystem::path & baseMap,
                                                                                   const std::filesystem::path & targetMap,
                                                                                   const std::filesystem::path & diffDirectory,

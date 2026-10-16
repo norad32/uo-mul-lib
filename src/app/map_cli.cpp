@@ -1,8 +1,6 @@
 #include "app/map_cli.h"
 #include "uomul/map.h"
-
 #include <CLI/CLI.hpp>
-
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
@@ -249,12 +247,14 @@ editTileRegion(const MapCommandOptions & options, uomul::Dimensions dimensionsVa
 {
     std::uint32_t width = options.regionWidth;
     std::uint32_t height = options.regionHeight;
+
     if (defaultToOne)
     {
         if (width == 0)
         {
             width = 1;
         }
+
         if (height == 0)
         {
             height = 1;
@@ -266,6 +266,7 @@ editTileRegion(const MapCommandOptions & options, uomul::Dimensions dimensionsVa
         {
             width = dimensionsValue.widthTiles - options.x;
         }
+
         if (height == 0 && options.y <= dimensionsValue.heightTiles)
         {
             height = dimensionsValue.heightTiles - options.y;
@@ -307,6 +308,7 @@ editTileRegion(const MapCommandOptions & options, uomul::Dimensions dimensionsVa
             error << region.error() << '\n';
             return 2;
         }
+
         if (options.replaceIdsSelected)
         {
             result = editor.replaceTileIds(
@@ -315,7 +317,7 @@ editTileRegion(const MapCommandOptions & options, uomul::Dimensions dimensionsVa
         else
         {
             result =
-                editor.replaceTilesZ(*region, static_cast<std::int8_t>(options.fromZ), static_cast<std::int8_t>(options.toZ));
+                editor.replaceTileZ(*region, static_cast<std::int8_t>(options.fromZ), static_cast<std::int8_t>(options.toZ));
         }
     }
     else if (options.useBlock)
@@ -335,6 +337,7 @@ editTileRegion(const MapCommandOptions & options, uomul::Dimensions dimensionsVa
         error << "Specify --tile-x/--tile-y, --block-x/--block-y, --fill --x/--y, --from-id/--to-id, or --from-z/--to-z\n";
         return 2;
     }
+
     if (!result)
     {
         return fail(result.error(), error);

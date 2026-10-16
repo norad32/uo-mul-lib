@@ -1,6 +1,7 @@
 #include "map_test_helpers.h"
 #include "uomul/map.h"
 #include <array>
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -708,6 +709,60 @@ TEST_CASE("readLandTiles_Should_ReportMissingBlock_If_RegionIncludesUnavailableD
     REQUIRE_FALSE(result);
     REQUIRE(result.error().code == uomul::ErrorCode::truncatedInput);
     REQUIRE(callbackCount == 1);
+}
+
+TEST_CASE("stats_Should_ReportWholeMapTileIdAndElevationDistributions")
+{
+    const TestDirectory directory;
+    const auto path = directory.path() / "map.mul";
+    writeFixture(path);
+    const auto reader = uomul::MapReader::open(path, dimensions);
+    REQUIRE(reader);
+
+    const auto result = reader->stats();
+
+    REQUIRE(result);
+    REQUIRE(result->tileCount == 256);
+    REQUIRE(result->tileIds.size() == 256);
+    REQUIRE(result->zs.size() == 64);
+    REQUIRE(result->tileIds.front().value == 0);
+    REQUIRE(result->tileIds.front().count == 1);
+    REQUIRE(result->tileIds.front().percentage == Catch::Approx(100.0 / 256.0));
+    REQUIRE(result->zs.front().value == -1);
+    REQUIRE(result->zs.front().count == 4);
+    REQUIRE(result->averageZ);
+    REQUIRE(*result->averageZ == Catch::Approx(31.484375));
+    REQUIRE(result->medianZ);
+    REQUIRE(*result->medianZ == Catch::Approx(31.5));
+}
+
+TEST_CASE("stats_Should_UseExactTileOrBlockRegionAndLeaveEmptyStatisticsUnset")
+{
+    const TestDirectory directory;
+    const auto path = directory.path() / "map.mul";
+    writeFixture(path);
+    const auto reader = uomul::MapReader::open(path, dimensions);
+    REQUIRE(reader);
+
+    const auto tileStats = reader->tileStats({.min = {0, 0}, .maxExclusive = {2, 2}});
+    const auto blockStats = reader->blockStats({.min = {0, 0}, .maxExclusive = {1, 1}});
+    const auto emptyStats = reader->tileStats({.min = {3, 4}, .maxExclusive = {3, 4}});
+
+    REQUIRE(tileStats);
+    REQUIRE(tileStats->tileCount == 4);
+    REQUIRE(tileStats->tileIds.size() == 4);
+    REQUIRE(tileStats->zs.size() == 4);
+    REQUIRE(tileStats->zs.front().value == -1);
+    REQUIRE(tileStats->zs.front().count == 1);
+    REQUIRE(blockStats);
+    REQUIRE(blockStats->tileCount == uomul::landBlockTileCount);
+    REQUIRE(blockStats->tileIds.size() == uomul::landBlockTileCount);
+    REQUIRE(emptyStats);
+    REQUIRE(emptyStats->tileCount == 0);
+    REQUIRE(emptyStats->tileIds.empty());
+    REQUIRE(emptyStats->zs.empty());
+    REQUIRE_FALSE(emptyStats->averageZ);
+    REQUIRE_FALSE(emptyStats->medianZ);
 }
 
 TEST_CASE("facetDimensions_Should_ProvideKnownPresets_If_FacetNameIsKnown")
