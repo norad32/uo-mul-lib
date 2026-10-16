@@ -75,6 +75,17 @@
         "BUILD_GUI": "OFF",
         "BUILD_GUI_RUNTIME": "OFF"
       }
+    },
+    {
+      "name": "release-map-benchmarks",
+      "displayName": "Release Map Benchmarks (Ninja)",
+      "inherits": "release-base",
+      "binaryDir": "${sourceDir}/build/release-map-benchmarks",
+      "cacheVariables": {
+        "BUILD_GUI": "OFF",
+        "BUILD_TESTS": "OFF",
+        "BUILD_BENCHMARKS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -97,6 +108,10 @@
     {
       "name": "release-headless",
       "configurePreset": "release-headless"
+    },
+    {
+      "name": "release-map-benchmarks",
+      "configurePreset": "release-map-benchmarks"
     }
   ],
   "testPresets": [
@@ -131,6 +146,11 @@
       "name": "release-headless",
       "inherits": "test-base",
       "configurePreset": "release-headless"
+    },
+    {
+      "name": "release-map-benchmarks",
+      "inherits": "test-base",
+      "configurePreset": "release-map-benchmarks"
     }
   ]
 }
