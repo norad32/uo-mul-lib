@@ -3,6 +3,7 @@
 #include "uomul/map.h"
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <expected>
 #include <filesystem>
 #include <limits>
@@ -11,6 +12,16 @@
 
 namespace uomul::detail
 {
+
+inline constexpr std::size_t maximumBlocksPerIoBatch = 4096;
+
+[[nodiscard]] constexpr BlockRegion fullBlockRegion(Dimensions dimensions)
+{
+    return {
+        .min = {.x = 0, .y = 0},
+        .maxExclusive = {.x = dimensions.widthTiles / landBlockDimension, .y = dimensions.heightTiles / landBlockDimension},
+    };
+}
 
 class ScopedDescriptor
 {
@@ -124,15 +135,32 @@ template <typename T, std::size_t Size = sizeof(T), std::size_t ContainerSize>
     return value;
 }
 
-class MapHelper
+[[nodiscard]] constexpr LandTile decodeLandTile(const std::byte * bytes)
+{
+    const auto low = std::to_integer<std::uint8_t>(bytes[0]);
+    const auto high = std::to_integer<std::uint8_t>(bytes[1]);
+    return LandTile{
+        .id = static_cast<std::uint16_t>(static_cast<std::uint32_t>(low) |
+                                         (static_cast<std::uint32_t>(high) << std::numeric_limits<unsigned char>::digits)),
+        .z = std::bit_cast<std::int8_t>(std::to_integer<std::uint8_t>(bytes[2])),
+    };
+}
+
+[[nodiscard]] constexpr std::array<std::byte, 3> encodeLandTile(LandTile tile)
+{
+    return {
+        static_cast<std::byte>(tile.id & std::numeric_limits<std::uint8_t>::max()),
+        static_cast<std::byte>(tile.id >> std::numeric_limits<unsigned char>::digits),
+        static_cast<std::byte>(static_cast<std::uint8_t>(tile.z)),
+    };
+}
+
+class MapCommon
 {
 public:
     static constexpr std::uint64_t landBlockByteSize = landBlockByteCount;
     static constexpr std::uint64_t landTileByteSize = 3;
     static constexpr std::uint64_t landHeaderByteSize = 4;
-    static constexpr std::uint32_t blockLocalWidth = landBlockDimension;
-    static constexpr std::uint32_t bitsPerByte = std::numeric_limits<unsigned char>::digits;
-    static constexpr std::uint32_t byteMask = std::numeric_limits<std::uint8_t>::max();
 
     [[nodiscard]] static Error
     makeError(ErrorCode code, const std::filesystem::path & path, std::uint64_t offset, std::string message);

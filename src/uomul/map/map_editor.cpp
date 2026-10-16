@@ -1,4 +1,4 @@
-#include "map_helper.h"
+#include "map_common.h"
 #include "uomul/map.h"
 #include <algorithm>
 #include <array>
@@ -26,24 +26,12 @@
 namespace uomul
 {
 
-using detail::MapHelper;
+using detail::MapCommon;
 
 namespace
 {
 
 constexpr std::size_t bufferSize = 1'048'576U;
-
-[[nodiscard]] BlockRegion wholeMapBlockRegion(Dimensions dimensions)
-{
-    return {
-        .min = {.x = 0, .y = 0},
-        .maxExclusive =
-            {
-                .x = dimensions.widthTiles / landBlockDimension,
-                .y = dimensions.heightTiles / landBlockDimension,
-            },
-    };
-}
 
 std::expected<void, Error>
 validateEditorPaths(const std::filesystem::path & source, const std::filesystem::path & output, bool overwrite)
@@ -52,34 +40,34 @@ validateEditorPaths(const std::filesystem::path & source, const std::filesystem:
     const auto sourceAbsolute = std::filesystem::absolute(source, pathError).lexically_normal();
     if (pathError)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, source, 0, pathError.message()));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, source, 0, pathError.message()));
     }
     const auto outputAbsolute = std::filesystem::absolute(output, pathError).lexically_normal();
     if (pathError)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, output, 0, pathError.message()));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
     }
     if (sourceAbsolute == outputAbsolute)
     {
         return std::unexpected(
-            MapHelper::makeError(ErrorCode::io, output, 0, "in-place editing is not supported; choose a separate output path"));
+            MapCommon::makeError(ErrorCode::io, output, 0, "in-place editing is not supported; choose a separate output path"));
     }
 
     pathError.clear();
     const bool outputExists = std::filesystem::exists(output, pathError);
     if (pathError)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, output, 0, pathError.message()));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
     }
     if (outputExists && std::filesystem::equivalent(source, output, pathError))
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, output, 0, "output path resolves to the source map"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, output, 0, "output path resolves to the source map"));
     }
     if (pathError)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, output, 0, pathError.message()));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
     }
-    if (auto check = MapHelper::checkOutputPath(output, overwrite); !check)
+    if (auto check = MapCommon::checkOutputPath(output, overwrite); !check)
     {
         return check;
     }
@@ -89,7 +77,7 @@ validateEditorPaths(const std::filesystem::path & source, const std::filesystem:
     const bool parentExists = parent.empty() || std::filesystem::is_directory(parent, directoryError);
     if (directoryError || !parentExists)
     {
-        return std::unexpected(MapHelper::makeError(
+        return std::unexpected(MapCommon::makeError(
             ErrorCode::io, parent, 0, directoryError ? directoryError.message() : "output directory does not exist"));
     }
     return {};
@@ -104,7 +92,7 @@ std::expected<void, Error> stageSourceMap(int sourceDescriptor,
     struct stat sourceStatus{};
     if (::fstat(sourceDescriptor, &sourceStatus) != 0 || !S_ISREG(sourceStatus.st_mode))
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, source, 0, "map input must be a regular file"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, source, 0, "map input must be a regular file"));
     }
 #ifdef __linux__
     if (::ioctl(stagedDescriptor, FICLONE, sourceDescriptor) == 0)
@@ -113,7 +101,7 @@ std::expected<void, Error> stageSourceMap(int sourceDescriptor,
     }
     if (::ftruncate(stagedDescriptor, 0) != 0)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, staging, 0, "could not reset staging file"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, staging, 0, "could not reset staging file"));
     }
     std::uint64_t copiedBytes = 0;
     bool copyRangeSupported = true;
@@ -141,7 +129,7 @@ std::expected<void, Error> stageSourceMap(int sourceDescriptor,
 #endif
     if (::ftruncate(stagedDescriptor, 0) != 0)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, staging, 0, "could not reset staging file"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, staging, 0, "could not reset staging file"));
     }
 
     std::array<std::byte, bufferSize> buffer{};
@@ -149,10 +137,10 @@ std::expected<void, Error> stageSourceMap(int sourceDescriptor,
     while (offset < totalBytes)
     {
         const auto amount = static_cast<std::size_t>(std::min<std::uint64_t>(buffer.size(), totalBytes - offset));
-        if (!MapHelper::readExact(sourceDescriptor, buffer.data(), amount, offset) ||
-            !MapHelper::writeExact(stagedDescriptor, buffer.data(), amount, offset))
+        if (!MapCommon::readExact(sourceDescriptor, buffer.data(), amount, offset) ||
+            !MapCommon::writeExact(stagedDescriptor, buffer.data(), amount, offset))
         {
-            return std::unexpected(MapHelper::makeError(ErrorCode::io, staging, offset, "failed to stage source map"));
+            return std::unexpected(MapCommon::makeError(ErrorCode::io, staging, offset, "failed to stage source map"));
         }
         offset += amount;
     }
@@ -163,7 +151,7 @@ std::expected<void, Error> ensureEditorActive(bool committed, int descriptor, bo
 {
     if (committed || descriptor < 0 || failed)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::commitFailed, output, 0, "editor is no longer active"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::commitFailed, output, 0, "editor is no longer active"));
     }
     return {};
 }
@@ -184,9 +172,9 @@ std::expected<void, Error> validateEditRequest(bool committed,
     }
     if (!callback)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, source, 0, "edit callback is empty"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, source, 0, "edit callback is empty"));
     }
-    return MapHelper::validateRegion(region, dimensions, source);
+    return MapCommon::validateRegion(region, dimensions, source);
 }
 
 } // namespace
@@ -243,7 +231,7 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
     impl->output = outputMap;
     impl->dimensions = dimensions;
     impl->overwrite = options.overwriteOutput;
-    auto temporaryDescriptor = MapHelper::createTemporary(outputMap, impl->staging);
+    auto temporaryDescriptor = MapCommon::createTemporary(outputMap, impl->staging);
     if (!temporaryDescriptor)
     {
         return std::unexpected(temporaryDescriptor.error());
@@ -253,9 +241,9 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
     const detail::ScopedDescriptor sourceDescriptor(::open(sourceMap.c_str(), O_RDONLY | O_CLOEXEC));
     if (sourceDescriptor.get() < 0)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, sourceMap, 0, std::strerror(errno)));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, sourceMap, 0, std::strerror(errno)));
     }
-    const auto totalBytes = source->completeBlocks() * MapHelper::landBlockByteSize;
+    const auto totalBytes = source->completeBlocks() * MapCommon::landBlockByteSize;
     if (auto staged = stageSourceMap(sourceDescriptor.get(), stagedDescriptor.get(), totalBytes, sourceMap, impl->staging);
         !staged)
     {
@@ -273,21 +261,21 @@ std::expected<void, Error> MapEditor::writeLandBlock(BlockCoord block, const Lan
     {
         return active;
     }
-    if (auto valid = MapHelper::validateBlock(block, impl_->dimensions, impl_->source); !valid)
+    if (auto valid = MapCommon::validateBlock(block, impl_->dimensions, impl_->source); !valid)
     {
         return valid;
     }
 
     LandBlockBytes raw{};
-    const auto offset = MapHelper::blockOffset(block, impl_->dimensions);
-    if (!MapHelper::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
+    const auto offset = MapCommon::blockOffset(block, impl_->dimensions);
+    if (!MapCommon::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->staging, offset, "could not read staged block"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, impl_->staging, offset, "could not read staged block"));
     }
-    MapHelper::encodeBlock(raw, data);
-    if (!MapHelper::writeExact(impl_->descriptor, raw.data(), raw.size(), offset))
+    MapCommon::encodeBlock(raw, data);
+    if (!MapCommon::writeExact(impl_->descriptor, raw.data(), raw.size(), offset))
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->staging, offset, "could not stage land block"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, impl_->staging, offset, "could not stage land block"));
     }
 
     return {};
@@ -299,29 +287,25 @@ std::expected<void, Error> MapEditor::writeLandTile(TileCoord tile, LandTile dat
     {
         return active;
     }
-    if (auto valid = MapHelper::validateTile(tile, impl_->dimensions, impl_->source); !valid)
+    if (auto valid = MapCommon::validateTile(tile, impl_->dimensions, impl_->source); !valid)
     {
         return valid;
     }
 
     const BlockCoord coordinate{.x = tile.x / landBlockDimension, .y = tile.y / landBlockDimension};
-    const auto tileOffset = MapHelper::blockOffset(coordinate, impl_->dimensions) + MapHelper::landHeaderByteSize +
-                            (detail::tileIndexInBlock(tile) * MapHelper::landTileByteSize);
-    const std::array<std::byte, MapHelper::landTileByteSize> raw{
-        static_cast<std::byte>(data.id & MapHelper::byteMask),
-        static_cast<std::byte>(data.id >> MapHelper::bitsPerByte),
-        static_cast<std::byte>(static_cast<std::uint8_t>(data.z)),
-    };
+    const auto tileOffset = MapCommon::blockOffset(coordinate, impl_->dimensions) + MapCommon::landHeaderByteSize +
+                            (detail::tileIndexInBlock(tile) * MapCommon::landTileByteSize);
+    const auto raw = detail::encodeLandTile(data);
     struct stat stagedStatus{};
     if (::fstat(impl_->descriptor, &stagedStatus) != 0 || stagedStatus.st_size < 0 ||
         static_cast<std::uint64_t>(stagedStatus.st_size) < tileOffset + raw.size())
     {
         return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, impl_->staging, tileOffset, "could not read complete land block"));
+            MapCommon::makeError(ErrorCode::truncatedInput, impl_->staging, tileOffset, "could not read complete land block"));
     }
-    if (!MapHelper::writeExact(impl_->descriptor, raw.data(), raw.size(), tileOffset))
+    if (!MapCommon::writeExact(impl_->descriptor, raw.data(), raw.size(), tileOffset))
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->staging, tileOffset, "could not stage land tile"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, impl_->staging, tileOffset, "could not stage land tile"));
     }
     return {};
 }
@@ -330,10 +314,10 @@ namespace
 {
 
 constexpr std::uint64_t journalHeaderBytes = sizeof(std::uint64_t);
-constexpr std::size_t journalEntryBytes = static_cast<std::size_t>(journalHeaderBytes + (2 * MapHelper::landBlockByteSize));
+constexpr std::size_t journalEntryBytes = static_cast<std::size_t>(journalHeaderBytes + (2 * MapCommon::landBlockByteSize));
 constexpr std::size_t journalEntriesPerWrite = 4096;
 constexpr std::size_t journalEntriesPerRead = 1024;
-constexpr std::size_t journalBlockBytes = static_cast<std::size_t>(MapHelper::landBlockByteSize);
+constexpr std::size_t journalBlockBytes = static_cast<std::size_t>(MapCommon::landBlockByteSize);
 
 std::uint64_t journalOffset(std::span<const std::byte, journalEntryBytes> entry)
 {
@@ -355,9 +339,9 @@ std::expected<void, Error> flushJournal(int journal,
 {
     const auto offset = journalEntryOffset(firstEntry);
     const auto byteCount = bufferedEntries * journalEntryBytes;
-    if (!MapHelper::writeExact(journal, buffer.data(), byteCount, offset))
+    if (!MapCommon::writeExact(journal, buffer.data(), byteCount, offset))
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, journalPath, offset, "could not write edit journal"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, journalPath, offset, "could not write edit journal"));
     }
     return {};
 }
@@ -372,7 +356,7 @@ std::expected<void, Error> flushJournal(int journal,
     {
         const auto entryOffset = runEnd * journalEntryBytes;
         const std::span<const std::byte, journalEntryBytes> entry(entries.data() + entryOffset, journalEntryBytes);
-        if (journalOffset(entry) != blockOffset + ((runEnd - runStart) * MapHelper::landBlockByteSize))
+        if (journalOffset(entry) != blockOffset + ((runEnd - runStart) * MapCommon::landBlockByteSize))
         {
             break;
         }
@@ -414,25 +398,25 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
         for (std::uint32_t y = region.min.y; y < region.maxExclusive.y; ++y)
         {
             const BlockCoord coordinate{.x = x, .y = y};
-            const auto offset = MapHelper::blockOffset(coordinate, dimensions);
+            const auto offset = MapCommon::blockOffset(coordinate, dimensions);
             LandBlockBytes before{};
-            if (!MapHelper::readExact(stagedDescriptor, before.data(), before.size(), offset))
+            if (!MapCommon::readExact(stagedDescriptor, before.data(), before.size(), offset))
             {
-                return std::unexpected(MapHelper::makeError(ErrorCode::io, staging, offset, "could not read staged block"));
+                return std::unexpected(MapCommon::makeError(ErrorCode::io, staging, offset, "could not read staged block"));
             }
-            auto changed = callback(coordinate, MapHelper::decodeBlock(before));
+            auto changed = callback(coordinate, MapCommon::decodeBlock(before));
             if (!changed)
             {
                 return std::unexpected(changed.error());
             }
 
             LandBlockBytes after = before;
-            MapHelper::encodeBlock(after, *changed);
+            MapCommon::encodeBlock(after, *changed);
             std::array<std::byte, journalEntryBytes> entry{};
             const auto encodedOffset = detail::encodeLittleEndian(offset);
             std::ranges::copy(encodedOffset, entry.begin());
             const auto beforeOffset = static_cast<std::size_t>(journalHeaderBytes);
-            const auto afterOffset = beforeOffset + static_cast<std::size_t>(MapHelper::landBlockByteSize);
+            const auto afterOffset = beforeOffset + static_cast<std::size_t>(MapCommon::landBlockByteSize);
             std::ranges::copy(before, std::next(entry.begin(), static_cast<std::ptrdiff_t>(beforeOffset)));
             std::ranges::copy(after, std::next(entry.begin(), static_cast<std::ptrdiff_t>(afterOffset)));
             const auto bufferOffset = bufferedEntries * static_cast<std::size_t>(journalEntryBytes);
@@ -476,7 +460,7 @@ bool transferJournalBlocks(int stagedDescriptor,
         const auto entryCountInChunk =
             static_cast<std::size_t>(std::min<std::uint64_t>(journalEntriesPerRead, entryCount - chunkStart));
         const auto entriesBytes = entryCountInChunk * static_cast<std::size_t>(journalEntryBytes);
-        if (!MapHelper::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
+        if (!MapCommon::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
         {
             return false;
         }
@@ -490,7 +474,7 @@ bool transferJournalBlocks(int stagedDescriptor,
             copyJournalRun(entries, blocks, runStart, runEnd, dataOffset);
             attempted = chunkStart + runEnd;
             const auto runBytes = (runEnd - runStart) * journalBlockBytes;
-            if (!MapHelper::writeExact(stagedDescriptor, blocks.data(), runBytes, blockOffset))
+            if (!MapCommon::writeExact(stagedDescriptor, blocks.data(), runBytes, blockOffset))
             {
                 return false;
             }
@@ -506,7 +490,7 @@ bool replayEditJournal(int stagedDescriptor, int journal, std::uint64_t entryCou
                                  journal,
                                  entryCount,
                                  attempted,
-                                 static_cast<std::size_t>(journalHeaderBytes + MapHelper::landBlockByteSize));
+                                 static_cast<std::size_t>(journalHeaderBytes + MapCommon::landBlockByteSize));
 }
 
 bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryCount)
@@ -522,7 +506,7 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
         const auto entryCountInChunk =
             static_cast<std::size_t>(std::min<std::uint64_t>(journalEntriesPerRead, entryCount - chunkStart));
         const auto entriesBytes = entryCountInChunk * static_cast<std::size_t>(journalEntryBytes);
-        if (!MapHelper::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
+        if (!MapCommon::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
         {
             rollbackSucceeded = false;
             attempted += entryCountInChunk;
@@ -537,7 +521,7 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
             const auto runEnd = journalRunEnd(entries, runStart, entryCountInChunk);
             copyJournalRun(entries, blocks, runStart, runEnd, beforeOffset);
             const auto runBytes = (runEnd - runStart) * journalBlockBytes;
-            if (!MapHelper::writeExact(stagedDescriptor, blocks.data(), runBytes, blockOffset))
+            if (!MapCommon::writeExact(stagedDescriptor, blocks.data(), runBytes, blockOffset))
             {
                 rollbackSucceeded = false;
             }
@@ -558,7 +542,7 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
                                               bool & failed)
 {
     std::filesystem::path journalPath;
-    auto journalDescriptor = MapHelper::createTemporary(output, journalPath);
+    auto journalDescriptor = MapCommon::createTemporary(output, journalPath);
     if (!journalDescriptor)
     {
         return std::unexpected(journalDescriptor.error());
@@ -579,7 +563,7 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
         {
             failed = true;
         }
-        return std::unexpected(MapHelper::makeError(ErrorCode::io,
+        return std::unexpected(MapCommon::makeError(ErrorCode::io,
                                                     staging,
                                                     0,
                                                     rollbackSucceeded ? "edit journal failed; staged changes were rolled back"
@@ -659,7 +643,7 @@ std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const Lan
 
 std::expected<void, Error> MapEditor::fill(LandTile value)
 {
-    return fillBlocks(wholeMapBlockRegion(impl_->dimensions), value);
+    return fillBlocks(detail::fullBlockRegion(impl_->dimensions), value);
 }
 
 std::expected<void, Error> MapEditor::fillBlocks(BlockRegion region, LandTile value)
@@ -680,12 +664,12 @@ std::expected<void, Error> MapEditor::fillTiles(TileRegion region, LandTile valu
 
 std::expected<void, Error> MapEditor::replaceIds(std::uint16_t from, std::uint16_t to)
 {
-    return replaceBlockIds(wholeMapBlockRegion(impl_->dimensions), from, to);
+    return replaceBlockIds(detail::fullBlockRegion(impl_->dimensions), from, to);
 }
 
 std::expected<void, Error> MapEditor::replaceZ(std::int8_t from, std::int8_t to)
 {
-    return replaceBlockZ(wholeMapBlockRegion(impl_->dimensions), from, to);
+    return replaceBlockZ(detail::fullBlockRegion(impl_->dimensions), from, to);
 }
 
 std::expected<void, Error> MapEditor::replaceTileIds(TileRegion region, std::uint16_t from, std::uint16_t to)
@@ -758,7 +742,7 @@ std::expected<void, Error> MapEditor::commit()
     }
     if (::fsync(impl_->descriptor) != 0)
     {
-        const auto error = MapHelper::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
+        const auto error = MapCommon::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
         static_cast<void>(::close(impl_->descriptor));
         impl_->descriptor = -1;
         static_cast<void>(::unlink(impl_->staging.c_str()));
@@ -767,7 +751,7 @@ std::expected<void, Error> MapEditor::commit()
     }
     if (::close(impl_->descriptor) != 0)
     {
-        const auto error = MapHelper::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
+        const auto error = MapCommon::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
         impl_->descriptor = -1;
         static_cast<void>(::unlink(impl_->staging.c_str()));
         impl_->committed = true;
@@ -775,7 +759,7 @@ std::expected<void, Error> MapEditor::commit()
     }
     impl_->descriptor = -1;
 
-    auto result = MapHelper::publishFile(impl_->staging, impl_->output, impl_->overwrite);
+    auto result = MapCommon::publishFile(impl_->staging, impl_->output, impl_->overwrite);
     if (!result)
     {
         static_cast<void>(::unlink(impl_->staging.c_str()));

@@ -1,7 +1,6 @@
-#include "map_helper.h"
+#include "map_common.h"
 #include "uomul/map.h"
 #include <algorithm>
-#include <array>
 #include <bit>
 #include <cerrno>
 #include <cstddef>
@@ -22,45 +21,33 @@
 namespace uomul
 {
 
-using detail::MapHelper;
+using detail::MapCommon;
 
 namespace
 {
 
 constexpr double medianDivisor = 2.0;
-constexpr std::size_t maximumBlocksPerBatch = 4096;
 constexpr std::size_t landIdCount = static_cast<std::size_t>(std::numeric_limits<std::uint16_t>::max()) + 1U;
 constexpr std::size_t elevationCount = static_cast<std::size_t>(std::numeric_limits<std::uint8_t>::max()) + 1U;
-
-LandTile decodeLandTile(const std::byte * bytes)
-{
-    const auto low = std::to_integer<std::uint8_t>(bytes[0]);
-    const auto high = std::to_integer<std::uint8_t>(bytes[1]);
-    return LandTile{
-        .id = static_cast<std::uint16_t>(static_cast<std::uint32_t>(low) |
-                                         (static_cast<std::uint32_t>(high) << MapHelper::bitsPerByte)),
-        .z = std::bit_cast<std::int8_t>(std::to_integer<std::uint8_t>(bytes[2])),
-    };
-}
 
 std::expected<void, Error>
 validateMapFileSize(const std::filesystem::path & path, std::uint64_t fileSize, std::uint64_t expectedSize, OpenOptions options)
 {
-    if (fileSize % MapHelper::landBlockByteSize != 0 && (fileSize > expectedSize || !options.recoverTruncatedMap))
+    if (fileSize % MapCommon::landBlockByteSize != 0 && (fileSize > expectedSize || !options.recoverTruncatedMap))
     {
         return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, path, fileSize, "map has trailing bytes beyond complete blocks"));
+            MapCommon::makeError(ErrorCode::truncatedInput, path, fileSize, "map has trailing bytes beyond complete blocks"));
     }
 
     if (!options.recoverTruncatedMap && fileSize != expectedSize)
     {
-        return std::unexpected(MapHelper::makeError(
+        return std::unexpected(MapCommon::makeError(
             ErrorCode::truncatedInput, path, fileSize, "map size does not match dimensions and complete blocks"));
     }
 
     if (fileSize > expectedSize)
     {
-        return std::unexpected(MapHelper::makeError(
+        return std::unexpected(MapCommon::makeError(
             ErrorCode::truncatedInput, path, expectedSize, "map contains more blocks than specified dimensions"));
     }
     return {};
@@ -73,12 +60,12 @@ std::expected<void, Error> readRawLandBlock(int descriptor,
                                             const std::filesystem::path & path,
                                             LandBlockBytes & raw)
 {
-    const auto offset = MapHelper::blockOffset(block, dimensions);
-    if (MapHelper::blockId(block, dimensions) >= completeBlocks ||
-        !MapHelper::readExact(descriptor, raw.data(), raw.size(), offset))
+    const auto offset = MapCommon::blockOffset(block, dimensions);
+    if (MapCommon::blockId(block, dimensions) >= completeBlocks ||
+        !MapCommon::readExact(descriptor, raw.data(), raw.size(), offset))
     {
         return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, path, offset, "land block is missing or truncated"));
+            MapCommon::makeError(ErrorCode::truncatedInput, path, offset, "land block is missing or truncated"));
     }
     return {};
 }
@@ -87,13 +74,13 @@ template <typename Region, typename Callback>
 std::expected<void, Error>
 validateReadRequest(Region region, const Callback & callback, Dimensions dimensions, const std::filesystem::path & path)
 {
-    if (auto valid = MapHelper::validateRegion(region, dimensions, path); !valid)
+    if (auto valid = MapCommon::validateRegion(region, dimensions, path); !valid)
     {
         return valid;
     }
     if (!callback)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, "read callback is empty"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, "read callback is empty"));
     }
     return {};
 }
@@ -212,9 +199,9 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
                 for (std::uint32_t y = tiles.min.y; y < tiles.maxExclusive.y; ++y)
                 {
                     const auto tileIndex = detail::tileIndexInBlock({.x = x, .y = y});
-                    const auto tileOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) +
-                                            (tileIndex * static_cast<std::size_t>(MapHelper::landTileByteSize));
-                    stats.add(decodeLandTile(raw.data() + tileOffset));
+                    const auto tileOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
+                                            (tileIndex * static_cast<std::size_t>(MapCommon::landTileByteSize));
+                    stats.add(detail::decodeLandTile(raw.data() + tileOffset));
                 }
             }
             return {};
@@ -254,7 +241,7 @@ MapReader::~MapReader()
 
 std::expected<MapReader, Error> MapReader::open(const std::filesystem::path & path, Dimensions dimensions, OpenOptions options)
 {
-    auto count = MapHelper::blockCount(dimensions, path);
+    auto count = MapCommon::blockCount(dimensions, path);
     if (!count)
     {
         return std::unexpected(count.error());
@@ -263,30 +250,30 @@ std::expected<MapReader, Error> MapReader::open(const std::filesystem::path & pa
     detail::ScopedDescriptor descriptor(::open(path.c_str(), O_RDONLY | O_CLOEXEC));
     if (descriptor.get() < 0)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
     }
 
     struct stat fileStatus{};
     if (::fstat(descriptor.get(), &fileStatus) != 0)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
     }
     if (fileStatus.st_size < 0)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, "could not determine map size"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, "could not determine map size"));
     }
 
     const auto fileSize = static_cast<std::uint64_t>(fileStatus.st_size);
-    const auto expectedSize = *count * MapHelper::landBlockByteSize;
+    const auto expectedSize = *count * MapCommon::landBlockByteSize;
     if (auto validSize = validateMapFileSize(path, fileSize, expectedSize, options); !validSize)
     {
         return std::unexpected(validSize.error());
     }
-    const auto completeBlockCount = fileSize / MapHelper::landBlockByteSize;
+    const auto completeBlockCount = fileSize / MapCommon::landBlockByteSize;
 
     if (!S_ISREG(fileStatus.st_mode))
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, path, 0, "map input must be a regular file"));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, "map input must be a regular file"));
     }
 
     auto impl = std::make_unique<Impl>();
@@ -295,7 +282,7 @@ std::expected<MapReader, Error> MapReader::open(const std::filesystem::path & pa
     impl->descriptor = descriptor.release();
     impl->blocks = std::min(*count, completeBlockCount);
     impl->missingBlocks = *count - impl->blocks;
-    impl->ignoredBytes = fileSize % MapHelper::landBlockByteSize;
+    impl->ignoredBytes = fileSize % MapCommon::landBlockByteSize;
     return MapReader(std::move(impl));
 }
 
@@ -321,7 +308,7 @@ std::uint64_t MapReader::missingBlocks() const noexcept
 
 std::expected<LandBlock, Error> MapReader::readLandBlock(BlockCoord block) const
 {
-    if (auto valid = MapHelper::validateBlock(block, impl_->dimensions, impl_->path); !valid)
+    if (auto valid = MapCommon::validateBlock(block, impl_->dimensions, impl_->path); !valid)
     {
         return std::unexpected(valid.error());
     }
@@ -331,44 +318,44 @@ std::expected<LandBlock, Error> MapReader::readLandBlock(BlockCoord block) const
     {
         return std::unexpected(loaded.error());
     }
-    return MapHelper::decodeBlock(raw);
+    return MapCommon::decodeBlock(raw);
 }
 
 std::expected<LandTile, Error> MapReader::readLandTile(TileCoord tile) const
 {
-    if (auto valid = MapHelper::validateTile(tile, impl_->dimensions, impl_->path); !valid)
+    if (auto valid = MapCommon::validateTile(tile, impl_->dimensions, impl_->path); !valid)
     {
         return std::unexpected(valid.error());
     }
 
     const BlockCoord block{.x = tile.x / landBlockDimension, .y = tile.y / landBlockDimension};
-    const auto blockOffset = MapHelper::blockOffset(block, impl_->dimensions);
-    if (MapHelper::blockId(block, impl_->dimensions) >= impl_->blocks)
+    const auto blockOffset = MapCommon::blockOffset(block, impl_->dimensions);
+    if (MapCommon::blockId(block, impl_->dimensions) >= impl_->blocks)
     {
         return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, impl_->path, blockOffset, "land block is missing or truncated"));
+            MapCommon::makeError(ErrorCode::truncatedInput, impl_->path, blockOffset, "land block is missing or truncated"));
     }
     struct stat fileStatus{};
     if (::fstat(impl_->descriptor, &fileStatus) != 0)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->path, blockOffset, std::strerror(errno)));
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, impl_->path, blockOffset, std::strerror(errno)));
     }
-    if (fileStatus.st_size < 0 || static_cast<std::uint64_t>(fileStatus.st_size) < blockOffset + MapHelper::landBlockByteSize)
+    if (fileStatus.st_size < 0 || static_cast<std::uint64_t>(fileStatus.st_size) < blockOffset + MapCommon::landBlockByteSize)
     {
         return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, impl_->path, blockOffset, "land block is missing or truncated"));
+            MapCommon::makeError(ErrorCode::truncatedInput, impl_->path, blockOffset, "land block is missing or truncated"));
     }
-    constexpr std::size_t tileByteSize = static_cast<std::size_t>(MapHelper::landTileByteSize);
+    constexpr std::size_t tileByteSize = static_cast<std::size_t>(MapCommon::landTileByteSize);
     std::array<std::byte, tileByteSize> raw{};
     const auto offset =
-        blockOffset + MapHelper::landHeaderByteSize + (detail::tileIndexInBlock(tile) * MapHelper::landTileByteSize);
-    if (!MapHelper::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
+        blockOffset + MapCommon::landHeaderByteSize + (detail::tileIndexInBlock(tile) * MapCommon::landTileByteSize);
+    if (!MapCommon::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
     {
         return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, impl_->path, offset, "land tile is missing or truncated"));
+            MapCommon::makeError(ErrorCode::truncatedInput, impl_->path, offset, "land tile is missing or truncated"));
     }
 
-    return decodeLandTile(raw.data());
+    return detail::decodeLandTile(raw.data());
 }
 
 std::expected<void, Error> MapReader::readLandBlocks(BlockRegion region, const LandBlockRead & callback) const
@@ -380,7 +367,7 @@ std::expected<void, Error> MapReader::readLandBlocks(BlockRegion region, const L
 
     return readRawLandBlocks(region,
                              [&callback](BlockCoord coordinate, const LandBlockBytes & raw) -> std::expected<void, Error>
-                             { return callback(coordinate, MapHelper::decodeBlock(raw)); });
+                             { return callback(coordinate, MapCommon::decodeBlock(raw)); });
 }
 
 std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, const LandBlockBytesRead & callback) const
@@ -390,8 +377,9 @@ std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, cons
         return valid;
     }
 
-    const auto blocksPerRead = std::min(maximumBlocksPerBatch, static_cast<std::size_t>(region.maxExclusive.y - region.min.y));
-    std::vector<std::byte> buffer(blocksPerRead * static_cast<std::size_t>(MapHelper::landBlockByteSize));
+    const auto blocksPerRead =
+        std::min(detail::maximumBlocksPerIoBatch, static_cast<std::size_t>(region.maxExclusive.y - region.min.y));
+    std::vector<std::byte> buffer(blocksPerRead * static_cast<std::size_t>(MapCommon::landBlockByteSize));
     for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; ++x)
     {
         std::uint32_t y = region.min.y;
@@ -400,10 +388,10 @@ std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, cons
             const auto blocksRemaining = static_cast<std::size_t>(region.maxExclusive.y - y);
             const auto blockCount = std::min(blocksPerRead, blocksRemaining);
             const BlockCoord first{.x = x, .y = y};
-            const auto offset = MapHelper::blockOffset(first, impl_->dimensions);
-            const auto byteCount = blockCount * static_cast<std::size_t>(MapHelper::landBlockByteSize);
-            if (MapHelper::blockId(first, impl_->dimensions) + blockCount > impl_->blocks ||
-                !MapHelper::readExact(impl_->descriptor, buffer.data(), byteCount, offset))
+            const auto offset = MapCommon::blockOffset(first, impl_->dimensions);
+            const auto byteCount = blockCount * static_cast<std::size_t>(MapCommon::landBlockByteSize);
+            if (MapCommon::blockId(first, impl_->dimensions) + blockCount > impl_->blocks ||
+                !MapCommon::readExact(impl_->descriptor, buffer.data(), byteCount, offset))
             {
                 for (std::size_t index = 0; index < blockCount; ++index)
                 {
@@ -426,7 +414,7 @@ std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, cons
                 for (std::size_t index = 0; index < blockCount; ++index)
                 {
                     LandBlockBytes raw{};
-                    const auto blockOffset = index * static_cast<std::size_t>(MapHelper::landBlockByteSize);
+                    const auto blockOffset = index * static_cast<std::size_t>(MapCommon::landBlockByteSize);
                     std::ranges::copy_n(
                         std::next(buffer.begin(), static_cast<std::ptrdiff_t>(blockOffset)), raw.size(), raw.begin());
                     const BlockCoord coordinate{.x = x, .y = y + static_cast<std::uint32_t>(index)};
@@ -450,7 +438,7 @@ std::expected<MapStats, Error> MapReader::stats() const
 
 std::expected<MapStats, Error> MapReader::tileStats(TileRegion region) const
 {
-    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->path); !valid)
+    if (auto valid = MapCommon::validateRegion(region, impl_->dimensions, impl_->path); !valid)
     {
         return std::unexpected(valid.error());
     }
@@ -459,7 +447,7 @@ std::expected<MapStats, Error> MapReader::tileStats(TileRegion region) const
 
 std::expected<MapStats, Error> MapReader::blockStats(BlockRegion region) const
 {
-    if (auto valid = MapHelper::validateRegion(region, impl_->dimensions, impl_->path); !valid)
+    if (auto valid = MapCommon::validateRegion(region, impl_->dimensions, impl_->path); !valid)
     {
         return std::unexpected(valid.error());
     }
@@ -482,7 +470,7 @@ std::expected<void, Error> MapReader::readLandTiles(TileRegion region, const Lan
         blocks,
         [&callback, region](BlockCoord coordinate, const LandBlockBytes & raw) -> std::expected<void, Error>
         {
-            const auto block = MapHelper::decodeBlock(raw);
+            const auto block = MapCommon::decodeBlock(raw);
             return detail::visitTilesInBlock(region,
                                              coordinate,
                                              [&callback, &block](TileCoord tile, std::size_t index)

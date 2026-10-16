@@ -1,4 +1,4 @@
-#include "map_helper.h"
+#include "map_common.h"
 #include "uomul/map.h"
 #include <atomic>
 #include <cerrno>
@@ -35,7 +35,7 @@ std::expected<void, Error> validateRegionBounds(Region region,
     if (region.min.x > region.maxExclusive.x || region.min.y > region.maxExclusive.y ||
         region.maxExclusive.x > dimensions.widthTiles / unit || region.maxExclusive.y > dimensions.heightTiles / unit)
     {
-        return std::unexpected(MapHelper::makeError(ErrorCode::invalidCoordinate, path, 0, message));
+        return std::unexpected(MapCommon::makeError(ErrorCode::invalidCoordinate, path, 0, message));
     }
     return {};
 }
@@ -129,12 +129,12 @@ void TemporaryPath::release() noexcept
     active_ = false;
 }
 
-Error MapHelper::makeError(ErrorCode code, const std::filesystem::path & path, std::uint64_t offset, std::string message)
+Error MapCommon::makeError(ErrorCode code, const std::filesystem::path & path, std::uint64_t offset, std::string message)
 {
     return Error{.code = code, .path = path, .offset = offset, .message = std::move(message)};
 }
 
-std::expected<std::uint64_t, Error> MapHelper::blockCount(Dimensions dimensions, const std::filesystem::path & path)
+std::expected<std::uint64_t, Error> MapCommon::blockCount(Dimensions dimensions, const std::filesystem::path & path)
 {
     if (dimensions.widthTiles == 0 || dimensions.heightTiles == 0 || dimensions.widthTiles % landBlockDimension != 0 ||
         dimensions.heightTiles % landBlockDimension != 0)
@@ -154,7 +154,7 @@ std::expected<std::uint64_t, Error> MapHelper::blockCount(Dimensions dimensions,
     return blocks;
 }
 
-std::expected<void, Error> MapHelper::validateBlock(BlockCoord block, Dimensions dimensions, const std::filesystem::path & path)
+std::expected<void, Error> MapCommon::validateBlock(BlockCoord block, Dimensions dimensions, const std::filesystem::path & path)
 {
     if (block.x >= dimensions.widthTiles / landBlockDimension || block.y >= dimensions.heightTiles / landBlockDimension)
     {
@@ -164,7 +164,7 @@ std::expected<void, Error> MapHelper::validateBlock(BlockCoord block, Dimensions
     return {};
 }
 
-std::expected<void, Error> MapHelper::validateTile(TileCoord tile, Dimensions dimensions, const std::filesystem::path & path)
+std::expected<void, Error> MapCommon::validateTile(TileCoord tile, Dimensions dimensions, const std::filesystem::path & path)
 {
     if (tile.x >= dimensions.widthTiles || tile.y >= dimensions.heightTiles)
     {
@@ -174,63 +174,56 @@ std::expected<void, Error> MapHelper::validateTile(TileCoord tile, Dimensions di
     return {};
 }
 
-std::uint64_t MapHelper::blockId(BlockCoord block, Dimensions dimensions)
+std::uint64_t MapCommon::blockId(BlockCoord block, Dimensions dimensions)
 {
     return (static_cast<std::uint64_t>(block.x) * (dimensions.heightTiles / landBlockDimension)) + block.y;
 }
 
-std::uint64_t MapHelper::blockOffset(BlockCoord block, Dimensions dimensions)
+std::uint64_t MapCommon::blockOffset(BlockCoord block, Dimensions dimensions)
 {
     return blockId(block, dimensions) * landBlockByteSize;
 }
 
-bool MapHelper::readExact(int descriptor, void * data, std::size_t size, std::uint64_t offset)
+bool MapCommon::readExact(int descriptor, void * data, std::size_t size, std::uint64_t offset)
 {
     return transferExact(descriptor, static_cast<std::byte *>(data), size, offset, ::pread);
 }
 
-bool MapHelper::writeExact(int descriptor, const void * data, std::size_t size, std::uint64_t offset)
+bool MapCommon::writeExact(int descriptor, const void * data, std::size_t size, std::uint64_t offset)
 {
     return transferExact(descriptor, static_cast<const std::byte *>(data), size, offset, ::pwrite);
 }
 
-LandBlock MapHelper::decodeBlock(const LandBlockBytes & raw)
+LandBlock MapCommon::decodeBlock(const LandBlockBytes & raw)
 {
     LandBlock block{};
     for (std::size_t index = 0; index < block.size(); ++index)
     {
         const auto offset = static_cast<std::size_t>(landHeaderByteSize) + (index * static_cast<std::size_t>(landTileByteSize));
-        const auto low = std::to_integer<std::uint8_t>(raw.at(offset));
-        const auto high = std::to_integer<std::uint8_t>(raw.at(offset + 1));
-        block.at(index) = LandTile{
-            .id =
-                static_cast<std::uint16_t>(static_cast<std::uint32_t>(low) | (static_cast<std::uint32_t>(high) << bitsPerByte)),
-            .z = static_cast<std::int8_t>(std::to_integer<std::uint8_t>(raw.at(offset + 2))),
-        };
+        block.at(index) = decodeLandTile(raw.data() + offset);
     }
 
     return block;
 }
 
-void MapHelper::encodeBlock(LandBlockBytes & raw, const LandBlock & block)
+void MapCommon::encodeBlock(LandBlockBytes & raw, const LandBlock & block)
 {
     for (std::size_t index = 0; index < block.size(); ++index)
     {
         const auto offset = static_cast<std::size_t>(landHeaderByteSize) + (index * static_cast<std::size_t>(landTileByteSize));
-        raw.at(offset) = static_cast<std::byte>(block.at(index).id & byteMask);
-        raw.at(offset + 1) = static_cast<std::byte>(block.at(index).id >> bitsPerByte);
-        raw.at(offset + 2) = static_cast<std::byte>(static_cast<std::uint8_t>(block.at(index).z));
+        const auto encoded = encodeLandTile(block.at(index));
+        std::ranges::copy(encoded, raw.begin() + static_cast<std::ptrdiff_t>(offset));
     }
 }
 
-std::filesystem::path MapHelper::temporaryPath(const std::filesystem::path & path)
+std::filesystem::path MapCommon::temporaryPath(const std::filesystem::path & path)
 {
     const auto sequence = temporarySequence.fetch_add(1, std::memory_order_relaxed);
     return path.parent_path() /
            (path.filename().string() + ".uomul-tmp-" + std::to_string(::getpid()) + "-" + std::to_string(sequence));
 }
 
-std::expected<int, Error> MapHelper::createTemporary(const std::filesystem::path & path, std::filesystem::path & temporary)
+std::expected<int, Error> MapCommon::createTemporary(const std::filesystem::path & path, std::filesystem::path & temporary)
 {
     for (int attempt = 0; attempt < maximumAttempts; ++attempt)
     {
@@ -250,7 +243,7 @@ std::expected<int, Error> MapHelper::createTemporary(const std::filesystem::path
 }
 
 std::expected<void, Error>
-MapHelper::publishFile(const std::filesystem::path & temporary, const std::filesystem::path & destination, bool overwrite)
+MapCommon::publishFile(const std::filesystem::path & temporary, const std::filesystem::path & destination, bool overwrite)
 {
     std::error_code filesystemError;
     const bool destinationExists = std::filesystem::exists(destination, filesystemError);
@@ -290,19 +283,19 @@ MapHelper::publishFile(const std::filesystem::path & temporary, const std::files
 }
 
 std::expected<void, Error>
-MapHelper::validateRegion(BlockRegion region, Dimensions dimensions, const std::filesystem::path & path)
+MapCommon::validateRegion(BlockRegion region, Dimensions dimensions, const std::filesystem::path & path)
 {
     return validateRegionBounds(
         region, dimensions, landBlockDimension, path, "block region is invalid or exceeds map dimensions");
 }
 
 std::expected<void, Error>
-MapHelper::validateRegion(TileRegion region, Dimensions dimensions, const std::filesystem::path & path)
+MapCommon::validateRegion(TileRegion region, Dimensions dimensions, const std::filesystem::path & path)
 {
     return validateRegionBounds(region, dimensions, 1, path, "tile region is invalid or exceeds map dimensions");
 }
 
-std::expected<void, Error> MapHelper::checkOutputPath(const std::filesystem::path & path, bool overwrite)
+std::expected<void, Error> MapCommon::checkOutputPath(const std::filesystem::path & path, bool overwrite)
 {
     std::error_code filesystemError;
     const bool exists = std::filesystem::exists(path, filesystemError);
