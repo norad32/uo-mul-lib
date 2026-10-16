@@ -3,7 +3,8 @@ add_library(
     map/map_diff.cpp
     map/map_editor.cpp
     map/map_common.cpp
-    map/map_reader.cpp)
+    map/map_reader.cpp
+    map/map_stats.cpp)
 set_target_properties(uomul PROPERTIES EXPORT_NAME uomul)
 target_link_libraries(uomul PUBLIC application_options)
 target_include_directories(
