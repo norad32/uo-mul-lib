@@ -15,9 +15,11 @@
 #include <functional>
 #include <ios>
 #include <istream>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <ostream>
+#include <span>
 #include <string>
 #include <sys/stat.h>
 #include <system_error>
@@ -35,76 +37,136 @@ namespace
 
 constexpr std::uint32_t mapBlockIdByteCount = 4;
 
-std::uint64_t countChangedTiles(const LandBlockBytes & left, const LandBlockBytes & right)
+std::uint64_t countChangedTiles(std::span<const std::byte> left, std::span<const std::byte> right)
 {
+    const auto tileDataOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize);
+    const auto tileDataSize = static_cast<std::size_t>(MapHelper::landBlockByteSize) - tileDataOffset;
+    const auto leftTiles = left.subspan(tileDataOffset, tileDataSize);
+    const auto rightTiles = right.subspan(tileDataOffset, tileDataSize);
+    if (std::memcmp(leftTiles.data(), rightTiles.data(), tileDataSize) == 0)
+    {
+        return 0;
+    }
+
     std::uint64_t changedTiles = 0;
+    auto leftTile = leftTiles.begin();
+    auto rightTile = rightTiles.begin();
     for (std::size_t tile = 0; tile < landBlockTileCount; ++tile)
     {
-        const auto offset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) + (tile * 3U);
-        changedTiles += left.at(offset) != right.at(offset) || left.at(offset + 1) != right.at(offset + 1) ||
-                                left.at(offset + 2) != right.at(offset + 2)
+        changedTiles += *leftTile != *rightTile || *std::next(leftTile) != *std::next(rightTile) ||
+                                *std::next(leftTile, 2) != *std::next(rightTile, 2)
                             ? 1U
                             : 0U;
+        std::ranges::advance(leftTile, 3);
+        std::ranges::advance(rightTile, 3);
     }
     return changedTiles;
 }
 
+class TargetBlockBatchReader
+{
+public:
+    TargetBlockBatchReader(int descriptor, std::filesystem::path path, Dimensions dimensions, BlockRegion region) :
+        descriptor_(descriptor),
+        path_(std::move(path)),
+        dimensions_(dimensions),
+        region_(region),
+        buffer_(std::min(maximumBlocksPerRead, static_cast<std::size_t>(region.maxExclusive.y - region.min.y)) *
+                static_cast<std::size_t>(MapHelper::landBlockByteSize))
+    {
+    }
+
+    [[nodiscard]] std::expected<void, Error> read(BlockCoord coordinate, std::span<const std::byte> & raw)
+    {
+        if (coordinate.x != cachedX_ || coordinate.y < cachedStartY_ || coordinate.y >= cachedEndY_)
+        {
+            cachedX_ = coordinate.x;
+            cachedStartY_ = coordinate.y;
+            const auto blocksRemaining = static_cast<std::size_t>(region_.maxExclusive.y - coordinate.y);
+            const auto blockCount = std::min(maximumBlocksPerRead, blocksRemaining);
+            cachedEndY_ = coordinate.y + static_cast<std::uint32_t>(blockCount);
+            const BlockCoord first{.x = coordinate.x, .y = coordinate.y};
+            const auto offset = MapHelper::blockOffset(first, dimensions_);
+            const auto byteCount = blockCount * static_cast<std::size_t>(MapHelper::landBlockByteSize);
+            if (!MapHelper::readExact(descriptor_, buffer_.data(), byteCount, offset))
+            {
+                return std::unexpected(
+                    MapHelper::makeError(ErrorCode::truncatedInput, path_, offset, "could not read target block"));
+            }
+        }
+
+        const auto blockOffset =
+            static_cast<std::size_t>(coordinate.y - cachedStartY_) * static_cast<std::size_t>(MapHelper::landBlockByteSize);
+        raw = std::span<const std::byte>(buffer_).subspan(blockOffset, static_cast<std::size_t>(MapHelper::landBlockByteSize));
+        return {};
+    }
+
+private:
+    static constexpr std::size_t maximumBlocksPerRead = 4096;
+
+    int descriptor_;
+    std::filesystem::path path_;
+    Dimensions dimensions_;
+    BlockRegion region_;
+    std::vector<std::byte> buffer_;
+    std::uint32_t cachedX_ = std::numeric_limits<std::uint32_t>::max();
+    std::uint32_t cachedStartY_ = 0;
+    std::uint32_t cachedEndY_ = 0;
+};
+
+struct BlockTileSelection
+{
+    std::uint32_t minX = 0;
+    std::uint32_t maxExclusiveX = landBlockDimension;
+    std::uint32_t minY = 0;
+    std::uint32_t maxExclusiveY = landBlockDimension;
+
+    [[nodiscard]] bool coversWholeBlock() const noexcept
+    {
+        return minX == 0 && maxExclusiveX == landBlockDimension && minY == 0 && maxExclusiveY == landBlockDimension;
+    }
+};
+
+BlockTileSelection selectTilesInBlock(BlockCoord coordinate, TileRegion region)
+{
+    const auto blockMinX = coordinate.x * landBlockDimension;
+    const auto blockMinY = coordinate.y * landBlockDimension;
+    const auto blockMaxX = blockMinX + landBlockDimension;
+    const auto blockMaxY = blockMinY + landBlockDimension;
+    return {
+        .minX = std::max(region.min.x, blockMinX) - blockMinX,
+        .maxExclusiveX = std::min(region.maxExclusive.x, blockMaxX) - blockMinX,
+        .minY = std::max(region.min.y, blockMinY) - blockMinY,
+        .maxExclusiveY = std::min(region.maxExclusive.y, blockMaxY) - blockMinY,
+    };
+}
+
 struct LandBlockComparison
 {
-    LandBlockBytes targetRaw{};
     std::uint64_t changedTiles = 0;
 };
 
-std::expected<LandBlockComparison, Error> compareLandBlocks(int targetDescriptor,
-                                                            const std::filesystem::path & targetPath,
-                                                            Dimensions dimensions,
-                                                            BlockCoord coordinate,
-                                                            const LandBlockBytes & sourceRaw,
-                                                            std::optional<TileRegion> tileRegion = std::nullopt)
+LandBlockComparison
+compareLandBlocks(BlockTileSelection selection, std::span<const std::byte> sourceRaw, std::span<const std::byte> targetRaw)
 {
-    LandBlockComparison comparison{};
-    const auto offset = MapHelper::blockOffset(coordinate, dimensions);
-    if (!MapHelper::readExact(targetDescriptor, comparison.targetRaw.data(), comparison.targetRaw.size(), offset))
+    if (selection.coversWholeBlock())
     {
-        return std::unexpected(
-            MapHelper::makeError(ErrorCode::truncatedInput, targetPath, offset, "could not read target block"));
-    }
-    if (!tileRegion)
-    {
-        comparison.changedTiles = countChangedTiles(sourceRaw, comparison.targetRaw);
-        return comparison;
+        return {.changedTiles = countChangedTiles(sourceRaw, targetRaw)};
     }
 
-    std::ranges::copy_n(sourceRaw.begin(),
-                        static_cast<std::size_t>(MapHelper::landHeaderByteSize),
-                        comparison.targetRaw.begin());
-    for (std::size_t index = 0; index < landBlockTileCount; ++index)
+    std::uint64_t changedTiles = 0;
+    for (auto y = selection.minY; y < selection.maxExclusiveY; ++y)
     {
-        const auto localX = static_cast<std::uint32_t>(index % landBlockDimension);
-        const auto localY = static_cast<std::uint32_t>(index / landBlockDimension);
-        const TileCoord tile{
-            .x = (coordinate.x * landBlockDimension) + localX,
-            .y = (coordinate.y * landBlockDimension) + localY,
-        };
-        if (tile.x >= tileRegion->min.x && tile.x < tileRegion->maxExclusive.x && tile.y >= tileRegion->min.y &&
-            tile.y < tileRegion->maxExclusive.y)
+        for (auto x = selection.minX; x < selection.maxExclusiveX; ++x)
         {
-            const auto tileOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) + (index * 3U);
-            comparison.changedTiles += sourceRaw.at(tileOffset) != comparison.targetRaw.at(tileOffset) ||
-                                               sourceRaw.at(tileOffset + 1) != comparison.targetRaw.at(tileOffset + 1) ||
-                                               sourceRaw.at(tileOffset + 2) != comparison.targetRaw.at(tileOffset + 2)
-                                           ? 1U
-                                           : 0U;
-        }
-        else
-        {
-            const auto tileOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) + (index * 3U);
-            comparison.targetRaw.at(tileOffset) = sourceRaw.at(tileOffset);
-            comparison.targetRaw.at(tileOffset + 1) = sourceRaw.at(tileOffset + 1);
-            comparison.targetRaw.at(tileOffset + 2) = sourceRaw.at(tileOffset + 2);
+            const auto tileOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) +
+                                    (((static_cast<std::size_t>(y) * landBlockDimension) + x) * 3U);
+            const auto sourceTile = sourceRaw.subspan(tileOffset, 3);
+            const auto targetTile = targetRaw.subspan(tileOffset, 3);
+            changedTiles += !std::ranges::equal(sourceTile, targetTile) ? 1U : 0U;
         }
     }
-    return comparison;
+    return {.changedTiles = changedTiles};
 }
 
 bool writeLe32(std::ostream & stream, std::uint32_t value)
@@ -149,11 +211,9 @@ struct DiffBackups
 
 struct DiffGenerationState
 {
-    std::filesystem::path targetPath;
     std::filesystem::path dataTemporary;
     std::filesystem::path indexTemporary;
     Dimensions dimensions{};
-    int targetDescriptor = -1;
     std::ofstream * data = nullptr;
     std::ofstream * index = nullptr;
     DiffReport * report = nullptr;
@@ -265,19 +325,51 @@ bool readLe32(std::istream & stream, std::uint32_t & value)
     return true;
 }
 
-std::expected<void, Error>
-appendChangedDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const LandBlockBytes & sourceRaw)
+std::expected<void, Error> appendChangedDiffBlock(const DiffGenerationState & state,
+                                                  BlockCoord coordinate,
+                                                  const LandBlockBytes & sourceRaw,
+                                                  std::span<const std::byte> targetRaw)
 {
-    auto comparison =
-        compareLandBlocks(state.targetDescriptor, state.targetPath, state.dimensions, coordinate, sourceRaw, state.tileRegion);
-    if (!comparison)
-    {
-        return std::unexpected(comparison.error());
-    }
-    const auto changedTiles = comparison->changedTiles;
+    const auto selection = state.tileRegion ? selectTilesInBlock(coordinate, *state.tileRegion) : BlockTileSelection{};
+    const auto comparison = compareLandBlocks(selection, sourceRaw, targetRaw);
+    const auto changedTiles = comparison.changedTiles;
     if (changedTiles == 0)
     {
         return {};
+    }
+
+    LandBlockBytes outputRaw{};
+    std::ranges::copy(targetRaw, outputRaw.begin());
+    if (state.tileRegion)
+    {
+        std::ranges::copy_n(sourceRaw.begin(), static_cast<std::size_t>(MapHelper::landHeaderByteSize), outputRaw.begin());
+    }
+    if (state.tileRegion && !selection.coversWholeBlock())
+    {
+        constexpr auto tileByteSize = static_cast<std::size_t>(MapHelper::landTileByteSize);
+        for (auto y = 0U; y < landBlockDimension; ++y)
+        {
+            const auto rowOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) +
+                                   (static_cast<std::size_t>(y) * landBlockDimension * tileByteSize);
+            if (y < selection.minY || y >= selection.maxExclusiveY)
+            {
+                const auto rowBytes = static_cast<std::size_t>(landBlockDimension) * tileByteSize;
+                std::ranges::copy_n(std::next(sourceRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)),
+                                    rowBytes,
+                                    std::next(outputRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)));
+                continue;
+            }
+            const auto leftBytes = static_cast<std::ptrdiff_t>(static_cast<std::size_t>(selection.minX) * tileByteSize);
+            std::ranges::copy_n(std::next(sourceRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)),
+                                leftBytes,
+                                std::next(outputRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)));
+            const auto rightOffset = rowOffset + (static_cast<std::size_t>(selection.maxExclusiveX) * tileByteSize);
+            const auto rightBytes = static_cast<std::ptrdiff_t>(
+                static_cast<std::size_t>(landBlockDimension - selection.maxExclusiveX) * tileByteSize);
+            std::ranges::copy_n(std::next(sourceRaw.begin(), static_cast<std::ptrdiff_t>(rightOffset)),
+                                rightBytes,
+                                std::next(outputRaw.begin(), static_cast<std::ptrdiff_t>(rightOffset)));
+        }
     }
 
     const auto id = MapHelper::blockId(coordinate, state.dimensions);
@@ -286,9 +378,8 @@ appendChangedDiffBlock(const DiffGenerationState & state, BlockCoord coordinate,
         return std::unexpected(MapHelper::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
     }
     std::array<char, MapHelper::landBlockByteSize> bytes{};
-    std::ranges::transform(comparison->targetRaw,
-                           bytes.begin(),
-                           [](std::byte byte) { return static_cast<char>(std::to_integer<unsigned char>(byte)); });
+    std::ranges::transform(
+        outputRaw, bytes.begin(), [](std::byte byte) { return static_cast<char>(std::to_integer<unsigned char>(byte)); });
     state.data->write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
     if (!*state.data)
     {
@@ -332,19 +423,26 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
 
     DiffReport report{};
     DiffGenerationState state{
-        .targetPath = targetMap,
         .dataTemporary = files.data,
         .indexTemporary = files.index,
         .dimensions = dimensions,
-        .targetDescriptor = targetDescriptor.get(),
         .data = &data,
         .index = &index,
         .report = &report,
         .tileRegion = tileRegion,
     };
-    auto compared = source->readRawLandBlocks(region,
-                                              [&state](BlockCoord coordinate, const LandBlockBytes & sourceRaw)
-                                              { return appendChangedDiffBlock(state, coordinate, sourceRaw); });
+    TargetBlockBatchReader targetBlocks(targetDescriptor.get(), targetMap, dimensions, region);
+    auto compared = source->readRawLandBlocks(
+        region,
+        [&state, &targetBlocks](BlockCoord coordinate, const LandBlockBytes & sourceRaw) -> std::expected<void, Error>
+        {
+            std::span<const std::byte> targetRaw;
+            if (auto loaded = targetBlocks.read(coordinate, targetRaw); !loaded)
+            {
+                return std::unexpected(loaded.error());
+            }
+            return appendChangedDiffBlock(state, coordinate, sourceRaw, targetRaw);
+        });
     if (!compared)
     {
         return std::unexpected(compared.error());
@@ -635,17 +733,18 @@ std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourc
         .min = {.x = 0, .y = 0},
         .maxExclusive = {.x = dimensions.widthTiles / landBlockDimension, .y = dimensions.heightTiles / landBlockDimension},
     };
+    TargetBlockBatchReader targetBlocks(targetDescriptor, targetPath, dimensions, fullRegion);
     auto scan =
         source->readRawLandBlocks(fullRegion,
                                   [&](BlockCoord coordinate, const LandBlockBytes & sourceRaw) -> std::expected<void, Error>
                                   {
-                                      auto comparison =
-                                          compareLandBlocks(targetDescriptor, targetPath, dimensions, coordinate, sourceRaw);
-                                      if (!comparison)
+                                      std::span<const std::byte> targetRaw;
+                                      if (auto loaded = targetBlocks.read(coordinate, targetRaw); !loaded)
                                       {
-                                          return std::unexpected(comparison.error());
+                                          return std::unexpected(loaded.error());
                                       }
-                                      const auto changedTiles = comparison->changedTiles;
+                                      const auto comparison = compareLandBlocks(BlockTileSelection(), sourceRaw, targetRaw);
+                                      const auto changedTiles = comparison.changedTiles;
 
                                       if (changedTiles != 0)
                                       {

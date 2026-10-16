@@ -335,6 +335,36 @@ TEST_CASE("readLandTile_Should_RejectCoordinates_If_TileIsOutsideMap")
     REQUIRE(outsideY.error().code == uomul::ErrorCode::invalidCoordinate);
 }
 
+TEST_CASE("readLandTile_Should_RejectPartialBlock_If_BlockIsTruncatedAfterOpening")
+{
+    const TestDirectory directory;
+    const auto path = directory.path() / "map.mul";
+    writeFixture(path);
+    const auto reader = uomul::MapReader::open(path, dimensions);
+    REQUIRE(reader);
+    std::filesystem::resize_file(path, (2U * uomul::landBlockByteCount) + 2U);
+
+    const auto tile = reader->readLandTile({.x = uomul::landBlockDimension, .y = 0});
+
+    REQUIRE_FALSE(tile);
+    REQUIRE(tile.error().code == uomul::ErrorCode::truncatedInput);
+}
+
+TEST_CASE("readLandTile_Should_ReportReadFailure_If_BlockIsTruncatedAfterOpening")
+{
+    const TestDirectory directory;
+    const auto path = directory.path() / "map.mul";
+    writeFixture(path);
+    const auto reader = uomul::MapReader::open(path, dimensions);
+    REQUIRE(reader);
+    std::filesystem::resize_file(path, 0);
+
+    const auto tile = reader->readLandTile({.x = 1, .y = 1});
+
+    REQUIRE_FALSE(tile);
+    REQUIRE(tile.error().code == uomul::ErrorCode::truncatedInput);
+}
+
 TEST_CASE("readLandTile_Should_ReportMissingBlock_If_TileIsInsideRecoveredDimensions")
 {
     const TestDirectory directory;

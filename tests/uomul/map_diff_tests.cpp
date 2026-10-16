@@ -316,6 +316,36 @@ TEST_CASE("generateFromTileRegionAndApply_Should_OnlyPatchSelectedTiles_If_Regio
     }
 }
 
+TEST_CASE("generateFromTileRegionAndApply_Should_FastPathWholeBlocks_If_RegionIsBlockAligned")
+{
+    const TestDirectory directory;
+    const auto base = directory.path() / "base.mul";
+    const auto target = directory.path() / "target.mul";
+    const auto diffDirectory = directory.path() / "diff";
+    const auto output = directory.path() / "output.mul";
+    std::filesystem::create_directories(diffDirectory);
+    writeFixture(base);
+    writeFixture(target);
+    REQUIRE(createChangedMap(
+        target, directory.path() / "edited.mul", {{{1, 1}, {.id = 5000, .z = 10}}, {{9, 9}, {.id = 5001, .z = 11}}}));
+    std::filesystem::rename(directory.path() / "edited.mul", target);
+    const uomul::TileRegion region{.min = {0, 0}, .maxExclusive = {8, 8}};
+
+    const auto generated = uomul::MapDiff::generateFromTileRegion(base, target, diffDirectory, mapIndex, dimensions, region);
+
+    REQUIRE(generated);
+    REQUIRE(generated->landBlocksChanged == 1);
+    REQUIRE(generated->landTilesChanged == 1);
+    REQUIRE(uomul::test::readBytes(diffIndexPath(diffDirectory)) == std::string(4, '\0'));
+    REQUIRE(uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions));
+    const auto result = uomul::MapReader::open(output, dimensions);
+    const auto original = uomul::MapReader::open(base, dimensions);
+    REQUIRE(result);
+    REQUIRE(original);
+    REQUIRE(result->readLandTile({1, 1}) == uomul::LandTile{.id = 5000, .z = 10});
+    REQUIRE(result->readLandTile({9, 9}).value() == original->readLandTile({9, 9}).value());
+}
+
 TEST_CASE("generateFromBlockRegionAndApply_Should_OnlyPatchSelectedBlocks")
 {
     const TestDirectory directory;

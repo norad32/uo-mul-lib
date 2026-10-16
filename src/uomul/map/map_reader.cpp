@@ -2,7 +2,9 @@
 #include "uomul/map.h"
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <expected>
@@ -84,10 +86,10 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
                     const auto index = detail::tileIndexInBlock({.x = x, .y = y});
                     const auto offset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) +
                                         (index * static_cast<std::size_t>(MapHelper::landTileByteSize));
-                    const auto id = static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(raw.at(offset)) |
-                                                               (static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(
-                                                                    raw.at(offset + 1)))
-                                                                << MapHelper::bitsPerByte));
+                    const auto id = static_cast<std::uint16_t>(
+                        static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(raw.at(offset))) |
+                        (static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(raw.at(offset + 1)))
+                         << MapHelper::bitsPerByte));
                     const auto z = static_cast<std::int8_t>(std::to_integer<std::uint8_t>(raw.at(offset + 2)));
                     ++idCounts.at(id);
                     ++zCounts.at(static_cast<std::size_t>(static_cast<int>(z) - std::numeric_limits<std::int8_t>::min()));
@@ -123,9 +125,8 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
         if (count != 0)
         {
             const auto value = static_cast<std::int8_t>(static_cast<int>(index) + std::numeric_limits<std::int8_t>::min());
-            result.zs.push_back(ValueStats{.value = value,
-                                           .count = count,
-                                           .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+            result.zs.push_back(
+                ValueStats{.value = value, .count = count, .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
         }
     }
     result.averageZ = static_cast<double>(elevationTotal / static_cast<long double>(result.tileCount));
@@ -285,13 +286,39 @@ std::expected<LandTile, Error> MapReader::readLandTile(TileCoord tile) const
         return std::unexpected(valid.error());
     }
 
-    auto block = readLandBlock({.x = tile.x / landBlockDimension, .y = tile.y / landBlockDimension});
-    if (!block)
+    const BlockCoord block{.x = tile.x / landBlockDimension, .y = tile.y / landBlockDimension};
+    const auto blockOffset = MapHelper::blockOffset(block, impl_->dimensions);
+    if (MapHelper::blockId(block, impl_->dimensions) >= impl_->blocks)
     {
-        return std::unexpected(block.error());
+        return std::unexpected(
+            MapHelper::makeError(ErrorCode::truncatedInput, impl_->path, blockOffset, "land block is missing or truncated"));
+    }
+    struct stat fileStatus{};
+    if (::fstat(impl_->descriptor, &fileStatus) != 0)
+    {
+        return std::unexpected(MapHelper::makeError(ErrorCode::io, impl_->path, blockOffset, std::strerror(errno)));
+    }
+    if (fileStatus.st_size < 0 || static_cast<std::uint64_t>(fileStatus.st_size) < blockOffset + MapHelper::landBlockByteSize)
+    {
+        return std::unexpected(
+            MapHelper::makeError(ErrorCode::truncatedInput, impl_->path, blockOffset, "land block is missing or truncated"));
+    }
+    constexpr std::size_t tileByteSize = static_cast<std::size_t>(MapHelper::landTileByteSize);
+    std::array<std::byte, tileByteSize> raw{};
+    const auto offset =
+        blockOffset + MapHelper::landHeaderByteSize + (detail::tileIndexInBlock(tile) * MapHelper::landTileByteSize);
+    if (!MapHelper::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
+    {
+        return std::unexpected(
+            MapHelper::makeError(ErrorCode::truncatedInput, impl_->path, offset, "land tile is missing or truncated"));
     }
 
-    return block->at(detail::tileIndexInBlock(tile));
+    const auto low = std::to_integer<std::uint16_t>(raw.at(0));
+    const auto high = std::to_integer<std::uint16_t>(raw.at(1));
+    return LandTile{
+        .id = static_cast<std::uint16_t>(low | static_cast<std::uint16_t>(high << MapHelper::bitsPerByte)),
+        .z = std::bit_cast<std::int8_t>(std::to_integer<std::uint8_t>(raw.at(2))),
+    };
 }
 
 std::expected<void, Error> MapReader::readLandBlocks(BlockRegion region, const LandBlockRead & callback) const
@@ -333,8 +360,8 @@ std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, cons
                 {
                     const BlockCoord coordinate{.x = x, .y = y + static_cast<std::uint32_t>(index)};
                     LandBlockBytes raw{};
-                    if (auto loaded = readRawLandBlock(
-                            impl_->descriptor, impl_->blocks, coordinate, impl_->dimensions, impl_->path, raw);
+                    if (auto loaded =
+                            readRawLandBlock(impl_->descriptor, impl_->blocks, coordinate, impl_->dimensions, impl_->path, raw);
                         !loaded)
                     {
                         return std::unexpected(loaded.error());
@@ -351,9 +378,8 @@ std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, cons
                 {
                     LandBlockBytes raw{};
                     const auto blockOffset = index * static_cast<std::size_t>(MapHelper::landBlockByteSize);
-                    std::ranges::copy_n(std::next(buffer.begin(), static_cast<std::ptrdiff_t>(blockOffset)),
-                                        raw.size(),
-                                        raw.begin());
+                    std::ranges::copy_n(
+                        std::next(buffer.begin(), static_cast<std::ptrdiff_t>(blockOffset)), raw.size(), raw.begin());
                     const BlockCoord coordinate{.x = x, .y = y + static_cast<std::uint32_t>(index)};
                     if (auto result = callback(coordinate, raw); !result)
                     {
@@ -403,16 +429,16 @@ std::expected<void, Error> MapReader::readLandTiles(TileRegion region, const Lan
     }
 
     const auto blocks = detail::blockRegionForTiles(region);
-    return readRawLandBlocks(blocks,
-                             [&callback, region](BlockCoord coordinate,
-                                                 const LandBlockBytes & raw) -> std::expected<void, Error>
-                             {
-                                 const auto block = MapHelper::decodeBlock(raw);
-                                 return detail::visitTilesInBlock(region,
-                                                                  coordinate,
-                                                                  [&callback, &block](TileCoord tile, std::size_t index)
-                                                                  { return callback(tile, block.at(index)); });
-                             });
+    return readRawLandBlocks(
+        blocks,
+        [&callback, region](BlockCoord coordinate, const LandBlockBytes & raw) -> std::expected<void, Error>
+        {
+            const auto block = MapHelper::decodeBlock(raw);
+            return detail::visitTilesInBlock(region,
+                                             coordinate,
+                                             [&callback, &block](TileCoord tile, std::size_t index)
+                                             { return callback(tile, block.at(index)); });
+        });
 }
 
 } // namespace uomul
