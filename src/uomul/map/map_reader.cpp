@@ -8,12 +8,14 @@
 #include <expected>
 #include <fcntl.h>
 #include <filesystem>
-#include <map>
+#include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 namespace uomul
 {
@@ -57,23 +59,6 @@ validateReadRequest(Region region, const Callback & callback, Dimensions dimensi
     return {};
 }
 
-template <typename Visitor>
-std::expected<void, Error> visitBlocks(BlockRegion region, Visitor visitor)
-{
-    for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; ++x)
-    {
-        for (std::uint32_t y = region.min.y; y < region.maxExclusive.y; ++y)
-        {
-            auto result = visitor(BlockCoord{.x = x, .y = y});
-            if (!result)
-            {
-                return result;
-            }
-        }
-    }
-    return {};
-}
-
 std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion region)
 {
     if (region.min.x == region.maxExclusive.x || region.min.y == region.maxExclusive.y)
@@ -81,18 +66,35 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
         return MapStats{};
     }
 
-    std::map<std::uint16_t, std::uint64_t> idCounts;
-    std::map<std::int8_t, std::uint64_t> zCounts;
+    std::vector<std::uint64_t> idCounts(static_cast<std::size_t>(std::numeric_limits<std::uint16_t>::max()) + 1U);
+    std::array<std::uint64_t, static_cast<std::size_t>(std::numeric_limits<std::uint8_t>::max()) + 1U> zCounts{};
     long double elevationTotal = 0.0L;
     MapStats result{};
-    auto read = reader.readLandTiles(
-        region,
-        [&idCounts, &zCounts, &elevationTotal, &result](TileCoord, const LandTile & tile) -> std::expected<void, Error>
+    const auto blocks = detail::blockRegionForTiles(region);
+    auto read = reader.readRawLandBlocks(
+        blocks,
+        [&idCounts, &zCounts, &elevationTotal, &result, region](BlockCoord coordinate,
+                                                                const LandBlockBytes & raw) -> std::expected<void, Error>
         {
-            ++idCounts[tile.id];
-            ++zCounts[tile.z];
-            elevationTotal += tile.z;
-            ++result.tileCount;
+            const auto tiles = detail::clipTilesToBlock(region, coordinate);
+            for (std::uint32_t x = tiles.min.x; x < tiles.maxExclusive.x; ++x)
+            {
+                for (std::uint32_t y = tiles.min.y; y < tiles.maxExclusive.y; ++y)
+                {
+                    const auto index = detail::tileIndexInBlock({.x = x, .y = y});
+                    const auto offset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) +
+                                        (index * static_cast<std::size_t>(MapHelper::landTileByteSize));
+                    const auto id = static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(raw.at(offset)) |
+                                                               (static_cast<std::uint16_t>(std::to_integer<std::uint8_t>(
+                                                                    raw.at(offset + 1)))
+                                                                << MapHelper::bitsPerByte));
+                    const auto z = static_cast<std::int8_t>(std::to_integer<std::uint8_t>(raw.at(offset + 2)));
+                    ++idCounts.at(id);
+                    ++zCounts.at(static_cast<std::size_t>(static_cast<int>(z) - std::numeric_limits<std::int8_t>::min()));
+                    elevationTotal += z;
+                    ++result.tileCount;
+                }
+            }
             return {};
         });
     if (!read)
@@ -105,15 +107,26 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
     }
 
     const double sampleCount = static_cast<double>(result.tileCount);
-    for (const auto & [value, count] : idCounts)
+    for (std::size_t value = 0; value < idCounts.size(); ++value)
     {
-        result.tileIds.push_back(
-            ValueStats{.value = value, .count = count, .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+        const auto count = idCounts.at(value);
+        if (count != 0)
+        {
+            result.tileIds.push_back(ValueStats{.value = static_cast<std::uint16_t>(value),
+                                                .count = count,
+                                                .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+        }
     }
-    for (const auto & [value, count] : zCounts)
+    for (std::size_t index = 0; index < zCounts.size(); ++index)
     {
-        result.zs.push_back(
-            ValueStats{.value = value, .count = count, .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+        const auto count = zCounts.at(index);
+        if (count != 0)
+        {
+            const auto value = static_cast<std::int8_t>(static_cast<int>(index) + std::numeric_limits<std::int8_t>::min());
+            result.zs.push_back(ValueStats{.value = value,
+                                           .count = count,
+                                           .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+        }
     }
     result.averageZ = static_cast<double>(elevationTotal / static_cast<long double>(result.tileCount));
     const std::uint64_t lowerMiddleIndex = (result.tileCount - 1) / 2;
@@ -121,9 +134,11 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
     std::uint64_t currentIndex = 0;
     std::optional<std::int8_t> lowerMiddle;
     std::optional<std::int8_t> upperMiddle;
-    for (const auto & [value, count] : zCounts)
+    for (std::size_t index = 0; index < zCounts.size(); ++index)
     {
+        const auto count = zCounts.at(index);
         const auto nextIndex = currentIndex + count;
+        const auto value = static_cast<std::int8_t>(static_cast<int>(index) + std::numeric_limits<std::int8_t>::min());
         if (!lowerMiddle && lowerMiddleIndex < nextIndex)
         {
             lowerMiddle = value;
@@ -286,16 +301,9 @@ std::expected<void, Error> MapReader::readLandBlocks(BlockRegion region, const L
         return valid;
     }
 
-    return visitBlocks(region,
-                       [this, &callback](BlockCoord coordinate) -> std::expected<void, Error>
-                       {
-                           auto block = readLandBlock(coordinate);
-                           if (!block)
-                           {
-                               return std::unexpected(block.error());
-                           }
-                           return callback(coordinate, *block);
-                       });
+    return readRawLandBlocks(region,
+                             [&callback](BlockCoord coordinate, const LandBlockBytes & raw) -> std::expected<void, Error>
+                             { return callback(coordinate, MapHelper::decodeBlock(raw)); });
 }
 
 std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, const LandBlockBytesRead & callback) const
@@ -305,18 +313,58 @@ std::expected<void, Error> MapReader::readRawLandBlocks(BlockRegion region, cons
         return valid;
     }
 
-    LandBlockBytes raw{};
-    return visitBlocks(region,
-                       [this, &callback, &raw](BlockCoord coordinate) -> std::expected<void, Error>
-                       {
-                           if (auto loaded = readRawLandBlock(
-                                   impl_->descriptor, impl_->blocks, coordinate, impl_->dimensions, impl_->path, raw);
-                               !loaded)
-                           {
-                               return std::unexpected(loaded.error());
-                           }
-                           return callback(coordinate, raw);
-                       });
+    constexpr std::size_t maximumBlocksPerRead = 4096;
+    const auto blocksPerRead = std::min(maximumBlocksPerRead, static_cast<std::size_t>(region.maxExclusive.y - region.min.y));
+    std::vector<std::byte> buffer(blocksPerRead * static_cast<std::size_t>(MapHelper::landBlockByteSize));
+    for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; ++x)
+    {
+        std::uint32_t y = region.min.y;
+        while (y < region.maxExclusive.y)
+        {
+            const auto blocksRemaining = static_cast<std::size_t>(region.maxExclusive.y - y);
+            const auto blockCount = std::min(blocksPerRead, blocksRemaining);
+            const BlockCoord first{.x = x, .y = y};
+            const auto offset = MapHelper::blockOffset(first, impl_->dimensions);
+            const auto byteCount = blockCount * static_cast<std::size_t>(MapHelper::landBlockByteSize);
+            if (MapHelper::blockId(first, impl_->dimensions) + blockCount > impl_->blocks ||
+                !MapHelper::readExact(impl_->descriptor, buffer.data(), byteCount, offset))
+            {
+                for (std::size_t index = 0; index < blockCount; ++index)
+                {
+                    const BlockCoord coordinate{.x = x, .y = y + static_cast<std::uint32_t>(index)};
+                    LandBlockBytes raw{};
+                    if (auto loaded = readRawLandBlock(
+                            impl_->descriptor, impl_->blocks, coordinate, impl_->dimensions, impl_->path, raw);
+                        !loaded)
+                    {
+                        return std::unexpected(loaded.error());
+                    }
+                    if (auto result = callback(coordinate, raw); !result)
+                    {
+                        return result;
+                    }
+                }
+            }
+            else
+            {
+                for (std::size_t index = 0; index < blockCount; ++index)
+                {
+                    LandBlockBytes raw{};
+                    const auto blockOffset = index * static_cast<std::size_t>(MapHelper::landBlockByteSize);
+                    std::ranges::copy_n(std::next(buffer.begin(), static_cast<std::ptrdiff_t>(blockOffset)),
+                                        raw.size(),
+                                        raw.begin());
+                    const BlockCoord coordinate{.x = x, .y = y + static_cast<std::uint32_t>(index)};
+                    if (auto result = callback(coordinate, raw); !result)
+                    {
+                        return result;
+                    }
+                }
+            }
+            y += static_cast<std::uint32_t>(blockCount);
+        }
+    }
+    return {};
 }
 
 std::expected<MapStats, Error> MapReader::stats() const
@@ -355,28 +403,16 @@ std::expected<void, Error> MapReader::readLandTiles(TileRegion region, const Lan
     }
 
     const auto blocks = detail::blockRegionForTiles(region);
-
-    for (std::uint32_t blockX = blocks.min.x; blockX < blocks.maxExclusive.x; ++blockX)
-    {
-        for (std::uint32_t blockY = blocks.min.y; blockY < blocks.maxExclusive.y; ++blockY)
-        {
-            auto block = readLandBlock({.x = blockX, .y = blockY});
-            if (!block)
-            {
-                return std::unexpected(block.error());
-            }
-            auto visited = detail::visitTilesInBlock(region,
-                                                     BlockCoord{.x = blockX, .y = blockY},
-                                                     [&callback, &block](TileCoord tile, std::size_t index)
-                                                     { return callback(tile, block->at(index)); });
-            if (!visited)
-            {
-                return visited;
-            }
-        }
-    }
-
-    return {};
+    return readRawLandBlocks(blocks,
+                             [&callback, region](BlockCoord coordinate,
+                                                 const LandBlockBytes & raw) -> std::expected<void, Error>
+                             {
+                                 const auto block = MapHelper::decodeBlock(raw);
+                                 return detail::visitTilesInBlock(region,
+                                                                  coordinate,
+                                                                  [&callback, &block](TileCoord tile, std::size_t index)
+                                                                  { return callback(tile, block.at(index)); });
+                             });
 }
 
 } // namespace uomul

@@ -35,12 +35,16 @@ namespace
 
 constexpr std::uint32_t mapBlockIdByteCount = 4;
 
-std::uint64_t countChangedTiles(const LandBlock & left, const LandBlock & right)
+std::uint64_t countChangedTiles(const LandBlockBytes & left, const LandBlockBytes & right)
 {
     std::uint64_t changedTiles = 0;
-    for (std::size_t tile = 0; tile < left.size(); ++tile)
+    for (std::size_t tile = 0; tile < landBlockTileCount; ++tile)
     {
-        changedTiles += left.at(tile) != right.at(tile) ? 1U : 0U;
+        const auto offset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) + (tile * 3U);
+        changedTiles += left.at(offset) != right.at(offset) || left.at(offset + 1) != right.at(offset + 1) ||
+                                left.at(offset + 2) != right.at(offset + 2)
+                            ? 1U
+                            : 0U;
     }
     return changedTiles;
 }
@@ -65,16 +69,16 @@ std::expected<LandBlockComparison, Error> compareLandBlocks(int targetDescriptor
         return std::unexpected(
             MapHelper::makeError(ErrorCode::truncatedInput, targetPath, offset, "could not read target block"));
     }
-    const auto sourceBlock = MapHelper::decodeBlock(sourceRaw);
-    const auto targetBlock = MapHelper::decodeBlock(comparison.targetRaw);
     if (!tileRegion)
     {
-        comparison.changedTiles = countChangedTiles(sourceBlock, targetBlock);
+        comparison.changedTiles = countChangedTiles(sourceRaw, comparison.targetRaw);
         return comparison;
     }
 
-    LandBlock mergedBlock = sourceBlock;
-    for (std::size_t index = 0; index < sourceBlock.size(); ++index)
+    std::ranges::copy_n(sourceRaw.begin(),
+                        static_cast<std::size_t>(MapHelper::landHeaderByteSize),
+                        comparison.targetRaw.begin());
+    for (std::size_t index = 0; index < landBlockTileCount; ++index)
     {
         const auto localX = static_cast<std::uint32_t>(index % landBlockDimension);
         const auto localY = static_cast<std::uint32_t>(index / landBlockDimension);
@@ -85,12 +89,21 @@ std::expected<LandBlockComparison, Error> compareLandBlocks(int targetDescriptor
         if (tile.x >= tileRegion->min.x && tile.x < tileRegion->maxExclusive.x && tile.y >= tileRegion->min.y &&
             tile.y < tileRegion->maxExclusive.y)
         {
-            mergedBlock.at(index) = targetBlock.at(index);
-            comparison.changedTiles += sourceBlock.at(index) != targetBlock.at(index) ? 1U : 0U;
+            const auto tileOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) + (index * 3U);
+            comparison.changedTiles += sourceRaw.at(tileOffset) != comparison.targetRaw.at(tileOffset) ||
+                                               sourceRaw.at(tileOffset + 1) != comparison.targetRaw.at(tileOffset + 1) ||
+                                               sourceRaw.at(tileOffset + 2) != comparison.targetRaw.at(tileOffset + 2)
+                                           ? 1U
+                                           : 0U;
+        }
+        else
+        {
+            const auto tileOffset = static_cast<std::size_t>(MapHelper::landHeaderByteSize) + (index * 3U);
+            comparison.targetRaw.at(tileOffset) = sourceRaw.at(tileOffset);
+            comparison.targetRaw.at(tileOffset + 1) = sourceRaw.at(tileOffset + 1);
+            comparison.targetRaw.at(tileOffset + 2) = sourceRaw.at(tileOffset + 2);
         }
     }
-    comparison.targetRaw = sourceRaw;
-    MapHelper::encodeBlock(comparison.targetRaw, mergedBlock);
     return comparison;
 }
 
@@ -272,10 +285,11 @@ appendChangedDiffBlock(const DiffGenerationState & state, BlockCoord coordinate,
     {
         return std::unexpected(MapHelper::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
     }
-    for (const auto byte : comparison->targetRaw)
-    {
-        state.data->put(static_cast<char>(std::to_integer<unsigned char>(byte)));
-    }
+    std::array<char, MapHelper::landBlockByteSize> bytes{};
+    std::ranges::transform(comparison->targetRaw,
+                           bytes.begin(),
+                           [](std::byte byte) { return static_cast<char>(std::to_integer<unsigned char>(byte)); });
+    state.data->write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
     if (!*state.data)
     {
         return std::unexpected(MapHelper::makeError(ErrorCode::io, state.dataTemporary, 0, "could not write diff block data"));
