@@ -1,8 +1,10 @@
 #include "map_stats.h"
 #include "map_common.h"
+#include "uomul/map.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <limits>
 #include <optional>
 #include <vector>
@@ -55,12 +57,14 @@ class StatsAccumulator
 public:
     void add(LandTile tile)
     {
-        ++idCounts_[tile.id];
+        auto * tileIdCount = idCounts_.data() + tile.id;
+        *tileIdCount++;
         const auto elevationIndex =
             static_cast<std::size_t>(static_cast<int>(tile.z) - std::numeric_limits<std::int8_t>::min());
-        ++elevationCounts_[elevationIndex];
+        auto * elevationBucket = elevationCounts_.data() + elevationIndex;
+        *elevationBucket++;
         elevationTotal_ += tile.z;
-        ++tileCount_;
+        tileCount_++;
     }
 
     [[nodiscard]] MapStats finish() const
@@ -83,42 +87,51 @@ public:
 private:
     void appendIdStats(MapStats & result, double sampleCount) const
     {
-        for (std::size_t id = 0; id < idCounts_.size(); ++id)
+        const auto * idCount = idCounts_.data();
+        for (std::size_t id = 0; id < idCounts_.size(); id++, idCount++)
         {
-            const auto count = idCounts_[id];
+            const auto count = *idCount;
             if (count != 0)
             {
-                result.tileIds.push_back(ValueStats{.value = static_cast<std::uint16_t>(id),
-                                                    .count = count,
-                                                    .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+                result.tileIds.push_back(ValueStats{
+                    .value = static_cast<std::uint16_t>(id),
+                    .count = count,
+                    .percentage = (static_cast<double>(count) * 100.0) / sampleCount,
+                });
             }
         }
     }
 
     void appendElevationStats(MapStats & result, double sampleCount) const
     {
-        for (std::size_t index = 0; index < elevationCounts_.size(); ++index)
+        std::size_t index = 0;
+        for (const auto count : elevationCounts_)
         {
-            const auto count = elevationCounts_[index];
             if (count != 0)
             {
                 const auto elevation =
                     static_cast<std::int8_t>(static_cast<int>(index) + std::numeric_limits<std::int8_t>::min());
                 result.zs.push_back(ValueStats{
-                    .value = elevation, .count = count, .percentage = (static_cast<double>(count) * 100.0) / sampleCount});
+                    .value = elevation,
+                    .count = count,
+                    .percentage = (static_cast<double>(count) * 100.0) / sampleCount,
+                });
             }
+            ++index;
         }
     }
 
     [[nodiscard]] std::optional<double> medianElevation() const
     {
         MedianElevationFinder finder(tileCount_);
-        for (std::size_t index = 0; index < elevationCounts_.size(); ++index)
+        std::size_t index = 0;
+        for (const auto count : elevationCounts_)
         {
-            if (finder.addElevationBucket(index, elevationCounts_[index]))
+            if (finder.addElevationBucket(index, count))
             {
                 break;
             }
+            ++index;
         }
         return finder.median();
     }
@@ -162,10 +175,12 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
             accumulateBlockStats(stats, region, coordinate, raw);
             return {};
         });
+
     if (!read)
     {
         return std::unexpected(read.error());
     }
+
     return stats.finish();
 }
 

@@ -51,7 +51,8 @@ std::uint64_t countChangedTiles(std::span<const std::byte> left, std::span<const
     std::uint64_t changedTiles = 0;
     auto leftTile = leftTiles.begin();
     auto rightTile = rightTiles.begin();
-    for (std::size_t tile = 0; tile < landBlockTileCount; ++tile)
+
+    for (std::size_t tile = 0; tile < landBlockTileCount; tile++)
     {
         changedTiles += *leftTile != *rightTile || *std::next(leftTile) != *std::next(rightTile) ||
                                 *std::next(leftTile, 2) != *std::next(rightTile, 2)
@@ -60,6 +61,7 @@ std::uint64_t countChangedTiles(std::span<const std::byte> left, std::span<const
         std::ranges::advance(leftTile, 3);
         std::ranges::advance(rightTile, 3);
     }
+
     return changedTiles;
 }
 
@@ -147,9 +149,9 @@ compareLandBlocks(BlockTileSelection selection, std::span<const std::byte> sourc
     }
 
     std::uint64_t changedTiles = 0;
-    for (auto y = selection.minY; y < selection.maxExclusiveY; ++y)
+    for (auto y = selection.minY; y < selection.maxExclusiveY; y++)
     {
-        for (auto x = selection.minX; x < selection.maxExclusiveX; ++x)
+        for (auto x = selection.minX; x < selection.maxExclusiveX; x++)
         {
             const auto tileOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
                                     (((static_cast<std::size_t>(y) * landBlockDimension) + x) * 3U);
@@ -335,10 +337,11 @@ std::expected<void, Error> appendChangedDiffBlock(const DiffGenerationState & st
     {
         std::ranges::copy_n(sourceRaw.begin(), static_cast<std::size_t>(MapCommon::landHeaderByteSize), outputRaw.begin());
     }
+
     if (state.tileRegion && !selection.coversWholeBlock())
     {
         constexpr auto tileByteSize = static_cast<std::size_t>(MapCommon::landTileByteSize);
-        for (auto y = 0U; y < landBlockDimension; ++y)
+        for (auto y = 0U; y < landBlockDimension; y++)
         {
             const auto rowOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
                                    (static_cast<std::size_t>(y) * landBlockDimension * tileByteSize);
@@ -368,16 +371,18 @@ std::expected<void, Error> appendChangedDiffBlock(const DiffGenerationState & st
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
     }
+
     std::array<char, MapCommon::landBlockByteSize> bytes{};
     std::ranges::transform(
         outputRaw, bytes.begin(), [](std::byte byte) { return static_cast<char>(std::to_integer<unsigned char>(byte)); });
+
     state.data.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
     if (!state.data)
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, state.dataTemporary, 0, "could not write diff block data"));
     }
 
-    ++state.report.landBlocksChanged;
+    state.report.landBlocksChanged++;
     state.report.landTilesChanged += changedTiles;
     return {};
 }
@@ -422,6 +427,7 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
         .report = report,
         .tileRegion = tileRegion,
     };
+
     TargetBlockBatchReader targetBlocks(targetDescriptor.get(), targetMap, dimensions, region);
     auto compared = source->readRawLandBlocks(
         region,
@@ -434,6 +440,7 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
             }
             return appendChangedDiffBlock(state, coordinate, sourceRaw, targetRaw);
         });
+
     if (!compared)
     {
         return std::unexpected(compared.error());
@@ -441,13 +448,16 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
 
     data.close();
     index.close();
+
     if (!data || !index)
     {
         return std::unexpected(
             MapCommon::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not write diff files"));
     }
+
     closeDiffDescriptors(files);
     cleanup.release();
+
     return report;
 }
 
@@ -457,6 +467,7 @@ void restoreDiffBackups(const DiffBackups & backups, const DiffOutputPaths & out
     {
         static_cast<void>(::rename(backups.data.c_str(), outputs.data.c_str()));
     }
+
     if (!backups.index.empty())
     {
         static_cast<void>(::rename(backups.index.c_str(), outputs.index.c_str()));
@@ -476,6 +487,7 @@ std::expected<DiffBackups, Error> backupDiffOutputs(const DiffOutputPaths & outp
             return std::unexpected(error);
         }
     }
+
     if (std::filesystem::exists(outputs.index))
     {
         backups.index = MapCommon::temporaryPath(outputs.index);
@@ -497,6 +509,7 @@ void removeDiffBackups(const DiffBackups & backups)
     {
         static_cast<void>(::unlink(backups.data.c_str()));
     }
+
     if (!backups.index.empty())
     {
         static_cast<void>(::unlink(backups.index.c_str()));
@@ -535,6 +548,7 @@ std::expected<void, Error> installDiffPair(const DiffOutputPaths & outputs, cons
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno)));
     }
+
     static_cast<void>(::unlink(files.data.c_str()));
     if (::link(files.index.c_str(), outputs.index.c_str()) != 0)
     {
@@ -542,6 +556,7 @@ std::expected<void, Error> installDiffPair(const DiffOutputPaths & outputs, cons
         static_cast<void>(::unlink(outputs.data.c_str()));
         return std::unexpected(MapCommon::makeError(ErrorCode::commitFailed, outputs.index, 0, std::strerror(savedErrno)));
     }
+
     static_cast<void>(::unlink(files.index.c_str()));
     return {};
 }
@@ -555,6 +570,7 @@ publishDiffWithoutOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles 
         removeDiffTemporaries(files);
         return std::unexpected(installed.error());
     }
+
     return report;
 }
 
@@ -566,15 +582,19 @@ publishDiffWithOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles & f
     {
         return std::unexpected(backups.error());
     }
+
     DiffBackupCleanup rollback(*backups, outputs);
+
     auto installed = installDiffPair(outputs, files);
     if (!installed)
     {
         removeDiffTemporaries(files);
         return std::unexpected(installed.error());
     }
+
     rollback.release();
     removeDiffBackups(*backups);
+
     return report;
 }
 
@@ -616,8 +636,10 @@ std::expected<DiffLengths, Error> validateDiffLengths(std::istream & data,
         return std::unexpected(
             MapCommon::makeError(ErrorCode::truncatedInput, dataPath, 0, "diff data and index lengths are inconsistent"));
     }
+
     data.seekg(0);
     index.seekg(0);
+
     return DiffLengths{.blockCount = indexBytes / mapBlockIdByteCount};
 }
 
@@ -634,6 +656,7 @@ readDiffReplacement(std::istream & data, const std::filesystem::path & dataPath,
         }
         byte = static_cast<std::byte>(static_cast<unsigned char>(value));
     }
+
     if (!data)
     {
         return std::unexpected(MapCommon::makeError(
@@ -667,14 +690,18 @@ readDiffReplacements(std::istream & data,
                                                         static_cast<std::uint64_t>(index.tellg()) - mapBlockIdByteCount,
                                                         "diff contains an out-of-range or duplicate block ID"));
         }
+
         seen.at(id) = true;
         auto replacement = readDiffReplacement(data, dataPath, dimensions, id);
+
         if (!replacement)
         {
             return std::unexpected(replacement.error());
         }
+
         replacements.push_back(std::move(*replacement));
     }
+
     if (!index.eof())
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, indexPath, 0, "failed while reading diff index"));
@@ -708,11 +735,13 @@ std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourc
     {
         return std::unexpected(source.error());
     }
+
     auto target = MapReader::open(targetPath, dimensions);
     if (!target)
     {
         return std::unexpected(target.error());
     }
+
     const detail::ScopedDescriptor targetDescriptor(::open(targetPath.c_str(), O_RDONLY | O_CLOEXEC));
     if (targetDescriptor.get() < 0)
     {
@@ -734,7 +763,7 @@ std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourc
                                       const auto changedTiles = compareLandBlocks(BlockTileSelection(), sourceRaw, targetRaw);
                                       if (changedTiles != 0)
                                       {
-                                          ++report.landBlocksChanged;
+                                          report.landBlocksChanged++;
                                           report.landTilesChanged += changedTiles;
                                           if (onChange)
                                           {
@@ -762,6 +791,7 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
     {
         return std::unexpected(result.error());
     }
+
     const auto parent = reportFile.parent_path();
     if (!parent.empty() && !std::filesystem::is_directory(parent))
     {
@@ -774,6 +804,7 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
     {
         return std::unexpected(descriptor.error());
     }
+
     std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
     if (!output)
     {
@@ -796,11 +827,13 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
         static_cast<void>(::unlink(temporary.c_str()));
         return std::unexpected(compared.error());
     }
+
     if (!output)
     {
         static_cast<void>(::unlink(temporary.c_str()));
         return std::unexpected(MapCommon::makeError(ErrorCode::io, temporary, 0, "could not write report"));
     }
+
     auto published = MapCommon::publishFile(temporary, reportFile, overwrite);
     if (!published)
     {
@@ -860,10 +893,12 @@ std::expected<DiffReport, Error> MapDiff::generateFromTileRegion(const std::file
     {
         return std::unexpected(base.error());
     }
+
     if (auto valid = detail::MapCommon::validateRegion(region, dimensions, baseMap); !valid)
     {
         return std::unexpected(valid.error());
     }
+
     return generateDiffForRegion(
         baseMap, targetMap, diffDirectory, mapIndex, dimensions, detail::blockRegionForTiles(region), region, overwrite);
 }
@@ -880,10 +915,12 @@ std::expected<DiffReport, Error> MapDiff::generateFromBlockRegion(const std::fil
     {
         return std::unexpected(base.error());
     }
+
     if (auto valid = detail::MapCommon::validateRegion(region, dimensions, baseMap); !valid)
     {
         return std::unexpected(valid.error());
     }
+
     return generateDiffForRegion(baseMap, targetMap, diffDirectory, mapIndex, dimensions, region, std::nullopt, overwrite);
 }
 
@@ -908,22 +945,26 @@ std::expected<void, Error> MapDiff::apply(const std::filesystem::path & baseMap,
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, diffDirectory, 0, "both map diff files are required"));
     }
+
     std::ifstream data(dataPath, std::ios::binary);
     std::ifstream index(indexPath, std::ios::binary);
     if (!data || !index)
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, diffDirectory, 0, "could not open diff files"));
     }
+
     auto lengths = validateDiffLengths(data, index, dataPath, diffDirectory);
     if (!lengths)
     {
         return std::unexpected(lengths.error());
     }
+
     const auto expectedBlockCount = MapCommon::blockCount(dimensions, baseMap);
     if (!expectedBlockCount)
     {
         return std::unexpected(expectedBlockCount.error());
     }
+
     if (*expectedBlockCount > std::numeric_limits<std::uint32_t>::max())
     {
         return std::unexpected(MapCommon::makeError(
@@ -935,12 +976,14 @@ std::expected<void, Error> MapDiff::apply(const std::filesystem::path & baseMap,
     {
         return std::unexpected(editor.error());
     }
+
     auto replacements =
         readDiffReplacements(data, index, dataPath, indexPath, dimensions, *expectedBlockCount, lengths->blockCount);
     if (!replacements)
     {
         return std::unexpected(replacements.error());
     }
+
     if (auto written = writeDiffReplacements(*editor, *replacements); !written)
     {
         return written;
@@ -967,18 +1010,22 @@ std::expected<Dimensions, Error> facetDimensions(const std::string & name)
     {
         return Dimensions{.widthTiles = feluccaWidth, .heightTiles = feluccaHeight};
     }
+
     if (normalized == "ilshenar")
     {
         return Dimensions{.widthTiles = ilshenarWidth, .heightTiles = ilshenarHeight};
     }
+
     if (normalized == "malas")
     {
         return Dimensions{.widthTiles = malasWidth, .heightTiles = malasHeight};
     }
+
     if (normalized == "tokuno")
     {
         return Dimensions{.widthTiles = tokunoSize, .heightTiles = tokunoSize};
     }
+
     if (normalized == "ter-mur" || normalized == "termur")
     {
         return Dimensions{.widthTiles = termurWidth, .heightTiles = feluccaHeight};
@@ -994,6 +1041,7 @@ std::expected<void, Error> writeCsvReport(const std::filesystem::path & sourceMa
                                           bool overwrite)
 {
     auto report = writeMapCsv(sourceMap, targetMap, reportFile, dimensions, overwrite);
+
     if (!report)
     {
         return std::unexpected(report.error());

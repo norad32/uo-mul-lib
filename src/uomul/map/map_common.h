@@ -139,9 +139,12 @@ template <typename T, std::size_t Size = sizeof(T), std::size_t ContainerSize>
 {
     const auto low = std::to_integer<std::uint8_t>(bytes[0]);
     const auto high = std::to_integer<std::uint8_t>(bytes[1]);
+    const auto id = static_cast<std::uint16_t>(
+        static_cast<std::uint32_t>(low) |
+        (static_cast<std::uint32_t>(high) << static_cast<unsigned>(std::numeric_limits<unsigned char>::digits)));
     return LandTile{
-        .id = static_cast<std::uint16_t>(static_cast<std::uint32_t>(low) |
-                                         (static_cast<std::uint32_t>(high) << std::numeric_limits<unsigned char>::digits)),
+        .id = id,
+
         .z = std::bit_cast<std::int8_t>(std::to_integer<std::uint8_t>(bytes[2])),
     };
 }
@@ -150,7 +153,8 @@ template <typename T, std::size_t Size = sizeof(T), std::size_t ContainerSize>
 {
     return {
         static_cast<std::byte>(tile.id & std::numeric_limits<std::uint8_t>::max()),
-        static_cast<std::byte>(tile.id >> std::numeric_limits<unsigned char>::digits),
+        static_cast<std::byte>(static_cast<std::uint32_t>(tile.id) >>
+                               static_cast<unsigned>(std::numeric_limits<unsigned char>::digits)),
         static_cast<std::byte>(static_cast<std::uint8_t>(tile.z)),
     };
 }
