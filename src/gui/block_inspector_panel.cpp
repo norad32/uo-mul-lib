@@ -9,6 +9,7 @@
 #include <string>
 
 #include "gui/map_workspace.h"
+#include "gui/theme.h"
 #include "uomul/map.h"
 
 namespace im_cpp::gui
@@ -16,45 +17,118 @@ namespace im_cpp::gui
 namespace
 {
 
-constexpr int blockGridColumns = 8;
 constexpr float errorColorChannel = 0.4F;
+constexpr float colorChannelMaximum = 255.0F;
+constexpr std::size_t gridExtent = uomul::mapBlockDimension + 1U;
+constexpr float tileCellHeight = 54.0F;
+constexpr float coordinateColumnWidth = 38.0F;
+constexpr float selectedBorderThickness = 2.0F;
+constexpr float textOutlineOffset = 1.0F;
+
+[[nodiscard]] std::string tileLabel(MapDisplayMode mode, uomul::MapTile tile)
+{
+    if (mode == MapDisplayMode::tileIds)
+    {
+        return std::to_string(tile.id);
+    }
+    if (mode == MapDisplayMode::z)
+    {
+        return std::to_string(static_cast<int>(tile.z));
+    }
+    return std::to_string(tile.id) + "\n" + std::to_string(static_cast<int>(tile.z));
+}
+
+void drawOutlinedText(ImDrawList & drawList, ImVec2 position, const std::string & text)
+{
+    const ImU32 outlineColor = ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelTextOutline));
+    const ImU32 textColor = ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelText));
+    drawList.AddText(ImVec2(position.x - textOutlineOffset, position.y), outlineColor, text.c_str());
+    drawList.AddText(ImVec2(position.x + textOutlineOffset, position.y), outlineColor, text.c_str());
+    drawList.AddText(ImVec2(position.x, position.y - textOutlineOffset), outlineColor, text.c_str());
+    drawList.AddText(ImVec2(position.x, position.y + textOutlineOffset), outlineColor, text.c_str());
+    drawList.AddText(position, textColor, text.c_str());
+}
 
 void drawBlock(const uomul::MapBlock & block, uomul::BlockCoord blockCoordinate, MapWorkspace & workspace)
 {
-    if (ImGui::BeginTable("BlockTiles", blockGridColumns, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame))
+    if (!ImGui::BeginTable(
+            "BlockTiles", static_cast<int>(gridExtent), ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame))
     {
-        for (std::size_t row = 0; row < uomul::mapBlockDimension; ++row)
+        return;
+    }
+
+    ImGui::TableSetupColumn("Y / X", ImGuiTableColumnFlags_WidthFixed, coordinateColumnWidth);
+    for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
+    {
+        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthStretch);
+    }
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::TextUnformatted("Y/X");
+    for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
+    {
+        ImGui::TableSetColumnIndex(static_cast<int>(column + 1U));
+        ImGui::Text("%u", (blockCoordinate.x * uomul::mapBlockDimension) + static_cast<std::uint32_t>(column));
+    }
+
+    for (std::size_t row = 0; row < uomul::mapBlockDimension; ++row)
+    {
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::Text("%u", (blockCoordinate.y * uomul::mapBlockDimension) + static_cast<std::uint32_t>(row));
+        for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
         {
-            ImGui::TableNextRow();
-            for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
+            const std::size_t index = (row * uomul::mapBlockDimension) + column;
+            const uomul::MapTile tile = block.at(index);
+            ImGui::TableSetColumnIndex(static_cast<int>(column + 1U));
+            const uomul::TileCoord tileCoordinate{
+                .x = (blockCoordinate.x * uomul::mapBlockDimension) + static_cast<std::uint32_t>(column),
+                .y = (blockCoordinate.y * uomul::mapBlockDimension) + static_cast<std::uint32_t>(row),
+            };
+            const bool selected = workspace.selectedTile() && workspace.selectedTile()->x == tileCoordinate.x &&
+                                  workspace.selectedTile()->y == tileCoordinate.y;
+            const MapColor mapColor = tileDisplayColor(workspace.displayMode(), tile);
+            const ImVec2 cellMinimum = ImGui::GetCursorScreenPos();
+            const ImVec2 cellSize(ImGui::GetContentRegionAvail().x, tileCellHeight);
+            ImGui::PushID(static_cast<int>(index));
+            const bool clicked = ImGui::InvisibleButton("##BlockTile", cellSize);
+            ImGui::PopID();
+            const ImVec2 cellMaximum(cellMinimum.x + cellSize.x, cellMinimum.y + cellSize.y);
+            ImDrawList * drawList = ImGui::GetWindowDrawList();
+            drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
+            if (selected)
             {
-                const std::size_t index = (row * uomul::mapBlockDimension) + column;
-                const uomul::MapTile tile = block.at(index);
-                ImGui::TableSetColumnIndex(static_cast<int>(column));
-                const uomul::TileCoord tileCoordinate{
-                    .x = (blockCoordinate.x * uomul::mapBlockDimension) + static_cast<std::uint32_t>(column),
-                    .y = (blockCoordinate.y * uomul::mapBlockDimension) + static_cast<std::uint32_t>(row),
-                };
-                const bool selected = workspace.selectedTile() && workspace.selectedTile()->x == tileCoordinate.x &&
-                                      workspace.selectedTile()->y == tileCoordinate.y;
-                const std::string label = std::to_string(tile.id) + " / " + std::to_string(static_cast<int>(tile.z));
-                if (ImGui::Selectable(label.c_str(), selected, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F)))
-                {
-                    const auto result = workspace.updateSelectedTile(tileCoordinate);
-                    static_cast<void>(result);
-                }
-                if (ImGui::IsItemHovered())
-                {
-                    ImGui::SetTooltip("Tile (%u, %u): ID %u, Z %d",
-                                      tileCoordinate.x,
-                                      tileCoordinate.y,
-                                      static_cast<unsigned int>(tile.id),
-                                      static_cast<int>(tile.z));
-                }
+                drawList->AddRect(cellMinimum,
+                                  cellMaximum,
+                                  IM_COL32(static_cast<std::uint8_t>(theme::panelTabHovered.red * colorChannelMaximum),
+                                           static_cast<std::uint8_t>(theme::panelTabHovered.green * colorChannelMaximum),
+                                           static_cast<std::uint8_t>(theme::panelTabHovered.blue * colorChannelMaximum),
+                                           255),
+                                  0.0F,
+                                  ImDrawFlags_None,
+                                  selectedBorderThickness);
+            }
+            const std::string label = tileLabel(workspace.displayMode(), tile);
+            const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
+            const ImVec2 textPosition(cellMinimum.x + ((cellSize.x - textSize.x) * 0.5F),
+                                      cellMinimum.y + ((cellSize.y - textSize.y) * 0.5F));
+            drawOutlinedText(*drawList, textPosition, label);
+            if (clicked)
+            {
+                const auto result = workspace.updateSelectedTile(tileCoordinate);
+                static_cast<void>(result);
+            }
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("Tile (%u, %u): ID %u, Z %d",
+                                  tileCoordinate.x,
+                                  tileCoordinate.y,
+                                  static_cast<unsigned int>(tile.id),
+                                  static_cast<int>(tile.z));
             }
         }
-        ImGui::EndTable();
     }
+    ImGui::EndTable();
 }
 
 void refreshBlock(const uomul::MapReader & reader,
@@ -95,9 +169,11 @@ void drawBlockInspectorPanel(MapWorkspace & workspace, BlockInspectorPanelState 
         state.error.reset();
         state.blockCoordinate.reset();
     }
-    if (reader != nullptr && workspace.hoveredTile())
+    const std::optional<uomul::TileCoord> inspectedTile =
+        workspace.hoveredTile() ? workspace.hoveredTile() : workspace.selectedTile();
+    if (reader != nullptr && inspectedTile)
     {
-        const uomul::BlockCoord coordinate = tileToBlock(*workspace.hoveredTile());
+        const uomul::BlockCoord coordinate = tileToBlock(*inspectedTile);
         if (!state.cacheValid || !state.blockCoordinate || state.blockCoordinate->x != coordinate.x ||
             state.blockCoordinate->y != coordinate.y)
         {
@@ -120,6 +196,11 @@ void drawBlockInspectorPanel(MapWorkspace & workspace, BlockInspectorPanelState 
         {
             const uomul::BlockCoord blockCoordinate = *state.blockCoordinate;
             ImGui::Text("Block: (%u, %u)", blockCoordinate.x, blockCoordinate.y);
+            ImGui::Text("Tile coordinates: X %u-%u, Y %u-%u",
+                        blockCoordinate.x * uomul::mapBlockDimension,
+                        (blockCoordinate.x * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U,
+                        blockCoordinate.y * uomul::mapBlockDimension,
+                        (blockCoordinate.y * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U);
             if (state.block)
             {
                 drawBlock(*state.block, blockCoordinate, workspace);

@@ -95,6 +95,7 @@ inline constexpr Color panelTabDimmed{.red = 0.068F, .green = 0.102F, .blue = 0.
 inline constexpr Color panelTabDimmedActive{.red = 0.136F, .green = 0.262F, .blue = 0.424F, .alpha = 1.0F};
 inline constexpr Color panelTabOverline{.red = 0.26F, .green = 0.59F, .blue = 0.98F, .alpha = 1.0F};
 inline constexpr Color panelText{.red = 1.0F, .green = 1.0F, .blue = 1.0F, .alpha = 1.0F};
+inline constexpr Color panelTextOutline{.red = 0.0F, .green = 0.0F, .blue = 0.0F, .alpha = 0.90F};
 inline constexpr Color panelDisabledText{.red = 0.50F, .green = 0.50F, .blue = 0.50F, .alpha = 1.0F};
 inline constexpr Color panelFrame{.red = 0.16F, .green = 0.29F, .blue = 0.48F, .alpha = 0.54F};
 inline constexpr Color panelFrameHovered{.red = 0.26F, .green = 0.59F, .blue = 0.98F, .alpha = 0.40F};

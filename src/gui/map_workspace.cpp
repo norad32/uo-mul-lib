@@ -173,6 +173,32 @@ MapColor tileIdColor(std::uint16_t id) noexcept
     return {.red = red, .green = green, .blue = blue};
 }
 
+MapColor tileDisplayColor(MapDisplayMode mode, uomul::MapTile tile) noexcept
+{
+    if (mode == MapDisplayMode::z)
+    {
+        const std::uint8_t gray = zGrayscale(tile.z);
+        return {.red = gray, .green = gray, .blue = gray};
+    }
+
+    MapColor color = tileIdColor(tile.id);
+    if (mode == MapDisplayMode::combined)
+    {
+        constexpr double combinedBrightnessMinimum = 0.5;
+        constexpr double combinedBrightnessRange = 1.0;
+        const double brightness =
+            combinedBrightnessMinimum +
+            ((static_cast<double>(zGrayscale(tile.z)) / static_cast<double>(colorChannelMaximum)) * combinedBrightnessRange);
+        color.red = static_cast<std::uint8_t>(std::clamp(
+            static_cast<int>(static_cast<double>(color.red) * brightness), 0, static_cast<int>(colorChannelMaximum)));
+        color.green = static_cast<std::uint8_t>(std::clamp(
+            static_cast<int>(static_cast<double>(color.green) * brightness), 0, static_cast<int>(colorChannelMaximum)));
+        color.blue = static_cast<std::uint8_t>(std::clamp(
+            static_cast<int>(static_cast<double>(color.blue) * brightness), 0, static_cast<int>(colorChannelMaximum)));
+    }
+    return color;
+}
+
 std::uint8_t zGrayscale(std::int8_t z) noexcept
 {
     const auto shifted = static_cast<std::int32_t>(z) - std::numeric_limits<std::int8_t>::min();

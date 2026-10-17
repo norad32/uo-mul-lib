@@ -94,6 +94,14 @@ TEST_CASE("mapColorHelpers_Should_BeDeterministicAndMapSignedElevationExtrema")
     REQUIRE(im_cpp::gui::zGrayscale(std::numeric_limits<std::int8_t>::min()) == 0);
     REQUIRE(im_cpp::gui::zGrayscale(0) == 128);
     REQUIRE(im_cpp::gui::zGrayscale(std::numeric_limits<std::int8_t>::max()) == 255);
+    const uomul::MapTile tile{.id = 1234, .z = -12};
+    REQUIRE(im_cpp::gui::tileDisplayColor(im_cpp::gui::MapDisplayMode::tileIds, tile) == im_cpp::gui::tileIdColor(tile.id));
+    const auto zColor = im_cpp::gui::tileDisplayColor(im_cpp::gui::MapDisplayMode::z, tile);
+    REQUIRE(zColor.red == im_cpp::gui::zGrayscale(tile.z));
+    REQUIRE(zColor.green == zColor.red);
+    REQUIRE(zColor.blue == zColor.red);
+    REQUIRE_FALSE(im_cpp::gui::tileDisplayColor(im_cpp::gui::MapDisplayMode::combined, tile) ==
+                  im_cpp::gui::tileIdColor(tile.id));
 }
 
 TEST_CASE("mapWorkspace_Should_OpenCreateHoverAndExposeSelectionState")

@@ -32,8 +32,6 @@ constexpr std::uint32_t colorChannelMask = std::numeric_limits<std::uint8_t>::ma
 constexpr std::uint32_t colorChannelMaximum = std::numeric_limits<std::uint8_t>::max();
 constexpr double floatCacheTolerance = 0.001;
 constexpr std::size_t maximumCachedBlocks = 512;
-constexpr double combinedBrightnessMinimum = 0.5;
-constexpr double combinedBrightnessRange = 1.0;
 constexpr double selectionOutlineThickness = 2.0;
 constexpr double errorTextLeftPadding = 10.0;
 constexpr double errorTextTopPadding = 8.0;
@@ -45,28 +43,8 @@ constexpr std::uint32_t channelMaximum = std::numeric_limits<std::uint8_t>::max(
 
 [[nodiscard]] ImU32 colorForTile(MapDisplayMode mode, uomul::MapTile tile) noexcept
 {
-    if (mode == MapDisplayMode::z)
-    {
-        const auto gray = zGrayscale(tile.z);
-        return IM_COL32(gray, gray, gray, channelMaximum);
-    }
-
-    const MapColor idColor = tileIdColor(tile.id);
-    if (mode == MapDisplayMode::tileIds)
-    {
-        return IM_COL32(idColor.red, idColor.green, idColor.blue, channelMaximum);
-    }
-    const double brightness =
-        combinedBrightnessMinimum +
-        ((static_cast<double>(zGrayscale(tile.z)) / static_cast<double>(channelMaximum)) * combinedBrightnessRange);
-
-    const auto red = static_cast<std::uint8_t>(
-        std::clamp(static_cast<int>(static_cast<double>(idColor.red) * brightness), 0, static_cast<int>(channelMaximum)));
-    const auto green = static_cast<std::uint8_t>(
-        std::clamp(static_cast<int>(static_cast<double>(idColor.green) * brightness), 0, static_cast<int>(channelMaximum)));
-    const auto blue = static_cast<std::uint8_t>(
-        std::clamp(static_cast<int>(static_cast<double>(idColor.blue) * brightness), 0, static_cast<int>(channelMaximum)));
-    return IM_COL32(red, green, blue, channelMaximum);
+    const MapColor color = tileDisplayColor(mode, tile);
+    return IM_COL32(color.red, color.green, color.blue, channelMaximum);
 }
 
 [[nodiscard]] ImU32 unavailableColor(std::uint32_t tileX, std::uint32_t tileY) noexcept
@@ -365,11 +343,15 @@ void uploadLodTexture(MapCanvasPanelState & state, std::uint32_t rasterWidth, st
            nearlyEqual(state.lodCanvasWidth, canvasSize.x) && nearlyEqual(state.lodCanvasHeight, canvasSize.y) &&
            nearlyEqual(state.lodScaleX, framebufferScale.x) && nearlyEqual(state.lodScaleY, framebufferScale.y) &&
            std::abs(state.lodPanX - state.panX) < floatCacheTolerance &&
-           std::abs(state.lodPanY - state.panY) < floatCacheTolerance && std::abs(state.lodZoom - state.zoom) < floatCacheTolerance &&
-           state.lodDisplayMode == mode;
+           std::abs(state.lodPanY - state.panY) < floatCacheTolerance &&
+           std::abs(state.lodZoom - state.zoom) < floatCacheTolerance && state.lodDisplayMode == mode;
 }
 
-void saveLodCacheKey(MapCanvasPanelState & state, std::uint32_t rasterWidth, std::uint32_t rasterHeight, ImVec2 canvasSize, ImVec2 scale)
+void saveLodCacheKey(MapCanvasPanelState & state,
+                     std::uint32_t rasterWidth,
+                     std::uint32_t rasterHeight,
+                     ImVec2 canvasSize,
+                     ImVec2 scale)
 {
     state.lodTextureWidth = rasterWidth;
     state.lodTextureHeight = rasterHeight;
@@ -449,8 +431,9 @@ void drawCanvasContents(const MapWorkspace & workspace,
     const std::uint32_t maxX = visibleEnd(canvasSize.x, state.panX, tileSize, dimensions.widthTiles);
     const std::uint32_t maxY = visibleEnd(canvasSize.y, state.panY, tileSize, dimensions.heightTiles);
     const MapDisplayMode mode = workspace.displayMode();
-    const bool useScreenSpaceLod = tileSize * std::min(ImGui::GetIO().DisplayFramebufferScale.x,
-                                                      ImGui::GetIO().DisplayFramebufferScale.y) < lodZoomThreshold;
+    const bool useScreenSpaceLod =
+        tileSize * std::min(ImGui::GetIO().DisplayFramebufferScale.x, ImGui::GetIO().DisplayFramebufferScale.y) <
+        lodZoomThreshold;
     if (!useScreenSpaceLod || !drawScreenSpaceLod(workspace, state, *drawList, canvasOrigin, canvasSize, visibleReadError))
     {
         state.lodCacheValid = false;
@@ -492,15 +475,21 @@ void drawCanvasContents(const MapWorkspace & workspace,
     }
 
     drawSelection(*drawList, canvasOrigin, state, workspace, dimensions);
-    const std::optional<uomul::TileCoord> inspectedTile = currentTile ? currentTile : workspace.selectedTile();
-    if (inspectedTile)
+    if (workspace.selectedTile())
     {
-        const uomul::TileCoord tile = inspectedTile.value();
+        const uomul::TileCoord tile = *workspace.selectedTile();
         const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tile.x) * tileSize)),
                              canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tile.y) * tileSize)));
         const ImVec2 maximum(minimum.x + static_cast<float>(tileSize), minimum.y + static_cast<float>(tileSize));
-        const ImU32 highlight = currentTile ? IM_COL32(255, 255, 255, 210) : IM_COL32(255, 210, 60, 230);
-        drawList->AddRect(minimum, maximum, highlight, 0.0F, ImDrawFlags_None, 1.0F);
+        drawList->AddRect(minimum, maximum, IM_COL32(255, 210, 60, 230), 0.0F, ImDrawFlags_None, 1.0F);
+    }
+    if (currentTile)
+    {
+        const uomul::TileCoord tile = *currentTile;
+        const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tile.x) * tileSize)),
+                             canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tile.y) * tileSize)));
+        const ImVec2 maximum(minimum.x + static_cast<float>(tileSize), minimum.y + static_cast<float>(tileSize));
+        drawList->AddRect(minimum, maximum, IM_COL32(255, 255, 255, 210), 0.0F, ImDrawFlags_None, 1.0F);
     }
 
     const uomul::MapReader * reader = workspace.reader();
