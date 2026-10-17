@@ -1,16 +1,18 @@
 #include "gui/map_canvas_panel.h"
 #include "gui/map_workspace.h"
 #include "uomul/map.h"
+#include <GL/gl.h>
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <imgui.h>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -23,7 +25,12 @@ constexpr double minimumCanvasZoom = 0.125;
 constexpr double maximumCanvasZoom = 64.0;
 constexpr double canvasZoomFactor = 1.15;
 constexpr double maximumPanMagnitude = 1.0e12;
-constexpr std::uint32_t maximumCanvasSamples = 512;
+constexpr double lodRasterScale = 0.5;
+constexpr double lodZoomThreshold = 1.0;
+constexpr std::size_t lodPixelChannels = 4;
+constexpr std::uint32_t colorChannelMask = std::numeric_limits<std::uint8_t>::max();
+constexpr std::uint32_t colorChannelMaximum = std::numeric_limits<std::uint8_t>::max();
+constexpr double floatCacheTolerance = 0.001;
 constexpr std::size_t maximumCachedBlocks = 512;
 constexpr double combinedBrightnessMinimum = 0.5;
 constexpr double combinedBrightnessRange = 1.0;
@@ -84,12 +91,11 @@ constexpr std::uint32_t channelMaximum = std::numeric_limits<std::uint8_t>::max(
 [[nodiscard]] const MapCanvasCachedBlock &
 cachedBlock(const MapWorkspace & workspace, MapCanvasPanelState & state, uomul::BlockCoord coordinate)
 {
-    const auto existing =
-        std::ranges::find_if(state.blockCache,
-                             [coordinate](const MapCanvasCachedBlock & entry)
-                             { return entry.coordinate.x == coordinate.x && entry.coordinate.y == coordinate.y; });
-    if (existing != state.blockCache.end())
+    const std::uint64_t cacheKey = (static_cast<std::uint64_t>(coordinate.x) << 32U) | coordinate.y;
+    const auto cachedIndex = state.blockCacheIndex.find(cacheKey);
+    if (cachedIndex != state.blockCacheIndex.end())
     {
+        MapCanvasCachedBlock & existing = state.blockCache.at(cachedIndex->second);
         if (state.cacheClock == std::numeric_limits<std::uint64_t>::max())
         {
             state.cacheClock = 0;
@@ -99,9 +105,9 @@ cachedBlock(const MapWorkspace & workspace, MapCanvasPanelState & state, uomul::
                 ++state.cacheClock;
             }
         }
-        existing->lastUsed = state.cacheClock;
+        existing.lastUsed = state.cacheClock;
         ++state.cacheClock;
-        return *existing;
+        return existing;
     }
 
     MapCanvasCachedBlock entry{.coordinate = coordinate, .block = std::nullopt, .error = std::nullopt, .lastUsed = 0};
@@ -124,36 +130,20 @@ cachedBlock(const MapWorkspace & workspace, MapCanvasPanelState & state, uomul::
     if (state.blockCache.size() < maximumCachedBlocks)
     {
         state.blockCache.push_back(std::move(entry));
+        const std::size_t index = state.blockCache.size() - 1U;
+        state.blockCacheIndex.emplace(cacheKey, index);
         return state.blockCache.back();
     }
     const auto leastRecentlyUsed = std::ranges::min_element(
         state.blockCache,
         [](const MapCanvasCachedBlock & left, const MapCanvasCachedBlock & right) { return left.lastUsed < right.lastUsed; });
+    const std::uint64_t leastRecentlyUsedKey =
+        (static_cast<std::uint64_t>(leastRecentlyUsed->coordinate.x) << 32U) | leastRecentlyUsed->coordinate.y;
+    state.blockCacheIndex.erase(leastRecentlyUsedKey);
+    const std::size_t index = static_cast<std::size_t>(std::distance(state.blockCache.begin(), leastRecentlyUsed));
     *leastRecentlyUsed = std::move(entry);
+    state.blockCacheIndex.emplace(cacheKey, index);
     return *leastRecentlyUsed;
-}
-
-[[nodiscard]] std::uint32_t sampleStep(std::uint32_t width, std::uint32_t height) noexcept
-{
-    const std::uint64_t tileCount = static_cast<std::uint64_t>(width) * height;
-    if (tileCount <= maximumCanvasSamples)
-    {
-        return 1;
-    }
-
-    std::uint64_t step = static_cast<std::uint64_t>(
-        std::ceil(std::sqrt(static_cast<double>(tileCount) / static_cast<double>(maximumCanvasSamples))));
-    while (((static_cast<std::uint64_t>(width) + step - 1U) / step) *
-               ((static_cast<std::uint64_t>(height) + step - 1U) / step) >
-           maximumCanvasSamples)
-    {
-        const std::uint64_t sampleCount = ((static_cast<std::uint64_t>(width) + step - 1U) / step) *
-                                          ((static_cast<std::uint64_t>(height) + step - 1U) / step);
-        const std::uint64_t multiplier = static_cast<std::uint64_t>(
-            std::ceil(std::sqrt(static_cast<double>(sampleCount) / static_cast<double>(maximumCanvasSamples))));
-        step = std::max(step + 1U, step * multiplier);
-    }
-    return static_cast<std::uint32_t>(step);
 }
 
 [[nodiscard]] std::optional<uomul::TileCoord> tileAtMouse(ImVec2 mouse,
@@ -228,6 +218,218 @@ void drawSelection(ImDrawList & drawList,
         minimum, maximum, IM_COL32(255, 245, 120, 255), 0.0F, ImDrawFlags_None, static_cast<float>(selectionOutlineThickness));
 }
 
+void writeLodPixel(std::vector<std::uint8_t> & pixels, std::size_t pixelIndex, ImU32 color)
+{
+    const std::size_t offset = pixelIndex * lodPixelChannels;
+    pixels.at(offset) = static_cast<std::uint8_t>((color >> IM_COL32_R_SHIFT) & colorChannelMask);
+    pixels.at(offset + 1U) = static_cast<std::uint8_t>((color >> IM_COL32_G_SHIFT) & colorChannelMask);
+    pixels.at(offset + 2U) = static_cast<std::uint8_t>((color >> IM_COL32_B_SHIFT) & colorChannelMask);
+    pixels.at(offset + 3U) = static_cast<std::uint8_t>(colorChannelMaximum);
+}
+
+void rasterizeLodRow(const MapWorkspace & workspace,
+                     MapCanvasPanelState & state,
+                     std::vector<std::uint8_t> & pixels,
+                     std::uint32_t rasterWidth,
+                     std::uint32_t pixelY,
+                     double scaleX,
+                     double scaleY,
+                     MapDisplayMode mode)
+{
+    const uomul::Dimensions dimensions = workspace.dimensions();
+    const double screenY = (static_cast<double>(pixelY) + 0.5) / (scaleY * lodRasterScale);
+    const double mapY = (screenY - state.panY) / state.zoom;
+    if (mapY < 0.0 || mapY >= static_cast<double>(dimensions.heightTiles))
+    {
+        return;
+    }
+    const auto tileY = static_cast<std::uint32_t>(std::floor(mapY));
+    const std::uint32_t blockY = tileY / uomul::mapBlockDimension;
+    const std::uint32_t localY = tileY % uomul::mapBlockDimension;
+    std::uint32_t loadedBlockX = std::numeric_limits<std::uint32_t>::max();
+    const MapCanvasCachedBlock * loadedBlock = nullptr;
+    for (std::uint32_t pixelX = 0; pixelX < rasterWidth; ++pixelX)
+    {
+        const double screenX = (static_cast<double>(pixelX) + 0.5) / (scaleX * lodRasterScale);
+        const double mapX = (screenX - state.panX) / state.zoom;
+        if (mapX < 0.0 || mapX >= static_cast<double>(dimensions.widthTiles))
+        {
+            continue;
+        }
+        const auto tileX = static_cast<std::uint32_t>(std::floor(mapX));
+        const std::uint32_t blockX = tileX / uomul::mapBlockDimension;
+        if (blockX != loadedBlockX)
+        {
+            loadedBlock = &cachedBlock(workspace, state, {.x = blockX, .y = blockY});
+            loadedBlockX = blockX;
+        }
+
+        ImU32 color = unavailableColor(tileX, tileY);
+        if (loadedBlock->block)
+        {
+            const std::uint32_t localIndex = (localY * uomul::mapBlockDimension) + (tileX % uomul::mapBlockDimension);
+            color = colorForTile(mode, loadedBlock->block->at(static_cast<std::size_t>(localIndex)));
+        }
+        else if (loadedBlock->error && !state.lodReadError)
+        {
+            state.lodReadError = loadedBlock->error;
+        }
+        writeLodPixel(pixels, (static_cast<std::size_t>(pixelY) * rasterWidth) + pixelX, color);
+    }
+}
+
+void rasterizeLod(const MapWorkspace & workspace,
+                  MapCanvasPanelState & state,
+                  std::uint32_t rasterWidth,
+                  std::uint32_t rasterHeight,
+                  double scaleX,
+                  double scaleY,
+                  MapDisplayMode mode)
+{
+    const std::size_t pixelCount = static_cast<std::size_t>(rasterWidth) * rasterHeight;
+    state.lodPixels.resize(pixelCount * lodPixelChannels);
+    constexpr ImU32 backgroundColor = IM_COL32(25, 28, 32, 255);
+    for (std::size_t pixel = 0; pixel < pixelCount; ++pixel)
+    {
+        writeLodPixel(state.lodPixels, pixel, backgroundColor);
+    }
+    state.lodReadError.reset();
+    for (std::uint32_t pixelY = 0; pixelY < rasterHeight; ++pixelY)
+    {
+        rasterizeLodRow(workspace, state, state.lodPixels, rasterWidth, pixelY, scaleX, scaleY, mode);
+    }
+}
+
+void uploadLodTexture(MapCanvasPanelState & state, std::uint32_t rasterWidth, std::uint32_t rasterHeight)
+{
+    if (state.lodTexture == 0U)
+    {
+        GLuint texture = 0;
+        glGenTextures(1, &texture);
+        state.lodTexture = texture;
+    }
+    if (state.lodTexture == 0U)
+    {
+        state.lodCacheValid = false;
+        return;
+    }
+    GLint previousTexture = 0;
+    GLint previousUnpackAlignment = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+    glBindTexture(GL_TEXTURE_2D, state.lodTexture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    if (state.lodTextureWidth != rasterWidth || state.lodTextureHeight != rasterHeight)
+    {
+        glTexImage2D(GL_TEXTURE_2D,
+                     0,
+                     GL_RGBA,
+                     static_cast<GLsizei>(rasterWidth),
+                     static_cast<GLsizei>(rasterHeight),
+                     0,
+                     GL_RGBA,
+                     GL_UNSIGNED_BYTE,
+                     state.lodPixels.data());
+        state.lodTextureWidth = rasterWidth;
+        state.lodTextureHeight = rasterHeight;
+    }
+    else
+    {
+        glTexSubImage2D(GL_TEXTURE_2D,
+                        0,
+                        0,
+                        0,
+                        static_cast<GLsizei>(rasterWidth),
+                        static_cast<GLsizei>(rasterHeight),
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                        state.lodPixels.data());
+    }
+    glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
+}
+
+[[nodiscard]] bool lodCacheMatches(const MapCanvasPanelState & state,
+                                   std::uint32_t rasterWidth,
+                                   std::uint32_t rasterHeight,
+                                   ImVec2 canvasSize,
+                                   ImVec2 framebufferScale,
+                                   MapDisplayMode mode)
+{
+    const auto nearlyEqual = [](float left, float right) { return std::abs(left - right) < floatCacheTolerance; };
+    return state.lodCacheValid && state.lodTextureWidth == rasterWidth && state.lodTextureHeight == rasterHeight &&
+           nearlyEqual(state.lodCanvasWidth, canvasSize.x) && nearlyEqual(state.lodCanvasHeight, canvasSize.y) &&
+           nearlyEqual(state.lodScaleX, framebufferScale.x) && nearlyEqual(state.lodScaleY, framebufferScale.y) &&
+           std::abs(state.lodPanX - state.panX) < floatCacheTolerance &&
+           std::abs(state.lodPanY - state.panY) < floatCacheTolerance && std::abs(state.lodZoom - state.zoom) < floatCacheTolerance &&
+           state.lodDisplayMode == mode;
+}
+
+void saveLodCacheKey(MapCanvasPanelState & state, std::uint32_t rasterWidth, std::uint32_t rasterHeight, ImVec2 canvasSize, ImVec2 scale)
+{
+    state.lodTextureWidth = rasterWidth;
+    state.lodTextureHeight = rasterHeight;
+    state.lodCanvasWidth = canvasSize.x;
+    state.lodCanvasHeight = canvasSize.y;
+    state.lodScaleX = scale.x;
+    state.lodScaleY = scale.y;
+    state.lodPanX = state.panX;
+    state.lodPanY = state.panY;
+    state.lodZoom = state.zoom;
+    state.lodCacheValid = true;
+}
+
+[[nodiscard]] bool drawScreenSpaceLod(const MapWorkspace & workspace,
+                                      MapCanvasPanelState & state,
+                                      ImDrawList & drawList,
+                                      ImVec2 canvasOrigin,
+                                      ImVec2 canvasSize,
+                                      std::optional<uomul::Error> & visibleReadError)
+{
+    const ImVec2 framebufferScale = ImGui::GetIO().DisplayFramebufferScale;
+    const double scaleX = std::max(static_cast<double>(framebufferScale.x), std::numeric_limits<double>::epsilon());
+    const double scaleY = std::max(static_cast<double>(framebufferScale.y), std::numeric_limits<double>::epsilon());
+    const double width = std::ceil(static_cast<double>(canvasSize.x) * scaleX * lodRasterScale);
+    const double height = std::ceil(static_cast<double>(canvasSize.y) * scaleY * lodRasterScale);
+    if (width <= 0.0 || height <= 0.0 || width > std::numeric_limits<GLsizei>::max() ||
+        height > std::numeric_limits<GLsizei>::max())
+    {
+        return false;
+    }
+    const auto rasterWidth = static_cast<std::uint32_t>(width);
+    const auto rasterHeight = static_cast<std::uint32_t>(height);
+    const std::uint64_t pixelCount = static_cast<std::uint64_t>(rasterWidth) * rasterHeight;
+    if (pixelCount > std::numeric_limits<std::size_t>::max() / lodPixelChannels)
+    {
+        return false;
+    }
+
+    const MapDisplayMode mode = workspace.displayMode();
+    if (!lodCacheMatches(state, rasterWidth, rasterHeight, canvasSize, framebufferScale, mode))
+    {
+        rasterizeLod(workspace, state, rasterWidth, rasterHeight, scaleX, scaleY, mode);
+        uploadLodTexture(state, rasterWidth, rasterHeight);
+        if (state.lodTexture == 0U)
+        {
+            return false;
+        }
+        saveLodCacheKey(state, rasterWidth, rasterHeight, canvasSize, framebufferScale);
+        state.lodDisplayMode = mode;
+    }
+
+    visibleReadError = state.lodReadError;
+    drawList.AddImage(static_cast<ImTextureID>(state.lodTexture),
+                      canvasOrigin,
+                      ImVec2(canvasOrigin.x + canvasSize.x, canvasOrigin.y + canvasSize.y),
+                      ImVec2(0.0F, 1.0F),
+                      ImVec2(1.0F, 0.0F));
+    return true;
+}
+
 void drawCanvasContents(const MapWorkspace & workspace,
                         MapCanvasPanelState & state,
                         ImVec2 canvasOrigin,
@@ -246,39 +448,46 @@ void drawCanvasContents(const MapWorkspace & workspace,
     const std::uint32_t minY = visibleStart(state.panY, tileSize, dimensions.heightTiles);
     const std::uint32_t maxX = visibleEnd(canvasSize.x, state.panX, tileSize, dimensions.widthTiles);
     const std::uint32_t maxY = visibleEnd(canvasSize.y, state.panY, tileSize, dimensions.heightTiles);
-    const std::uint32_t step = sampleStep(maxX - minX, maxY - minY);
     const MapDisplayMode mode = workspace.displayMode();
-
-    for (std::uint64_t tileY = minY; tileY < maxY; tileY += step)
+    const bool useScreenSpaceLod = tileSize * std::min(ImGui::GetIO().DisplayFramebufferScale.x,
+                                                      ImGui::GetIO().DisplayFramebufferScale.y) < lodZoomThreshold;
+    if (!useScreenSpaceLod || !drawScreenSpaceLod(workspace, state, *drawList, canvasOrigin, canvasSize, visibleReadError))
     {
-        for (std::uint64_t tileX = minX; tileX < maxX; tileX += step)
+        state.lodCacheValid = false;
+        state.lodReadError.reset();
+        for (std::uint64_t tileY = minY; tileY < maxY; ++tileY)
         {
-            const std::uint64_t cellEndX = std::min(tileX + step, static_cast<std::uint64_t>(maxX));
-            const std::uint64_t cellEndY = std::min(tileY + step, static_cast<std::uint64_t>(maxY));
-            const std::uint32_t sampleX = static_cast<std::uint32_t>(tileX + ((cellEndX - tileX) / 2U));
-            const std::uint32_t sampleY = static_cast<std::uint32_t>(tileY + ((cellEndY - tileY) / 2U));
-            const uomul::BlockCoord blockCoordinate{
-                .x = sampleX / uomul::mapBlockDimension,
-                .y = sampleY / uomul::mapBlockDimension,
-            };
-            const MapCanvasCachedBlock & cached = cachedBlock(workspace, state, blockCoordinate);
-            ImU32 color = unavailableColor(sampleX, sampleY);
-            if (cached.block)
+            const std::uint32_t tileRow = static_cast<std::uint32_t>(tileY);
+            const std::uint32_t blockY = tileRow / uomul::mapBlockDimension;
+            const std::uint32_t localY = tileRow % uomul::mapBlockDimension;
+            std::uint32_t cachedBlockX = std::numeric_limits<std::uint32_t>::max();
+            const MapCanvasCachedBlock * cached = nullptr;
+            for (std::uint64_t tileX = minX; tileX < maxX; ++tileX)
             {
-                const std::uint32_t localIndex =
-                    ((sampleY % uomul::mapBlockDimension) * uomul::mapBlockDimension) + (sampleX % uomul::mapBlockDimension);
-                color = colorForTile(mode, cached.block->at(static_cast<std::size_t>(localIndex)));
-            }
-            else if (cached.error && !visibleReadError)
-            {
-                visibleReadError = cached.error;
-            }
+                const std::uint32_t tileColumn = static_cast<std::uint32_t>(tileX);
+                const std::uint32_t blockX = tileColumn / uomul::mapBlockDimension;
+                if (blockX != cachedBlockX)
+                {
+                    cached = &cachedBlock(workspace, state, {.x = blockX, .y = blockY});
+                    cachedBlockX = blockX;
+                }
+                ImU32 color = unavailableColor(tileColumn, tileRow);
+                if (cached->block)
+                {
+                    const std::uint32_t localIndex =
+                        (localY * uomul::mapBlockDimension) + (tileColumn % uomul::mapBlockDimension);
+                    color = colorForTile(mode, cached->block->at(static_cast<std::size_t>(localIndex)));
+                }
+                else if (cached->error && !visibleReadError)
+                {
+                    visibleReadError = cached->error;
+                }
 
-            const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tileX) * tileSize)),
-                                 canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tileY) * tileSize)));
-            const ImVec2 maximum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(cellEndX) * tileSize)),
-                                 canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(cellEndY) * tileSize)));
-            drawList->AddRectFilled(minimum, maximum, color);
+                const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tileX) * tileSize)),
+                                     canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tileY) * tileSize)));
+                const ImVec2 maximum(minimum.x + static_cast<float>(tileSize), minimum.y + static_cast<float>(tileSize));
+                drawList->AddRectFilled(minimum, maximum, color);
+            }
         }
     }
 
@@ -366,7 +575,10 @@ void resetForDocument(const MapWorkspace & workspace, MapCanvasPanelState & stat
         return;
     }
     state.blockCache.clear();
+    state.blockCacheIndex.clear();
     state.cacheClock = 0;
+    state.lodCacheValid = false;
+    state.lodReadError.reset();
     state.panX = 0.0;
     state.panY = 0.0;
     state.dragStart.reset();
@@ -479,6 +691,15 @@ void drawEmptyCanvas(ImVec2 canvasOrigin, ImVec2 canvasMaximum, const MapWorkspa
 }
 
 } // namespace
+
+MapCanvasPanelState::~MapCanvasPanelState()
+{
+    if (lodTexture != 0U)
+    {
+        const GLuint texture = lodTexture;
+        glDeleteTextures(1, &texture);
+    }
+}
 
 void drawMapCanvasPanel(MapWorkspace & workspace, MapCanvasPanelState & state, bool & visible)
 {
