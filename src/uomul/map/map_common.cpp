@@ -1,5 +1,6 @@
 #include "map_common.h"
 #include "uomul/map.h"
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cstddef>
@@ -11,6 +12,7 @@
 #include <filesystem>
 #include <iterator>
 #include <limits>
+#include <span>
 #include <string>
 #include <sys/types.h>
 #include <system_error>
@@ -200,7 +202,9 @@ LandBlock MapCommon::decodeBlock(const LandBlockBytes & raw)
     for (std::size_t index = 0; index < block.size(); ++index)
     {
         const auto offset = static_cast<std::size_t>(landHeaderByteSize) + (index * static_cast<std::size_t>(landTileByteSize));
-        block.at(index) = decodeLandTile(raw.data() + offset);
+        const auto tileBytes = std::span<const std::byte, landTileByteSize>(
+            std::next(raw.begin(), static_cast<std::ptrdiff_t>(offset)), static_cast<std::size_t>(landTileByteSize));
+        block.at(index) = decodeLandTile(tileBytes);
     }
 
     return block;
@@ -212,7 +216,7 @@ void MapCommon::encodeBlock(LandBlockBytes & raw, const LandBlock & block)
     {
         const auto offset = static_cast<std::size_t>(landHeaderByteSize) + (index * static_cast<std::size_t>(landTileByteSize));
         const auto encoded = encodeLandTile(block.at(index));
-        std::ranges::copy(encoded, raw.begin() + static_cast<std::ptrdiff_t>(offset));
+        std::ranges::copy(encoded, std::next(raw.begin(), static_cast<std::ptrdiff_t>(offset)));
     }
 }
 

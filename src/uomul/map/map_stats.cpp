@@ -5,8 +5,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <iterator>
 #include <limits>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace uomul::detail
@@ -57,12 +59,10 @@ class StatsAccumulator
 public:
     void add(LandTile tile)
     {
-        auto * tileIdCount = idCounts_.data() + tile.id;
-        *tileIdCount++;
+        idCounts_.at(tile.id)++;
         const auto elevationIndex =
             static_cast<std::size_t>(static_cast<int>(tile.z) - std::numeric_limits<std::int8_t>::min());
-        auto * elevationBucket = elevationCounts_.data() + elevationIndex;
-        *elevationBucket++;
+        elevationCounts_.at(elevationIndex)++;
         elevationTotal_ += tile.z;
         tileCount_++;
     }
@@ -87,10 +87,9 @@ public:
 private:
     void appendIdStats(MapStats & result, double sampleCount) const
     {
-        const auto * idCount = idCounts_.data();
-        for (std::size_t id = 0; id < idCounts_.size(); id++, idCount++)
+        for (std::size_t id = 0; id < idCounts_.size(); id++)
         {
-            const auto count = *idCount;
+            const auto count = idCounts_.at(id);
             if (count != 0)
             {
                 result.tileIds.push_back(ValueStats{
@@ -152,7 +151,9 @@ void accumulateBlockStats(StatsAccumulator & stats, TileRegion region, BlockCoor
             const auto tileIndex = tileIndexInBlock({.x = x, .y = y});
             const auto tileOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
                                     (tileIndex * static_cast<std::size_t>(MapCommon::landTileByteSize));
-            stats.add(decodeLandTile(raw.data() + tileOffset));
+            const auto tileBytes = std::span<const std::byte, MapCommon::landTileByteSize>(
+                std::next(raw.begin(), static_cast<std::ptrdiff_t>(tileOffset)), MapCommon::landTileByteSize);
+            stats.add(decodeLandTile(tileBytes));
         }
     }
 }

@@ -7,6 +7,7 @@
 #include <expected>
 #include <filesystem>
 #include <limits>
+#include <span>
 #include <string>
 #include <type_traits>
 
@@ -135,17 +136,16 @@ template <typename T, std::size_t Size = sizeof(T), std::size_t ContainerSize>
     return value;
 }
 
-[[nodiscard]] constexpr LandTile decodeLandTile(const std::byte * bytes)
+[[nodiscard]] constexpr LandTile decodeLandTile(std::span<const std::byte, 3> bytes)
 {
-    const auto low = std::to_integer<std::uint8_t>(bytes[0]);
-    const auto high = std::to_integer<std::uint8_t>(bytes[1]);
+    const auto low = std::to_integer<std::uint8_t>(bytes.front());
+    const auto high = std::to_integer<std::uint8_t>(bytes.subspan(1).front());
     const auto id = static_cast<std::uint16_t>(
         static_cast<std::uint32_t>(low) |
         (static_cast<std::uint32_t>(high) << static_cast<unsigned>(std::numeric_limits<unsigned char>::digits)));
     return LandTile{
         .id = id,
-
-        .z = std::bit_cast<std::int8_t>(std::to_integer<std::uint8_t>(bytes[2])),
+        .z = std::bit_cast<std::int8_t>(std::to_integer<std::uint8_t>(bytes.back())),
     };
 }
 

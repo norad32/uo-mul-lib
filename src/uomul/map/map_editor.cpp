@@ -349,19 +349,24 @@ std::expected<void, Error> flushJournal(int journal,
 [[nodiscard]] std::size_t journalRunEnd(const std::vector<std::byte> & entries, std::size_t runStart, std::size_t entryCount)
 {
     const auto firstEntryOffset = runStart * journalEntryBytes;
-    const std::span<const std::byte, journalEntryBytes> firstEntry(entries.data() + firstEntryOffset, journalEntryBytes);
+    const auto firstEntry = std::span<const std::byte, journalEntryBytes>(
+        std::next(entries.begin(), static_cast<std::ptrdiff_t>(firstEntryOffset)), journalEntryBytes);
     const auto blockOffset = journalOffset(firstEntry);
     std::size_t runEnd = runStart + 1;
     while (runEnd < entryCount)
     {
         const auto entryOffset = runEnd * journalEntryBytes;
-        const std::span<const std::byte, journalEntryBytes> entry(entries.data() + entryOffset, journalEntryBytes);
+        const auto entry = std::span<const std::byte, journalEntryBytes>(
+            std::next(entries.begin(), static_cast<std::ptrdiff_t>(entryOffset)), journalEntryBytes);
+
         if (journalOffset(entry) != blockOffset + ((runEnd - runStart) * MapCommon::landBlockByteSize))
         {
             break;
         }
-        ++runEnd;
+
+        runEnd++;
     }
+
     return runEnd;
 }
 
@@ -371,7 +376,7 @@ void copyJournalRun(const std::vector<std::byte> & entries,
                     std::size_t runEnd,
                     std::size_t dataOffset)
 {
-    for (std::size_t index = runStart; index < runEnd; ++index)
+    for (std::size_t index = runStart; index < runEnd; index++)
     {
         const auto entryOffset = index * journalEntryBytes;
         const auto sourceOffset = entryOffset + dataOffset;
@@ -393,17 +398,19 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
     std::vector<std::byte> buffer(journalEntriesPerWrite * journalEntryBytes);
     std::size_t bufferedEntries = 0;
     std::uint64_t entryCount = 0;
-    for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; ++x)
+    for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; x++)
     {
-        for (std::uint32_t y = region.min.y; y < region.maxExclusive.y; ++y)
+        for (std::uint32_t y = region.min.y; y < region.maxExclusive.y; y++)
         {
             const BlockCoord coordinate{.x = x, .y = y};
             const auto offset = MapCommon::blockOffset(coordinate, dimensions);
             LandBlockBytes before{};
+
             if (!MapCommon::readExact(stagedDescriptor, before.data(), before.size(), offset))
             {
                 return std::unexpected(MapCommon::makeError(ErrorCode::io, staging, offset, "could not read staged block"));
             }
+
             auto changed = callback(coordinate, MapCommon::decodeBlock(before));
             if (!changed)
             {
@@ -421,8 +428,9 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
             std::ranges::copy(after, std::next(entry.begin(), static_cast<std::ptrdiff_t>(afterOffset)));
             const auto bufferOffset = bufferedEntries * static_cast<std::size_t>(journalEntryBytes);
             std::ranges::copy(entry, std::next(buffer.begin(), static_cast<std::ptrdiff_t>(bufferOffset)));
-            ++bufferedEntries;
-            ++entryCount;
+            bufferedEntries++;
+            entryCount++;
+
             if (bufferedEntries == journalEntriesPerWrite)
             {
                 if (auto flushed = flushJournal(journal, journalPath, buffer, bufferedEntries, entryCount - bufferedEntries);
@@ -430,10 +438,12 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
                 {
                     return std::unexpected(flushed.error());
                 }
+
                 bufferedEntries = 0;
             }
         }
     }
+
     if (bufferedEntries != 0)
     {
         if (auto flushed = flushJournal(journal, journalPath, buffer, bufferedEntries, entryCount - bufferedEntries); !flushed)
@@ -453,6 +463,7 @@ bool transferJournalBlocks(int stagedDescriptor,
 {
     std::vector<std::byte> entries(journalEntriesPerRead * journalEntryBytes);
     std::vector<std::byte> blocks(journalEntriesPerRead * journalBlockBytes);
+
     attempted = 0;
     while (attempted < entryCount)
     {
@@ -468,19 +479,23 @@ bool transferJournalBlocks(int stagedDescriptor,
         std::size_t runStart = 0;
         while (runStart < entryCountInChunk)
         {
-            const auto blockOffset = journalOffset(std::span<const std::byte, journalEntryBytes>(
-                entries.data() + runStart * journalEntryBytes, journalEntryBytes));
+            const auto entry = std::span<const std::byte, journalEntryBytes>(
+                std::next(entries.begin(), static_cast<std::ptrdiff_t>(runStart * journalEntryBytes)), journalEntryBytes);
+            const auto blockOffset = journalOffset(entry);
             const auto runEnd = journalRunEnd(entries, runStart, entryCountInChunk);
             copyJournalRun(entries, blocks, runStart, runEnd, dataOffset);
             attempted = chunkStart + runEnd;
             const auto runBytes = (runEnd - runStart) * journalBlockBytes;
+
             if (!MapCommon::writeExact(stagedDescriptor, blocks.data(), runBytes, blockOffset))
             {
                 return false;
             }
+
             runStart = runEnd;
         }
     }
+
     return true;
 }
 
@@ -500,6 +515,7 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
     const auto beforeOffset = static_cast<std::size_t>(journalHeaderBytes);
     std::vector<std::byte> entries(journalEntriesPerRead * journalEntryBytes);
     std::vector<std::byte> blocks(journalEntriesPerRead * journalBlockBytes);
+
     while (attempted < entryCount)
     {
         const auto chunkStart = attempted;
@@ -516,8 +532,9 @@ bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryC
         std::size_t runStart = 0;
         while (runStart < entryCountInChunk)
         {
-            const auto blockOffset = journalOffset(std::span<const std::byte, journalEntryBytes>(
-                entries.data() + runStart * journalEntryBytes, journalEntryBytes));
+            const auto entry = std::span<const std::byte, journalEntryBytes>(
+                std::next(entries.begin(), static_cast<std::ptrdiff_t>(runStart * journalEntryBytes)), journalEntryBytes);
+            const auto blockOffset = journalOffset(entry);
             const auto runEnd = journalRunEnd(entries, runStart, entryCountInChunk);
             copyJournalRun(entries, blocks, runStart, runEnd, beforeOffset);
             const auto runBytes = (runEnd - runStart) * journalBlockBytes;
@@ -542,13 +559,16 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
                                               bool & failed)
 {
     std::filesystem::path journalPath;
+
     auto journalDescriptor = MapCommon::createTemporary(output, journalPath);
     if (!journalDescriptor)
     {
         return std::unexpected(journalDescriptor.error());
     }
+
     const detail::TemporaryPath journalCleanup(journalPath);
     const detail::ScopedDescriptor journal(*journalDescriptor);
+
     auto entryCount = writeEditJournal(stagedDescriptor, staging, journal.get(), journalPath, dimensions, region, callback);
     if (!entryCount)
     {
@@ -563,6 +583,7 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
         {
             failed = true;
         }
+
         return std::unexpected(MapCommon::makeError(ErrorCode::io,
                                                     staging,
                                                     0,
@@ -632,10 +653,12 @@ std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const Lan
                     changed.at(index) = *result;
                     return {};
                 });
+
             if (!visited)
             {
                 return std::unexpected(visited.error());
             }
+
             return changed;
         },
         impl_->failed);
@@ -740,6 +763,7 @@ std::expected<void, Error> MapEditor::commit()
     {
         return active;
     }
+
     if (::fsync(impl_->descriptor) != 0)
     {
         const auto error = MapCommon::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
@@ -749,6 +773,7 @@ std::expected<void, Error> MapEditor::commit()
         impl_->committed = true;
         return std::unexpected(error);
     }
+
     if (::close(impl_->descriptor) != 0)
     {
         const auto error = MapCommon::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
@@ -757,6 +782,7 @@ std::expected<void, Error> MapEditor::commit()
         impl_->committed = true;
         return std::unexpected(error);
     }
+
     impl_->descriptor = -1;
 
     auto result = MapCommon::publishFile(impl_->staging, impl_->output, impl_->overwrite);
@@ -766,6 +792,7 @@ std::expected<void, Error> MapEditor::commit()
         impl_->committed = true;
         return result;
     }
+
     impl_->committed = true;
     return {};
 }
@@ -776,15 +803,18 @@ void MapEditor::abort() noexcept
     {
         return;
     }
+
     if (impl_->descriptor >= 0)
     {
         static_cast<void>(::close(impl_->descriptor));
         impl_->descriptor = -1;
     }
+
     if (!impl_->committed && !impl_->staging.empty())
     {
         static_cast<void>(::unlink(impl_->staging.c_str()));
     }
+
     impl_->committed = true;
 }
 

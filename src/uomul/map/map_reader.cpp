@@ -321,7 +321,7 @@ std::expected<LandTile, Error> MapReader::readLandTile(TileCoord tile) const
             MapCommon::makeError(ErrorCode::truncatedInput, impl_->path, tileOffset, "land tile is missing or truncated"));
     }
 
-    return detail::decodeLandTile(raw.data());
+    return detail::decodeLandTile(raw);
 }
 
 std::expected<void, Error> MapReader::readLandBlocks(BlockRegion region, const LandBlockRead & callback) const
