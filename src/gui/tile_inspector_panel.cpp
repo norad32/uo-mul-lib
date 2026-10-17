@@ -2,6 +2,8 @@
 
 #include <imgui.h>
 
+#include <string>
+
 #include "gui/map_workspace.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
@@ -10,6 +12,57 @@ namespace im_cpp::gui
 {
 namespace
 {
+
+constexpr float tilePreviewSize = 40.0F;
+constexpr float selectedBorderThickness = 2.0F;
+constexpr float textOutlineOffset = 1.0F;
+
+[[nodiscard]] std::string tileLabel(MapDisplayMode mode, uomul::MapTile tile)
+{
+    if (mode == MapDisplayMode::tileIds)
+    {
+        return std::to_string(tile.id);
+    }
+    if (mode == MapDisplayMode::z)
+    {
+        return std::to_string(static_cast<int>(tile.z));
+    }
+    return std::to_string(tile.id) + "\n" + std::to_string(static_cast<int>(tile.z));
+}
+
+void drawTilePreview(uomul::MapTile tile, MapDisplayMode mode)
+{
+    const ImVec2 cellMinimum = ImGui::GetCursorScreenPos();
+    const ImVec2 cellMaximum(cellMinimum.x + tilePreviewSize, cellMinimum.y + tilePreviewSize);
+    const MapColor mapColor = tileDisplayColor(mode, tile);
+    ImDrawList * drawList = ImGui::GetWindowDrawList();
+    drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
+    drawList->AddRect(cellMinimum,
+                      cellMaximum,
+                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelBorder)),
+                      0.0F,
+                      ImDrawFlags_None,
+                      1.0F);
+    drawList->AddRect(cellMinimum,
+                      cellMaximum,
+                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelTabHovered)),
+                      0.0F,
+                      ImDrawFlags_None,
+                      selectedBorderThickness);
+
+    const std::string label = tileLabel(mode, tile);
+    const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
+    const ImVec2 textPosition(cellMinimum.x + ((tilePreviewSize - textSize.x) * 0.5F),
+                              cellMinimum.y + ((tilePreviewSize - textSize.y) * 0.5F));
+    const ImU32 outlineColor = ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelTextOutline));
+    const ImU32 textColor = ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelText));
+    drawList->AddText(ImVec2(textPosition.x - textOutlineOffset, textPosition.y), outlineColor, label.c_str());
+    drawList->AddText(ImVec2(textPosition.x + textOutlineOffset, textPosition.y), outlineColor, label.c_str());
+    drawList->AddText(ImVec2(textPosition.x, textPosition.y - textOutlineOffset), outlineColor, label.c_str());
+    drawList->AddText(ImVec2(textPosition.x, textPosition.y + textOutlineOffset), outlineColor, label.c_str());
+    drawList->AddText(textPosition, textColor, label.c_str());
+    ImGui::Dummy(ImVec2(tilePreviewSize, tilePreviewSize));
+}
 
 void drawTileDetails(const MapWorkspace & workspace)
 {
@@ -29,6 +82,11 @@ void drawTileDetails(const MapWorkspace & workspace)
                        static_cast<float>(mapColor.green) / theme::maximumColorChannel,
                        static_cast<float>(mapColor.blue) / theme::maximumColorChannel,
                        1.0F);
+    ImGui::BeginGroup();
+    drawTilePreview(value, workspace.displayMode());
+    ImGui::EndGroup();
+    ImGui::SameLine();
+    ImGui::BeginGroup();
     ImGui::Text("Tile: (%u, %u)", tile.x, tile.y);
     if (workspace.displayMode() != MapDisplayMode::z)
     {
@@ -39,6 +97,7 @@ void drawTileDetails(const MapWorkspace & workspace)
         ImGui::TextColored(color, "Z: %d", static_cast<int>(value.z));
     }
     ImGui::Text("Block: (%u, %u)", block.x, block.y);
+    ImGui::EndGroup();
 }
 
 } // namespace
