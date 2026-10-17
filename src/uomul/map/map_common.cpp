@@ -29,13 +29,13 @@ constexpr int maximumAttempts = 16;
 
 [[nodiscard]] inline bool hasInvalidMapDimensions(Dimensions dimensions)
 {
-    return dimensions.widthTiles == 0 || dimensions.heightTiles == 0 || dimensions.widthTiles % landBlockDimension != 0 ||
-           dimensions.heightTiles % landBlockDimension != 0;
+    return dimensions.widthTiles == 0 || dimensions.heightTiles == 0 || dimensions.widthTiles % mapBlockDimension != 0 ||
+           dimensions.heightTiles % mapBlockDimension != 0;
 }
 
 [[nodiscard]] inline bool exceedsSupportedMapFileSize(std::uint64_t blockCount)
 {
-    return blockCount > static_cast<std::uint64_t>(std::numeric_limits<off_t>::max()) / MapCommon::landBlockByteSize;
+    return blockCount > static_cast<std::uint64_t>(std::numeric_limits<off_t>::max()) / MapCommon::mapBlockByteSize;
 }
 
 template <typename Region>
@@ -160,8 +160,8 @@ std::expected<std::uint64_t, Error> MapCommon::blockCount(Dimensions dimensions,
         return std::unexpected(makeError(ErrorCode::invalidDimensions, path, 0, "dimensions must be positive multiples of 8"));
     }
 
-    const auto width = static_cast<std::uint64_t>(dimensions.widthTiles / landBlockDimension);
-    const auto height = static_cast<std::uint64_t>(dimensions.heightTiles / landBlockDimension);
+    const auto width = static_cast<std::uint64_t>(dimensions.widthTiles / mapBlockDimension);
+    const auto height = static_cast<std::uint64_t>(dimensions.heightTiles / mapBlockDimension);
     const auto blocks = width * height;
     if (exceedsSupportedMapFileSize(blocks))
     {
@@ -174,7 +174,7 @@ std::expected<std::uint64_t, Error> MapCommon::blockCount(Dimensions dimensions,
 
 std::expected<void, Error> MapCommon::validateBlock(BlockCoord block, Dimensions dimensions, const std::filesystem::path & path)
 {
-    if (block.x >= dimensions.widthTiles / landBlockDimension || block.y >= dimensions.heightTiles / landBlockDimension)
+    if (block.x >= dimensions.widthTiles / mapBlockDimension || block.y >= dimensions.heightTiles / mapBlockDimension)
     {
         return std::unexpected(makeError(ErrorCode::invalidCoordinate, path, 0, "block coordinate is outside map dimensions"));
     }
@@ -194,12 +194,12 @@ std::expected<void, Error> MapCommon::validateTile(TileCoord tile, Dimensions di
 
 std::uint64_t MapCommon::blockId(BlockCoord block, Dimensions dimensions)
 {
-    return (static_cast<std::uint64_t>(block.x) * (dimensions.heightTiles / landBlockDimension)) + block.y;
+    return (static_cast<std::uint64_t>(block.x) * (dimensions.heightTiles / mapBlockDimension)) + block.y;
 }
 
 std::uint64_t MapCommon::blockOffset(BlockCoord block, Dimensions dimensions)
 {
-    return blockId(block, dimensions) * landBlockByteSize;
+    return blockId(block, dimensions) * mapBlockByteSize;
 }
 
 bool MapCommon::readExact(int descriptor, void * data, std::size_t size, std::uint64_t offset)
@@ -207,31 +207,47 @@ bool MapCommon::readExact(int descriptor, void * data, std::size_t size, std::ui
     return transferExact(descriptor, static_cast<std::byte *>(data), size, offset, ::pread);
 }
 
+bool MapCommon::readBlockBatch(int descriptor,
+                               BlockCoord first,
+                               std::size_t blockCount,
+                               Dimensions dimensions,
+                               std::span<std::byte> buffer)
+{
+    const auto blockByteSize = static_cast<std::size_t>(mapBlockByteSize);
+    if (blockCount > buffer.size() / blockByteSize)
+    {
+        return false;
+    }
+
+    const auto byteCount = blockCount * blockByteSize;
+    return readExact(descriptor, buffer.data(), byteCount, blockOffset(first, dimensions));
+}
+
 bool MapCommon::writeExact(int descriptor, const void * data, std::size_t size, std::uint64_t offset)
 {
     return transferExact(descriptor, static_cast<const std::byte *>(data), size, offset, ::pwrite);
 }
 
-LandBlock MapCommon::decodeBlock(const LandBlockBytes & raw)
+MapBlock MapCommon::decodeBlock(const MapBlockBytes & raw)
 {
-    LandBlock block{};
-    for (std::size_t index = 0; index < block.size(); ++index)
+    MapBlock block{};
+    for (std::size_t index = 0; index < block.size(); index++)
     {
-        const auto offset = static_cast<std::size_t>(landHeaderByteSize) + (index * static_cast<std::size_t>(landTileByteSize));
-        const auto tileBytes = std::span<const std::byte, landTileByteSize>(
-            std::next(raw.begin(), static_cast<std::ptrdiff_t>(offset)), static_cast<std::size_t>(landTileByteSize));
-        block.at(index) = decodeLandTile(tileBytes);
+        const auto offset = static_cast<std::size_t>(mapHeaderByteSize) + (index * static_cast<std::size_t>(mapTileByteSize));
+        const auto tileBytes = std::span<const std::byte, mapTileByteSize>(
+            std::next(raw.begin(), static_cast<std::ptrdiff_t>(offset)), static_cast<std::size_t>(mapTileByteSize));
+        block.at(index) = decodeTile(tileBytes);
     }
 
     return block;
 }
 
-void MapCommon::encodeBlock(LandBlockBytes & raw, const LandBlock & block)
+void MapCommon::encodeBlock(MapBlockBytes & raw, const MapBlock & block)
 {
-    for (std::size_t index = 0; index < block.size(); ++index)
+    for (std::size_t index = 0; index < block.size(); index++)
     {
-        const auto offset = static_cast<std::size_t>(landHeaderByteSize) + (index * static_cast<std::size_t>(landTileByteSize));
-        const auto encoded = encodeLandTile(block.at(index));
+        const auto offset = static_cast<std::size_t>(mapHeaderByteSize) + (index * static_cast<std::size_t>(mapTileByteSize));
+        const auto encoded = encodeTile(block.at(index));
         std::ranges::copy(encoded, std::next(raw.begin(), static_cast<std::ptrdiff_t>(offset)));
     }
 }
@@ -245,7 +261,7 @@ std::filesystem::path MapCommon::temporaryPath(const std::filesystem::path & pat
 
 std::expected<int, Error> MapCommon::createTemporary(const std::filesystem::path & path, std::filesystem::path & temporary)
 {
-    for (int attempt = 0; attempt < maximumAttempts; ++attempt)
+    for (int attempt = 0; attempt < maximumAttempts; attempt++)
     {
         temporary = temporaryPath(path);
         const int descriptor = ::open(temporary.c_str(), O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
@@ -306,7 +322,7 @@ std::expected<void, Error>
 MapCommon::validateRegion(BlockRegion region, Dimensions dimensions, const std::filesystem::path & path)
 {
     return validateRegionBounds(
-        region, dimensions, landBlockDimension, path, "block region is invalid or exceeds map dimensions");
+        region, dimensions, mapBlockDimension, path, "block region is invalid or exceeds map dimensions");
 }
 
 std::expected<void, Error>

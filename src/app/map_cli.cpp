@@ -212,7 +212,7 @@ runMapInspect(const MapCommandOptions & options, uomul::Dimensions dimensionsVal
     }
     if (options.useBlock)
     {
-        auto block = reader->readLandBlock({.x = options.blockX, .y = options.blockY});
+        auto block = reader->readBlock({.x = options.blockX, .y = options.blockY});
         if (!block)
         {
             return fail(block.error(), error);
@@ -228,7 +228,7 @@ runMapInspect(const MapCommandOptions & options, uomul::Dimensions dimensionsVal
     }
     if (options.useTile)
     {
-        auto tile = reader->readLandTile({.x = options.tileX, .y = options.tileY});
+        auto tile = reader->readTile({.x = options.tileX, .y = options.tileY});
         if (!tile)
         {
             return fail(tile.error(), error);
@@ -311,25 +311,24 @@ editTileRegion(const MapCommandOptions & options, uomul::Dimensions dimensionsVa
 
         if (options.replaceIdsSelected)
         {
-            result = editor.replaceTileIds(
+            result = editor.replaceIdsTiles(
                 *region, static_cast<std::uint16_t>(options.fromId), static_cast<std::uint16_t>(options.toId));
         }
         else
         {
             result =
-                editor.replaceTileZ(*region, static_cast<std::int8_t>(options.fromZ), static_cast<std::int8_t>(options.toZ));
+                editor.replaceZTiles(*region, static_cast<std::int8_t>(options.fromZ), static_cast<std::int8_t>(options.toZ));
         }
     }
     else if (options.useBlock)
     {
-        uomul::LandBlock block{};
+        uomul::MapBlock block{};
         block.fill({.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
-        result = editor.writeLandBlock({.x = options.blockX, .y = options.blockY}, block);
+        result = editor.editBlock({.x = options.blockX, .y = options.blockY}, block);
     }
     else if (options.useTile)
     {
-        result =
-            editor.writeLandTile({.x = options.tileX, .y = options.tileY},
+        result = editor.editTile({.x = options.tileX, .y = options.tileY},
                                  {.id = static_cast<std::uint16_t>(options.landId), .z = static_cast<std::int8_t>(options.z)});
     }
     else
@@ -379,7 +378,7 @@ runMapEdit(const MapCommandOptions & options, uomul::Dimensions dimensionsValue,
     {
         return fail(result.error(), error);
     }
-    output << "changed_blocks=" << result->landBlocksChanged << " changed_tiles=" << result->landTilesChanged << '\n';
+    output << "changed_blocks=" << result->blocksChanged << " changed_tiles=" << result->tilesChanged << '\n';
     return 0;
 }
 
@@ -409,7 +408,7 @@ runMapEdit(const MapCommandOptions & options, uomul::Dimensions dimensionsValue,
     {
         return fail(result.error(), error);
     }
-    output << "changed_blocks=" << result->landBlocksChanged << " changed_tiles=" << result->landTilesChanged << '\n';
+    output << "changed_blocks=" << result->blocksChanged << " changed_tiles=" << result->tilesChanged << '\n';
     return 0;
 }
 

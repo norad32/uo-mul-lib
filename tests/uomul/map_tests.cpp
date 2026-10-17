@@ -1,6 +1,7 @@
 #include "map_test_helpers.h"
 #include "uomul/map.h"
 #include <algorithm>
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <expected>
@@ -15,7 +16,7 @@ using uomul::test::TestDirectory;
 using uomul::test::writeFixture;
 
 constexpr uomul::TileCoord changedTileCoordinate{.x = 9, .y = 9};
-constexpr uomul::LandTile changedTile{.id = 1234, .z = -20};
+constexpr uomul::MapTile changedTile{.id = 1234, .z = -20};
 constexpr uomul::Dimensions rectangularDimensions{.widthTiles = 24, .heightTiles = 16};
 constexpr std::uint32_t rectangularFixtureBlockCount = 6;
 constexpr std::uint16_t changedBlockTileId = 2468;
@@ -24,31 +25,34 @@ constexpr uomul::TileRegion tileRegion{.min = {.x = 1, .y = 2}, .maxExclusive = 
 constexpr uomul::BlockRegion blockRegion{.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 2, .y = 1}};
 constexpr uomul::TileRegion fillRegion{.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 3, .y = 3}};
 constexpr uomul::TileRegion firstBlockRegion{.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 8, .y = 8}};
-constexpr uomul::LandTile fillTile{.id = 765, .z = -30};
-constexpr std::uint16_t replacedLandId = 0;
-constexpr std::uint16_t replacementLandId = 654;
-constexpr std::int8_t replacedElevation = -1;
-constexpr std::int8_t replacementElevation = -40;
+constexpr uomul::MapTile fillTile{.id = 765, .z = -30};
 constexpr std::uint16_t changedDimensionTileId = 4321;
+constexpr std::uint32_t maximumBlocksPerIoBatch = 4096;
+constexpr std::uint32_t batchBoundaryBlockCount = maximumBlocksPerIoBatch + 1;
+constexpr std::uint32_t batchBoundaryLastTileY = ((batchBoundaryBlockCount - 1) * uomul::mapBlockDimension) + 1;
+constexpr uomul::Dimensions batchBoundaryDimensions{
+    .widthTiles = uomul::mapBlockDimension,
+    .heightTiles = batchBoundaryBlockCount * uomul::mapBlockDimension,
+};
 
-[[nodiscard]] uomul::LandBlock changedBlock()
+[[nodiscard]] uomul::MapBlock changedBlock()
 {
-    uomul::LandBlock block{};
+    uomul::MapBlock block{};
     block.fill({.id = changedBlockTileId, .z = changedBlockTileZ});
     return block;
 }
 
-[[nodiscard]] std::expected<std::vector<uomul::LandTile>, uomul::Error> readTilesInRegion(const uomul::MapReader & reader,
-                                                                                          uomul::TileRegion region)
+[[nodiscard]] std::expected<std::vector<uomul::MapTile>, uomul::Error> readTilesInRegion(const uomul::MapReader & reader,
+                                                                                         uomul::TileRegion region)
 {
-    std::vector<uomul::LandTile> tiles;
+    std::vector<uomul::MapTile> tiles;
     const auto result =
-        reader.readLandTiles(region,
-                             [&tiles](uomul::TileCoord, const uomul::LandTile & tile) -> std::expected<void, uomul::Error>
-                             {
-                                 tiles.push_back(tile);
-                                 return {};
-                             });
+        reader.readTiles(region,
+                         [&tiles](uomul::TileCoord, const uomul::MapTile & tile) -> std::expected<void, uomul::Error>
+                         {
+                             tiles.push_back(tile);
+                             return {};
+                         });
     if (!result)
     {
         return std::unexpected(result.error());
@@ -56,17 +60,17 @@ constexpr std::uint16_t changedDimensionTileId = 4321;
     return tiles;
 }
 
-[[nodiscard]] std::expected<std::vector<uomul::LandBlock>, uomul::Error> readBlocksInRegion(const uomul::MapReader & reader,
-                                                                                            uomul::BlockRegion region)
+[[nodiscard]] std::expected<std::vector<uomul::MapBlock>, uomul::Error> readBlocksInRegion(const uomul::MapReader & reader,
+                                                                                           uomul::BlockRegion region)
 {
-    std::vector<uomul::LandBlock> blocks;
+    std::vector<uomul::MapBlock> blocks;
     const auto result =
-        reader.readLandBlocks(region,
-                              [&blocks](uomul::BlockCoord, const uomul::LandBlock & block) -> std::expected<void, uomul::Error>
-                              {
-                                  blocks.push_back(block);
-                                  return {};
-                              });
+        reader.readBlocks(region,
+                          [&blocks](uomul::BlockCoord, const uomul::MapBlock & block) -> std::expected<void, uomul::Error>
+                          {
+                              blocks.push_back(block);
+                              return {};
+                          });
     if (!result)
     {
         return std::unexpected(result.error());
@@ -74,13 +78,13 @@ constexpr std::uint16_t changedDimensionTileId = 4321;
     return blocks;
 }
 
-[[nodiscard]] std::expected<std::vector<uomul::LandBlockBytes>, uomul::Error>
+[[nodiscard]] std::expected<std::vector<uomul::MapBlockBytes>, uomul::Error>
 readRawBlocksInRegion(const uomul::MapReader & reader, uomul::BlockRegion region)
 {
-    std::vector<uomul::LandBlockBytes> blocks;
-    const auto result = reader.readRawLandBlocks(
+    std::vector<uomul::MapBlockBytes> blocks;
+    const auto result = reader.readRawBlocks(
         region,
-        [&blocks](uomul::BlockCoord, const uomul::LandBlockBytes & block) -> std::expected<void, uomul::Error>
+        [&blocks](uomul::BlockCoord, const uomul::MapBlockBytes & block) -> std::expected<void, uomul::Error>
         {
             blocks.push_back(block);
             return {};
@@ -106,22 +110,22 @@ TEST_CASE("readWriteDiffTile_Should_RoundTripEditedTileThroughGeneratedDiff")
 
     auto editor = uomul::MapEditor::create(source, edited, dimensions);
     REQUIRE(editor);
-    REQUIRE(editor->writeLandTile(changedTileCoordinate, changedTile));
+    REQUIRE(editor->editTile(changedTileCoordinate, changedTile));
     REQUIRE(editor->commit());
 
     const auto editedReader = uomul::MapReader::open(edited, dimensions);
     REQUIRE(editedReader);
-    REQUIRE(editedReader->readLandTile(changedTileCoordinate) == changedTile);
+    REQUIRE(editedReader->readTile(changedTileCoordinate) == changedTile);
 
     const auto generated = uomul::MapDiff::generate(source, edited, diffDirectory, 0, dimensions);
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == 1);
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == 1);
     REQUIRE(uomul::MapDiff::apply(source, diffDirectory, applied, 0, dimensions));
 
     const auto appliedReader = uomul::MapReader::open(applied, dimensions);
     REQUIRE(appliedReader);
-    REQUIRE(appliedReader->readLandTile(changedTileCoordinate) == changedTile);
+    REQUIRE(appliedReader->readTile(changedTileCoordinate) == changedTile);
 }
 
 TEST_CASE("readWriteDiffBlock_Should_RoundTripEditedBlockThroughGeneratedDiff")
@@ -138,25 +142,25 @@ TEST_CASE("readWriteDiffBlock_Should_RoundTripEditedBlockThroughGeneratedDiff")
 
     auto editor = uomul::MapEditor::create(source, edited, rectangularDimensions);
     REQUIRE(editor);
-    REQUIRE(editor->writeLandBlock(changedCoordinate, replacementBlock));
+    REQUIRE(editor->editBlock(changedCoordinate, replacementBlock));
     REQUIRE(editor->commit());
 
     const auto editedReader = uomul::MapReader::open(edited, rectangularDimensions);
     REQUIRE(editedReader);
-    REQUIRE(editedReader->readLandBlock(changedCoordinate) == replacementBlock);
+    REQUIRE(editedReader->readBlock(changedCoordinate) == replacementBlock);
 
     const auto generated = uomul::MapDiff::generate(source, edited, diffDirectory, 0, rectangularDimensions);
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == uomul::landBlockTileCount);
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == uomul::mapBlockTileCount);
     REQUIRE(uomul::MapDiff::apply(source, diffDirectory, applied, 0, rectangularDimensions));
 
     const auto appliedReader = uomul::MapReader::open(applied, rectangularDimensions);
     REQUIRE(appliedReader);
-    REQUIRE(appliedReader->readLandBlock(changedCoordinate) == replacementBlock);
+    REQUIRE(appliedReader->readBlock(changedCoordinate) == replacementBlock);
 }
 
-TEST_CASE("editLandTiles_Should_RoundTripEditedRegionThroughGeneratedDiff")
+TEST_CASE("editTiles_Should_RoundTripEditedRegionThroughGeneratedDiff")
 {
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
@@ -168,10 +172,10 @@ TEST_CASE("editLandTiles_Should_RoundTripEditedRegionThroughGeneratedDiff")
 
     auto editor = uomul::MapEditor::create(source, edited, dimensions);
     REQUIRE(editor);
-    REQUIRE(editor->editLandTiles(
+    REQUIRE(editor->editTiles(
         tileRegion,
-        [](uomul::TileCoord coordinate, const uomul::LandTile &) -> std::expected<uomul::LandTile, uomul::Error>
-        { return uomul::LandTile{.id = static_cast<std::uint16_t>(1234 + coordinate.x + coordinate.y), .z = -20}; }));
+        [](uomul::TileCoord coordinate, const uomul::MapTile &) -> std::expected<uomul::MapTile, uomul::Error>
+        { return uomul::MapTile{.id = static_cast<std::uint16_t>(1234 + coordinate.x + coordinate.y), .z = -20}; }));
     REQUIRE(editor->commit());
 
     const auto editedReader = uomul::MapReader::open(edited, dimensions);
@@ -179,13 +183,13 @@ TEST_CASE("editLandTiles_Should_RoundTripEditedRegionThroughGeneratedDiff")
     const auto editedTiles = readTilesInRegion(*editedReader, tileRegion);
     REQUIRE(editedTiles);
     REQUIRE(editedTiles->size() == 4);
-    REQUIRE(editedTiles->front() == uomul::LandTile{.id = 1237, .z = -20});
-    REQUIRE(editedTiles->back() == uomul::LandTile{.id = 1239, .z = -20});
+    REQUIRE(editedTiles->front() == uomul::MapTile{.id = 1237, .z = -20});
+    REQUIRE(editedTiles->back() == uomul::MapTile{.id = 1239, .z = -20});
 
     const auto generated = uomul::MapDiff::generate(source, edited, diffDirectory, 0, dimensions);
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == editedTiles->size());
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == editedTiles->size());
     REQUIRE(uomul::MapDiff::apply(source, diffDirectory, applied, 0, dimensions));
 
     const auto appliedReader = uomul::MapReader::open(applied, dimensions);
@@ -195,7 +199,7 @@ TEST_CASE("editLandTiles_Should_RoundTripEditedRegionThroughGeneratedDiff")
     REQUIRE(*appliedTiles == *editedTiles);
 }
 
-TEST_CASE("editLandBlocks_Should_RoundTripEditedRegionThroughGeneratedDiff")
+TEST_CASE("editBlocks_Should_RoundTripEditedRegionThroughGeneratedDiff")
 {
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
@@ -207,12 +211,12 @@ TEST_CASE("editLandBlocks_Should_RoundTripEditedRegionThroughGeneratedDiff")
 
     auto editor = uomul::MapEditor::create(source, edited, dimensions);
     REQUIRE(editor);
-    REQUIRE(editor->editLandBlocks(
+    REQUIRE(editor->editBlocks(
         blockRegion,
-        [](uomul::BlockCoord coordinate, const uomul::LandBlock & current) -> std::expected<uomul::LandBlock, uomul::Error>
+        [](uomul::BlockCoord coordinate, const uomul::MapBlock & current) -> std::expected<uomul::MapBlock, uomul::Error>
         {
             auto replacement = current;
-            replacement.at(0) = uomul::LandTile{.id = static_cast<std::uint16_t>(2468 + coordinate.x), .z = 37};
+            replacement.at(0) = uomul::MapTile{.id = static_cast<std::uint16_t>(2468 + coordinate.x), .z = 37};
             return replacement;
         }));
     REQUIRE(editor->commit());
@@ -222,13 +226,13 @@ TEST_CASE("editLandBlocks_Should_RoundTripEditedRegionThroughGeneratedDiff")
     const auto editedBlocks = readBlocksInRegion(*editedReader, blockRegion);
     REQUIRE(editedBlocks);
     REQUIRE(editedBlocks->size() == 2);
-    REQUIRE(editedBlocks->at(0).at(0) == uomul::LandTile{.id = 2468, .z = 37});
-    REQUIRE(editedBlocks->at(1).at(0) == uomul::LandTile{.id = 2469, .z = 37});
+    REQUIRE(editedBlocks->at(0).at(0) == uomul::MapTile{.id = 2468, .z = 37});
+    REQUIRE(editedBlocks->at(1).at(0) == uomul::MapTile{.id = 2469, .z = 37});
 
     const auto generated = uomul::MapDiff::generate(source, edited, diffDirectory, 0, dimensions);
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == editedBlocks->size());
-    REQUIRE(generated->landTilesChanged == editedBlocks->size());
+    REQUIRE(generated->blocksChanged == editedBlocks->size());
+    REQUIRE(generated->tilesChanged == editedBlocks->size());
     REQUIRE(uomul::MapDiff::apply(source, diffDirectory, applied, 0, dimensions));
 
     const auto appliedReader = uomul::MapReader::open(applied, dimensions);
@@ -258,12 +262,12 @@ TEST_CASE("fill_Should_RoundTripFilledRegionThroughGeneratedDiff")
     const auto editedTiles = readTilesInRegion(*editedReader, fillRegion);
     REQUIRE(editedTiles);
     REQUIRE(editedTiles->size() == 4);
-    REQUIRE(std::ranges::all_of(*editedTiles, [](const uomul::LandTile & tile) { return tile == fillTile; }));
+    REQUIRE(std::ranges::all_of(*editedTiles, [](const uomul::MapTile & tile) { return tile == fillTile; }));
 
     const auto generated = uomul::MapDiff::generate(source, edited, diffDirectory, 0, dimensions);
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == editedTiles->size());
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == editedTiles->size());
     REQUIRE(uomul::MapDiff::apply(source, diffDirectory, applied, 0, dimensions));
 
     const auto appliedReader = uomul::MapReader::open(applied, dimensions);
@@ -285,20 +289,20 @@ TEST_CASE("replaceIds_Should_RoundTripUpdatedRegionThroughGeneratedDiff")
 
     auto editor = uomul::MapEditor::create(source, edited, dimensions);
     REQUIRE(editor);
-    REQUIRE(editor->replaceTileIds(firstBlockRegion, 0, 654));
+    REQUIRE(editor->replaceIdsTiles(firstBlockRegion, 0, 654));
     REQUIRE(editor->commit());
 
     const auto editedReader = uomul::MapReader::open(edited, dimensions);
     REQUIRE(editedReader);
     const auto editedTiles = readTilesInRegion(*editedReader, firstBlockRegion);
     REQUIRE(editedTiles);
-    REQUIRE(editedTiles->at(0) == uomul::LandTile{.id = 654, .z = -1});
+    REQUIRE(editedTiles->at(0) == uomul::MapTile{.id = 654, .z = -1});
     REQUIRE(editedTiles->at(1).id != 654);
 
     const auto generated = uomul::MapDiff::generate(source, edited, diffDirectory, 0, dimensions);
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == 1);
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == 1);
     REQUIRE(uomul::MapDiff::apply(source, diffDirectory, applied, 0, dimensions));
 
     const auto appliedReader = uomul::MapReader::open(applied, dimensions);
@@ -320,20 +324,20 @@ TEST_CASE("replaceZ_Should_RoundTripUpdatedRegionThroughGeneratedDiff")
 
     auto editor = uomul::MapEditor::create(source, edited, dimensions);
     REQUIRE(editor);
-    REQUIRE(editor->replaceTileZ(firstBlockRegion, -1, -40));
+    REQUIRE(editor->replaceZTiles(firstBlockRegion, -1, -40));
     REQUIRE(editor->commit());
 
     const auto editedReader = uomul::MapReader::open(edited, dimensions);
     REQUIRE(editedReader);
     const auto editedTiles = readTilesInRegion(*editedReader, firstBlockRegion);
     REQUIRE(editedTiles);
-    REQUIRE(editedTiles->at(0) == uomul::LandTile{.id = 0, .z = -40});
+    REQUIRE(editedTiles->at(0) == uomul::MapTile{.id = 0, .z = -40});
     REQUIRE(editedTiles->at(1).z != -40);
 
     const auto generated = uomul::MapDiff::generate(source, edited, diffDirectory, 0, dimensions);
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == 1);
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == 1);
     REQUIRE(uomul::MapDiff::apply(source, diffDirectory, applied, 0, dimensions));
 
     const auto appliedReader = uomul::MapReader::open(applied, dimensions);
@@ -343,7 +347,49 @@ TEST_CASE("replaceZ_Should_RoundTripUpdatedRegionThroughGeneratedDiff")
     REQUIRE(*appliedTiles == *editedTiles);
 }
 
-TEST_CASE("readRawLandBlocks_Should_RoundTripRawRegionThroughGeneratedDiff")
+TEST_CASE("blockBatchReading_Should_ReadPastMaximumBatchSize")
+{
+    const TestDirectory directory;
+    const auto path = directory.path() / "map.mul";
+    writeFixture(path, batchBoundaryBlockCount);
+    const auto reader = uomul::MapReader::open(path, batchBoundaryDimensions);
+    REQUIRE(reader);
+
+    std::uint32_t callbackCount = 0;
+    const auto result = reader->readRawBlocks(
+        {.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = batchBoundaryBlockCount}},
+        [&callbackCount](uomul::BlockCoord, const uomul::MapBlockBytes &) -> std::expected<void, uomul::Error>
+        {
+            ++callbackCount;
+            return {};
+        });
+
+    REQUIRE(result);
+    REQUIRE(callbackCount == batchBoundaryBlockCount);
+}
+
+TEST_CASE("diffBatchReading_Should_ReadPastMaximumBatchSize")
+{
+    const TestDirectory directory;
+    const auto base = directory.path() / "base.mul";
+    const auto target = directory.path() / "target.mul";
+    const auto diffDirectory = directory.path() / "diff";
+    std::filesystem::create_directories(diffDirectory);
+    writeFixture(base, batchBoundaryBlockCount);
+
+    auto editor = uomul::MapEditor::create(base, target, batchBoundaryDimensions);
+    REQUIRE(editor);
+    REQUIRE(editor->editTile({.x = 0, .y = batchBoundaryLastTileY}, {.id = 9876, .z = 42}));
+    REQUIRE(editor->commit());
+
+    const auto generated = uomul::MapDiff::generate(base, target, diffDirectory, 0, batchBoundaryDimensions);
+
+    REQUIRE(generated);
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == 1);
+}
+
+TEST_CASE("readRawBlocks_Should_RoundTripRawRegionThroughGeneratedDiff")
 {
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
@@ -355,7 +401,7 @@ TEST_CASE("readRawLandBlocks_Should_RoundTripRawRegionThroughGeneratedDiff")
 
     auto editor = uomul::MapEditor::create(source, edited, dimensions);
     REQUIRE(editor);
-    REQUIRE(editor->writeLandTile({.x = 0, .y = 0}, changedTile));
+    REQUIRE(editor->editTile({.x = 0, .y = 0}, changedTile));
     REQUIRE(editor->commit());
     REQUIRE(uomul::MapDiff::generate(source, edited, diffDirectory, 0, dimensions));
     REQUIRE(uomul::MapDiff::apply(source, diffDirectory, applied, 0, dimensions));
@@ -395,22 +441,22 @@ TEST_CASE("readWriteDiffDimensions_Should_RoundTripRectangularMapEdgeTile")
     REQUIRE(sourceReader);
     REQUIRE(sourceReader->dimensions() == rectangularDimensions);
     REQUIRE(sourceReader->completeBlocks() == rectangularFixtureBlockCount);
-    const auto outOfBoundsX = sourceReader->readLandTile({.x = rectangularDimensions.widthTiles, .y = 0});
+    const auto outOfBoundsX = sourceReader->readTile({.x = rectangularDimensions.widthTiles, .y = 0});
     REQUIRE_FALSE(outOfBoundsX);
     REQUIRE(outOfBoundsX.error().code == uomul::ErrorCode::invalidCoordinate);
-    const auto outOfBoundsY = sourceReader->readLandTile({.x = 0, .y = rectangularDimensions.heightTiles});
+    const auto outOfBoundsY = sourceReader->readTile({.x = 0, .y = rectangularDimensions.heightTiles});
     REQUIRE_FALSE(outOfBoundsY);
     REQUIRE(outOfBoundsY.error().code == uomul::ErrorCode::invalidCoordinate);
 
     auto editor = uomul::MapEditor::create(source, edited, rectangularDimensions);
     REQUIRE(editor);
-    REQUIRE(editor->writeLandTile(edgeCoordinate, {.id = changedDimensionTileId, .z = 37}));
+    REQUIRE(editor->editTile(edgeCoordinate, {.id = changedDimensionTileId, .z = 37}));
     REQUIRE(editor->commit());
 
     const auto generated = uomul::MapDiff::generate(source, edited, diffDirectory, 0, rectangularDimensions);
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == 1);
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == 1);
     REQUIRE(uomul::MapDiff::apply(source, diffDirectory, applied, 0, rectangularDimensions));
 
     const auto editedReader = uomul::MapReader::open(edited, rectangularDimensions);
@@ -419,8 +465,8 @@ TEST_CASE("readWriteDiffDimensions_Should_RoundTripRectangularMapEdgeTile")
     REQUIRE(appliedReader);
     REQUIRE(editedReader->dimensions() == rectangularDimensions);
     REQUIRE(appliedReader->dimensions() == rectangularDimensions);
-    const auto editedEdgeTile = editedReader->readLandTile(edgeCoordinate);
-    const auto appliedEdgeTile = appliedReader->readLandTile(edgeCoordinate);
+    const auto editedEdgeTile = editedReader->readTile(edgeCoordinate);
+    const auto appliedEdgeTile = appliedReader->readTile(edgeCoordinate);
     REQUIRE(editedEdgeTile);
     REQUIRE(appliedEdgeTile);
     REQUIRE(*appliedEdgeTile == *editedEdgeTile);

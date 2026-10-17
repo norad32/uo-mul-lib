@@ -56,8 +56,8 @@ constexpr std::uint32_t mapBlockIdByteCount = 4;
 
 [[nodiscard]] inline bool hasConsistentDiffLengths(std::uint64_t dataBytes, std::uint64_t indexBytes)
 {
-    return indexBytes % mapBlockIdByteCount == 0 && dataBytes % MapCommon::landBlockByteSize == 0 &&
-           dataBytes / MapCommon::landBlockByteSize == indexBytes / mapBlockIdByteCount;
+    return indexBytes % mapBlockIdByteCount == 0 && dataBytes % MapCommon::mapBlockByteSize == 0 &&
+           dataBytes / MapCommon::mapBlockByteSize == indexBytes / mapBlockIdByteCount;
 }
 
 [[nodiscard]] inline bool isOutOfRangeDiffBlockId(std::uint32_t id, std::uint64_t expectedBlockCount)
@@ -82,8 +82,8 @@ constexpr std::uint32_t mapBlockIdByteCount = 4;
 
 std::uint64_t countChangedTiles(std::span<const std::byte> left, std::span<const std::byte> right)
 {
-    const auto tileDataOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize);
-    const auto tileDataSize = static_cast<std::size_t>(MapCommon::landBlockByteSize) - tileDataOffset;
+    const auto tileDataOffset = static_cast<std::size_t>(MapCommon::mapHeaderByteSize);
+    const auto tileDataSize = static_cast<std::size_t>(MapCommon::mapBlockByteSize) - tileDataOffset;
     const auto leftTiles = left.subspan(tileDataOffset, tileDataSize);
     const auto rightTiles = right.subspan(tileDataOffset, tileDataSize);
     if (std::memcmp(leftTiles.data(), rightTiles.data(), tileDataSize) == 0)
@@ -95,7 +95,7 @@ std::uint64_t countChangedTiles(std::span<const std::byte> left, std::span<const
     auto leftTile = leftTiles.begin();
     auto rightTile = rightTiles.begin();
 
-    for (std::size_t tile = 0; tile < landBlockTileCount; tile++)
+    for (std::size_t tile = 0; tile < mapBlockTileCount; tile++)
     {
         changedTiles += *leftTile != *rightTile || *std::next(leftTile) != *std::next(rightTile) ||
                                 *std::next(leftTile, 2) != *std::next(rightTile, 2)
@@ -117,7 +117,7 @@ public:
         dimensions_(dimensions),
         region_(region),
         buffer_(std::min(detail::maximumBlocksPerIoBatch, static_cast<std::size_t>(region.maxExclusive.y - region.min.y)) *
-                static_cast<std::size_t>(MapCommon::landBlockByteSize))
+                static_cast<std::size_t>(MapCommon::mapBlockByteSize))
     {
     }
 
@@ -132,8 +132,7 @@ public:
             cachedEndY_ = coordinate.y + static_cast<std::uint32_t>(blockCount);
             const BlockCoord first{.x = coordinate.x, .y = coordinate.y};
             const auto offset = MapCommon::blockOffset(first, dimensions_);
-            const auto byteCount = blockCount * static_cast<std::size_t>(MapCommon::landBlockByteSize);
-            if (!MapCommon::readExact(descriptor_, buffer_.data(), byteCount, offset))
+            if (!MapCommon::readBlockBatch(descriptor_, first, blockCount, dimensions_, buffer_))
             {
                 return std::unexpected(
                     MapCommon::makeError(ErrorCode::truncatedInput, path_, offset, "could not read target block"));
@@ -141,8 +140,8 @@ public:
         }
 
         const auto blockOffset =
-            static_cast<std::size_t>(coordinate.y - cachedStartY_) * static_cast<std::size_t>(MapCommon::landBlockByteSize);
-        raw = std::span<const std::byte>(buffer_).subspan(blockOffset, static_cast<std::size_t>(MapCommon::landBlockByteSize));
+            static_cast<std::size_t>(coordinate.y - cachedStartY_) * static_cast<std::size_t>(MapCommon::mapBlockByteSize);
+        raw = std::span<const std::byte>(buffer_).subspan(blockOffset, static_cast<std::size_t>(MapCommon::mapBlockByteSize));
         return {};
     }
 
@@ -165,13 +164,13 @@ private:
 struct BlockTileSelection
 {
     std::uint32_t minX = 0;
-    std::uint32_t maxExclusiveX = landBlockDimension;
+    std::uint32_t maxExclusiveX = mapBlockDimension;
     std::uint32_t minY = 0;
-    std::uint32_t maxExclusiveY = landBlockDimension;
+    std::uint32_t maxExclusiveY = mapBlockDimension;
 
     [[nodiscard]] bool coversWholeBlock() const noexcept
     {
-        return minX == 0 && maxExclusiveX == landBlockDimension && minY == 0 && maxExclusiveY == landBlockDimension;
+        return minX == 0 && maxExclusiveX == mapBlockDimension && minY == 0 && maxExclusiveY == mapBlockDimension;
     }
 
     [[nodiscard]] bool includesRow(std::uint32_t y) const noexcept { return minY <= y && y < maxExclusiveY; }
@@ -180,8 +179,8 @@ struct BlockTileSelection
 BlockTileSelection selectTilesInBlock(BlockCoord coordinate, TileRegion region)
 {
     const auto clipped = detail::clipTilesToBlock(region, coordinate);
-    const auto blockMinX = coordinate.x * landBlockDimension;
-    const auto blockMinY = coordinate.y * landBlockDimension;
+    const auto blockMinX = coordinate.x * mapBlockDimension;
+    const auto blockMinY = coordinate.y * mapBlockDimension;
     return {
         .minX = clipped.min.x - blockMinX,
         .maxExclusiveX = clipped.maxExclusive.x - blockMinX,
@@ -191,7 +190,7 @@ BlockTileSelection selectTilesInBlock(BlockCoord coordinate, TileRegion region)
 }
 
 std::uint64_t
-compareLandBlocks(BlockTileSelection selection, std::span<const std::byte> sourceRaw, std::span<const std::byte> targetRaw)
+compareBlocks(BlockTileSelection selection, std::span<const std::byte> sourceRaw, std::span<const std::byte> targetRaw)
 {
     if (selection.coversWholeBlock())
     {
@@ -203,8 +202,8 @@ compareLandBlocks(BlockTileSelection selection, std::span<const std::byte> sourc
     {
         for (auto x = selection.minX; x < selection.maxExclusiveX; x++)
         {
-            const auto tileOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
-                                    (((static_cast<std::size_t>(y) * landBlockDimension) + x) * 3U);
+            const auto tileOffset = static_cast<std::size_t>(MapCommon::mapHeaderByteSize) +
+                                    (((static_cast<std::size_t>(y) * mapBlockDimension) + x) * 3U);
             const auto sourceTile = sourceRaw.subspan(tileOffset, 3);
             const auto targetTile = targetRaw.subspan(tileOffset, 3);
             changedTiles += !std::ranges::equal(sourceTile, targetTile) ? 1U : 0U;
@@ -369,32 +368,32 @@ bool readLe32(std::istream & stream, std::uint32_t & value)
     return true;
 }
 
-LandBlockBytes makeDiffBlockOutput(const DiffGenerationState & state,
-                                   BlockTileSelection selection,
-                                   const LandBlockBytes & sourceRaw,
-                                   std::span<const std::byte> targetRaw)
+MapBlockBytes makeDiffBlockOutput(const DiffGenerationState & state,
+                                  BlockTileSelection selection,
+                                  const MapBlockBytes & sourceRaw,
+                                  std::span<const std::byte> targetRaw)
 {
-    LandBlockBytes outputRaw{};
+    MapBlockBytes outputRaw{};
     std::ranges::copy(targetRaw, outputRaw.begin());
     if (!state.tileRegion)
     {
         return outputRaw;
     }
 
-    std::ranges::copy_n(sourceRaw.begin(), static_cast<std::size_t>(MapCommon::landHeaderByteSize), outputRaw.begin());
+    std::ranges::copy_n(sourceRaw.begin(), static_cast<std::size_t>(MapCommon::mapHeaderByteSize), outputRaw.begin());
     if (selection.coversWholeBlock())
     {
         return outputRaw;
     }
 
-    constexpr auto tileByteSize = static_cast<std::size_t>(MapCommon::landTileByteSize);
-    for (auto y = 0U; y < landBlockDimension; y++)
+    constexpr auto tileByteSize = static_cast<std::size_t>(MapCommon::mapTileByteSize);
+    for (auto y = 0U; y < mapBlockDimension; y++)
     {
-        const auto rowOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
-                               (static_cast<std::size_t>(y) * landBlockDimension * tileByteSize);
+        const auto rowOffset = static_cast<std::size_t>(MapCommon::mapHeaderByteSize) +
+                               (static_cast<std::size_t>(y) * mapBlockDimension * tileByteSize);
         if (!selection.includesRow(y))
         {
-            const auto rowBytes = static_cast<std::size_t>(landBlockDimension) * tileByteSize;
+            const auto rowBytes = static_cast<std::size_t>(mapBlockDimension) * tileByteSize;
             std::ranges::copy_n(std::next(sourceRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)),
                                 rowBytes,
                                 std::next(outputRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)));
@@ -407,7 +406,7 @@ LandBlockBytes makeDiffBlockOutput(const DiffGenerationState & state,
                             std::next(outputRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)));
         const auto rightOffset = rowOffset + (static_cast<std::size_t>(selection.maxExclusiveX) * tileByteSize);
         const auto rightBytes =
-            static_cast<std::ptrdiff_t>(static_cast<std::size_t>(landBlockDimension - selection.maxExclusiveX) * tileByteSize);
+            static_cast<std::ptrdiff_t>(static_cast<std::size_t>(mapBlockDimension - selection.maxExclusiveX) * tileByteSize);
         std::ranges::copy_n(std::next(sourceRaw.begin(), static_cast<std::ptrdiff_t>(rightOffset)),
                             rightBytes,
                             std::next(outputRaw.begin(), static_cast<std::ptrdiff_t>(rightOffset)));
@@ -417,7 +416,7 @@ LandBlockBytes makeDiffBlockOutput(const DiffGenerationState & state,
 }
 
 std::expected<void, Error>
-writeDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const LandBlockBytes & outputRaw)
+writeDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const MapBlockBytes & outputRaw)
 {
     const auto id = MapCommon::blockId(coordinate, state.dimensions);
     if (!isRepresentableDiffBlockId(id))
@@ -429,7 +428,7 @@ writeDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const L
         return std::unexpected(MapCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
     }
 
-    std::array<char, MapCommon::landBlockByteSize> bytes{};
+    std::array<char, MapCommon::mapBlockByteSize> bytes{};
     std::ranges::transform(
         outputRaw, bytes.begin(), [](std::byte byte) { return static_cast<char>(std::to_integer<unsigned char>(byte)); });
 
@@ -444,17 +443,17 @@ writeDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const L
 
 void recordChangedBlock(DiffReport & report, std::uint64_t changedTiles)
 {
-    report.landBlocksChanged++;
-    report.landTilesChanged += changedTiles;
+    report.blocksChanged++;
+    report.tilesChanged += changedTiles;
 }
 
 std::expected<void, Error> appendChangedDiffBlock(const DiffGenerationState & state,
                                                   BlockCoord coordinate,
-                                                  const LandBlockBytes & sourceRaw,
+                                                  const MapBlockBytes & sourceRaw,
                                                   std::span<const std::byte> targetRaw)
 {
     const auto selection = state.tileRegion ? selectTilesInBlock(coordinate, *state.tileRegion) : BlockTileSelection{};
-    const auto changedTiles = compareLandBlocks(selection, sourceRaw, targetRaw);
+    const auto changedTiles = compareBlocks(selection, sourceRaw, targetRaw);
     if (changedTiles == 0)
     {
         return {};
@@ -479,9 +478,9 @@ std::expected<void, Error> scanDiffBlocks(MapReader & source,
                                           OnBlock onBlock)
 {
     TargetBlockBatchReader targetBlocks(targetDescriptor, targetMap, dimensions, region);
-    return source.readRawLandBlocks(
+    return source.readRawBlocks(
         region,
-        [&targetBlocks, &onBlock](BlockCoord coordinate, const LandBlockBytes & sourceRaw) -> std::expected<void, Error>
+        [&targetBlocks, &onBlock](BlockCoord coordinate, const MapBlockBytes & sourceRaw) -> std::expected<void, Error>
         {
             std::span<const std::byte> targetRaw;
             if (auto loaded = targetBlocks.read(coordinate, targetRaw); !loaded)
@@ -555,7 +554,7 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
                        targetMap,
                        dimensions,
                        region,
-                       [&state](BlockCoord coordinate, const LandBlockBytes & sourceRaw, std::span<const std::byte> targetRaw)
+                       [&state](BlockCoord coordinate, const MapBlockBytes & sourceRaw, std::span<const std::byte> targetRaw)
                        { return appendChangedDiffBlock(state, coordinate, sourceRaw, targetRaw); });
     if (!compared)
     {
@@ -758,10 +757,10 @@ std::expected<DiffLengths, Error> validateDiffLengths(std::istream & data,
     return DiffLengths{.blockCount = indexBytes / mapBlockIdByteCount};
 }
 
-std::expected<std::pair<BlockCoord, LandBlock>, Error>
+std::expected<std::pair<BlockCoord, MapBlock>, Error>
 readDiffReplacement(std::istream & data, const std::filesystem::path & dataPath, Dimensions dimensions, std::uint32_t id)
 {
-    LandBlockBytes raw{};
+    MapBlockBytes raw{};
     for (auto & byte : raw)
     {
         const auto value = data.get();
@@ -778,22 +777,21 @@ readDiffReplacement(std::istream & data, const std::filesystem::path & dataPath,
             ErrorCode::truncatedInput, dataPath, static_cast<std::uint64_t>(data.tellg()), "diff block is truncated"));
     }
 
-    const auto blockHeight = dimensions.heightTiles / landBlockDimension;
+    const auto blockHeight = dimensions.heightTiles / mapBlockDimension;
     const BlockCoord coordinate{.x = id / blockHeight, .y = id % blockHeight};
     return std::pair{coordinate, MapCommon::decodeBlock(raw)};
 }
 
-std::expected<std::vector<std::pair<BlockCoord, LandBlock>>, Error>
-readDiffReplacements(std::istream & data,
-                     std::istream & index,
-                     const std::filesystem::path & dataPath,
-                     const std::filesystem::path & indexPath,
-                     Dimensions dimensions,
-                     std::uint64_t expectedBlockCount,
-                     std::uint64_t replacementCount)
+std::expected<std::vector<std::pair<BlockCoord, MapBlock>>, Error> readDiffReplacements(std::istream & data,
+                                                                                        std::istream & index,
+                                                                                        const std::filesystem::path & dataPath,
+                                                                                        const std::filesystem::path & indexPath,
+                                                                                        Dimensions dimensions,
+                                                                                        std::uint64_t expectedBlockCount,
+                                                                                        std::uint64_t replacementCount)
 {
     std::vector<bool> seen(static_cast<std::size_t>(expectedBlockCount));
-    std::vector<std::pair<BlockCoord, LandBlock>> replacements;
+    std::vector<std::pair<BlockCoord, MapBlock>> replacements;
     replacements.reserve(static_cast<std::size_t>(replacementCount));
     std::uint32_t id = 0;
     while (readLe32(index, id))
@@ -826,11 +824,11 @@ readDiffReplacements(std::istream & data,
 }
 
 std::expected<void, Error> writeDiffReplacements(MapEditor & editor,
-                                                 const std::vector<std::pair<BlockCoord, LandBlock>> & replacements)
+                                                 const std::vector<std::pair<BlockCoord, MapBlock>> & replacements)
 {
     for (const auto & [coordinate, block] : replacements)
     {
-        if (auto written = editor.writeLandBlock(coordinate, block); !written)
+        if (auto written = editor.editBlock(coordinate, block); !written)
         {
             return written;
         }
@@ -872,7 +870,7 @@ std::expected<std::uint64_t, Error> validateDiffBlockCount(Dimensions dimensions
     return *blockCount;
 }
 
-std::expected<std::vector<std::pair<BlockCoord, LandBlock>>, Error>
+std::expected<std::vector<std::pair<BlockCoord, MapBlock>>, Error>
 loadDiffReplacements(const std::filesystem::path & baseMap,
                      const std::filesystem::path & diffDirectory,
                      std::uint32_t mapIndex,
@@ -944,10 +942,10 @@ std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourc
                        dimensions,
                        fullRegion,
                        [&report, &onChange, dimensions](BlockCoord coordinate,
-                                                        const LandBlockBytes & sourceRaw,
+                                                        const MapBlockBytes & sourceRaw,
                                                         std::span<const std::byte> targetRaw) -> std::expected<void, Error>
                        {
-                           const auto changedTiles = compareLandBlocks(BlockTileSelection(), sourceRaw, targetRaw);
+                           const auto changedTiles = compareBlocks(BlockTileSelection(), sourceRaw, targetRaw);
                            if (changedTiles == 0)
                            {
                                return {};
@@ -1002,7 +1000,7 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
         return std::unexpected(MapCommon::makeError(ErrorCode::io, temporary, 0, "could not create report"));
     }
 
-    output << "blockId,blockX,blockY,changedLandTiles\n";
+    output << "blockId,blockX,blockY,changedTiles\n";
     auto compared = compareMaps(sourceMap,
                                 targetMap,
                                 dimensions,
@@ -1065,17 +1063,17 @@ std::expected<DiffReport, Error> MapDiff::generate(const std::filesystem::path &
                                                    Dimensions dimensions,
                                                    bool overwrite)
 {
-    return generateFromBlockRegion(
+    return generateBlocks(
         baseMap, targetMap, diffDirectory, mapIndex, dimensions, detail::fullBlockRegion(dimensions), overwrite);
 }
 
-std::expected<DiffReport, Error> MapDiff::generateFromTileRegion(const std::filesystem::path & baseMap,
-                                                                 const std::filesystem::path & targetMap,
-                                                                 const std::filesystem::path & diffDirectory,
-                                                                 std::uint32_t mapIndex,
-                                                                 Dimensions dimensions,
-                                                                 TileRegion region,
-                                                                 bool overwrite)
+std::expected<DiffReport, Error> MapDiff::generateTiles(const std::filesystem::path & baseMap,
+                                                        const std::filesystem::path & targetMap,
+                                                        const std::filesystem::path & diffDirectory,
+                                                        std::uint32_t mapIndex,
+                                                        Dimensions dimensions,
+                                                        TileRegion region,
+                                                        bool overwrite)
 {
     if (auto valid = validateDiffRegion(baseMap, dimensions, region); !valid)
     {
@@ -1086,13 +1084,13 @@ std::expected<DiffReport, Error> MapDiff::generateFromTileRegion(const std::file
         baseMap, targetMap, diffDirectory, mapIndex, dimensions, detail::blockRegionForTiles(region), region, overwrite);
 }
 
-std::expected<DiffReport, Error> MapDiff::generateFromBlockRegion(const std::filesystem::path & baseMap,
-                                                                  const std::filesystem::path & targetMap,
-                                                                  const std::filesystem::path & diffDirectory,
-                                                                  std::uint32_t mapIndex,
-                                                                  Dimensions dimensions,
-                                                                  BlockRegion region,
-                                                                  bool overwrite)
+std::expected<DiffReport, Error> MapDiff::generateBlocks(const std::filesystem::path & baseMap,
+                                                         const std::filesystem::path & targetMap,
+                                                         const std::filesystem::path & diffDirectory,
+                                                         std::uint32_t mapIndex,
+                                                         Dimensions dimensions,
+                                                         BlockRegion region,
+                                                         bool overwrite)
 {
     if (auto valid = validateDiffRegion(baseMap, dimensions, region); !valid)
     {

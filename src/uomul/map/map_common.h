@@ -20,7 +20,7 @@ inline constexpr std::size_t maximumBlocksPerIoBatch = 4096;
 {
     return {
         .min = {.x = 0, .y = 0},
-        .maxExclusive = {.x = dimensions.widthTiles / landBlockDimension, .y = dimensions.heightTiles / landBlockDimension},
+        .maxExclusive = {.x = dimensions.widthTiles / mapBlockDimension, .y = dimensions.heightTiles / mapBlockDimension},
     };
 }
 
@@ -62,30 +62,30 @@ private:
 [[nodiscard]] constexpr BlockRegion blockRegionForTiles(TileRegion region)
 {
     return {
-        .min = {.x = region.min.x / landBlockDimension, .y = region.min.y / landBlockDimension},
+        .min = {.x = region.min.x / mapBlockDimension, .y = region.min.y / mapBlockDimension},
         .maxExclusive =
             {
-                .x = (region.maxExclusive.x / landBlockDimension) + (region.maxExclusive.x % landBlockDimension == 0 ? 0U : 1U),
-                .y = (region.maxExclusive.y / landBlockDimension) + (region.maxExclusive.y % landBlockDimension == 0 ? 0U : 1U),
+                .x = (region.maxExclusive.x / mapBlockDimension) + (region.maxExclusive.x % mapBlockDimension == 0 ? 0U : 1U),
+                .y = (region.maxExclusive.y / mapBlockDimension) + (region.maxExclusive.y % mapBlockDimension == 0 ? 0U : 1U),
             },
     };
 }
 
 [[nodiscard]] constexpr std::size_t tileIndexInBlock(TileCoord tile)
 {
-    return ((tile.y % landBlockDimension) * landBlockDimension) + (tile.x % landBlockDimension);
+    return ((tile.y % mapBlockDimension) * mapBlockDimension) + (tile.x % mapBlockDimension);
 }
 
 [[nodiscard]] constexpr TileRegion clipTilesToBlock(TileRegion region, BlockCoord block)
 {
-    const auto blockMinX = block.x * landBlockDimension;
-    const auto blockMinY = block.y * landBlockDimension;
+    const auto blockMinX = block.x * mapBlockDimension;
+    const auto blockMinY = block.y * mapBlockDimension;
     return {
         .min = {.x = std::max(region.min.x, blockMinX), .y = std::max(region.min.y, blockMinY)},
         .maxExclusive =
             {
-                .x = std::min(region.maxExclusive.x, blockMinX + landBlockDimension),
-                .y = std::min(region.maxExclusive.y, blockMinY + landBlockDimension),
+                .x = std::min(region.maxExclusive.x, blockMinX + mapBlockDimension),
+                .y = std::min(region.maxExclusive.y, blockMinY + mapBlockDimension),
             },
     };
 }
@@ -136,20 +136,20 @@ template <typename T, std::size_t Size = sizeof(T), std::size_t ContainerSize>
     return value;
 }
 
-[[nodiscard]] constexpr LandTile decodeLandTile(std::span<const std::byte, 3> bytes)
+[[nodiscard]] constexpr MapTile decodeTile(std::span<const std::byte, 3> bytes)
 {
     const auto low = std::to_integer<std::uint8_t>(bytes.front());
     const auto high = std::to_integer<std::uint8_t>(bytes.subspan(1).front());
     const auto id = static_cast<std::uint16_t>(
         static_cast<std::uint32_t>(low) |
         (static_cast<std::uint32_t>(high) << static_cast<unsigned>(std::numeric_limits<unsigned char>::digits)));
-    return LandTile{
+    return MapTile{
         .id = id,
         .z = std::bit_cast<std::int8_t>(std::to_integer<std::uint8_t>(bytes.back())),
     };
 }
 
-[[nodiscard]] constexpr std::array<std::byte, 3> encodeLandTile(LandTile tile)
+[[nodiscard]] constexpr std::array<std::byte, 3> encodeTile(MapTile tile)
 {
     return {
         static_cast<std::byte>(tile.id & std::numeric_limits<std::uint8_t>::max()),
@@ -162,9 +162,9 @@ template <typename T, std::size_t Size = sizeof(T), std::size_t ContainerSize>
 class MapCommon
 {
 public:
-    static constexpr std::uint64_t landBlockByteSize = landBlockByteCount;
-    static constexpr std::uint64_t landTileByteSize = 3;
-    static constexpr std::uint64_t landHeaderByteSize = 4;
+    static constexpr std::uint64_t mapBlockByteSize = mapBlockByteCount;
+    static constexpr std::uint64_t mapTileByteSize = 3;
+    static constexpr std::uint64_t mapHeaderByteSize = 4;
 
     [[nodiscard]] static Error
     makeError(ErrorCode code, const std::filesystem::path & path, std::uint64_t offset, std::string message);
@@ -177,9 +177,14 @@ public:
     [[nodiscard]] static std::uint64_t blockId(BlockCoord block, Dimensions dimensions);
     [[nodiscard]] static std::uint64_t blockOffset(BlockCoord block, Dimensions dimensions);
     [[nodiscard]] static bool readExact(int descriptor, void * data, std::size_t size, std::uint64_t offset);
+    [[nodiscard]] static bool readBlockBatch(int descriptor,
+                                             BlockCoord first,
+                                             std::size_t blockCount,
+                                             Dimensions dimensions,
+                                             std::span<std::byte> buffer);
     [[nodiscard]] static bool writeExact(int descriptor, const void * data, std::size_t size, std::uint64_t offset);
-    [[nodiscard]] static LandBlock decodeBlock(const LandBlockBytes & raw);
-    static void encodeBlock(LandBlockBytes & raw, const LandBlock & block);
+    [[nodiscard]] static MapBlock decodeBlock(const MapBlockBytes & raw);
+    static void encodeBlock(MapBlockBytes & raw, const MapBlock & block);
     [[nodiscard]] static std::filesystem::path temporaryPath(const std::filesystem::path & path);
     [[nodiscard]] static std::expected<int, Error> createTemporary(const std::filesystem::path & path,
                                                                    std::filesystem::path & temporary);

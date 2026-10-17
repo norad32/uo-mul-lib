@@ -52,7 +52,7 @@ void writeIndex(const std::filesystem::path & path, std::initializer_list<std::u
 
 [[nodiscard]] bool createChangedMap(const std::filesystem::path & source,
                                     const std::filesystem::path & target,
-                                    std::vector<std::pair<uomul::TileCoord, uomul::LandTile>> edits)
+                                    std::vector<std::pair<uomul::TileCoord, uomul::MapTile>> edits)
 {
     auto editor = uomul::MapEditor::create(source, target, dimensions);
     if (!editor)
@@ -61,7 +61,7 @@ void writeIndex(const std::filesystem::path & path, std::initializer_list<std::u
     }
     for (const auto & [coordinate, tile] : edits)
     {
-        if (auto result = editor->writeLandTile(coordinate, tile); !result)
+        if (auto result = editor->editTile(coordinate, tile); !result)
         {
             return false;
         }
@@ -84,8 +84,8 @@ TEST_CASE("generate_Should_ReportNoChanges_If_MapsAreIdentical")
     const auto generated = uomul::MapDiff::generate(base, target, diffDirectory, mapIndex, dimensions);
 
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 0);
-    REQUIRE(generated->landTilesChanged == 0);
+    REQUIRE(generated->blocksChanged == 0);
+    REQUIRE(generated->tilesChanged == 0);
     REQUIRE(std::filesystem::exists(diffDataPath(diffDirectory)));
     REQUIRE(std::filesystem::exists(diffIndexPath(diffDirectory)));
     REQUIRE(std::filesystem::file_size(diffDataPath(diffDirectory)) == 0);
@@ -111,9 +111,9 @@ TEST_CASE("generate_Should_ReportChangedBlocksAndTiles_If_TargetContainsMultiple
     const auto generated = uomul::MapDiff::generate(base, target, diffDirectory, mapIndex, dimensions);
 
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 2);
-    REQUIRE(generated->landTilesChanged == 3);
-    REQUIRE(std::filesystem::file_size(diffDataPath(diffDirectory)) == 2 * uomul::landBlockByteCount);
+    REQUIRE(generated->blocksChanged == 2);
+    REQUIRE(generated->tilesChanged == 3);
+    REQUIRE(std::filesystem::file_size(diffDataPath(diffDirectory)) == 2 * uomul::mapBlockByteCount);
     REQUIRE(std::filesystem::file_size(diffIndexPath(diffDirectory)) == 2 * sizeof(std::uint32_t));
     REQUIRE(uomul::test::readBytes(diffIndexPath(diffDirectory)) == std::string("\0\0\0\0\3\0\0\0", 8));
 }
@@ -223,8 +223,8 @@ TEST_CASE("generate_Should_ReplaceExistingDiffPair_If_OverwriteIsEnabled")
     const auto generated = uomul::MapDiff::generate(base, base, diffDirectory, mapIndex, dimensions, true);
 
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 0);
-    REQUIRE(generated->landTilesChanged == 0);
+    REQUIRE(generated->blocksChanged == 0);
+    REQUIRE(generated->tilesChanged == 0);
     REQUIRE(std::filesystem::file_size(diffDataPath(diffDirectory)) == 0);
     REQUIRE(std::filesystem::file_size(diffIndexPath(diffDirectory)) == 0);
 }
@@ -269,7 +269,7 @@ TEST_CASE("generateAndApply_Should_RoundTripChangedBlocks_If_TargetDiffersFromBa
     REQUIRE(uomul::test::readBytes(output) == uomul::test::readBytes(target));
 }
 
-TEST_CASE("generateFromTileRegionAndApply_Should_OnlyPatchSelectedTiles_If_RegionCutsAcrossBlocks")
+TEST_CASE("generateTilesAndApply_Should_OnlyPatchSelectedTiles_If_RegionCutsAcrossBlocks")
 {
     const TestDirectory directory;
     const auto base = directory.path() / "base.mul";
@@ -288,12 +288,12 @@ TEST_CASE("generateFromTileRegionAndApply_Should_OnlyPatchSelectedTiles_If_Regio
     std::filesystem::rename(directory.path() / "edited.mul", target);
     const uomul::TileRegion region{.min = {1, 1}, .maxExclusive = {4, 4}};
 
-    const auto generated = uomul::MapDiff::generateFromTileRegion(base, target, diffDirectory, mapIndex, dimensions, region);
+    const auto generated = uomul::MapDiff::generateTiles(base, target, diffDirectory, mapIndex, dimensions, region);
 
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == 1);
-    REQUIRE(std::filesystem::file_size(diffDataPath(diffDirectory)) == uomul::landBlockByteCount);
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == 1);
+    REQUIRE(std::filesystem::file_size(diffDataPath(diffDirectory)) == uomul::mapBlockByteCount);
     REQUIRE(std::filesystem::file_size(diffIndexPath(diffDirectory)) == sizeof(std::uint32_t));
     REQUIRE(uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions));
 
@@ -310,13 +310,13 @@ TEST_CASE("generateFromTileRegionAndApply_Should_OnlyPatchSelectedTiles_If_Regio
             const uomul::TileCoord tile{.x = x, .y = y};
             const bool selected =
                 x >= region.min.x && x < region.maxExclusive.x && y >= region.min.y && y < region.maxExclusive.y;
-            const auto expected = selected ? targetReader->readLandTile(tile).value() : original->readLandTile(tile).value();
-            REQUIRE(result->readLandTile(tile).value() == expected);
+            const auto expected = selected ? targetReader->readTile(tile).value() : original->readTile(tile).value();
+            REQUIRE(result->readTile(tile).value() == expected);
         }
     }
 }
 
-TEST_CASE("generateFromTileRegionAndApply_Should_FastPathWholeBlocks_If_RegionIsBlockAligned")
+TEST_CASE("generateTilesAndApply_Should_FastPathWholeBlocks_If_RegionIsBlockAligned")
 {
     const TestDirectory directory;
     const auto base = directory.path() / "base.mul";
@@ -331,22 +331,22 @@ TEST_CASE("generateFromTileRegionAndApply_Should_FastPathWholeBlocks_If_RegionIs
     std::filesystem::rename(directory.path() / "edited.mul", target);
     const uomul::TileRegion region{.min = {0, 0}, .maxExclusive = {8, 8}};
 
-    const auto generated = uomul::MapDiff::generateFromTileRegion(base, target, diffDirectory, mapIndex, dimensions, region);
+    const auto generated = uomul::MapDiff::generateTiles(base, target, diffDirectory, mapIndex, dimensions, region);
 
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == 1);
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == 1);
     REQUIRE(uomul::test::readBytes(diffIndexPath(diffDirectory)) == std::string(4, '\0'));
     REQUIRE(uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions));
     const auto result = uomul::MapReader::open(output, dimensions);
     const auto original = uomul::MapReader::open(base, dimensions);
     REQUIRE(result);
     REQUIRE(original);
-    REQUIRE(result->readLandTile({1, 1}) == uomul::LandTile{.id = 5000, .z = 10});
-    REQUIRE(result->readLandTile({9, 9}).value() == original->readLandTile({9, 9}).value());
+    REQUIRE(result->readTile({1, 1}) == uomul::MapTile{.id = 5000, .z = 10});
+    REQUIRE(result->readTile({9, 9}).value() == original->readTile({9, 9}).value());
 }
 
-TEST_CASE("generateFromBlockRegionAndApply_Should_OnlyPatchSelectedBlocks")
+TEST_CASE("generateBlocksAndApply_Should_OnlyPatchSelectedBlocks")
 {
     const TestDirectory directory;
     const auto base = directory.path() / "base.mul";
@@ -360,19 +360,19 @@ TEST_CASE("generateFromBlockRegionAndApply_Should_OnlyPatchSelectedBlocks")
         target, directory.path() / "edited.mul", {{{1, 1}, {.id = 5000, .z = 10}}, {{9, 9}, {.id = 5001, .z = 11}}}));
     std::filesystem::rename(directory.path() / "edited.mul", target);
 
-    const auto generated = uomul::MapDiff::generateFromBlockRegion(
+    const auto generated = uomul::MapDiff::generateBlocks(
         base, target, diffDirectory, mapIndex, dimensions, {.min = {0, 0}, .maxExclusive = {1, 1}});
 
     REQUIRE(generated);
-    REQUIRE(generated->landBlocksChanged == 1);
-    REQUIRE(generated->landTilesChanged == 1);
+    REQUIRE(generated->blocksChanged == 1);
+    REQUIRE(generated->tilesChanged == 1);
     REQUIRE(uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions));
     const auto result = uomul::MapReader::open(output, dimensions);
     const auto original = uomul::MapReader::open(base, dimensions);
     REQUIRE(result);
     REQUIRE(original);
-    REQUIRE(result->readLandTile({1, 1}) == uomul::LandTile{.id = 5000, .z = 10});
-    REQUIRE(result->readLandTile({9, 9}).value() == original->readLandTile({9, 9}).value());
+    REQUIRE(result->readTile({1, 1}) == uomul::MapTile{.id = 5000, .z = 10});
+    REQUIRE(result->readTile({9, 9}).value() == original->readTile({9, 9}).value());
 }
 
 TEST_CASE("apply_Should_RejectDiff_If_DataOrIndexFileIsMissing")
@@ -409,7 +409,7 @@ TEST_CASE("apply_Should_RejectMalformedLengths_If_DataAndIndexCountsDoNotMatch")
     const auto output = directory.path() / "output.mul";
     std::filesystem::create_directories(diffDirectory);
     writeFixture(base);
-    writeBytes(diffDataPath(diffDirectory), std::string(uomul::landBlockByteCount, '\0'));
+    writeBytes(diffDataPath(diffDirectory), std::string(uomul::mapBlockByteCount, '\0'));
     writeBytes(diffIndexPath(diffDirectory), {});
 
     const auto applied = uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions);
@@ -444,7 +444,7 @@ TEST_CASE("apply_Should_RejectInvalidBlockId_If_IndexContainsOutOfRangeId")
     const auto output = directory.path() / "output.mul";
     std::filesystem::create_directories(diffDirectory);
     writeFixture(base);
-    writeBytes(diffDataPath(diffDirectory), std::string(uomul::landBlockByteCount, '\0'));
+    writeBytes(diffDataPath(diffDirectory), std::string(uomul::mapBlockByteCount, '\0'));
     writeIndex(diffIndexPath(diffDirectory), {4});
 
     const auto applied = uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions);
@@ -462,7 +462,7 @@ TEST_CASE("apply_Should_RejectInvalidBlockId_If_IndexContainsDuplicateIds")
     const auto output = directory.path() / "output.mul";
     std::filesystem::create_directories(diffDirectory);
     writeFixture(base);
-    writeBytes(diffDataPath(diffDirectory), std::string(2 * uomul::landBlockByteCount, '\0'));
+    writeBytes(diffDataPath(diffDirectory), std::string(2 * uomul::mapBlockByteCount, '\0'));
     writeIndex(diffIndexPath(diffDirectory), {0, 0});
 
     const auto applied = uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions);
@@ -479,7 +479,7 @@ TEST_CASE("apply_Should_RejectTruncatedDiffBlock_If_DataEndsBeforeBlockIsComplet
     const auto output = directory.path() / "output.mul";
     std::filesystem::create_directories(diffDirectory);
     writeFixture(base);
-    writeBytes(diffDataPath(diffDirectory), std::string(uomul::landBlockByteCount - 1, '\0'));
+    writeBytes(diffDataPath(diffDirectory), std::string(uomul::mapBlockByteCount - 1, '\0'));
     writeIndex(diffIndexPath(diffDirectory), {0});
 
     const auto applied = uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions);
@@ -575,9 +575,9 @@ TEST_CASE("report_Should_CountChangedTiles_If_MapsDiffer")
     const auto report = uomul::MapDiff::report(base, target, reportPath, dimensions);
 
     REQUIRE(report);
-    REQUIRE(report->landBlocksChanged == 1);
-    REQUIRE(report->landTilesChanged == 1);
-    REQUIRE(uomul::test::readBytes(reportPath) == "blockId,blockX,blockY,changedLandTiles\n3,1,1,1\n");
+    REQUIRE(report->blocksChanged == 1);
+    REQUIRE(report->tilesChanged == 1);
+    REQUIRE(uomul::test::readBytes(reportPath) == "blockId,blockX,blockY,changedTiles\n3,1,1,1\n");
 }
 
 TEST_CASE("report_Should_ReportNoChanges_If_MapsAreIdentical")
@@ -592,9 +592,9 @@ TEST_CASE("report_Should_ReportNoChanges_If_MapsAreIdentical")
     const auto report = uomul::MapDiff::report(base, target, reportPath, dimensions);
 
     REQUIRE(report);
-    REQUIRE(report->landBlocksChanged == 0);
-    REQUIRE(report->landTilesChanged == 0);
-    REQUIRE(uomul::test::readBytes(reportPath) == "blockId,blockX,blockY,changedLandTiles\n");
+    REQUIRE(report->blocksChanged == 0);
+    REQUIRE(report->tilesChanged == 0);
+    REQUIRE(uomul::test::readBytes(reportPath) == "blockId,blockX,blockY,changedTiles\n");
 }
 
 TEST_CASE("report_Should_RejectExistingOutput_If_OverwriteIsDisabled")
@@ -623,7 +623,7 @@ TEST_CASE("report_Should_ReplaceExistingOutput_If_OverwriteIsEnabled")
     const auto report = uomul::MapDiff::report(base, base, reportPath, dimensions, true);
 
     REQUIRE(report);
-    REQUIRE(uomul::test::readBytes(reportPath) == "blockId,blockX,blockY,changedLandTiles\n");
+    REQUIRE(uomul::test::readBytes(reportPath) == "blockId,blockX,blockY,changedTiles\n");
 }
 
 TEST_CASE("report_Should_RejectInvalidDimensions_If_DimensionsAreNotBlockAligned")
@@ -677,7 +677,7 @@ TEST_CASE("writeCsvReport_Should_CreateReportFile_If_MapsAreComparable")
     writeFixture(target);
 
     REQUIRE(uomul::writeCsvReport(base, target, reportPath, dimensions));
-    REQUIRE(uomul::test::readBytes(reportPath) == "blockId,blockX,blockY,changedLandTiles\n");
+    REQUIRE(uomul::test::readBytes(reportPath) == "blockId,blockX,blockY,changedTiles\n");
 }
 
 TEST_CASE("writeCsvReport_Should_PropagateError_If_OutputAlreadyExists")

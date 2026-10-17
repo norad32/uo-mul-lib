@@ -14,9 +14,9 @@
 namespace uomul
 {
 
-inline constexpr std::size_t landBlockTileCount = 64;
-inline constexpr std::size_t landBlockByteCount = 196;
-inline constexpr std::uint32_t landBlockDimension = 8;
+inline constexpr std::size_t mapBlockTileCount = 64;
+inline constexpr std::size_t mapBlockByteCount = 196;
+inline constexpr std::uint32_t mapBlockDimension = 8;
 
 enum class ErrorCode : std::uint8_t
 {
@@ -73,26 +73,26 @@ struct BlockRegion
     BlockCoord maxExclusive{};
 };
 
-struct LandTile
+struct MapTile
 {
     std::uint16_t id = 0;
     std::int8_t z = 0;
 
     /** @brief Compares a land tile with another tile.
-     *  @param other Tile to compare.
+     *  @param other MapTile to compare.
      *  @retval true Both land ID and elevation are equal.
      *  @retval false The ID or elevation differs.
      */
-    bool operator==(const LandTile & other) const = default;
+    bool operator==(const MapTile & other) const = default;
 };
 
-using LandBlock = std::array<LandTile, landBlockTileCount>;
-using LandBlockBytes = std::array<std::byte, landBlockByteCount>;
-using LandBlockRead = std::function<std::expected<void, Error>(BlockCoord, const LandBlock &)>;
-using LandTileRead = std::function<std::expected<void, Error>(TileCoord, const LandTile &)>;
-using LandBlockEdit = std::function<std::expected<LandBlock, Error>(BlockCoord, const LandBlock &)>;
-using LandBlockBytesRead = std::function<std::expected<void, Error>(BlockCoord, const LandBlockBytes &)>;
-using LandTileEdit = std::function<std::expected<LandTile, Error>(TileCoord, const LandTile &)>;
+using MapBlock = std::array<MapTile, mapBlockTileCount>;
+using MapBlockBytes = std::array<std::byte, mapBlockByteCount>;
+using MapBlockRead = std::function<std::expected<void, Error>(BlockCoord, const MapBlock &)>;
+using MapTileRead = std::function<std::expected<void, Error>(TileCoord, const MapTile &)>;
+using MapBlockEdit = std::function<std::expected<MapBlock, Error>(BlockCoord, const MapBlock &)>;
+using MapBlockBytesRead = std::function<std::expected<void, Error>(BlockCoord, const MapBlockBytes &)>;
+using MapTileEdit = std::function<std::expected<MapTile, Error>(TileCoord, const MapTile &)>;
 
 struct OpenOptions
 {
@@ -106,8 +106,8 @@ struct EditOptions
 
 struct DiffReport
 {
-    std::uint64_t landBlocksChanged = 0;
-    std::uint64_t landTilesChanged = 0;
+    std::uint64_t blocksChanged = 0;
+    std::uint64_t tilesChanged = 0;
 };
 
 struct ValueStats
@@ -171,14 +171,14 @@ public:
      *  @retval value Decoded land block.
      *  @retval error Invalid coordinate or unavailable/truncated block details.
      */
-    [[nodiscard]] std::expected<LandBlock, Error> readLandBlock(BlockCoord block) const;
+    [[nodiscard]] std::expected<MapBlock, Error> readBlock(BlockCoord block) const;
 
     /** @brief Reads one land tile.
      *  @param tile Global tile coordinates.
-     *  @retval value Tile at the requested coordinate.
+     *  @retval value MapTile at the requested coordinate.
      *  @retval error Invalid coordinate or unavailable/truncated block details.
      */
-    [[nodiscard]] std::expected<LandTile, Error> readLandTile(TileCoord tile) const;
+    [[nodiscard]] std::expected<MapTile, Error> readTile(TileCoord tile) const;
 
     /** @brief Reads decoded blocks in a half-open block region.
      *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
@@ -186,7 +186,7 @@ public:
      *  @retval value Success when the operation completes.
      *  @retval error Validation, read, or callback failure details.
      */
-    [[nodiscard]] std::expected<void, Error> readLandBlocks(BlockRegion region, const LandBlockRead & callback) const;
+    [[nodiscard]] std::expected<void, Error> readBlocks(BlockRegion region, const MapBlockRead & callback) const;
 
     /** @brief Reads raw blocks, including their four-byte headers, in a half-open region.
      *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
@@ -194,7 +194,7 @@ public:
      *  @retval value Success when the operation completes.
      *  @retval error Validation, read, or callback failure details.
      */
-    [[nodiscard]] std::expected<void, Error> readRawLandBlocks(BlockRegion region, const LandBlockBytesRead & callback) const;
+    [[nodiscard]] std::expected<void, Error> readRawBlocks(BlockRegion region, const MapBlockBytesRead & callback) const;
 
     /** @brief Reads tiles in a half-open tile region.
      *  @param region Global tile coordinates from min inclusive to maxExclusive exclusive.
@@ -202,7 +202,7 @@ public:
      *  @retval value Success when the operation completes.
      *  @retval error Validation, read, or callback failure details.
      */
-    [[nodiscard]] std::expected<void, Error> readLandTiles(TileRegion region, const LandTileRead & callback) const;
+    [[nodiscard]] std::expected<void, Error> readTiles(TileRegion region, const MapTileRead & callback) const;
 
     /** @brief Calculates whole-map ID and elevation statistics.
      *  ID and elevation frequencies are sparse and sorted by value. Percentages use all sampled tiles as the denominator.
@@ -217,14 +217,14 @@ public:
      *  @retval value Statistics for sampled tiles; empty regions have empty distributions and unset averages.
      *  @retval error Invalid region or a required map block is unavailable.
      */
-    [[nodiscard]] std::expected<MapStats, Error> tileStats(TileRegion region) const;
+    [[nodiscard]] std::expected<MapStats, Error> statsTiles(TileRegion region) const;
 
     /** @brief Calculates ID and elevation statistics for all tiles in a half-open block region.
      *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
      *  @retval value Statistics for all tiles in selected blocks; empty regions have no samples.
      *  @retval error Invalid region or a required map block is unavailable.
      */
-    [[nodiscard]] std::expected<MapStats, Error> blockStats(BlockRegion region) const;
+    [[nodiscard]] std::expected<MapStats, Error> statsBlocks(BlockRegion region) const;
 
 private:
     struct Impl;
@@ -260,7 +260,7 @@ public:
      *  @retval value Success when the block is staged.
      *  @retval error Inactive editor, invalid coordinate, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> writeLandBlock(BlockCoord block, const LandBlock & data);
+    [[nodiscard]] std::expected<void, Error> editBlock(BlockCoord block, const MapBlock & data);
 
     /** @brief Replaces one tile in the staged map.
      *  @param tile Global tile coordinates.
@@ -268,7 +268,7 @@ public:
      *  @retval value Success when the tile is staged.
      *  @retval error Inactive editor, invalid coordinate, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> writeLandTile(TileCoord tile, LandTile data);
+    [[nodiscard]] std::expected<void, Error> editTile(TileCoord tile, MapTile data);
 
     /** @brief Edits every block in a half-open block region transactionally.
      *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
@@ -276,7 +276,7 @@ public:
      *  @retval value Success when the edit is staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> editLandBlocks(BlockRegion region, const LandBlockEdit & callback);
+    [[nodiscard]] std::expected<void, Error> editBlocks(BlockRegion region, const MapBlockEdit & callback);
 
     /** @brief Edits tiles in a half-open tile region transactionally.
      *  @param region Global tile coordinates from min inclusive to maxExclusive exclusive.
@@ -284,30 +284,30 @@ public:
      *  @retval value Success when the edit is staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> editLandTiles(TileRegion region, const LandTileEdit & callback);
+    [[nodiscard]] std::expected<void, Error> editTiles(TileRegion region, const MapTileEdit & callback);
 
     /** @brief Fills the entire staged map with one tile value.
-     *  @param value Tile value written to every map tile.
+     *  @param value MapTile value written to every map tile.
      *  @retval value Success when the fill is staged.
      *  @retval error Inactive editor or staging I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> fill(LandTile value);
+    [[nodiscard]] std::expected<void, Error> fill(MapTile value);
 
     /** @brief Fills a half-open tile region with one value.
      *  @param region Global tile coordinates from min inclusive to maxExclusive exclusive.
-     *  @param value Tile value to write.
+     *  @param value MapTile value to write.
      *  @retval value Success when the fill is staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> fillTiles(TileRegion region, LandTile value);
+    [[nodiscard]] std::expected<void, Error> fillTiles(TileRegion region, MapTile value);
 
     /** @brief Fills a half-open block region across all tiles in each selected block.
      *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
-     *  @param value Tile value written to all tiles in each selected block.
+     *  @param value MapTile value written to all tiles in each selected block.
      *  @retval value Success when the fill is staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> fillBlocks(BlockRegion region, LandTile value);
+    [[nodiscard]] std::expected<void, Error> fillBlocks(BlockRegion region, MapTile value);
 
     /** @brief Replaces matching land IDs across the entire staged map.
      *  @param from Land ID to find.
@@ -324,7 +324,7 @@ public:
      *  @retval value Success when replacements are staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> replaceTileIds(TileRegion region, std::uint16_t from, std::uint16_t to);
+    [[nodiscard]] std::expected<void, Error> replaceIdsTiles(TileRegion region, std::uint16_t from, std::uint16_t to);
 
     /** @brief Replaces matching land IDs across all tiles in a half-open block region.
      *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
@@ -333,7 +333,7 @@ public:
      *  @retval value Success when replacements are staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> replaceBlockIds(BlockRegion region, std::uint16_t from, std::uint16_t to);
+    [[nodiscard]] std::expected<void, Error> replaceIdsBlocks(BlockRegion region, std::uint16_t from, std::uint16_t to);
 
     /** @brief Replaces matching elevations across the entire staged map.
      *  @param from Elevation to find.
@@ -350,7 +350,7 @@ public:
      *  @retval value Success when replacements are staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> replaceTileZ(TileRegion region, std::int8_t from, std::int8_t to);
+    [[nodiscard]] std::expected<void, Error> replaceZTiles(TileRegion region, std::int8_t from, std::int8_t to);
 
     /** @brief Replaces matching elevations across all tiles in a half-open block region.
      *  @param region Block coordinates from min inclusive to maxExclusive exclusive.
@@ -359,7 +359,7 @@ public:
      *  @retval value Success when replacements are staged.
      *  @retval error Validation, callback, journal, or I/O failure details.
      */
-    [[nodiscard]] std::expected<void, Error> replaceBlockZ(BlockRegion region, std::int8_t from, std::int8_t to);
+    [[nodiscard]] std::expected<void, Error> replaceZBlocks(BlockRegion region, std::int8_t from, std::int8_t to);
 
     /** @brief Publishes staged changes to the output path.
      *  @retval value Output committed successfully.
@@ -413,13 +413,13 @@ public:
      *  @retval value Counts of changed blocks and in-region tiles.
      *  @retval error Invalid maps, region, diff output, or I/O failure details.
      */
-    [[nodiscard]] static std::expected<DiffReport, Error> generateFromTileRegion(const std::filesystem::path & baseMap,
-                                                                                 const std::filesystem::path & targetMap,
-                                                                                 const std::filesystem::path & diffDirectory,
-                                                                                 std::uint32_t mapIndex,
-                                                                                 Dimensions dimensions,
-                                                                                 TileRegion region,
-                                                                                 bool overwrite = false);
+    [[nodiscard]] static std::expected<DiffReport, Error> generateTiles(const std::filesystem::path & baseMap,
+                                                                        const std::filesystem::path & targetMap,
+                                                                        const std::filesystem::path & diffDirectory,
+                                                                        std::uint32_t mapIndex,
+                                                                        Dimensions dimensions,
+                                                                        TileRegion region,
+                                                                        bool overwrite = false);
 
     /** @brief Generates a diff containing only changes inside a block region.
      *  @param baseMap Original map.
@@ -432,13 +432,13 @@ public:
      *  @retval value Counts of changed blocks and tiles.
      *  @retval error Invalid maps, region, diff output, or I/O failure details.
      */
-    [[nodiscard]] static std::expected<DiffReport, Error> generateFromBlockRegion(const std::filesystem::path & baseMap,
-                                                                                  const std::filesystem::path & targetMap,
-                                                                                  const std::filesystem::path & diffDirectory,
-                                                                                  std::uint32_t mapIndex,
-                                                                                  Dimensions dimensions,
-                                                                                  BlockRegion region,
-                                                                                  bool overwrite = false);
+    [[nodiscard]] static std::expected<DiffReport, Error> generateBlocks(const std::filesystem::path & baseMap,
+                                                                         const std::filesystem::path & targetMap,
+                                                                         const std::filesystem::path & diffDirectory,
+                                                                         std::uint32_t mapIndex,
+                                                                         Dimensions dimensions,
+                                                                         BlockRegion region,
+                                                                         bool overwrite = false);
 
     /** @brief Applies a legacy map diff to a base map and publishes the result.
      *  @param baseMap Map to patch.

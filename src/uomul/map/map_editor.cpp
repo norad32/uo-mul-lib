@@ -269,7 +269,7 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, sourceMap, 0, std::strerror(errno)));
     }
-    const auto totalBytes = source->completeBlocks() * MapCommon::landBlockByteSize;
+    const auto totalBytes = source->completeBlocks() * MapCommon::mapBlockByteSize;
     if (auto staged = stageSourceMap(sourceDescriptor.get(), stagedDescriptor.get(), totalBytes, sourceMap, impl->staging);
         !staged)
     {
@@ -281,7 +281,7 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
     return MapEditor(std::move(impl));
 }
 
-std::expected<void, Error> MapEditor::writeLandBlock(BlockCoord block, const LandBlock & data)
+std::expected<void, Error> MapEditor::editBlock(BlockCoord block, const MapBlock & data)
 {
     if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
     {
@@ -292,7 +292,7 @@ std::expected<void, Error> MapEditor::writeLandBlock(BlockCoord block, const Lan
         return valid;
     }
 
-    LandBlockBytes raw{};
+    MapBlockBytes raw{};
     const auto offset = MapCommon::blockOffset(block, impl_->dimensions);
     if (!MapCommon::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
     {
@@ -307,7 +307,7 @@ std::expected<void, Error> MapEditor::writeLandBlock(BlockCoord block, const Lan
     return {};
 }
 
-std::expected<void, Error> MapEditor::writeLandTile(TileCoord tile, LandTile data)
+std::expected<void, Error> MapEditor::editTile(TileCoord tile, MapTile data)
 {
     if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
     {
@@ -318,10 +318,10 @@ std::expected<void, Error> MapEditor::writeLandTile(TileCoord tile, LandTile dat
         return valid;
     }
 
-    const BlockCoord coordinate{.x = tile.x / landBlockDimension, .y = tile.y / landBlockDimension};
-    const auto tileOffset = MapCommon::blockOffset(coordinate, impl_->dimensions) + MapCommon::landHeaderByteSize +
-                            (detail::tileIndexInBlock(tile) * MapCommon::landTileByteSize);
-    const auto raw = detail::encodeLandTile(data);
+    const BlockCoord coordinate{.x = tile.x / mapBlockDimension, .y = tile.y / mapBlockDimension};
+    const auto tileOffset = MapCommon::blockOffset(coordinate, impl_->dimensions) + MapCommon::mapHeaderByteSize +
+                            (detail::tileIndexInBlock(tile) * MapCommon::mapTileByteSize);
+    const auto raw = detail::encodeTile(data);
     if (!stagedFileContainsRange(impl_->descriptor, tileOffset, raw.size()))
     {
         return std::unexpected(
@@ -338,10 +338,10 @@ namespace
 {
 
 constexpr std::uint64_t journalHeaderBytes = sizeof(std::uint64_t);
-constexpr std::size_t journalEntryBytes = static_cast<std::size_t>(journalHeaderBytes + (2 * MapCommon::landBlockByteSize));
+constexpr std::size_t journalEntryBytes = static_cast<std::size_t>(journalHeaderBytes + (2 * MapCommon::mapBlockByteSize));
 constexpr std::size_t journalEntriesPerWrite = 4096;
 constexpr std::size_t journalEntriesPerRead = 1024;
-constexpr std::size_t journalBlockBytes = static_cast<std::size_t>(MapCommon::landBlockByteSize);
+constexpr std::size_t journalBlockBytes = static_cast<std::size_t>(MapCommon::mapBlockByteSize);
 
 std::uint64_t journalOffset(std::span<const std::byte, journalEntryBytes> entry)
 {
@@ -359,7 +359,7 @@ std::uint64_t journalOffset(std::span<const std::byte, journalEntryBytes> entry)
                                                  std::uint64_t firstBlockOffset,
                                                  std::size_t entryDistance)
 {
-    return journalOffset(entry) == firstBlockOffset + (entryDistance * MapCommon::landBlockByteSize);
+    return journalOffset(entry) == firstBlockOffset + (entryDistance * MapCommon::mapBlockByteSize);
 }
 
 std::expected<void, Error> flushJournal(int journal,
@@ -424,7 +424,7 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
                                                      const std::filesystem::path & journalPath,
                                                      Dimensions dimensions,
                                                      BlockRegion region,
-                                                     const LandBlockEdit & callback)
+                                                     const MapBlockEdit & callback)
 {
     std::vector<std::byte> buffer(journalEntriesPerWrite * journalEntryBytes);
     std::size_t bufferedEntries = 0;
@@ -435,7 +435,7 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
         {
             const BlockCoord coordinate{.x = x, .y = y};
             const auto offset = MapCommon::blockOffset(coordinate, dimensions);
-            LandBlockBytes before{};
+            MapBlockBytes before{};
 
             if (!MapCommon::readExact(stagedDescriptor, before.data(), before.size(), offset))
             {
@@ -448,13 +448,13 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
                 return std::unexpected(changed.error());
             }
 
-            LandBlockBytes after = before;
+            MapBlockBytes after = before;
             MapCommon::encodeBlock(after, *changed);
             std::array<std::byte, journalEntryBytes> entry{};
             const auto encodedOffset = detail::encodeLittleEndian(offset);
             std::ranges::copy(encodedOffset, entry.begin());
             const auto beforeOffset = static_cast<std::size_t>(journalHeaderBytes);
-            const auto afterOffset = beforeOffset + static_cast<std::size_t>(MapCommon::landBlockByteSize);
+            const auto afterOffset = beforeOffset + static_cast<std::size_t>(MapCommon::mapBlockByteSize);
             std::ranges::copy(before, std::next(entry.begin(), static_cast<std::ptrdiff_t>(beforeOffset)));
             std::ranges::copy(after, std::next(entry.begin(), static_cast<std::ptrdiff_t>(afterOffset)));
             const auto bufferOffset = bufferedEntries * static_cast<std::size_t>(journalEntryBytes);
@@ -556,7 +556,7 @@ bool replayEditJournal(int stagedDescriptor, int journal, std::uint64_t entryCou
                                  journal,
                                  entryCount,
                                  attempted,
-                                 static_cast<std::size_t>(journalHeaderBytes + MapCommon::landBlockByteSize),
+                                 static_cast<std::size_t>(journalHeaderBytes + MapCommon::mapBlockByteSize),
                                  JournalTransferFailurePolicy::stop);
 }
 
@@ -576,7 +576,7 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
                                               const std::filesystem::path & output,
                                               Dimensions dimensions,
                                               BlockRegion region,
-                                              const LandBlockEdit & callback,
+                                              const MapBlockEdit & callback,
                                               bool & failed)
 {
     std::filesystem::path journalPath;
@@ -617,7 +617,7 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
 
 } // namespace
 
-std::expected<void, Error> MapEditor::editLandBlocks(BlockRegion region, const LandBlockEdit & callback)
+std::expected<void, Error> MapEditor::editBlocks(BlockRegion region, const MapBlockEdit & callback)
 {
     if (auto valid = validateEditRequest(impl_->committed,
                                          impl_->descriptor,
@@ -636,7 +636,7 @@ std::expected<void, Error> MapEditor::editLandBlocks(BlockRegion region, const L
         impl_->descriptor, impl_->staging, impl_->output, impl_->dimensions, region, callback, impl_->failed);
 }
 
-std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const LandTileEdit & callback)
+std::expected<void, Error> MapEditor::editTiles(TileRegion region, const MapTileEdit & callback)
 {
     if (auto valid = validateEditRequest(impl_->committed,
                                          impl_->descriptor,
@@ -658,9 +658,9 @@ std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const Lan
         impl_->output,
         impl_->dimensions,
         blocks,
-        [&region, &callback](BlockCoord coordinate, const LandBlock & current) -> std::expected<LandBlock, Error>
+        [&region, &callback](BlockCoord coordinate, const MapBlock & current) -> std::expected<MapBlock, Error>
         {
-            LandBlock changed = current;
+            MapBlock changed = current;
             auto visited = detail::visitTilesInBlock(
                 region,
                 coordinate,
@@ -685,97 +685,97 @@ std::expected<void, Error> MapEditor::editLandTiles(TileRegion region, const Lan
         impl_->failed);
 }
 
-std::expected<void, Error> MapEditor::fill(LandTile value)
+std::expected<void, Error> MapEditor::fill(MapTile value)
 {
     return fillBlocks(detail::fullBlockRegion(impl_->dimensions), value);
 }
 
-std::expected<void, Error> MapEditor::fillBlocks(BlockRegion region, LandTile value)
+std::expected<void, Error> MapEditor::fillBlocks(BlockRegion region, MapTile value)
 {
-    return editLandBlocks(region,
-                          [value](BlockCoord, const LandBlock &) -> std::expected<LandBlock, Error>
-                          {
-                              LandBlock result{};
-                              result.fill(value);
-                              return result;
-                          });
+    return editBlocks(region,
+                      [value](BlockCoord, const MapBlock &) -> std::expected<MapBlock, Error>
+                      {
+                          MapBlock result{};
+                          result.fill(value);
+                          return result;
+                      });
 }
 
-std::expected<void, Error> MapEditor::fillTiles(TileRegion region, LandTile value)
+std::expected<void, Error> MapEditor::fillTiles(TileRegion region, MapTile value)
 {
-    return editLandTiles(region, [value](TileCoord, const LandTile &) -> std::expected<LandTile, Error> { return value; });
+    return editTiles(region, [value](TileCoord, const MapTile &) -> std::expected<MapTile, Error> { return value; });
 }
 
 std::expected<void, Error> MapEditor::replaceIds(std::uint16_t from, std::uint16_t to)
 {
-    return replaceBlockIds(detail::fullBlockRegion(impl_->dimensions), from, to);
+    return replaceIdsBlocks(detail::fullBlockRegion(impl_->dimensions), from, to);
 }
 
 std::expected<void, Error> MapEditor::replaceZ(std::int8_t from, std::int8_t to)
 {
-    return replaceBlockZ(detail::fullBlockRegion(impl_->dimensions), from, to);
+    return replaceZBlocks(detail::fullBlockRegion(impl_->dimensions), from, to);
 }
 
-std::expected<void, Error> MapEditor::replaceTileIds(TileRegion region, std::uint16_t from, std::uint16_t to)
+std::expected<void, Error> MapEditor::replaceIdsTiles(TileRegion region, std::uint16_t from, std::uint16_t to)
 {
-    return editLandTiles(region,
-                         [from, to](TileCoord, const LandTile & tile) -> std::expected<LandTile, Error>
+    return editTiles(region,
+                     [from, to](TileCoord, const MapTile & tile) -> std::expected<MapTile, Error>
+                     {
+                         auto result = tile;
+                         if (result.id == from)
                          {
-                             auto result = tile;
-                             if (result.id == from)
-                             {
-                                 result.id = to;
-                             }
-                             return result;
-                         });
+                             result.id = to;
+                         }
+                         return result;
+                     });
 }
 
-std::expected<void, Error> MapEditor::replaceBlockIds(BlockRegion region, std::uint16_t from, std::uint16_t to)
+std::expected<void, Error> MapEditor::replaceIdsBlocks(BlockRegion region, std::uint16_t from, std::uint16_t to)
 {
-    return editLandBlocks(region,
-                          [from, to](BlockCoord, const LandBlock & current) -> std::expected<LandBlock, Error>
+    return editBlocks(region,
+                      [from, to](BlockCoord, const MapBlock & current) -> std::expected<MapBlock, Error>
+                      {
+                          MapBlock result = current;
+                          for (auto & tile : result)
                           {
-                              LandBlock result = current;
-                              for (auto & tile : result)
+                              if (tile.id == from)
                               {
-                                  if (tile.id == from)
-                                  {
-                                      tile.id = to;
-                                  }
+                                  tile.id = to;
                               }
-                              return result;
-                          });
+                          }
+                          return result;
+                      });
 }
 
-std::expected<void, Error> MapEditor::replaceTileZ(TileRegion region, std::int8_t from, std::int8_t to)
+std::expected<void, Error> MapEditor::replaceZTiles(TileRegion region, std::int8_t from, std::int8_t to)
 {
-    return editLandTiles(region,
-                         [from, to](TileCoord, const LandTile & tile) -> std::expected<LandTile, Error>
+    return editTiles(region,
+                     [from, to](TileCoord, const MapTile & tile) -> std::expected<MapTile, Error>
+                     {
+                         auto result = tile;
+                         if (result.z == from)
                          {
-                             auto result = tile;
-                             if (result.z == from)
-                             {
-                                 result.z = to;
-                             }
-                             return result;
-                         });
+                             result.z = to;
+                         }
+                         return result;
+                     });
 }
 
-std::expected<void, Error> MapEditor::replaceBlockZ(BlockRegion region, std::int8_t from, std::int8_t to)
+std::expected<void, Error> MapEditor::replaceZBlocks(BlockRegion region, std::int8_t from, std::int8_t to)
 {
-    return editLandBlocks(region,
-                          [from, to](BlockCoord, const LandBlock & current) -> std::expected<LandBlock, Error>
+    return editBlocks(region,
+                      [from, to](BlockCoord, const MapBlock & current) -> std::expected<MapBlock, Error>
+                      {
+                          MapBlock result = current;
+                          for (auto & tile : result)
                           {
-                              LandBlock result = current;
-                              for (auto & tile : result)
+                              if (tile.z == from)
                               {
-                                  if (tile.z == from)
-                                  {
-                                      tile.z = to;
-                                  }
+                                  tile.z = to;
                               }
-                              return result;
-                          });
+                          }
+                          return result;
+                      });
 }
 
 std::expected<void, Error> MapEditor::commit()

@@ -13,8 +13,8 @@ namespace
 {
 
 constexpr std::size_t landHeaderByteCount = 4;
-constexpr std::size_t landTileRecordByteCount = 3;
-constexpr std::uint32_t tilesPerLandBlock = uomul::landBlockDimension * uomul::landBlockDimension;
+constexpr std::size_t TileRecordByteCount = 3;
+constexpr std::uint32_t tilesPerBlock = uomul::mapBlockDimension * uomul::mapBlockDimension;
 constexpr std::uint32_t fixtureBlockIdStride = 100;
 constexpr std::uint32_t lowByteMask = 0xffU;
 
@@ -53,10 +53,10 @@ void writeFixture(const std::filesystem::path & path, std::uint32_t blocks)
             static_cast<char>(block + 4),
         };
         output.write(header.data(), static_cast<std::streamsize>(header.size()));
-        for (std::uint32_t tile = 0; tile < tilesPerLandBlock; ++tile)
+        for (std::uint32_t tile = 0; tile < tilesPerBlock; ++tile)
         {
             const auto id = static_cast<std::uint16_t>((block * fixtureBlockIdStride) + tile);
-            const std::array<char, landTileRecordByteCount> record{
+            const std::array<char, TileRecordByteCount> record{
                 static_cast<char>(id & lowByteMask),
                 static_cast<char>(static_cast<std::uint16_t>(id / 256)),
                 static_cast<char>(tile == 0 ? lowByteMask : tile),

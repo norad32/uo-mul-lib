@@ -70,7 +70,7 @@ private:
 class StatsAccumulator
 {
 public:
-    void add(LandTile tile)
+    void add(MapTile tile)
     {
         idCounts_.at(tile.id)++;
         const auto elevationIndex =
@@ -129,7 +129,7 @@ private:
                     .percentage = (static_cast<double>(count) * 100.0) / sampleCount,
                 });
             }
-            ++index;
+            index++;
         }
     }
 
@@ -143,7 +143,7 @@ private:
             {
                 break;
             }
-            ++index;
+            index++;
         }
         return finder.median();
     }
@@ -155,18 +155,18 @@ private:
 };
 
 std::expected<void, Error>
-accumulateBlockStats(StatsAccumulator & stats, TileRegion region, BlockCoord block, const LandBlockBytes & raw)
+accumulatestatsBlocks(StatsAccumulator & stats, TileRegion region, BlockCoord block, const MapBlockBytes & raw)
 {
     return visitTilesInBlock(region,
                              block,
                              [&stats, &raw](TileCoord, std::size_t tileIndex) -> std::expected<void, Error>
                              {
-                                 const auto tileOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
-                                                         (tileIndex * static_cast<std::size_t>(MapCommon::landTileByteSize));
-                                 const auto tileBytes = std::span<const std::byte, MapCommon::landTileByteSize>(
+                                 const auto tileOffset = static_cast<std::size_t>(MapCommon::mapHeaderByteSize) +
+                                                         (tileIndex * static_cast<std::size_t>(MapCommon::mapTileByteSize));
+                                 const auto tileBytes = std::span<const std::byte, MapCommon::mapTileByteSize>(
                                      std::next(raw.begin(), static_cast<std::ptrdiff_t>(tileOffset)),
-                                     MapCommon::landTileByteSize);
-                                 stats.add(decodeLandTile(tileBytes));
+                                     MapCommon::mapTileByteSize);
+                                 stats.add(decodeTile(tileBytes));
                                  return {};
                              });
 }
@@ -182,10 +182,10 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
 
     StatsAccumulator stats;
     const auto blocks = blockRegionForTiles(region);
-    auto read = reader.readRawLandBlocks(
-        blocks,
-        [&stats, region](BlockCoord coordinate, const LandBlockBytes & raw) -> std::expected<void, Error>
-        { return accumulateBlockStats(stats, region, coordinate, raw); });
+    auto read =
+        reader.readRawBlocks(blocks,
+                             [&stats, region](BlockCoord coordinate, const MapBlockBytes & raw) -> std::expected<void, Error>
+                             { return accumulatestatsBlocks(stats, region, coordinate, raw); });
 
     if (!read)
     {
