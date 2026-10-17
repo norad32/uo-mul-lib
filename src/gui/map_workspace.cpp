@@ -76,6 +76,18 @@ uomul::BlockCoord tileToBlock(uomul::TileCoord tile) noexcept
     return {.x = tile.x / uomul::mapBlockDimension, .y = tile.y / uomul::mapBlockDimension};
 }
 
+uomul::TileCoord selectionInspectorTile(MapSelectionMode mode, uomul::TileCoord tile) noexcept
+{
+    if (mode == MapSelectionMode::blocks)
+    {
+        return {
+            .x = (tile.x / uomul::mapBlockDimension) * uomul::mapBlockDimension,
+            .y = (tile.y / uomul::mapBlockDimension) * uomul::mapBlockDimension,
+        };
+    }
+    return tile;
+}
+
 std::optional<uomul::TileCoord> screenToTile(double screenX,
                                              double screenY,
                                              double canvasX,

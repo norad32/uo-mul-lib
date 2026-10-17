@@ -42,6 +42,17 @@ private:
 
 } // namespace
 
+TEST_CASE("selectionInspectorTile_Should_UseTileOrContainingBlockOrigin")
+{
+    const uomul::TileCoord tile{.x = 19, .y = 10};
+    const uomul::TileCoord tileSelection = im_cpp::gui::selectionInspectorTile(im_cpp::gui::MapSelectionMode::tiles, tile);
+    REQUIRE(tileSelection.x == 19);
+    REQUIRE(tileSelection.y == 10);
+    const uomul::TileCoord blockSelection = im_cpp::gui::selectionInspectorTile(im_cpp::gui::MapSelectionMode::blocks, tile);
+    REQUIRE(blockSelection.x == 16);
+    REQUIRE(blockSelection.y == 8);
+}
+
 TEST_CASE("mapCoordinateHelpers_Should_ConvertScreenAndTileCoordinates")
 {
     const auto block = im_cpp::gui::tileToBlock({.x = 15, .y = 8});
@@ -120,6 +131,9 @@ TEST_CASE("mapWorkspace_Should_OpenCreateHoverAndExposeSelectionState")
     REQUIRE(workspace.hoveredTile()->x == 8);
     REQUIRE(workspace.hoveredTile()->y == 9);
     REQUIRE(workspace.hoveredValue() == initialTile);
+    workspace.clearHover();
+    REQUIRE_FALSE(workspace.hoveredTile());
+    REQUIRE_FALSE(workspace.selectedTile());
     REQUIRE(workspace.updateSelectedTile({.x = 3, .y = 4}));
     REQUIRE(workspace.selectedTile());
     REQUIRE(workspace.selectedTile()->x == 3);
@@ -128,6 +142,8 @@ TEST_CASE("mapWorkspace_Should_OpenCreateHoverAndExposeSelectionState")
     workspace.clearHover();
     REQUIRE_FALSE(workspace.hoveredTile());
     REQUIRE(workspace.selectedTile());
+    REQUIRE(workspace.selectedTile()->x == 3);
+    REQUIRE(workspace.selectedTile()->y == 4);
 
     workspace.setTileSelection({.min = {.x = 2, .y = 3}, .maxExclusive = {.x = 4, .y = 5}});
     REQUIRE(workspace.selectionMode() == MapSelectionMode::tiles);

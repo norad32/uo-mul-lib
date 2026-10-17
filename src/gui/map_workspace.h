@@ -55,6 +55,7 @@ struct MapColor
 };
 
 [[nodiscard]] uomul::BlockCoord tileToBlock(uomul::TileCoord tile) noexcept;
+[[nodiscard]] uomul::TileCoord selectionInspectorTile(MapSelectionMode mode, uomul::TileCoord tile) noexcept;
 [[nodiscard]] std::optional<uomul::TileCoord> screenToTile(double screenX,
                                                            double screenY,
                                                            double canvasX,

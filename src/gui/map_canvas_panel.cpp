@@ -475,7 +475,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
     }
 
     drawSelection(*drawList, canvasOrigin, state, workspace, dimensions);
-    if (workspace.selectedTile())
+    if (!currentTile && workspace.selectedTile())
     {
         const uomul::TileCoord tile = *workspace.selectedTile();
         const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tile.x) * tileSize)),
@@ -656,6 +656,9 @@ void updateSelectionDrag(MapWorkspace & workspace,
         {
             workspace.setBlockSelection(blockSelectionFromDrag(*state.dragStart, *state.dragEnd, dimensions));
         }
+        const uomul::TileCoord inspectorTile = selectionInspectorTile(workspace.selectionMode(), *state.dragEnd);
+        const auto result = workspace.updateSelectedTile(inspectorTile);
+        static_cast<void>(result);
     }
     state.dragStart.reset();
     state.dragEnd.reset();
