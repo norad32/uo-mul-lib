@@ -42,10 +42,11 @@ public:
         if (shouldCaptureLowerMiddleElevation())
         {
             lowerMiddleElevation_ = elevation;
+            lowerMiddleElevationCaptured_ = true;
         }
-        if (auto lowerMiddleElevation = lowerMiddleElevationAtUpperRank())
+        if (lowerMiddleElevationCaptured_ && upperMiddleRank_ < cumulativeTileCount_)
         {
-            median_ = (static_cast<double>(*lowerMiddleElevation) + static_cast<double>(elevation)) / medianDivisor;
+            median_ = (static_cast<double>(lowerMiddleElevation_) + static_cast<double>(elevation)) / medianDivisor;
         }
         return median_.has_value();
     }
@@ -55,23 +56,14 @@ public:
 private:
     [[nodiscard]] bool shouldCaptureLowerMiddleElevation() const
     {
-        return !lowerMiddleElevation_ && lowerMiddleRank_ < cumulativeTileCount_;
-    }
-
-    [[nodiscard]] std::optional<std::int8_t> lowerMiddleElevationAtUpperRank() const
-    {
-        if (!lowerMiddleElevation_ || upperMiddleRank_ >= cumulativeTileCount_)
-        {
-            return std::nullopt;
-        }
-
-        return lowerMiddleElevation_;
+        return !lowerMiddleElevationCaptured_ && lowerMiddleRank_ < cumulativeTileCount_;
     }
 
     std::uint64_t lowerMiddleRank_;
     std::uint64_t upperMiddleRank_;
     std::uint64_t cumulativeTileCount_ = 0;
-    std::optional<std::int8_t> lowerMiddleElevation_;
+    std::int8_t lowerMiddleElevation_ = 0;
+    bool lowerMiddleElevationCaptured_ = false;
     std::optional<double> median_;
 };
 
@@ -162,21 +154,21 @@ private:
     std::uint64_t tileCount_ = 0;
 };
 
-void accumulateBlockStats(StatsAccumulator & stats, TileRegion region, BlockCoord block, const LandBlockBytes & raw)
+std::expected<void, Error>
+accumulateBlockStats(StatsAccumulator & stats, TileRegion region, BlockCoord block, const LandBlockBytes & raw)
 {
-    const auto tiles = clipTilesToBlock(region, block);
-    for (std::uint32_t x = tiles.min.x; x < tiles.maxExclusive.x; ++x)
-    {
-        for (std::uint32_t y = tiles.min.y; y < tiles.maxExclusive.y; ++y)
-        {
-            const auto tileIndex = tileIndexInBlock({.x = x, .y = y});
-            const auto tileOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
-                                    (tileIndex * static_cast<std::size_t>(MapCommon::landTileByteSize));
-            const auto tileBytes = std::span<const std::byte, MapCommon::landTileByteSize>(
-                std::next(raw.begin(), static_cast<std::ptrdiff_t>(tileOffset)), MapCommon::landTileByteSize);
-            stats.add(decodeLandTile(tileBytes));
-        }
-    }
+    return visitTilesInBlock(region,
+                             block,
+                             [&stats, &raw](TileCoord, std::size_t tileIndex) -> std::expected<void, Error>
+                             {
+                                 const auto tileOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
+                                                         (tileIndex * static_cast<std::size_t>(MapCommon::landTileByteSize));
+                                 const auto tileBytes = std::span<const std::byte, MapCommon::landTileByteSize>(
+                                     std::next(raw.begin(), static_cast<std::ptrdiff_t>(tileOffset)),
+                                     MapCommon::landTileByteSize);
+                                 stats.add(decodeLandTile(tileBytes));
+                                 return {};
+                             });
 }
 
 } // namespace
@@ -193,10 +185,7 @@ std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion
     auto read = reader.readRawLandBlocks(
         blocks,
         [&stats, region](BlockCoord coordinate, const LandBlockBytes & raw) -> std::expected<void, Error>
-        {
-            accumulateBlockStats(stats, region, coordinate, raw);
-            return {};
-        });
+        { return accumulateBlockStats(stats, region, coordinate, raw); });
 
     if (!read)
     {

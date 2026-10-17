@@ -486,16 +486,24 @@ std::expected<std::uint64_t, Error> writeEditJournal(int stagedDescriptor,
     return entryCount;
 }
 
+enum class JournalTransferFailurePolicy : std::uint8_t
+{
+    stop,
+    continueRecovery,
+};
+
 bool transferJournalBlocks(int stagedDescriptor,
                            int journal,
                            std::uint64_t entryCount,
                            std::uint64_t & attempted,
-                           std::size_t dataOffset)
+                           std::size_t dataOffset,
+                           JournalTransferFailurePolicy failurePolicy)
 {
     std::vector<std::byte> entries(journalEntriesPerRead * journalEntryBytes);
     std::vector<std::byte> blocks(journalEntriesPerRead * journalBlockBytes);
 
     attempted = 0;
+    bool succeeded = true;
     while (attempted < entryCount)
     {
         const auto chunkStart = attempted;
@@ -504,7 +512,14 @@ bool transferJournalBlocks(int stagedDescriptor,
         const auto entriesBytes = entryCountInChunk * static_cast<std::size_t>(journalEntryBytes);
         if (!MapCommon::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
         {
-            return false;
+            if (failurePolicy == JournalTransferFailurePolicy::stop)
+            {
+                return false;
+            }
+
+            succeeded = false;
+            attempted += entryCountInChunk;
+            continue;
         }
 
         std::size_t runStart = 0;
@@ -520,14 +535,19 @@ bool transferJournalBlocks(int stagedDescriptor,
 
             if (!MapCommon::writeExact(stagedDescriptor, blocks.data(), runBytes, blockOffset))
             {
-                return false;
+                if (failurePolicy == JournalTransferFailurePolicy::stop)
+                {
+                    return false;
+                }
+
+                succeeded = false;
             }
 
             runStart = runEnd;
         }
     }
 
-    return true;
+    return succeeded;
 }
 
 bool replayEditJournal(int stagedDescriptor, int journal, std::uint64_t entryCount, std::uint64_t & attempted)
@@ -536,49 +556,19 @@ bool replayEditJournal(int stagedDescriptor, int journal, std::uint64_t entryCou
                                  journal,
                                  entryCount,
                                  attempted,
-                                 static_cast<std::size_t>(journalHeaderBytes + MapCommon::landBlockByteSize));
+                                 static_cast<std::size_t>(journalHeaderBytes + MapCommon::landBlockByteSize),
+                                 JournalTransferFailurePolicy::stop);
 }
 
 bool rollbackEditJournal(int stagedDescriptor, int journal, std::uint64_t entryCount)
 {
     std::uint64_t attempted = 0;
-    bool rollbackSucceeded = true;
-    const auto beforeOffset = static_cast<std::size_t>(journalHeaderBytes);
-    std::vector<std::byte> entries(journalEntriesPerRead * journalEntryBytes);
-    std::vector<std::byte> blocks(journalEntriesPerRead * journalBlockBytes);
-
-    while (attempted < entryCount)
-    {
-        const auto chunkStart = attempted;
-        const auto entryCountInChunk =
-            static_cast<std::size_t>(std::min<std::uint64_t>(journalEntriesPerRead, entryCount - chunkStart));
-        const auto entriesBytes = entryCountInChunk * static_cast<std::size_t>(journalEntryBytes);
-        if (!MapCommon::readExact(journal, entries.data(), entriesBytes, chunkStart * journalEntryBytes))
-        {
-            rollbackSucceeded = false;
-            attempted += entryCountInChunk;
-            continue;
-        }
-
-        std::size_t runStart = 0;
-        while (runStart < entryCountInChunk)
-        {
-            const auto entry = std::span<const std::byte, journalEntryBytes>(
-                std::next(entries.begin(), static_cast<std::ptrdiff_t>(runStart * journalEntryBytes)), journalEntryBytes);
-            const auto blockOffset = journalOffset(entry);
-            const auto runEnd = journalRunEnd(entries, runStart, entryCountInChunk);
-            copyJournalRun(entries, blocks, runStart, runEnd, beforeOffset);
-            const auto runBytes = (runEnd - runStart) * journalBlockBytes;
-            if (!MapCommon::writeExact(stagedDescriptor, blocks.data(), runBytes, blockOffset))
-            {
-                rollbackSucceeded = false;
-            }
-            attempted = chunkStart + runEnd;
-            runStart = runEnd;
-        }
-    }
-
-    return rollbackSucceeded;
+    return transferJournalBlocks(stagedDescriptor,
+                                 journal,
+                                 entryCount,
+                                 attempted,
+                                 static_cast<std::size_t>(journalHeaderBytes),
+                                 JournalTransferFailurePolicy::continueRecovery);
 }
 
 std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,

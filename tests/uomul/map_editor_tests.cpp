@@ -151,6 +151,39 @@ TEST_CASE("create_Should_CopyMultipleBuffers_If_SourceExceedsBufferSize")
     REQUIRE(reader->completeBlocks() == blockCount);
 }
 
+TEST_CASE("editLandBlocks_Should_ProcessJournalAcrossReadChunks_If_RegionExceedsChunkSize")
+{
+    const TestDirectory directory;
+    const auto source = directory.path() / "source.mul";
+    const auto output = directory.path() / "output.mul";
+    constexpr std::uint32_t journalBlockCount = 1025;
+    constexpr uomul::Dimensions journalDimensions{
+        .widthTiles = uomul::landBlockDimension,
+        .heightTiles = journalBlockCount * uomul::landBlockDimension,
+    };
+    writeFixture(source, journalBlockCount);
+    auto editor = uomul::MapEditor::create(source, output, journalDimensions);
+    REQUIRE(editor);
+    std::uint32_t callbackCount = 0;
+
+    REQUIRE(editor->editLandBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = journalBlockCount}},
+                                   [&callbackCount](uomul::BlockCoord coordinate, const uomul::LandBlock & current)
+                                       -> std::expected<uomul::LandBlock, uomul::Error>
+                                   {
+                                       ++callbackCount;
+                                       auto changed = current;
+                                       changed.at(0).id = static_cast<std::uint16_t>(stagedBlockTileId + coordinate.y);
+                                       return changed;
+                                   }));
+    REQUIRE(callbackCount == journalBlockCount);
+    REQUIRE(editor->commit());
+
+    const auto reader = uomul::MapReader::open(output, journalDimensions);
+    REQUIRE(reader);
+    REQUIRE(reader->readLandTile({.x = 0, .y = 1023 * uomul::landBlockDimension})->id == stagedBlockTileId + 1023);
+    REQUIRE(reader->readLandTile({.x = 0, .y = 1024 * uomul::landBlockDimension})->id == stagedBlockTileId + 1024);
+}
+
 TEST_CASE("create_Should_ReplaceExistingOutput_If_OverwriteIsEnabled")
 {
     const TestDirectory directory;
