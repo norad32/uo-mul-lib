@@ -1,10 +1,17 @@
-#include "core/app_info.h"
 #include "gui/application.h"
+#include "core/app_info.h"
 #include "core/gui_log_sink.h"
-#include "gui/demo_panel.h"
+#include "gui/block_inspector_panel.h"
+#include "gui/edit_tools_panel.h"
 #include "gui/log_panel.h"
+#include "gui/map_canvas_panel.h"
+#include "gui/map_info_panel.h"
+#include "gui/map_workspace.h"
+#include "gui/menu_bar.h"
 #include "gui/preferences.h"
+#include "gui/selection_stats_panel.h"
 #include "gui/theme.h"
+#include "gui/tile_inspector_panel.h"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -16,6 +23,7 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+#include <imgui_internal.h>
 #include <memory>
 #include <spdlog/common.h>
 #include <spdlog/logger.h>
@@ -47,6 +55,12 @@ constexpr std::size_t appIconHexColorLength = 7;
 constexpr int appIconHexBase = 16;
 constexpr int appIconHexAlphaOffset = 10;
 constexpr int appIconAlpha = 255;
+constexpr float dockLeftWidthRatio = 0.20F;
+constexpr float dockRightWidthRatio = 0.24F;
+constexpr float dockDetailsHeightRatio = 0.40F;
+constexpr float dockInspectorHeightRatio = 0.50F;
+constexpr float dockSecondaryHeightRatio = 0.50F;
+constexpr double initialMapZoom = 12.0;
 constexpr char hexadecimalLowercaseStart = 'a';
 constexpr char hexadecimalUppercaseStart = 'A';
 constexpr char hexadecimalLastDigit = '9';
@@ -312,7 +326,7 @@ private:
     bool initialized_ = false;
 };
 
-ImGuiID drawDockSpace(float bottomPanelHeight)
+void drawDockSpace(float bottomPanelHeight)
 {
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     const float dockSpaceHeight = std::max(0.0F, viewport->WorkSize.y - bottomPanelHeight);
@@ -328,9 +342,33 @@ ImGuiID drawDockSpace(float bottomPanelHeight)
     ImGui::Begin("BackgroundDockSpace", nullptr, dockSpaceWindowFlags);
     constexpr ImGuiDockNodeFlags dockSpaceFlags = ImGuiDockNodeFlags_PassthruCentralNode;
     const ImGuiID dockSpaceId = ImGui::GetID("BackgroundDockSpace");
+    if (ImGui::DockBuilderGetNode(dockSpaceId) == nullptr)
+    {
+        ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockSpaceId, ImVec2(viewport->WorkSize.x, dockSpaceHeight));
+        ImGuiID leftNode = 0;
+        ImGuiID centerNode = 0;
+        ImGuiID rightNode = 0;
+        ImGuiID inspectorNode = 0;
+        ImGuiID detailsNode = 0;
+        ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, dockLeftWidthRatio, &leftNode, &centerNode);
+        ImGui::DockBuilderSplitNode(centerNode, ImGuiDir_Right, dockRightWidthRatio, &rightNode, &centerNode);
+        ImGui::DockBuilderSplitNode(rightNode, ImGuiDir_Down, dockDetailsHeightRatio, &detailsNode, &rightNode);
+        ImGui::DockBuilderSplitNode(leftNode, ImGuiDir_Down, dockInspectorHeightRatio, &inspectorNode, &leftNode);
+        ImGuiID infoNode = 0;
+        ImGuiID editNode = 0;
+        ImGui::DockBuilderSplitNode(detailsNode, ImGuiDir_Down, dockSecondaryHeightRatio, &infoNode, &editNode);
+        ImGui::DockBuilderDockWindow("Map Canvas", centerNode);
+        ImGui::DockBuilderDockWindow("Tile Inspector", leftNode);
+        ImGui::DockBuilderDockWindow("Block Inspector", inspectorNode);
+        ImGui::DockBuilderDockWindow("Selection Statistics", rightNode);
+        ImGui::DockBuilderDockWindow("Map Information", infoNode);
+        ImGui::DockBuilderDockWindow("Edit Tools", editNode);
+
+        ImGui::DockBuilderFinish(dockSpaceId);
+    }
     ImGui::DockSpace(dockSpaceId, ImVec2(0.0F, 0.0F), dockSpaceFlags);
     ImGui::End();
-    return dockSpaceId;
 }
 
 void renderFrame(GLFWwindow * window)
@@ -346,18 +384,60 @@ void renderFrame(GLFWwindow * window)
     glfwSwapBuffers(window);
 }
 
+void drawMapPanels(MapWorkspace & workspace,
+                   MapCanvasPanelState & canvasState,
+                   BlockInspectorPanelState & blockInspectorState,
+                   SelectionStatsPanelState & selectionStatsState,
+                   EditToolsPanelState & editToolsState)
+{
+    MapPanelVisibility & visibility = workspace.panelVisibility();
+    if (visibility.canvas)
+    {
+        drawMapCanvasPanel(workspace, canvasState, visibility.canvas);
+    }
+    else
+    {
+        workspace.clearHover();
+    }
+    if (visibility.tileInspector)
+    {
+        drawTileInspectorPanel(workspace, visibility.tileInspector);
+    }
+    if (visibility.blockInspector)
+    {
+        drawBlockInspectorPanel(workspace, blockInspectorState, visibility.blockInspector);
+    }
+    if (visibility.selectionStatistics)
+    {
+        drawSelectionStatsPanel(workspace, selectionStatsState, visibility.selectionStatistics);
+    }
+    if (visibility.mapInformation)
+    {
+        drawMapInfoPanel(workspace, visibility.mapInformation);
+    }
+    if (visibility.editTools)
+    {
+        drawEditToolsPanel(workspace, editToolsState, visibility.editTools);
+    }
+}
+
 void drawFrame(GLFWwindow * window,
-               spdlog::logger & logger,
                core::GuiLogSink & logSink,
                Preferences & preferences,
                bool & shouldClose,
                std::vector<core::GuiLogEntry> & entries,
                bool & followScroll,
-               DemoPanelState & demoPanelState)
+               MapWorkspace & workspace,
+               MenuBarState & menuBarState,
+               MapCanvasPanelState & canvasState,
+               BlockInspectorPanelState & blockInspectorState,
+               SelectionStatsPanelState & selectionStatsState,
+               EditToolsPanelState & editToolsState)
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+    drawMenuBar(workspace, menuBarState, shouldClose);
     if (ImGui::IsKeyPressed(ImGuiKey_GraveAccent, false) && !ImGui::GetIO().WantTextInput &&
         !ImGui::GetIO().WantCaptureKeyboard)
     {
@@ -365,8 +445,8 @@ void drawFrame(GLFWwindow * window,
         savePreferences(preferences);
     }
     const float bottomPanelHeight = drawLogPanel(logSink, preferences, entries, followScroll);
-    const ImGuiID dockSpaceId = drawDockSpace(bottomPanelHeight);
-    drawDemoPanel(logger, preferences, shouldClose, dockSpaceId, bottomPanelHeight, demoPanelState);
+    drawDockSpace(bottomPanelHeight);
+    drawMapPanels(workspace, canvasState, blockInspectorState, selectionStatsState, editToolsState);
     renderFrame(window);
 }
 
@@ -386,12 +466,8 @@ int Application::run()
     glfwWindowHintString(GLFW_WAYLAND_APP_ID, applicationId.c_str());
 #endif
     const std::string applicationName(core::applicationName());
-    const std::unique_ptr<GLFWwindow, WindowDeleter> window{
-        glfwCreateWindow(initialApplicationWindowWidth,
-                         initialApplicationWindowHeight,
-                         applicationName.c_str(),
-                         nullptr,
-                         nullptr)};
+    const std::unique_ptr<GLFWwindow, WindowDeleter> window{glfwCreateWindow(
+        initialApplicationWindowWidth, initialApplicationWindowHeight, applicationName.c_str(), nullptr, nullptr)};
     if (!window)
     {
         throw std::runtime_error("Failed to create GUI window");
@@ -409,15 +485,43 @@ int Application::run()
     const OpenGLBackend openGLBackend;
 
     ImGui::GetIO().IniFilename = nullptr;
-    ImGui::GetIO().ConfigFlags = static_cast<ImGuiConfigFlags>(
-        static_cast<unsigned int>(ImGui::GetIO().ConfigFlags) | static_cast<unsigned int>(ImGuiConfigFlags_DockingEnable));
+    ImGui::GetIO().ConfigFlags = static_cast<ImGuiConfigFlags>(static_cast<unsigned int>(ImGui::GetIO().ConfigFlags) |
+                                                               static_cast<unsigned int>(ImGuiConfigFlags_DockingEnable));
     std::vector<core::GuiLogEntry> entries;
     bool followScroll = true;
-    DemoPanelState demoPanelState;
+    MapWorkspace mapWorkspace;
+    MenuBarState menuBarState;
+    MapCanvasPanelState mapCanvasState;
+    mapCanvasState.zoom = initialMapZoom;
+    BlockInspectorPanelState blockInspectorState;
+    SelectionStatsPanelState selectionStatsState;
+    EditToolsPanelState editToolsState;
+    glfwSetWindowUserPointer(window.get(), &menuBarState);
+    glfwSetWindowCloseCallback(window.get(),
+                               [](GLFWwindow * glfwWindow)
+                               {
+                                   auto * state = static_cast<MenuBarState *>(glfwGetWindowUserPointer(glfwWindow));
+                                   if (state != nullptr)
+                                   {
+                                       glfwSetWindowShouldClose(glfwWindow, GLFW_FALSE);
+                                       requestWindowClose(*state);
+                                   }
+                               });
     while (glfwWindowShouldClose(window.get()) == GLFW_FALSE && !shouldClose_)
     {
         glfwPollEvents();
-        drawFrame(window.get(), *logger_, *logSink_, preferences_, shouldClose_, entries, followScroll, demoPanelState);
+        drawFrame(window.get(),
+                  *logSink_,
+                  preferences_,
+                  shouldClose_,
+                  entries,
+                  followScroll,
+                  mapWorkspace,
+                  menuBarState,
+                  mapCanvasState,
+                  blockInspectorState,
+                  selectionStatsState,
+                  editToolsState);
     }
 
     SPDLOG_LOGGER_INFO(logger_, "GUI closed");

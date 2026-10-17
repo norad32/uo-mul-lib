@@ -7,6 +7,7 @@
 #include <fstream>
 #include <ios>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -50,6 +51,82 @@ private:
 };
 
 } // namespace
+
+TEST_CASE("createEmpty_Should_CreateCompleteMapWithDefaultTile_If_DimensionsAreValid")
+{
+    const TestDirectory directory;
+    const auto output = directory.path() / "empty.mul";
+
+    REQUIRE(uomul::MapEditor::createEmpty(output, dimensions));
+
+    const auto reader = uomul::MapReader::open(output, dimensions);
+    REQUIRE(reader);
+    REQUIRE(reader->completeBlocks() == 4);
+    REQUIRE(reader->missingBlocks() == 0);
+    REQUIRE(std::filesystem::file_size(output) == 4 * uomul::mapBlockByteCount);
+    REQUIRE(reader->readTile({.x = 0, .y = 0}) == uomul::MapTile{});
+    REQUIRE(reader->readTile({.x = 15, .y = 15}) == uomul::MapTile{});
+}
+
+TEST_CASE("createEmpty_Should_InitializeEveryTile_If_CustomTileIsProvided")
+{
+    const TestDirectory directory;
+    const auto output = directory.path() / "custom.mul";
+    constexpr uomul::Dimensions customDimensions{.widthTiles = 24, .heightTiles = 8};
+    constexpr uomul::MapTile initialTile{.id = 0xface, .z = -42};
+
+    REQUIRE(uomul::MapEditor::createEmpty(output, customDimensions, initialTile));
+
+    const auto reader = uomul::MapReader::open(output, customDimensions);
+    REQUIRE(reader);
+    REQUIRE(reader->completeBlocks() == 3);
+    std::uint64_t tileCount = 0;
+    REQUIRE(reader->readTiles(
+        {.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 24, .y = 8}},
+        [initialTile, &tileCount](uomul::TileCoord, const uomul::MapTile & tile) -> std::expected<void, uomul::Error>
+        {
+            REQUIRE(tile == initialTile);
+            tileCount++;
+            return {};
+        }));
+    REQUIRE(tileCount == 24 * 8);
+}
+
+TEST_CASE("createEmpty_Should_RejectInvalidDimensionsAndPaths_WithoutCreatingDestination")
+{
+    const TestDirectory directory;
+    const auto invalidDimensionsOutput = directory.path() / "invalid.mul";
+    const auto missingDirectoryOutput = directory.path() / "missing" / "output.mul";
+
+    const auto invalidDimensions = uomul::MapEditor::createEmpty(invalidDimensionsOutput, {.widthTiles = 15, .heightTiles = 8});
+    const auto missingDirectory = uomul::MapEditor::createEmpty(missingDirectoryOutput, dimensions);
+
+    REQUIRE_FALSE(invalidDimensions);
+    REQUIRE(invalidDimensions.error().code == uomul::ErrorCode::invalidDimensions);
+    REQUIRE_FALSE(std::filesystem::exists(invalidDimensionsOutput));
+    REQUIRE_FALSE(missingDirectory);
+    REQUIRE_FALSE(std::filesystem::exists(missingDirectoryOutput));
+}
+
+TEST_CASE("createEmpty_Should_HonorOverwriteOption_AndPreserveExistingOutputOnFailure")
+{
+    const TestDirectory directory;
+    const auto output = directory.path() / "existing.mul";
+    constexpr std::string_view existingBytes = "existing output";
+    {
+        std::ofstream existing(output, std::ios::binary);
+        existing << existingBytes;
+    }
+
+    const auto rejected = uomul::MapEditor::createEmpty(output, dimensions);
+
+    REQUIRE_FALSE(rejected);
+    REQUIRE(uomul::test::readBytes(output) == existingBytes);
+    REQUIRE(uomul::MapEditor::createEmpty(output, dimensions, {.id = 1234, .z = 7}, {.overwriteOutput = true}));
+    const auto reader = uomul::MapReader::open(output, dimensions);
+    REQUIRE(reader);
+    REQUIRE(reader->readTile({.x = 8, .y = 8}) == uomul::MapTile{.id = 1234, .z = 7});
+}
 
 TEST_CASE("create_Should_RejectMissingSource_If_SourceMapDoesNotExist")
 {

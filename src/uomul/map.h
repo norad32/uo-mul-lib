@@ -254,6 +254,19 @@ public:
                                                                 Dimensions dimensions,
                                                                 EditOptions options = {});
 
+    /** @brief Creates and publishes a complete map initialized with one tile value.
+     *  @param outputMap Destination map path.
+     *  @param dimensions New map width and height in tiles; each must be a positive multiple of 8.
+     *  @param initialTile Tile value used throughout the new map; defaults to ID 0, Z 0.
+     *  @param options Controls replacement of an existing output.
+     *  @retval value Map created successfully.
+     *  @retval error Invalid dimensions, output path, or staging I/O failure details.
+     */
+    [[nodiscard]] static std::expected<void, Error> createEmpty(const std::filesystem::path & outputMap,
+                                                                Dimensions dimensions,
+                                                                MapTile initialTile = MapTile{.id = 0, .z = 0},
+                                                                EditOptions options = {});
+
     /** @brief Replaces one block in the staged map.
      *  @param block Block coordinates.
      *  @param data Replacement tiles.

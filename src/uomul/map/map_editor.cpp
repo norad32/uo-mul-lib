@@ -281,6 +281,86 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
     return MapEditor(std::move(impl));
 }
 
+std::expected<void, Error>
+MapEditor::createEmpty(const std::filesystem::path & outputMap, Dimensions dimensions, MapTile initialTile, EditOptions options)
+{
+    if (outputMap.empty() || outputMap.filename().empty())
+    {
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, outputMap, 0, "output path must name a file"));
+    }
+    if (auto count = MapCommon::blockCount(dimensions, outputMap); !count)
+    {
+        return std::unexpected(count.error());
+    }
+    if (auto check = MapCommon::checkOutputPath(outputMap, options.overwriteOutput); !check)
+    {
+        return std::unexpected(check.error());
+    }
+
+    const auto parent = outputMap.parent_path();
+    std::error_code directoryError;
+    const bool parentExists = parent.empty() || std::filesystem::is_directory(parent, directoryError);
+    if (directoryError || !parentExists)
+    {
+        return std::unexpected(MapCommon::makeError(
+            ErrorCode::io, parent, 0, directoryError ? directoryError.message() : "output directory does not exist"));
+    }
+
+    std::error_code statusError;
+    const bool outputExists = std::filesystem::exists(outputMap, statusError);
+    if (statusError)
+    {
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, outputMap, 0, statusError.message()));
+    }
+    if (outputExists && !std::filesystem::is_regular_file(outputMap, statusError))
+    {
+        return std::unexpected(MapCommon::makeError(
+            ErrorCode::io, outputMap, 0, statusError ? statusError.message() : "output must be a regular file"));
+    }
+
+    std::filesystem::path staging;
+    auto temporaryDescriptor = MapCommon::createTemporary(outputMap, staging);
+    if (!temporaryDescriptor)
+    {
+        return std::unexpected(temporaryDescriptor.error());
+    }
+    detail::TemporaryPath stagingCleanup(staging);
+    detail::ScopedDescriptor stagedDescriptor(*temporaryDescriptor);
+
+    MapBlock block{};
+    block.fill(initialTile);
+    MapBlockBytes raw{};
+    MapCommon::encodeBlock(raw, block);
+    for (std::uint32_t x = 0; x < dimensions.widthTiles / mapBlockDimension; x++)
+    {
+        for (std::uint32_t y = 0; y < dimensions.heightTiles / mapBlockDimension; y++)
+        {
+            const auto offset = MapCommon::blockOffset({.x = x, .y = y}, dimensions);
+            if (!MapCommon::writeExact(stagedDescriptor.get(), raw.data(), raw.size(), offset))
+            {
+                return std::unexpected(
+                    MapCommon::makeError(ErrorCode::io, staging, offset, "failed to write initialized map block"));
+            }
+        }
+    }
+
+    if (::fsync(stagedDescriptor.get()) != 0)
+    {
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, staging, 0, std::strerror(errno)));
+    }
+    if (stagedDescriptor.close() != 0)
+    {
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, staging, 0, std::strerror(errno)));
+    }
+
+    if (auto published = MapCommon::publishFile(staging, outputMap, options.overwriteOutput); !published)
+    {
+        return published;
+    }
+    stagingCleanup.release();
+    return {};
+}
+
 std::expected<void, Error> MapEditor::editBlock(BlockCoord block, const MapBlock & data)
 {
     if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)

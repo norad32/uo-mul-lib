@@ -14,9 +14,17 @@ include(GuiDependencies)
 add_library(
     gui
     application.cpp
-    demo_panel.cpp
+    block_inspector_panel.cpp
+    edit_tools_panel.cpp
     log_panel.cpp
-    preferences.cpp)
+    map_canvas_panel.cpp
+    map_info_panel.cpp
+    map_workspace.cpp
+    menu_bar.cpp
+    new_map_dialog.cpp
+    preferences.cpp
+    selection_stats_panel.cpp
+    tile_inspector_panel.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(
@@ -32,6 +40,7 @@ target_link_libraries(
            glfw
            OpenGL::GL
            core
+           uomul
            application_options)
 file(
     RELATIVE_PATH

@@ -302,19 +302,11 @@ MapCommon::publishFile(const std::filesystem::path & temporary, const std::files
         return std::unexpected(makeError(ErrorCode::commitFailed, destination, 0, std::strerror(errno)));
     }
 
-    const auto backup = temporaryPath(destination);
-    if (::rename(destination.c_str(), backup.c_str()) != 0)
+    if (::rename(temporary.c_str(), destination.c_str()) != 0)
     {
         return std::unexpected(makeError(ErrorCode::commitFailed, destination, 0, std::strerror(errno)));
     }
-    if (::rename(temporary.c_str(), destination.c_str()) != 0)
-    {
-        const int savedErrno = errno;
-        static_cast<void>(::rename(backup.c_str(), destination.c_str()));
-        return std::unexpected(makeError(ErrorCode::commitFailed, destination, 0, std::strerror(savedErrno)));
-    }
 
-    static_cast<void>(::unlink(backup.c_str()));
     return {};
 }
 
