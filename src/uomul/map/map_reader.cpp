@@ -13,6 +13,7 @@
 #include <iterator>
 #include <memory>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -32,10 +33,53 @@ struct MapFileInfo
     std::uint64_t ignoredBytes;
 };
 
+[[nodiscard]] inline bool hasInvalidPartialBlock(std::uint64_t fileSize, std::uint64_t expectedSize, OpenOptions options)
+{
+    const bool hasTrailingPartialBlock = fileSize % MapCommon::landBlockByteSize != 0;
+    const bool partialBlockIsNotRecoverable = fileSize > expectedSize || !options.recoverTruncatedMap;
+    return hasTrailingPartialBlock && partialBlockIsNotRecoverable;
+}
+
+[[nodiscard]] inline bool containsCompleteBlock(off_t fileSize, std::uint64_t offset)
+{
+    return fileSize >= 0 && static_cast<std::uint64_t>(fileSize) >= offset + MapCommon::landBlockByteSize;
+}
+
+[[nodiscard]] inline bool
+readCompleteBlock(int descriptor, std::uint64_t completeBlocks, BlockCoord block, Dimensions dimensions, LandBlockBytes & raw)
+{
+    if (MapCommon::blockId(block, dimensions) >= completeBlocks)
+    {
+        return false;
+    }
+
+    const auto offset = MapCommon::blockOffset(block, dimensions);
+    return MapCommon::readExact(descriptor, raw.data(), raw.size(), offset);
+}
+
+[[nodiscard]] inline bool readCompleteBlockBatch(int descriptor,
+                                                 std::uint64_t completeBlocks,
+                                                 BlockCoord first,
+                                                 std::size_t blockCount,
+                                                 Dimensions dimensions,
+                                                 std::vector<std::byte> & buffer)
+{
+    const auto firstBlockId = MapCommon::blockId(first, dimensions);
+    const bool allBlocksAvailable = firstBlockId + blockCount <= completeBlocks;
+    if (!allBlocksAvailable)
+    {
+        return false;
+    }
+
+    const auto offset = MapCommon::blockOffset(first, dimensions);
+    const auto byteCount = blockCount * static_cast<std::size_t>(MapCommon::landBlockByteSize);
+    return MapCommon::readExact(descriptor, buffer.data(), byteCount, offset);
+}
+
 std::expected<void, Error>
 validateMapFileSize(const std::filesystem::path & path, std::uint64_t fileSize, std::uint64_t expectedSize, OpenOptions options)
 {
-    if (fileSize % MapCommon::landBlockByteSize != 0 && (fileSize > expectedSize || !options.recoverTruncatedMap))
+    if (hasInvalidPartialBlock(fileSize, expectedSize, options))
     {
         return std::unexpected(
             MapCommon::makeError(ErrorCode::truncatedInput, path, fileSize, "map has trailing bytes beyond complete blocks"));
@@ -98,8 +142,7 @@ std::expected<void, Error> readRawLandBlock(int descriptor,
                                             LandBlockBytes & raw)
 {
     const auto offset = MapCommon::blockOffset(block, dimensions);
-    if (MapCommon::blockId(block, dimensions) >= completeBlocks ||
-        !MapCommon::readExact(descriptor, raw.data(), raw.size(), offset))
+    if (!readCompleteBlock(descriptor, completeBlocks, block, dimensions, raw))
     {
         return std::unexpected(
             MapCommon::makeError(ErrorCode::truncatedInput, path, offset, "land block is missing or truncated"));
@@ -132,7 +175,7 @@ std::expected<std::uint64_t, Error> readableLandBlockOffset(int descriptor,
         return std::unexpected(MapCommon::makeError(ErrorCode::io, path, offset, std::strerror(errno)));
     }
 
-    if (fileStatus.st_size < 0 || static_cast<std::uint64_t>(fileStatus.st_size) < offset + MapCommon::landBlockByteSize)
+    if (!containsCompleteBlock(fileStatus.st_size, offset))
     {
         return missingBlock();
     }
@@ -149,10 +192,8 @@ std::expected<void, Error> readRawBlockBatch(int descriptor,
                                              std::vector<std::byte> & buffer,
                                              const Callback & callback)
 {
-    const auto offset = MapCommon::blockOffset(first, dimensions);
-    const auto byteCount = blockCount * static_cast<std::size_t>(MapCommon::landBlockByteSize);
-    const bool allBlocksAvailable = MapCommon::blockId(first, dimensions) + blockCount <= completeBlocks;
-    if (!allBlocksAvailable || !MapCommon::readExact(descriptor, buffer.data(), byteCount, offset))
+    const bool batchLoaded = readCompleteBlockBatch(descriptor, completeBlocks, first, blockCount, dimensions, buffer);
+    if (!batchLoaded)
     {
         for (std::size_t index = 0; index < blockCount; index++)
         {

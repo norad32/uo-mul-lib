@@ -27,6 +27,24 @@ namespace
 
 constexpr int maximumAttempts = 16;
 
+[[nodiscard]] inline bool hasInvalidMapDimensions(Dimensions dimensions)
+{
+    return dimensions.widthTiles == 0 || dimensions.heightTiles == 0 || dimensions.widthTiles % landBlockDimension != 0 ||
+           dimensions.heightTiles % landBlockDimension != 0;
+}
+
+[[nodiscard]] inline bool exceedsSupportedMapFileSize(std::uint64_t blockCount)
+{
+    return blockCount > static_cast<std::uint64_t>(std::numeric_limits<off_t>::max()) / MapCommon::landBlockByteSize;
+}
+
+template <typename Region>
+[[nodiscard]] inline bool regionExceedsDimensions(Region region, Dimensions dimensions, std::uint32_t unit)
+{
+    return region.min.x > region.maxExclusive.x || region.min.y > region.maxExclusive.y ||
+           region.maxExclusive.x > dimensions.widthTiles / unit || region.maxExclusive.y > dimensions.heightTiles / unit;
+}
+
 template <typename Region>
 std::expected<void, Error> validateRegionBounds(Region region,
                                                 Dimensions dimensions,
@@ -34,8 +52,7 @@ std::expected<void, Error> validateRegionBounds(Region region,
                                                 const std::filesystem::path & path,
                                                 const char * message)
 {
-    if (region.min.x > region.maxExclusive.x || region.min.y > region.maxExclusive.y ||
-        region.maxExclusive.x > dimensions.widthTiles / unit || region.maxExclusive.y > dimensions.heightTiles / unit)
+    if (regionExceedsDimensions(region, dimensions, unit))
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::invalidCoordinate, path, 0, message));
     }
@@ -138,8 +155,7 @@ Error MapCommon::makeError(ErrorCode code, const std::filesystem::path & path, s
 
 std::expected<std::uint64_t, Error> MapCommon::blockCount(Dimensions dimensions, const std::filesystem::path & path)
 {
-    if (dimensions.widthTiles == 0 || dimensions.heightTiles == 0 || dimensions.widthTiles % landBlockDimension != 0 ||
-        dimensions.heightTiles % landBlockDimension != 0)
+    if (hasInvalidMapDimensions(dimensions))
     {
         return std::unexpected(makeError(ErrorCode::invalidDimensions, path, 0, "dimensions must be positive multiples of 8"));
     }
@@ -147,7 +163,7 @@ std::expected<std::uint64_t, Error> MapCommon::blockCount(Dimensions dimensions,
     const auto width = static_cast<std::uint64_t>(dimensions.widthTiles / landBlockDimension);
     const auto height = static_cast<std::uint64_t>(dimensions.heightTiles / landBlockDimension);
     const auto blocks = width * height;
-    if (blocks > static_cast<std::uint64_t>(std::numeric_limits<off_t>::max()) / landBlockByteSize)
+    if (exceedsSupportedMapFileSize(blocks))
     {
         return std::unexpected(
             makeError(ErrorCode::invalidDimensions, path, 0, "map file size exceeds supported offset range"));

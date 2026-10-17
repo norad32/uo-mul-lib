@@ -33,6 +33,34 @@ namespace
 
 constexpr std::size_t bufferSize = 1'048'576U;
 
+[[nodiscard]] inline bool outputAliasesSource(const std::filesystem::path & source,
+                                              const std::filesystem::path & output,
+                                              bool outputExists,
+                                              std::error_code & pathError)
+{
+    return outputExists && std::filesystem::equivalent(source, output, pathError);
+}
+
+[[nodiscard]] inline bool isRegularFileDescriptor(int descriptor)
+{
+    struct stat fileStatus{};
+    return ::fstat(descriptor, &fileStatus) == 0 && S_ISREG(fileStatus.st_mode);
+}
+
+[[nodiscard]] inline bool stagedFileContainsRange(int descriptor, std::uint64_t offset, std::size_t byteCount)
+{
+    struct stat fileStatus{};
+    return ::fstat(descriptor, &fileStatus) == 0 && fileStatus.st_size >= 0 &&
+           static_cast<std::uint64_t>(fileStatus.st_size) >= offset + byteCount;
+}
+
+[[nodiscard]] inline bool
+copyExactBytes(int sourceDescriptor, int destinationDescriptor, std::byte * buffer, std::size_t byteCount, std::uint64_t offset)
+{
+    return MapCommon::readExact(sourceDescriptor, buffer, byteCount, offset) &&
+           MapCommon::writeExact(destinationDescriptor, buffer, byteCount, offset);
+}
+
 std::expected<void, Error>
 validateEditorPaths(const std::filesystem::path & source, const std::filesystem::path & output, bool overwrite)
 {
@@ -59,7 +87,7 @@ validateEditorPaths(const std::filesystem::path & source, const std::filesystem:
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
     }
-    if (outputExists && std::filesystem::equivalent(source, output, pathError))
+    if (outputAliasesSource(source, output, outputExists, pathError))
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, output, 0, "output path resolves to the source map"));
     }
@@ -89,8 +117,7 @@ std::expected<void, Error> stageSourceMap(int sourceDescriptor,
                                           const std::filesystem::path & source,
                                           const std::filesystem::path & staging)
 {
-    struct stat sourceStatus{};
-    if (::fstat(sourceDescriptor, &sourceStatus) != 0 || !S_ISREG(sourceStatus.st_mode))
+    if (!isRegularFileDescriptor(sourceDescriptor))
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, source, 0, "map input must be a regular file"));
     }
@@ -137,8 +164,7 @@ std::expected<void, Error> stageSourceMap(int sourceDescriptor,
     while (offset < totalBytes)
     {
         const auto amount = static_cast<std::size_t>(std::min<std::uint64_t>(buffer.size(), totalBytes - offset));
-        if (!MapCommon::readExact(sourceDescriptor, buffer.data(), amount, offset) ||
-            !MapCommon::writeExact(stagedDescriptor, buffer.data(), amount, offset))
+        if (!copyExactBytes(sourceDescriptor, stagedDescriptor, buffer.data(), amount, offset))
         {
             return std::unexpected(MapCommon::makeError(ErrorCode::io, staging, offset, "failed to stage source map"));
         }
@@ -296,9 +322,7 @@ std::expected<void, Error> MapEditor::writeLandTile(TileCoord tile, LandTile dat
     const auto tileOffset = MapCommon::blockOffset(coordinate, impl_->dimensions) + MapCommon::landHeaderByteSize +
                             (detail::tileIndexInBlock(tile) * MapCommon::landTileByteSize);
     const auto raw = detail::encodeLandTile(data);
-    struct stat stagedStatus{};
-    if (::fstat(impl_->descriptor, &stagedStatus) != 0 || stagedStatus.st_size < 0 ||
-        static_cast<std::uint64_t>(stagedStatus.st_size) < tileOffset + raw.size())
+    if (!stagedFileContainsRange(impl_->descriptor, tileOffset, raw.size()))
     {
         return std::unexpected(
             MapCommon::makeError(ErrorCode::truncatedInput, impl_->staging, tileOffset, "could not read complete land block"));
@@ -331,6 +355,13 @@ std::uint64_t journalOffset(std::span<const std::byte, journalEntryBytes> entry)
     return entryIndex * journalEntryBytes;
 }
 
+[[nodiscard]] inline bool journalEntryFollowsRun(std::span<const std::byte, journalEntryBytes> entry,
+                                                 std::uint64_t firstBlockOffset,
+                                                 std::size_t entryDistance)
+{
+    return journalOffset(entry) == firstBlockOffset + (entryDistance * MapCommon::landBlockByteSize);
+}
+
 std::expected<void, Error> flushJournal(int journal,
                                         const std::filesystem::path & journalPath,
                                         const std::vector<std::byte> & buffer,
@@ -359,7 +390,7 @@ std::expected<void, Error> flushJournal(int journal,
         const auto entry = std::span<const std::byte, journalEntryBytes>(
             std::next(entries.begin(), static_cast<std::ptrdiff_t>(entryOffset)), journalEntryBytes);
 
-        if (journalOffset(entry) != blockOffset + ((runEnd - runStart) * MapCommon::landBlockByteSize))
+        if (!journalEntryFollowsRun(entry, blockOffset, runEnd - runStart))
         {
             break;
         }

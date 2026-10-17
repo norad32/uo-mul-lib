@@ -37,6 +37,49 @@ namespace
 
 constexpr std::uint32_t mapBlockIdByteCount = 4;
 
+[[nodiscard]] inline bool isRegularFileDescriptor(int descriptor)
+{
+    struct stat fileStatus{};
+    return ::fstat(descriptor, &fileStatus) == 0 && S_ISREG(fileStatus.st_mode);
+}
+
+[[nodiscard]] inline bool isRegularFile(const std::filesystem::path & path)
+{
+    std::error_code filesystemError;
+    return std::filesystem::is_regular_file(path, filesystemError) && !filesystemError;
+}
+
+[[nodiscard]] inline bool reportDirectoryExists(const std::filesystem::path & path)
+{
+    return path.empty() || std::filesystem::is_directory(path);
+}
+
+[[nodiscard]] inline bool hasConsistentDiffLengths(std::uint64_t dataBytes, std::uint64_t indexBytes)
+{
+    return indexBytes % mapBlockIdByteCount == 0 && dataBytes % MapCommon::landBlockByteSize == 0 &&
+           dataBytes / MapCommon::landBlockByteSize == indexBytes / mapBlockIdByteCount;
+}
+
+[[nodiscard]] inline bool isOutOfRangeDiffBlockId(std::uint32_t id, std::uint64_t expectedBlockCount)
+{
+    return static_cast<std::uint64_t>(id) >= expectedBlockCount;
+}
+
+[[nodiscard]] inline bool hasAlreadySeenDiffBlockId(std::uint32_t id, const std::vector<bool> & seen)
+{
+    return seen.at(id);
+}
+
+[[nodiscard]] inline bool isRepresentableDiffBlockId(std::uint64_t id)
+{
+    return id <= std::numeric_limits<std::uint32_t>::max();
+}
+
+[[nodiscard]] inline bool isFacetAlias(const std::string & name, const std::string & first, const std::string & second)
+{
+    return name == first || name == second;
+}
+
 std::uint64_t countChangedTiles(std::span<const std::byte> left, std::span<const std::byte> right)
 {
     const auto tileDataOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize);
@@ -80,7 +123,7 @@ public:
 
     [[nodiscard]] std::expected<void, Error> read(BlockCoord coordinate, std::span<const std::byte> & raw)
     {
-        if (coordinate.x != cachedX_ || coordinate.y < cachedStartY_ || coordinate.y >= cachedEndY_)
+        if (needsBatchReload(coordinate))
         {
             cachedX_ = coordinate.x;
             cachedStartY_ = coordinate.y;
@@ -104,6 +147,11 @@ public:
     }
 
 private:
+    [[nodiscard]] bool needsBatchReload(BlockCoord coordinate) const
+    {
+        return coordinate.x != cachedX_ || coordinate.y < cachedStartY_ || coordinate.y >= cachedEndY_;
+    }
+
     int descriptor_;
     std::filesystem::path path_;
     Dimensions dimensions_;
@@ -125,6 +173,8 @@ struct BlockTileSelection
     {
         return minX == 0 && maxExclusiveX == landBlockDimension && minY == 0 && maxExclusiveY == landBlockDimension;
     }
+
+    [[nodiscard]] bool includesRow(std::uint32_t y) const noexcept { return minY <= y && y < maxExclusiveY; }
 };
 
 BlockTileSelection selectTilesInBlock(BlockCoord coordinate, TileRegion region)
@@ -342,7 +392,7 @@ LandBlockBytes makeDiffBlockOutput(const DiffGenerationState & state,
     {
         const auto rowOffset = static_cast<std::size_t>(MapCommon::landHeaderByteSize) +
                                (static_cast<std::size_t>(y) * landBlockDimension * tileByteSize);
-        if (y < selection.minY || y >= selection.maxExclusiveY)
+        if (!selection.includesRow(y))
         {
             const auto rowBytes = static_cast<std::size_t>(landBlockDimension) * tileByteSize;
             std::ranges::copy_n(std::next(sourceRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)),
@@ -370,7 +420,11 @@ std::expected<void, Error>
 writeDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const LandBlockBytes & outputRaw)
 {
     const auto id = MapCommon::blockId(coordinate, state.dimensions);
-    if (id > std::numeric_limits<std::uint32_t>::max() || !writeLe32(*state.index, static_cast<std::uint32_t>(id)))
+    if (!isRepresentableDiffBlockId(id))
+    {
+        return std::unexpected(MapCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
+    }
+    if (!writeLe32(*state.index, static_cast<std::uint32_t>(id)))
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
     }
@@ -478,13 +532,8 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
         return std::unexpected(target.error());
     }
 
-    struct stat targetStatus{};
     const detail::ScopedDescriptor targetDescriptor(::open(targetMap.c_str(), O_RDONLY | O_CLOEXEC));
-    if (targetDescriptor.get() < 0)
-    {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, targetMap, 0, std::strerror(errno)));
-    }
-    if (::fstat(targetDescriptor.get(), &targetStatus) != 0 || !S_ISREG(targetStatus.st_mode))
+    if (targetDescriptor.get() < 0 || !isRegularFileDescriptor(targetDescriptor.get()))
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, targetMap, 0, std::strerror(errno)));
     }
@@ -697,8 +746,7 @@ std::expected<DiffLengths, Error> validateDiffLengths(std::istream & data,
 
     const auto dataBytes = static_cast<std::uint64_t>(dataLength);
     const auto indexBytes = static_cast<std::uint64_t>(indexLength);
-    if (indexBytes % mapBlockIdByteCount != 0 || dataBytes % MapCommon::landBlockByteSize != 0 ||
-        dataBytes / MapCommon::landBlockByteSize != indexBytes / mapBlockIdByteCount)
+    if (!hasConsistentDiffLengths(dataBytes, indexBytes))
     {
         return std::unexpected(
             MapCommon::makeError(ErrorCode::truncatedInput, dataPath, 0, "diff data and index lengths are inconsistent"));
@@ -750,7 +798,7 @@ readDiffReplacements(std::istream & data,
     std::uint32_t id = 0;
     while (readLe32(index, id))
     {
-        if (static_cast<std::uint64_t>(id) >= expectedBlockCount || seen.at(id))
+        if (isOutOfRangeDiffBlockId(id, expectedBlockCount) || hasAlreadySeenDiffBlockId(id, seen))
         {
             return std::unexpected(MapCommon::makeError(ErrorCode::invalidBlockCount,
                                                         indexPath,
@@ -798,8 +846,7 @@ std::expected<void, Error> validateDiffFiles(const std::filesystem::path & dataP
     const std::array paths{dataPath, indexPath};
     for (const auto & path : paths)
     {
-        std::error_code filesystemError;
-        if (!std::filesystem::is_regular_file(path, filesystemError) || filesystemError)
+        if (!isRegularFile(path))
         {
             return std::unexpected(MapCommon::makeError(ErrorCode::io, diffDirectory, 0, "both map diff files are required"));
         }
@@ -935,7 +982,7 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
     }
 
     const auto parent = reportFile.parent_path();
-    if (!parent.empty() && !std::filesystem::is_directory(parent))
+    if (!reportDirectoryExists(parent))
     {
         return std::unexpected(MapCommon::makeError(ErrorCode::io, parent, 0, "report directory does not exist"));
     }
@@ -1096,7 +1143,7 @@ std::expected<Dimensions, Error> facetDimensions(const std::string & name)
     std::string normalized = name;
     std::ranges::transform(
         normalized, normalized.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-    if (normalized == "felucca" || normalized == "trammel")
+    if (isFacetAlias(normalized, "felucca", "trammel"))
     {
         return Dimensions{.widthTiles = feluccaWidth, .heightTiles = feluccaHeight};
     }
@@ -1116,7 +1163,7 @@ std::expected<Dimensions, Error> facetDimensions(const std::string & name)
         return Dimensions{.widthTiles = tokunoSize, .heightTiles = tokunoSize};
     }
 
-    if (normalized == "ter-mur" || normalized == "termur")
+    if (isFacetAlias(normalized, "ter-mur", "termur"))
     {
         return Dimensions{.widthTiles = termurWidth, .heightTiles = feluccaHeight};
     }

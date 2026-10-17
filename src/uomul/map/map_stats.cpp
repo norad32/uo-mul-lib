@@ -18,6 +18,12 @@ namespace
 {
 
 constexpr double medianDivisor = 2.0;
+
+[[nodiscard]] inline bool isEmptyRegion(TileRegion region)
+{
+    return region.min.x == region.maxExclusive.x || region.min.y == region.maxExclusive.y;
+}
+
 constexpr std::size_t landIdCount = static_cast<std::size_t>(std::numeric_limits<std::uint16_t>::max()) + 1U;
 constexpr std::size_t elevationCount = static_cast<std::size_t>(std::numeric_limits<std::uint8_t>::max()) + 1U;
 
@@ -33,13 +39,13 @@ public:
     {
         cumulativeTileCount_ += count;
         const auto elevation = static_cast<std::int8_t>(static_cast<int>(index) + std::numeric_limits<std::int8_t>::min());
-        if (!lowerMiddleElevation_ && lowerMiddleRank_ < cumulativeTileCount_)
+        if (shouldCaptureLowerMiddleElevation())
         {
             lowerMiddleElevation_ = elevation;
         }
-        if (lowerMiddleElevation_ && upperMiddleRank_ < cumulativeTileCount_)
+        if (auto lowerMiddleElevation = lowerMiddleElevationAtUpperRank())
         {
-            median_ = (static_cast<double>(*lowerMiddleElevation_) + static_cast<double>(elevation)) / medianDivisor;
+            median_ = (static_cast<double>(*lowerMiddleElevation) + static_cast<double>(elevation)) / medianDivisor;
         }
         return median_.has_value();
     }
@@ -47,6 +53,21 @@ public:
     [[nodiscard]] std::optional<double> median() const { return median_; }
 
 private:
+    [[nodiscard]] bool shouldCaptureLowerMiddleElevation() const
+    {
+        return !lowerMiddleElevation_ && lowerMiddleRank_ < cumulativeTileCount_;
+    }
+
+    [[nodiscard]] std::optional<std::int8_t> lowerMiddleElevationAtUpperRank() const
+    {
+        if (!lowerMiddleElevation_ || upperMiddleRank_ >= cumulativeTileCount_)
+        {
+            return std::nullopt;
+        }
+
+        return lowerMiddleElevation_;
+    }
+
     std::uint64_t lowerMiddleRank_;
     std::uint64_t upperMiddleRank_;
     std::uint64_t cumulativeTileCount_ = 0;
@@ -162,7 +183,7 @@ void accumulateBlockStats(StatsAccumulator & stats, TileRegion region, BlockCoor
 
 std::expected<MapStats, Error> collectStats(const MapReader & reader, TileRegion region)
 {
-    if (region.min.x == region.maxExclusive.x || region.min.y == region.maxExclusive.y)
+    if (isEmptyRegion(region))
     {
         return MapStats{};
     }
