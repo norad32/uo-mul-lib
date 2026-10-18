@@ -2,8 +2,11 @@
 #include "gui/map_workspace.h"
 #include "gui/panels/common.h"
 #include "gui/panels/radarcol_panel.h"
+#include "gui/panels/texmaps_panel.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
+#include <cstddef>
+#include <cstdint>
 #include <imgui.h>
 #include <string>
 
@@ -36,7 +39,61 @@ void drawTilePreview(uomul::MapTile tile, MapDisplayMode mode, RadarcolPanelStat
     ImGui::Dummy(ImVec2(tilePreviewSize, tilePreviewSize));
 }
 
-void drawTileDetails(const MapWorkspace & workspace, RadarcolPanelState & radarcolState)
+void drawTexturePreview(const uo_mule::gui::TexmapsTexturePreview & texturePreview)
+{
+    constexpr float previewScaleSize = 128.0F;
+    const float scaleX = previewScaleSize / static_cast<float>(texturePreview.width);
+    const float scaleY = previewScaleSize / static_cast<float>(texturePreview.height);
+
+    ImDrawList * drawList = ImGui::GetWindowDrawList();
+    const ImVec2 cellMin = ImGui::GetCursorScreenPos();
+    const ImVec2 cellMax(cellMin.x + previewScaleSize, cellMin.y + previewScaleSize);
+
+    // Draw checkerboard background
+    constexpr float checkerSize = 4.0F;
+    constexpr ImU32 checkerColor1 = IM_COL32(64, 64, 64, 255);
+    constexpr ImU32 checkerColor2 = IM_COL32(128, 128, 128, 255);
+
+    for (int checkerY = 0; (static_cast<float>(checkerY) * checkerSize) < previewScaleSize; checkerY++)
+    {
+        for (int checkerX = 0; (static_cast<float>(checkerX) * checkerSize) < previewScaleSize; checkerX++)
+        {
+            const bool oddX = checkerX % 2 == 1;
+            const bool oddY = checkerY % 2 == 1;
+            const ImU32 pixelColor = (oddX != oddY) ? checkerColor1 : checkerColor2;
+            const ImVec2 checkerMin(cellMin.x + (static_cast<float>(checkerX) * checkerSize),
+                                     cellMin.y + (static_cast<float>(checkerY) * checkerSize));
+            const ImVec2 checkerMax(checkerMin.x + checkerSize, checkerMin.y + checkerSize);
+            drawList->AddRectFilled(checkerMin, checkerMax, pixelColor);
+        }
+    }
+
+    // Draw texture
+    for (std::uint32_t ty = 0; ty < texturePreview.height; ty++)
+    {
+        for (std::uint32_t tx = 0; tx < texturePreview.width; tx++)
+        {
+            const std::size_t pixelIndex = (ty * texturePreview.width) + tx;
+            if (pixelIndex < texturePreview.pixels.size())
+            {
+                const MapColor & pixelColor = texturePreview.pixels.at(pixelIndex);
+                const ImU32 imColor = IM_COL32(pixelColor.red, pixelColor.green, pixelColor.blue, 255);
+
+                const ImVec2 pixelMin(cellMin.x + (static_cast<float>(tx) * scaleX),
+                                       cellMin.y + (static_cast<float>(ty) * scaleY));
+                const ImVec2 pixelMax(cellMin.x + (static_cast<float>(tx + 1) * scaleX),
+                                       cellMin.y + (static_cast<float>(ty + 1) * scaleY));
+
+                drawList->AddRectFilled(pixelMin, pixelMax, imColor);
+            }
+        }
+    }
+
+    drawList->AddRect(cellMin, cellMax, IM_COL32(255, 255, 255, 255), 0.0F, ImDrawFlags_None, 1.0F);
+    ImGui::Dummy(ImVec2(previewScaleSize, previewScaleSize));
+}
+
+void drawTileDetails(const MapWorkspace & workspace, RadarcolPanelState & radarcolState, TexmapsPanelState & texmapsState)
 {
     const auto & tileValue = workspace.hoveredTile() ? workspace.hoveredTile() : workspace.selectedTile();
     const auto & dataValue = workspace.hoveredValue() ? workspace.hoveredValue() : workspace.selectedValue();
@@ -74,11 +131,28 @@ void drawTileDetails(const MapWorkspace & workspace, RadarcolPanelState & radarc
 
     ImGui::Text("Block: (%u, %u)", block.x, block.y);
     ImGui::EndGroup();
+
+    // Display texture from texmaps if available
+    if (ImGui::CollapsingHeader("Texture Preview", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        const auto texturePreview = texmapsTexturePreview(texmapsState, value.id);
+        if (texturePreview && !texturePreview->pixels.empty())
+        {
+            ImGui::Text("Texture ID: %u", value.id);
+            ImGui::Text("Dimension: %ux%u", texturePreview->width, texturePreview->height);
+            drawTexturePreview(*texturePreview);
+        }
+        else
+        {
+            ImGui::TextUnformatted("Texture not available");
+        }
+    }
 }
 
 } // namespace
 
-void drawTileInspectorPanel(const MapWorkspace & workspace, RadarcolPanelState & radarcolState, bool & visible)
+void drawTileInspectorPanel(const MapWorkspace & workspace, RadarcolPanelState & radarcolState,
+                            TexmapsPanelState & texmapsState, bool & visible)
 {
     const bool contentsVisible = ImGui::Begin("Tile Inspector", &visible);
 
@@ -95,7 +169,7 @@ void drawTileInspectorPanel(const MapWorkspace & workspace, RadarcolPanelState &
         }
         else
         {
-            drawTileDetails(workspace, radarcolState);
+            drawTileDetails(workspace, radarcolState, texmapsState);
         }
     }
 

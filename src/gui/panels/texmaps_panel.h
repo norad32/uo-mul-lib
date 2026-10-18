@@ -1,0 +1,45 @@
+#pragma once
+
+#include "gui/map_workspace.h"
+#include "uomul/texmaps/texmaps.h"
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace uo_mule::gui
+{
+
+inline constexpr std::size_t texmapsPathBufferSize = 1024;
+inline constexpr std::size_t texmapsPageTextureCount = 256;
+inline constexpr std::uint32_t unloadedTexmapsPage = std::numeric_limits<std::uint32_t>::max();
+
+struct TexmapsTexturePreview
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<MapColor> pixels;
+};
+
+struct TexmapsPanelState
+{
+    std::array<char, texmapsPathBufferSize> sourceIndexPath{};
+    std::array<char, texmapsPathBufferSize> sourceDataPath{};
+    std::optional<uomul::TexMapsReader> reader;
+    std::vector<TexmapsTexturePreview> pageTextures;
+    std::uint32_t selectedTextureId = 0;
+    std::string error;
+    std::uint32_t page = 0;
+    std::uint32_t pageCount = 0;
+    std::uint32_t loadedPageIndex = unloadedTexmapsPage;
+    bool previewVisible = false;
+};
+
+[[nodiscard]] std::optional<TexmapsTexturePreview> texmapsTexturePreview(
+    TexmapsPanelState & state, std::uint32_t id);
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible);
+
+} // namespace uo_mule::gui

@@ -25,6 +25,7 @@ add_library(
     panels/map_info_panel.cpp
     panels/radarcol_panel.cpp
     panels/selection_stats_panel.cpp
+    panels/texmaps_panel.cpp
     panels/tile_inspector_panel.cpp
     preferences.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
