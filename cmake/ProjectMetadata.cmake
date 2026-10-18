@@ -1,5 +1,5 @@
 # Template identity values to customize
-set(DISTRIBUTION_NAME "uo-mule")
+set(DISTRIBUTION_NAME "im-cpp")
 set(EXECUTABLE_NAME "${DISTRIBUTION_NAME}")
 set(CMAKE_PACKAGE_NAME "${DISTRIBUTION_NAME}")
 set(APPLICATION_ID "${DISTRIBUTION_NAME}")
@@ -11,8 +11,8 @@ set(PACKAGE_NAMESPACE "${CMAKE_PACKAGE_NAME}::")
 set(PROJECT_VERSION "0.2.0")
 set(PROJECT_RELEASE "1")
 set(PROJECT_CXX_STANDARD 23)
-set(PROJECT_DESCRIPTION "Ultima Online Mul Lib")
-set(PROJECT_HOMEPAGE_URL "https://github.com/norad32/uo-mule")
+set(PROJECT_DESCRIPTION "C++23 starter template")
+set(PROJECT_HOMEPAGE_URL "https://github.com/norad32/im-cpp")
 set(PROJECT_SOURCE_ARCHIVE_URL
     "${PROJECT_HOMEPAGE_URL}/archive/refs/tags/v${PROJECT_VERSION}.tar.gz")
 set(PROJECT_LICENSE "MIT")

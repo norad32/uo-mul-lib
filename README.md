@@ -1,7 +1,7 @@
-# uo-mule
+# im-cpp
 
-[![Build and test](https://github.com/norad32/uo-mule/actions/workflows/build.yml/badge.svg)](https://github.com/norad32/uo-mule/actions/workflows/build.yml)
-[![Release](https://github.com/norad32/uo-mule/actions/workflows/release.yml/badge.svg)](https://github.com/norad32/uo-mule/actions/workflows/release.yml)
+[![Build and test](https://github.com/norad32/im-cpp/actions/workflows/build.yml/badge.svg)](https://github.com/norad32/im-cpp/actions/workflows/build.yml)
+[![Release](https://github.com/norad32/im-cpp/actions/workflows/release.yml/badge.svg)](https://github.com/norad32/im-cpp/actions/workflows/release.yml)
 
 A Linux C++23 starter application with a command-line interface and optional Dear ImGui desktop GUI. The project currently requires GCC 14 or newer.
 
@@ -24,7 +24,7 @@ On Ubuntu 24.04, configure with the versioned compiler installed by the helper:
 cmake --preset release-headless -DCMAKE_CXX_COMPILER=g++-14
 cmake --build --preset release-headless
 ctest --preset release-headless
-./build/release-headless/uo-mule check
+./build/release-headless/im-cpp check
 ```
 
 Compiler selection is cached by CMake. Use a fresh build directory if you change compilers.
@@ -35,7 +35,7 @@ Compiler selection is cached by CMake. Use a fresh build directory if you change
 | --- | --- |
 | `debug` / `debug-gui` | Debug GUI build with coverage and clang-tidy enabled by default |
 | `debug-headless` | Debug build without GUI |
-| `release-gui` | Release build with GUI support and a separate `uo-mule-gui` executable |
+| `release-gui` | Release build with GUI support and a separate `im-cpp-gui` executable |
 | `release-headless` | Release build without GUI |
 
 Build and test any preset with `cmake --build --preset <preset>` and `ctest --preset <preset>`. Direct CMake configuration defaults to `BUILD_TESTS=OFF`, while presets enable tests. Other options include `BUILD_GUI`, `BUILD_GUI_RUNTIME`, `INSTALL_GUI`, `ENABLE_COVERAGE`, and `ENABLE_CLANG_TIDY`. Pass `-DENABLE_CLANG_TIDY=OFF` when configuring a debug preset if clang-tidy is unavailable.
@@ -46,9 +46,9 @@ CMake uses installed spdlog 1.12.0 or newer and CLI11 2.4.2 when available, and 
 
 ## Run
 
-The command-line executable supports `check` and `--version`. GUI-enabled builds can open the interface with `uo-mule gui` or by starting without a command. Release GUI builds also provide the standalone `uo-mule-gui` executable.
+The command-line executable supports `check` and `--version`. GUI-enabled builds can open the interface with `im-cpp gui` or by starting without a command. Release GUI builds also provide the standalone `im-cpp-gui` executable.
 
-Preferences are stored below an absolute `$XDG_CONFIG_HOME/uo-mule/`, falling back to `$HOME/.config/uo-mule/` when `XDG_CONFIG_HOME` is unset or relative. Logs use `$XDG_STATE_HOME/uo-mule/logs/` when `XDG_STATE_HOME` is absolute. Otherwise they fall back to `$HOME/.local/state/uo-mule/logs/`.
+Preferences are stored below an absolute `$XDG_CONFIG_HOME/im-cpp/`, falling back to `$HOME/.config/im-cpp/` when `XDG_CONFIG_HOME` is unset or relative. Logs use `$XDG_STATE_HOME/im-cpp/logs/` when `XDG_STATE_HOME` is absolute. Otherwise they fall back to `$HOME/.local/state/im-cpp/logs/`.
 
 ## VS Code
 
@@ -67,8 +67,8 @@ The `Runtime` component installs the executable and the `Development` component 
 CMake consumers can request the exported application target:
 
 ```cmake
-find_package(uo-mule CONFIG REQUIRED COMPONENTS app)
-target_link_libraries(my_target PRIVATE uo-mule::app)
+find_package(im-cpp CONFIG REQUIRED COMPONENTS app)
+target_link_libraries(my_target PRIVATE im-cpp::app)
 ```
 
 The package-consumer fixture is exercised by CTest when tests are enabled.
