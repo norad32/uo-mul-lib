@@ -16,6 +16,7 @@ void openDialog(MenuBarState & state, MapFileDialogMode mode)
     state.fileDialog.mode = mode;
     state.fileDialog.activePopup = MapFileDialogMode::none;
     state.fileDialog.error.clear();
+    state.fileDialog.openProfileInitialized = false;
 }
 
 void requestClose(MapWorkspace & workspace, MenuBarState & state, PendingMapOperationKind kind)
@@ -136,6 +137,7 @@ void drawViewMenu(MapWorkspace & workspace)
     ImGui::MenuItem("Map Information", nullptr, &visibility.mapInformation);
     ImGui::MenuItem("Edit Tools", nullptr, &visibility.editTools);
     ImGui::MenuItem("Radarcol", nullptr, &visibility.radarcol);
+    ImGui::MenuItem("Texmaps", nullptr, &visibility.texmaps);
     ImGui::EndMenu();
 }
 
@@ -218,7 +220,7 @@ bool drawMenuBar(MapWorkspace & workspace, DataProfile & activeProfile, MenuBarS
         state.fileDialog.shouldClose = false;
     }
 
-    drawNewMapDialog(workspace, state.fileDialog, shouldClose);
+    drawNewMapDialog(workspace, activeProfile, state.fileDialog, shouldClose);
     profileChanged = drawDataPathsDialog(state.dataPathsDialog, activeProfile);
     return profileChanged;
 }

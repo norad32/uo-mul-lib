@@ -1,9 +1,11 @@
 #include "gui/new_map_dialog.h"
+#include "gui/data_profile.h"
+#include "gui/theme.h"
 #include "gui/map_workspace.h"
 #include "gui/panels/common.h"
-#include "gui/theme.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -350,29 +352,88 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
     return valid;
 }
 
-void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
+void initializeProfileMapSelection(const DataProfile & profile, NewMapDialogState & state)
 {
-    ImGui::TextUnformatted("Map path");
-    ImGui::SetNextItemWidth(dialogInputWidth);
-    ImGui::InputText("##OpenPath", state.openPath.data(), state.openPath.size());
+    const auto availableMapCount = static_cast<int>(std::min(mapFacetCount, profile.files.size()));
 
-    const bool validDimensions = drawDimensionsFields("OpenDimensions", state.openFacet, state.openWidth, state.openHeight);
+    if (state.openProfileInitialized)
+    {
+        return;
+    }
+
+    state.openProfileInitialized = true;
+    state.openMapRole = std::clamp(state.openMapRole, 0, std::max(0, availableMapCount - 1));
+}
+
+[[nodiscard]] std::optional<std::filesystem::path>
+profileMapPath(const DataProfile & profile, int mapRoleIndex)
+{
+    const auto role = static_cast<DataFileRole>(mapRoleIndex);
+    auto path = resolvedDataFilePath(profile, role);
+    if (path.empty())
+    {
+        return std::nullopt;
+    }
+
+    return path;
+}
+
+[[nodiscard]] std::optional<uomul::Dimensions>
+profileMapDimensions(const DataProfile & profile, int mapRoleIndex)
+{
+    const auto index = static_cast<std::size_t>(mapRoleIndex);
+    return profile.facets.at(index).dimensions;
+}
+
+void drawOpenDialog(MapWorkspace & workspace, const DataProfile & profile, NewMapDialogState & state)
+{
+    initializeProfileMapSelection(profile, state);
+    std::array<std::string, mapFacetCount> mapLabels{};
+    std::array<const char *, mapFacetCount> mapLabelPointers{};
+    for (std::size_t index = 0; index < mapFacetCount; index++)
+    {
+        mapLabels.at(index) = std::string(dataFileRoleName(static_cast<DataFileRole>(index)));
+        mapLabelPointers.at(index) = mapLabels.at(index).c_str();
+    }
+
+    ImGui::TextUnformatted("Map role");
+    ImGui::SetNextItemWidth(dialogInputWidth);
+    ImGui::Combo("##OpenMapRole", &state.openMapRole, mapLabelPointers.data(), static_cast<int>(mapLabelPointers.size()));
+    const auto path = profileMapPath(profile, state.openMapRole);
+    const auto dimensions = profileMapDimensions(profile, state.openMapRole);
+
+    if (path)
+    {
+        ImGui::Text("Path: %s", path->string().c_str());
+    }
+
+    if (!path)
+    {
+        ImGui::TextColored(theme::imguiColor(theme::amber), "The selected map role is missing from the active profile.");
+    }
+
+    const bool validDimensions = dimensions.has_value();
+    if (dimensions)
+    {
+        ImGui::Text("Dimensions: %u x %u", dimensions->widthTiles, dimensions->heightTiles);
+    }
+
+    if (!dimensions)
+    {
+        ImGui::TextColored(theme::imguiColor(theme::amber), "Configure facet dimensions in UO Data Paths first.");
+    }
 
     if (!validDimensions)
     {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "Dimensions must be positive multiples of 8 tiles.");
+        ImGui::TextColored(theme::imguiColor(theme::amber), "Map dimensions are required before opening this role.");
     }
 
-    if (ImGui::Button("Open") && state.openPath.front() != '\0' && validDimensions)
+    if (ImGui::Button("Open") && path && validDimensions)
     {
         state.operation = {
             .kind = PendingMapOperationKind::openMap,
-            .path = state.openPath.data(),
-            .dimensions =
-                {
-                    .widthTiles = state.openWidth,
-                    .heightTiles = state.openHeight,
-                },
+            .path = *path,
+            .dimensions = *dimensions,
         };
         requestOperation(workspace, state);
     }
@@ -609,7 +670,10 @@ void drawOverwriteDialog(MapWorkspace & workspace, NewMapDialogState & state)
 
 } // namespace
 
-void drawNewMapDialog(MapWorkspace & workspace, NewMapDialogState & state, bool & shouldClose)
+void drawNewMapDialog(MapWorkspace & workspace,
+                      const DataProfile & profile,
+                      NewMapDialogState & state,
+                      bool & shouldClose)
 {
     state.shouldClose = false;
     if (state.mode == MapFileDialogMode::none)
@@ -644,7 +708,7 @@ void drawNewMapDialog(MapWorkspace & workspace, NewMapDialogState & state, bool 
     switch (currentMode)
     {
         case MapFileDialogMode::openMap :
-            drawOpenDialog(workspace, state);
+            drawOpenDialog(workspace, profile, state);
             break;
         case MapFileDialogMode::newMap :
             drawNewMapForm(workspace, state);

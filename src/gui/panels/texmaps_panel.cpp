@@ -1,4 +1,5 @@
 #include "gui/map_workspace.h"
+#include "gui/data_profile.h"
 #include "gui/panels/texmaps_panel.h"
 #include "gui/theme.h"
 #include "uomul/texmaps/texmaps.h"
@@ -279,6 +280,26 @@ std::optional<TexmapsTexturePreview> texmapsTexturePreview(TexmapsPanelState & s
     }
 
     return convertTextureToPreview(*textureResult);
+}
+
+void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile)
+{
+    const auto configuredIndex = resolvedDataFilePath(profile, DataFileRole::texidx);
+    const auto configuredData = resolvedDataFilePath(profile, DataFileRole::texmaps);
+    const std::string indexValue = configuredIndex.string();
+    const std::string dataValue = configuredData.string();
+    if (indexValue == state.sourceIndexPath.data() && dataValue == state.sourceDataPath.data())
+    {
+        return;
+    }
+
+    std::ranges::fill(state.sourceIndexPath, '\0');
+    std::ranges::fill(state.sourceDataPath, '\0');
+    const auto indexLength = std::min(indexValue.size(), state.sourceIndexPath.size() - 1U);
+    const auto dataLength = std::min(dataValue.size(), state.sourceDataPath.size() - 1U);
+    std::copy_n(indexValue.begin(), indexLength, state.sourceIndexPath.begin());
+    std::copy_n(dataValue.begin(), dataLength, state.sourceDataPath.begin());
+    loadSource(state);
 }
 
 void drawTexmapsPanel(TexmapsPanelState & state, bool & visible)

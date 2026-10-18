@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui/map_workspace.h"
+#include "gui/data_profile.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
 #include <cstddef>
@@ -38,6 +39,7 @@ struct RadarcolPanelState
 };
 
 [[nodiscard]] std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::uint16_t id);
+void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile);
 void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible);
 
 } // namespace uo_mule::gui

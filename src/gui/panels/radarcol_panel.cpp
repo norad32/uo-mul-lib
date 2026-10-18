@@ -1,4 +1,5 @@
 #include "gui/panels/radarcol_panel.h"
+#include "gui/data_profile.h"
 #include "gui/map_workspace.h"
 #include "gui/panels/common.h"
 #include "uomul/radarcol/radarcol.h"
@@ -445,6 +446,30 @@ std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::ui
     state.mapColorCache.at(index) = color;
     state.mapColorCacheStatus.at(index) = 1;
     return color;
+}
+
+void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile)
+{
+    const auto configuredPath = resolvedDataFilePath(profile, DataFileRole::radarcol);
+    const std::string configuredValue = configuredPath.string();
+    if (configuredValue == state.sourcePath.data())
+    {
+        return;
+    }
+
+    std::ranges::fill(state.sourcePath, '\0');
+    const auto length = std::min(configuredValue.size(), state.sourcePath.size() - 1U);
+    std::copy_n(configuredValue.begin(), length, state.sourcePath.begin());
+    state.reader.reset();
+    state.editor.reset();
+    state.loadedPageIndex = unloadedRadarcolPage;
+    invalidateMapColorCache(state);
+    state.error.clear();
+
+    if (!configuredPath.empty())
+    {
+        loadSource(state);
+    }
 }
 
 void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible)

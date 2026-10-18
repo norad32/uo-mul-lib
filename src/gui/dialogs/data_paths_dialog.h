@@ -26,9 +26,12 @@ enum class DataPathPickerMode : std::uint8_t
 struct DataPathPickerState
 {
     DataPathPickerMode mode = DataPathPickerMode::none;
+    bool openRequested = false;
     DataFileRole role = DataFileRole::map0;
     std::filesystem::path directory;
     std::filesystem::path selectedPath;
+    std::array<char, dataPathsDialogBufferSize> location{};
+    std::string error;
 };
 
 struct DataPathsDialogState

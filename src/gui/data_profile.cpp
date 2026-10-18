@@ -1,5 +1,10 @@
 #include "gui/data_profile.h"
 #include <array>
+#include <cstddef>
+#include <filesystem>
+#include <optional>
+#include <string_view>
+#include <vector>
 
 namespace uo_mule::gui
 {

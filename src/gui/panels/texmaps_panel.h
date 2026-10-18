@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui/map_workspace.h"
+#include "gui/data_profile.h"
 #include "uomul/texmaps/texmaps.h"
 #include <array>
 #include <cstddef>
@@ -40,6 +41,7 @@ struct TexmapsPanelState
 
 [[nodiscard]] std::optional<TexmapsTexturePreview> texmapsTexturePreview(
     TexmapsPanelState & state, std::uint32_t id);
+void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile);
 void drawTexmapsPanel(TexmapsPanelState & state, bool & visible);
 
 } // namespace uo_mule::gui

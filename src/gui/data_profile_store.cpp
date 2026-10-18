@@ -1,15 +1,22 @@
 #include "gui/data_profile_store.h"
+#include "gui/data_profile.h"
 #include "core/app_info.h"
 #include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <ios>
+#include <istream>
+#include <optional>
 #include <sstream>
+#include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 #include <unistd.h>
 
 namespace uo_mule::gui

@@ -404,6 +404,7 @@ void renderFrame(GLFWwindow * window)
 }
 
 void drawMapPanels(MapWorkspace & workspace,
+                   const DataProfile & activeProfile,
                    MapCanvasPanelState & canvasState,
                    BlockInspectorPanelState & blockInspectorState,
                    SelectionStatsPanelState & selectionStatsState,
@@ -411,6 +412,9 @@ void drawMapPanels(MapWorkspace & workspace,
                    RadarcolPanelState & radarcolState,
                    TexmapsPanelState & texmapsState)
 {
+    syncRadarcolPanel(radarcolState, activeProfile);
+    syncTexmapsPanel(texmapsState, activeProfile);
+
     MapPanelVisibility & visibility = workspace.panelVisibility();
     if (visibility.canvas)
     {
@@ -494,7 +498,14 @@ void drawFrame(GLFWwindow * window,
 
     const float bottomPanelHeight = drawLogPanel(logSink, preferences, entries, followScroll);
     drawDockSpace(bottomPanelHeight);
-    drawMapPanels(workspace, canvasState, blockInspectorState, selectionStatsState, editToolsState, radarcolState, texmapsState);
+    drawMapPanels(workspace,
+                  activeProfile,
+                  canvasState,
+                  blockInspectorState,
+                  selectionStatsState,
+                  editToolsState,
+                  radarcolState,
+                  texmapsState);
     renderFrame(window);
 }
 
