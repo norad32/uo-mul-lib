@@ -1,5 +1,6 @@
 add_library(
     uomul
+    mul_common/mul_common.cpp
     map/map_diff.cpp
     map/map_editor.cpp
     map/map_common.cpp

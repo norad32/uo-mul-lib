@@ -1,5 +1,6 @@
 #pragma once
 
+#include "uomul/mul_common/mul_common.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -17,24 +18,6 @@ namespace uomul
 inline constexpr std::size_t mapBlockTileCount = 64;
 inline constexpr std::size_t mapBlockByteCount = 196;
 inline constexpr std::uint32_t mapBlockDimension = 8;
-
-enum class ErrorCode : std::uint8_t
-{
-    io,
-    invalidDimensions,
-    invalidCoordinate,
-    truncatedInput,
-    invalidBlockCount,
-    commitFailed,
-};
-
-struct Error
-{
-    ErrorCode code = ErrorCode::io;
-    std::filesystem::path path;
-    std::uint64_t offset = 0;
-    std::string message;
-};
 
 struct Dimensions
 {

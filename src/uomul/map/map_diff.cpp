@@ -1,5 +1,6 @@
 #include "map_common.h"
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -135,7 +136,7 @@ public:
             if (!MapCommon::readBlockBatch(descriptor_, first, blockCount, dimensions_, buffer_))
             {
                 return std::unexpected(
-                    MapCommon::makeError(ErrorCode::truncatedInput, path_, offset, "could not read target block"));
+                    detail::MulCommon::makeError(ErrorCode::truncatedInput, path_, offset, "could not read target block"));
             }
         }
 
@@ -321,28 +322,29 @@ prepareDiffTemporaries(const std::filesystem::path & directory, std::uint32_t ma
     std::error_code filesystemError;
     if (!std::filesystem::is_directory(directory, filesystemError) || filesystemError)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, directory, 0, "diff output directory does not exist"));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, directory, 0, "diff output directory does not exist"));
     }
 
     DiffTemporaryFiles files{};
     files.outputs.data = directory / ("mapdif" + std::to_string(mapIndex) + ".mul");
     files.outputs.index = directory / ("mapdifl" + std::to_string(mapIndex) + ".mul");
-    if (auto result = MapCommon::checkOutputPath(files.outputs.data, overwrite); !result)
+    if (auto result = detail::MulCommon::checkOutputPath(files.outputs.data, overwrite); !result)
     {
         return std::unexpected(result.error());
     }
-    if (auto result = MapCommon::checkOutputPath(files.outputs.index, overwrite); !result)
+    if (auto result = detail::MulCommon::checkOutputPath(files.outputs.index, overwrite); !result)
     {
         return std::unexpected(result.error());
     }
 
-    auto dataDescriptor = MapCommon::createTemporary(files.outputs.data, files.data);
+    auto dataDescriptor = detail::MulCommon::createTemporary(files.outputs.data, files.data);
     if (!dataDescriptor)
     {
         return std::unexpected(dataDescriptor.error());
     }
     files.dataDescriptor = *dataDescriptor;
-    auto indexDescriptor = MapCommon::createTemporary(files.outputs.index, files.index);
+    auto indexDescriptor = detail::MulCommon::createTemporary(files.outputs.index, files.index);
     if (!indexDescriptor)
     {
         removeDiffTemporaries(files);
@@ -421,11 +423,13 @@ writeDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const M
     const auto id = MapCommon::blockId(coordinate, state.dimensions);
     if (!isRepresentableDiffBlockId(id))
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
     }
     if (!writeLe32(*state.index, static_cast<std::uint32_t>(id)))
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
     }
 
     std::array<char, MapCommon::mapBlockByteSize> bytes{};
@@ -435,7 +439,8 @@ writeDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const M
     state.data->write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
     if (!*state.data)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, state.dataTemporary, 0, "could not write diff block data"));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, state.dataTemporary, 0, "could not write diff block data"));
     }
 
     return {};
@@ -516,7 +521,7 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
     if (!data || !index)
     {
         return std::unexpected(
-            MapCommon::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not create diff files"));
+            detail::MulCommon::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not create diff files"));
     }
 
     auto source = MapReader::open(baseMap, dimensions);
@@ -534,7 +539,7 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
     const detail::ScopedDescriptor targetDescriptor(::open(targetMap.c_str(), O_RDONLY | O_CLOEXEC));
     if (targetDescriptor.get() < 0 || !isRegularFileDescriptor(targetDescriptor.get()))
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, targetMap, 0, std::strerror(errno)));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, targetMap, 0, std::strerror(errno)));
     }
 
     DiffReport report{};
@@ -567,7 +572,7 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
     if (!data || !index)
     {
         return std::unexpected(
-            MapCommon::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not write diff files"));
+            detail::MulCommon::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not write diff files"));
     }
 
     closeDiffDescriptors(files);
@@ -594,10 +599,10 @@ std::expected<DiffBackups, Error> backupDiffOutputs(const DiffOutputPaths & outp
     DiffBackups backups{};
     if (std::filesystem::exists(outputs.data))
     {
-        backups.data = MapCommon::temporaryPath(outputs.data);
+        backups.data = detail::MulCommon::temporaryPath(outputs.data);
         if (::rename(outputs.data.c_str(), backups.data.c_str()) != 0)
         {
-            const auto error = MapCommon::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno));
+            const auto error = detail::MulCommon::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno));
             removeDiffTemporaries(files);
             return std::unexpected(error);
         }
@@ -605,10 +610,10 @@ std::expected<DiffBackups, Error> backupDiffOutputs(const DiffOutputPaths & outp
 
     if (std::filesystem::exists(outputs.index))
     {
-        backups.index = MapCommon::temporaryPath(outputs.index);
+        backups.index = detail::MulCommon::temporaryPath(outputs.index);
         if (::rename(outputs.index.c_str(), backups.index.c_str()) != 0)
         {
-            const auto error = MapCommon::makeError(ErrorCode::commitFailed, outputs.index, 0, std::strerror(errno));
+            const auto error = detail::MulCommon::makeError(ErrorCode::commitFailed, outputs.index, 0, std::strerror(errno));
             restoreDiffBackups(backups, outputs);
             removeDiffTemporaries(files);
             return std::unexpected(error);
@@ -661,7 +666,7 @@ std::expected<void, Error> installDiffPair(const DiffOutputPaths & outputs, cons
 {
     if (::link(files.data.c_str(), outputs.data.c_str()) != 0)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno)));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno)));
     }
 
     static_cast<void>(::unlink(files.data.c_str()));
@@ -669,7 +674,8 @@ std::expected<void, Error> installDiffPair(const DiffOutputPaths & outputs, cons
     {
         const int savedErrno = errno;
         static_cast<void>(::unlink(outputs.data.c_str()));
-        return std::unexpected(MapCommon::makeError(ErrorCode::commitFailed, outputs.index, 0, std::strerror(savedErrno)));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::commitFailed, outputs.index, 0, std::strerror(savedErrno)));
     }
 
     static_cast<void>(::unlink(files.index.c_str()));
@@ -740,15 +746,16 @@ std::expected<DiffLengths, Error> validateDiffLengths(std::istream & data,
     const auto indexLength = index.tellg();
     if (dataLength < 0 || indexLength < 0)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, diffDirectory, 0, "could not determine diff file sizes"));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, diffDirectory, 0, "could not determine diff file sizes"));
     }
 
     const auto dataBytes = static_cast<std::uint64_t>(dataLength);
     const auto indexBytes = static_cast<std::uint64_t>(indexLength);
     if (!hasConsistentDiffLengths(dataBytes, indexBytes))
     {
-        return std::unexpected(
-            MapCommon::makeError(ErrorCode::truncatedInput, dataPath, 0, "diff data and index lengths are inconsistent"));
+        return std::unexpected(detail::MulCommon::makeError(
+            ErrorCode::truncatedInput, dataPath, 0, "diff data and index lengths are inconsistent"));
     }
 
     data.seekg(0);
@@ -773,7 +780,7 @@ readDiffReplacement(std::istream & data, const std::filesystem::path & dataPath,
 
     if (!data)
     {
-        return std::unexpected(MapCommon::makeError(
+        return std::unexpected(detail::MulCommon::makeError(
             ErrorCode::truncatedInput, dataPath, static_cast<std::uint64_t>(data.tellg()), "diff block is truncated"));
     }
 
@@ -798,10 +805,10 @@ std::expected<std::vector<std::pair<BlockCoord, MapBlock>>, Error> readDiffRepla
     {
         if (isOutOfRangeDiffBlockId(id, expectedBlockCount) || hasAlreadySeenDiffBlockId(id, seen))
         {
-            return std::unexpected(MapCommon::makeError(ErrorCode::invalidBlockCount,
-                                                        indexPath,
-                                                        static_cast<std::uint64_t>(index.tellg()) - mapBlockIdByteCount,
-                                                        "diff contains an out-of-range or duplicate block ID"));
+            return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidBlockCount,
+                                                                indexPath,
+                                                                static_cast<std::uint64_t>(index.tellg()) - mapBlockIdByteCount,
+                                                                "diff contains an out-of-range or duplicate block ID"));
         }
 
         seen.at(id) = true;
@@ -817,7 +824,7 @@ std::expected<std::vector<std::pair<BlockCoord, MapBlock>>, Error> readDiffRepla
 
     if (!index.eof())
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, indexPath, 0, "failed while reading diff index"));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, indexPath, 0, "failed while reading diff index"));
     }
 
     return replacements;
@@ -846,7 +853,8 @@ std::expected<void, Error> validateDiffFiles(const std::filesystem::path & dataP
     {
         if (!isRegularFile(path))
         {
-            return std::unexpected(MapCommon::makeError(ErrorCode::io, diffDirectory, 0, "both map diff files are required"));
+            return std::unexpected(
+                detail::MulCommon::makeError(ErrorCode::io, diffDirectory, 0, "both map diff files are required"));
         }
     }
 
@@ -863,7 +871,7 @@ std::expected<std::uint64_t, Error> validateDiffBlockCount(Dimensions dimensions
 
     if (*blockCount > std::numeric_limits<std::uint32_t>::max())
     {
-        return std::unexpected(MapCommon::makeError(
+        return std::unexpected(detail::MulCommon::makeError(
             ErrorCode::invalidDimensions, baseMap, 0, "map has more blocks than diff indices can address"));
     }
 
@@ -892,7 +900,7 @@ loadDiffReplacements(const std::filesystem::path & baseMap,
     std::ifstream index(indexPath, std::ios::binary);
     if (!data || !index)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, diffDirectory, 0, "could not open diff files"));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, diffDirectory, 0, "could not open diff files"));
     }
 
     auto lengths = validateDiffLengths(data, index, dataPath, diffDirectory);
@@ -930,7 +938,7 @@ std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourc
     const detail::ScopedDescriptor targetDescriptor(::open(targetPath.c_str(), O_RDONLY | O_CLOEXEC));
     if (targetDescriptor.get() < 0)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, targetPath, 0, std::strerror(errno)));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, targetPath, 0, std::strerror(errno)));
     }
 
     DiffReport report{};
@@ -974,7 +982,7 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
                                              Dimensions dimensions,
                                              bool overwrite)
 {
-    if (auto result = MapCommon::checkOutputPath(reportFile, overwrite); !result)
+    if (auto result = detail::MulCommon::checkOutputPath(reportFile, overwrite); !result)
     {
         return std::unexpected(result.error());
     }
@@ -982,11 +990,11 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
     const auto parent = reportFile.parent_path();
     if (!reportDirectoryExists(parent))
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, parent, 0, "report directory does not exist"));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, parent, 0, "report directory does not exist"));
     }
 
     std::filesystem::path temporary;
-    auto descriptor = MapCommon::createTemporary(reportFile, temporary);
+    auto descriptor = detail::MulCommon::createTemporary(reportFile, temporary);
     if (!descriptor)
     {
         return std::unexpected(descriptor.error());
@@ -997,7 +1005,7 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
     std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
     if (!output)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, temporary, 0, "could not create report"));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, temporary, 0, "could not create report"));
     }
 
     output << "blockId,blockX,blockY,changedTiles\n";
@@ -1016,10 +1024,10 @@ std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourc
 
     if (!output)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, temporary, 0, "could not write report"));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, temporary, 0, "could not write report"));
     }
 
-    auto published = MapCommon::publishFile(temporary, reportFile, overwrite);
+    auto published = detail::MulCommon::publishFile(temporary, reportFile, overwrite);
     if (!published)
     {
         return std::unexpected(published.error());
@@ -1166,7 +1174,7 @@ std::expected<Dimensions, Error> facetDimensions(const std::string & name)
         return Dimensions{.widthTiles = termurWidth, .heightTiles = feluccaHeight};
     }
 
-    return std::unexpected(MapCommon::makeError(ErrorCode::invalidDimensions, {}, 0, "unknown facet preset"));
+    return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidDimensions, {}, 0, "unknown facet preset"));
 }
 
 std::expected<void, Error> writeCsvReport(const std::filesystem::path & sourceMap,

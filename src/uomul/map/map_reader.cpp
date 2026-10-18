@@ -1,6 +1,7 @@
 #include "map_common.h"
 #include "map_stats.h"
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -54,7 +55,7 @@ readCompleteBlock(int descriptor, std::uint64_t completeBlocks, BlockCoord block
     }
 
     const auto offset = MapCommon::blockOffset(block, dimensions);
-    return MapCommon::readExact(descriptor, raw.data(), raw.size(), offset);
+    return detail::MulCommon::readExact(descriptor, raw.data(), raw.size(), offset);
 }
 
 [[nodiscard]] inline bool readCompleteBlockBatch(int descriptor,
@@ -79,19 +80,19 @@ validateMapFileSize(const std::filesystem::path & path, std::uint64_t fileSize, 
 {
     if (hasInvalidPartialBlock(fileSize, expectedSize, options))
     {
-        return std::unexpected(
-            MapCommon::makeError(ErrorCode::truncatedInput, path, fileSize, "map has trailing bytes beyond complete blocks"));
+        return std::unexpected(detail::MulCommon::makeError(
+            ErrorCode::truncatedInput, path, fileSize, "map has trailing bytes beyond complete blocks"));
     }
 
     if (!options.recoverTruncatedMap && fileSize != expectedSize)
     {
-        return std::unexpected(MapCommon::makeError(
+        return std::unexpected(detail::MulCommon::makeError(
             ErrorCode::truncatedInput, path, fileSize, "map size does not match dimensions and complete blocks"));
     }
 
     if (fileSize > expectedSize)
     {
-        return std::unexpected(MapCommon::makeError(
+        return std::unexpected(detail::MulCommon::makeError(
             ErrorCode::truncatedInput, path, expectedSize, "map contains more blocks than specified dimensions"));
     }
 
@@ -104,12 +105,12 @@ inspectMapFile(int descriptor, const std::filesystem::path & path, std::uint64_t
     struct stat fileStatus{};
     if (::fstat(descriptor, &fileStatus) != 0)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
     }
 
     if (fileStatus.st_size < 0)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, "could not determine map size"));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, 0, "could not determine map size"));
     }
 
     const auto fileSize = static_cast<std::uint64_t>(fileStatus.st_size);
@@ -121,7 +122,7 @@ inspectMapFile(int descriptor, const std::filesystem::path & path, std::uint64_t
 
     if (!S_ISREG(fileStatus.st_mode))
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, "map input must be a regular file"));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, 0, "map input must be a regular file"));
     }
 
     const auto completeBlockCount = std::min(expectedBlockCount, fileSize / MapCommon::mapBlockByteSize);
@@ -143,7 +144,7 @@ std::expected<void, Error> readRawBlock(int descriptor,
     if (!readCompleteBlock(descriptor, completeBlocks, block, dimensions, raw))
     {
         return std::unexpected(
-            MapCommon::makeError(ErrorCode::truncatedInput, path, offset, "land block is missing or truncated"));
+            detail::MulCommon::makeError(ErrorCode::truncatedInput, path, offset, "land block is missing or truncated"));
     }
 
     return {};
@@ -159,7 +160,7 @@ std::expected<std::uint64_t, Error> readableBlockOffset(int descriptor,
     const auto missingBlock = [&path, offset]
     {
         return std::unexpected(
-            MapCommon::makeError(ErrorCode::truncatedInput, path, offset, "land block is missing or truncated"));
+            detail::MulCommon::makeError(ErrorCode::truncatedInput, path, offset, "land block is missing or truncated"));
     };
 
     if (MapCommon::blockId(block, dimensions) >= completeBlocks)
@@ -170,7 +171,7 @@ std::expected<std::uint64_t, Error> readableBlockOffset(int descriptor,
     struct stat fileStatus{};
     if (::fstat(descriptor, &fileStatus) != 0)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, offset, std::strerror(errno)));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, offset, std::strerror(errno)));
     }
 
     if (!containsCompleteBlock(fileStatus.st_size, offset))
@@ -238,7 +239,7 @@ validateReadRequest(Region region, const Callback & callback, Dimensions dimensi
 
     if (!callback)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, "read callback is empty"));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, 0, "read callback is empty"));
     }
 
     return {};
@@ -281,7 +282,7 @@ std::expected<MapReader, Error> MapReader::open(const std::filesystem::path & pa
     detail::ScopedDescriptor descriptor(::open(path.c_str(), O_RDONLY | O_CLOEXEC));
     if (descriptor.get() < 0)
     {
-        return std::unexpected(MapCommon::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
     }
 
     auto fileInfo = inspectMapFile(descriptor.get(), path, *count, options);
@@ -354,10 +355,10 @@ std::expected<MapTile, Error> MapReader::readTile(TileCoord tile) const
     std::array<std::byte, tileByteSize> raw{};
     const auto tileOffset =
         *blockOffset + MapCommon::mapHeaderByteSize + (detail::tileIndexInBlock(tile) * MapCommon::mapTileByteSize);
-    if (!MapCommon::readExact(impl_->descriptor, raw.data(), raw.size(), tileOffset))
+    if (!detail::MulCommon::readExact(impl_->descriptor, raw.data(), raw.size(), tileOffset))
     {
-        return std::unexpected(
-            MapCommon::makeError(ErrorCode::truncatedInput, impl_->path, tileOffset, "land tile is missing or truncated"));
+        return std::unexpected(detail::MulCommon::makeError(
+            ErrorCode::truncatedInput, impl_->path, tileOffset, "land tile is missing or truncated"));
     }
 
     return detail::decodeTile(raw);

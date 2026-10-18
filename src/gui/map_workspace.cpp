@@ -1,5 +1,6 @@
 #include "gui/map_workspace.h"
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <algorithm>
 #include <atomic>
 #include <cmath>

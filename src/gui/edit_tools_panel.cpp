@@ -2,6 +2,7 @@
 #include "gui/map_workspace.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <cstdint>
 #include <expected>
 #include <imgui.h>
