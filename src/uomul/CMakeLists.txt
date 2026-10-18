@@ -4,6 +4,9 @@ add_library(
     radarcol/radarcol_common.cpp
     radarcol/radarcol_editor.cpp
     radarcol/radarcol_reader.cpp
+    texmaps/texmaps_common.cpp
+    texmaps/texmaps_editor.cpp
+    texmaps/texmaps_reader.cpp
     map/map_diff.cpp
     map/map_editor.cpp
     map/map_common.cpp
