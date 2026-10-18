@@ -29,7 +29,7 @@ endif()
 option(ENABLE_CLANG_TIDY
        "Run clang-tidy during compilation and fail on diagnostics" OFF)
 option(BUILD_TESTS "Build and register unit tests" OFF)
-option(BUILD_BENCHMARKS "Build Catch2 map benchmarks" OFF)
+option(BUILD_BENCHMARKS "Build Catch2 map and radarcol benchmarks" OFF)
 option(ENABLE_COVERAGE "Instrument project code for Debug gcovr reports" OFF)
 option(BUILD_GUI "Build the ImGui GLFW/OpenGL desktop GUI" ON)
 option(BUILD_GUI_RUNTIME "Build the separately packaged GUI runtime executable"
