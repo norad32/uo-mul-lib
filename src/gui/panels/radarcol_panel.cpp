@@ -1,4 +1,5 @@
 #include "gui/panels/radarcol_panel.h"
+#include "gui/panels/common.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <array>
@@ -123,8 +124,7 @@ void loadSource(RadarcolPanelState & state)
     if (!reader)
     {
         state.reader.reset();
-        state.error =
-            reader.error().path.empty() ? reader.error().message : reader.error().path.string() + ": " + reader.error().message;
+        state.error = formatError(reader.error());
         return;
     }
 
@@ -227,8 +227,7 @@ void beginEditing(RadarcolPanelState & state, bool overwriteOutput)
     auto editor = uomul::RadarColEditor::create(source, output, {.overwriteOutput = overwriteOutput});
     if (!editor)
     {
-        state.error =
-            editor.error().path.empty() ? editor.error().message : editor.error().path.string() + ": " + editor.error().message;
+        state.error = formatError(editor.error());
         return;
     }
 
@@ -246,8 +245,7 @@ void applyColor(RadarcolPanelState & state, std::uint32_t index, uomul::RadarCol
     auto edited = state.editor->editRawColor(index, color);
     if (!edited)
     {
-        state.error =
-            edited.error().path.empty() ? edited.error().message : edited.error().path.string() + ": " + edited.error().message;
+        state.error = formatError(edited.error());
         return;
     }
 
@@ -349,8 +347,7 @@ void saveChanges(RadarcolPanelState & state)
     auto committed = state.editor->commit();
     if (!committed)
     {
-        state.error = committed.error().path.empty() ? committed.error().message
-                                                     : committed.error().path.string() + ": " + committed.error().message;
+        state.error = formatError(committed.error());
         state.editor.reset();
         return;
     }
@@ -361,8 +358,7 @@ void saveChanges(RadarcolPanelState & state)
     if (!reader)
     {
         state.reader.reset();
-        state.error =
-            reader.error().path.empty() ? reader.error().message : reader.error().path.string() + ": " + reader.error().message;
+        state.error = formatError(reader.error());
         return;
     }
 

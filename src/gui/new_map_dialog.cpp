@@ -1,5 +1,6 @@
 #include "gui/new_map_dialog.h"
 #include "gui/map_workspace.h"
+#include "gui/panels/common.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -87,7 +88,7 @@ void closeDialog(NewMapDialogState & state)
 
 void showError(NewMapDialogState & state, const uomul::Error & error)
 {
-    state.error = error.path.empty() ? error.message : error.path.string() + ": " + error.message;
+    state.error = formatError(error);
     ImGui::CloseCurrentPopup();
     state.mode = MapFileDialogMode::error;
 }

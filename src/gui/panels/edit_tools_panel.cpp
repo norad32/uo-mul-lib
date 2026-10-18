@@ -1,5 +1,6 @@
 #include "gui/panels/edit_tools_panel.h"
 #include "gui/map_workspace.h"
+#include "gui/panels/common.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -157,8 +158,7 @@ void applyOperation(MapWorkspace & workspace, EditToolsPanelState & state, EditT
 
     if (!result)
     {
-        const uomul::Error & error = result.error();
-        state.status = error.path.empty() ? error.message : error.path.string() + ": " + error.message;
+        state.status = formatError(result.error());
         state.statusIsError = true;
         return;
     }

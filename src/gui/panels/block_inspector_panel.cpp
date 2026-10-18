@@ -1,5 +1,6 @@
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/map_workspace.h"
+#include "gui/panels/common.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -20,33 +21,6 @@ constexpr float tileCellSize = 40.0F;
 constexpr float coordinateColumnWidth = 38.0F;
 constexpr float selectedBorderThickness = 2.0F;
 constexpr float gridLineThickness = 1.0F;
-constexpr float textOutlineOffset = 1.0F;
-
-[[nodiscard]] std::string tileLabel(MapDisplayMode mode, uomul::MapTile tile)
-{
-    if (mode == MapDisplayMode::tileIds)
-    {
-        return std::to_string(tile.id);
-    }
-
-    if (mode == MapDisplayMode::z)
-    {
-        return std::to_string(static_cast<int>(tile.z));
-    }
-
-    return std::to_string(tile.id) + "\n" + std::to_string(static_cast<int>(tile.z));
-}
-
-void drawOutlinedText(ImDrawList & drawList, ImVec2 position, const std::string & text)
-{
-    const ImU32 outlineColor = theme::packedColor(theme::stoneSurface);
-    const ImU32 textColor = theme::packedColor(theme::parchmentText);
-    drawList.AddText(ImVec2(position.x - textOutlineOffset, position.y), outlineColor, text.c_str());
-    drawList.AddText(ImVec2(position.x + textOutlineOffset, position.y), outlineColor, text.c_str());
-    drawList.AddText(ImVec2(position.x, position.y - textOutlineOffset), outlineColor, text.c_str());
-    drawList.AddText(ImVec2(position.x, position.y + textOutlineOffset), outlineColor, text.c_str());
-    drawList.AddText(position, textColor, text.c_str());
-}
 
 void drawTileCell(const uomul::MapBlock & block,
                   uomul::BlockCoord blockCoordinate,

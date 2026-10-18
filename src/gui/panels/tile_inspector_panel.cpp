@@ -1,5 +1,6 @@
 #include "gui/panels/tile_inspector_panel.h"
 #include "gui/map_workspace.h"
+#include "gui/panels/common.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
 #include <imgui.h>
@@ -13,22 +14,6 @@ namespace
 
 constexpr float tilePreviewSize = 40.0F;
 constexpr float selectedBorderThickness = 2.0F;
-constexpr float textOutlineOffset = 1.0F;
-
-[[nodiscard]] std::string tileLabel(MapDisplayMode mode, uomul::MapTile tile)
-{
-    if (mode == MapDisplayMode::tileIds)
-    {
-        return std::to_string(tile.id);
-    }
-
-    if (mode == MapDisplayMode::z)
-    {
-        return std::to_string(static_cast<int>(tile.z));
-    }
-
-    return std::to_string(tile.id) + "\n" + std::to_string(static_cast<int>(tile.z));
-}
 
 void drawTilePreview(uomul::MapTile tile, MapDisplayMode mode)
 {
@@ -45,13 +30,7 @@ void drawTilePreview(uomul::MapTile tile, MapDisplayMode mode)
     const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
     const ImVec2 textPosition(cellMinimum.x + ((tilePreviewSize - textSize.x) * 0.5F),
                               cellMinimum.y + ((tilePreviewSize - textSize.y) * 0.5F));
-    const ImU32 outlineColor = theme::packedColor(theme::stoneSurface);
-    const ImU32 textColor = theme::packedColor(theme::parchmentText);
-    drawList->AddText(ImVec2(textPosition.x - textOutlineOffset, textPosition.y), outlineColor, label.c_str());
-    drawList->AddText(ImVec2(textPosition.x + textOutlineOffset, textPosition.y), outlineColor, label.c_str());
-    drawList->AddText(ImVec2(textPosition.x, textPosition.y - textOutlineOffset), outlineColor, label.c_str());
-    drawList->AddText(ImVec2(textPosition.x, textPosition.y + textOutlineOffset), outlineColor, label.c_str());
-    drawList->AddText(textPosition, textColor, label.c_str());
+    drawOutlinedText(*drawList, textPosition, label);
     ImGui::Dummy(ImVec2(tilePreviewSize, tilePreviewSize));
 }
 
