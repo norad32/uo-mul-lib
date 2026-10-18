@@ -14,6 +14,9 @@ include(GuiDependencies)
 add_library(
     gui
     application.cpp
+    data_profile.cpp
+    data_profile_store.cpp
+    data_validation.cpp
     log_panel.cpp
     map_workspace.cpp
     menu_bar.cpp
