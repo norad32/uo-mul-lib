@@ -13,8 +13,6 @@
 #include <filesystem>
 #include <iterator>
 #include <memory>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <utility>
 #include <vector>
@@ -39,11 +37,6 @@ struct MapFileInfo
     const bool hasTrailingPartialBlock = fileSize % MapCommon::mapBlockByteSize != 0;
     const bool partialBlockIsNotRecoverable = fileSize > expectedSize || !options.recoverTruncatedMap;
     return hasTrailingPartialBlock && partialBlockIsNotRecoverable;
-}
-
-[[nodiscard]] inline bool containsCompleteBlock(off_t fileSize, std::uint64_t offset)
-{
-    return fileSize >= 0 && static_cast<std::uint64_t>(fileSize) >= offset + MapCommon::mapBlockByteSize;
 }
 
 [[nodiscard]] inline bool
@@ -102,27 +95,16 @@ validateMapFileSize(const std::filesystem::path & path, std::uint64_t fileSize, 
 std::expected<MapFileInfo, Error>
 inspectMapFile(int descriptor, const std::filesystem::path & path, std::uint64_t expectedBlockCount, OpenOptions options)
 {
-    struct stat fileStatus{};
-    if (::fstat(descriptor, &fileStatus) != 0)
+    auto inspectedSize = detail::MulCommon::regularFileSize(descriptor, path, "map");
+    if (!inspectedSize)
     {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
+        return std::unexpected(inspectedSize.error());
     }
-
-    if (fileStatus.st_size < 0)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, 0, "could not determine map size"));
-    }
-
-    const auto fileSize = static_cast<std::uint64_t>(fileStatus.st_size);
+    const auto fileSize = *inspectedSize;
     const auto expectedSize = expectedBlockCount * MapCommon::mapBlockByteSize;
     if (auto validSize = validateMapFileSize(path, fileSize, expectedSize, options); !validSize)
     {
         return std::unexpected(validSize.error());
-    }
-
-    if (!S_ISREG(fileStatus.st_mode))
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, 0, "map input must be a regular file"));
     }
 
     const auto completeBlockCount = std::min(expectedBlockCount, fileSize / MapCommon::mapBlockByteSize);
@@ -168,13 +150,13 @@ std::expected<std::uint64_t, Error> readableBlockOffset(int descriptor,
         return missingBlock();
     }
 
-    struct stat fileStatus{};
-    if (::fstat(descriptor, &fileStatus) != 0)
+    auto fileSize = detail::MulCommon::regularFileSize(descriptor, path, "map");
+    if (!fileSize)
     {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, path, offset, std::strerror(errno)));
+        return std::unexpected(fileSize.error());
     }
 
-    if (!containsCompleteBlock(fileStatus.st_size, offset))
+    if (*fileSize < offset + MapCommon::mapBlockByteSize)
     {
         return missingBlock();
     }

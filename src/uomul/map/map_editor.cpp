@@ -13,7 +13,6 @@
 #include <iterator>
 #include <memory>
 #include <span>
-#include <sys/stat.h>
 #include <sys/types.h>
 #ifdef __linux__
 #include <linux/fs.h>
@@ -40,19 +39,6 @@ constexpr std::size_t bufferSize = 1'048'576U;
                                               std::error_code & pathError)
 {
     return outputExists && std::filesystem::equivalent(source, output, pathError);
-}
-
-[[nodiscard]] inline bool isRegularFileDescriptor(int descriptor)
-{
-    struct stat fileStatus{};
-    return ::fstat(descriptor, &fileStatus) == 0 && S_ISREG(fileStatus.st_mode);
-}
-
-[[nodiscard]] inline bool stagedFileContainsRange(int descriptor, std::uint64_t offset, std::size_t byteCount)
-{
-    struct stat fileStatus{};
-    return ::fstat(descriptor, &fileStatus) == 0 && fileStatus.st_size >= 0 &&
-           static_cast<std::uint64_t>(fileStatus.st_size) >= offset + byteCount;
 }
 
 [[nodiscard]] inline bool
@@ -119,7 +105,7 @@ std::expected<void, Error> stageSourceMap(int sourceDescriptor,
                                           const std::filesystem::path & source,
                                           const std::filesystem::path & staging)
 {
-    if (!isRegularFileDescriptor(sourceDescriptor))
+    if (!detail::MulCommon::isRegularFileDescriptor(sourceDescriptor))
     {
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, source, 0, "map input must be a regular file"));
     }
@@ -406,7 +392,7 @@ std::expected<void, Error> MapEditor::editTile(TileCoord tile, MapTile data)
     const auto tileOffset = MapCommon::blockOffset(coordinate, impl_->dimensions) + MapCommon::mapHeaderByteSize +
                             (detail::tileIndexInBlock(tile) * MapCommon::mapTileByteSize);
     const auto raw = detail::encodeTile(data);
-    if (!stagedFileContainsRange(impl_->descriptor, tileOffset, raw.size()))
+    if (!detail::MulCommon::descriptorContainsRange(impl_->descriptor, tileOffset, raw.size()))
     {
         return std::unexpected(detail::MulCommon::makeError(
             ErrorCode::truncatedInput, impl_->staging, tileOffset, "could not read complete land block"));

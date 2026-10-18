@@ -22,7 +22,6 @@
 #include <ostream>
 #include <span>
 #include <string>
-#include <sys/stat.h>
 #include <system_error>
 #include <unistd.h>
 #include <utility>
@@ -37,12 +36,6 @@ namespace
 {
 
 constexpr std::uint32_t mapBlockIdByteCount = 4;
-
-[[nodiscard]] inline bool isRegularFileDescriptor(int descriptor)
-{
-    struct stat fileStatus{};
-    return ::fstat(descriptor, &fileStatus) == 0 && S_ISREG(fileStatus.st_mode);
-}
 
 [[nodiscard]] inline bool isRegularFile(const std::filesystem::path & path)
 {
@@ -537,7 +530,7 @@ std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path
     }
 
     const detail::ScopedDescriptor targetDescriptor(::open(targetMap.c_str(), O_RDONLY | O_CLOEXEC));
-    if (targetDescriptor.get() < 0 || !isRegularFileDescriptor(targetDescriptor.get()))
+    if (targetDescriptor.get() < 0 || !detail::MulCommon::isRegularFileDescriptor(targetDescriptor.get()))
     {
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, targetMap, 0, std::strerror(errno)));
     }

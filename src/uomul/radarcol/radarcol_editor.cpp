@@ -205,13 +205,7 @@ std::expected<void, Error> RadarColEditor::editRawColor(std::uint32_t index, Rad
     }
 
     const auto offset = detail::RadarColCommon::colorOffset(index);
-    constexpr std::uint32_t byteMask = 0xFF;
-    constexpr std::uint32_t byteShift = 8;
-    const auto packed = static_cast<std::uint32_t>(value);
-    const std::array<std::byte, 2> bytes{
-        static_cast<std::byte>(packed & byteMask),
-        static_cast<std::byte>((packed >> byteShift) & byteMask),
-    };
+    const auto bytes = detail::encodeLittleEndian(value);
 
     if (!detail::MulCommon::writeExact(impl_->descriptor, bytes.data(), bytes.size(), offset))
     {

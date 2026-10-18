@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <iterator>
 #include <string>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <system_error>
 #include <unistd.h>
@@ -118,6 +119,48 @@ void TemporaryPath::release() noexcept
 Error MulCommon::makeError(ErrorCode code, const std::filesystem::path & path, std::uint64_t offset, std::string message)
 {
     return Error{.code = code, .path = path, .offset = offset, .message = std::move(message)};
+}
+
+bool MulCommon::isRegularFileDescriptor(int descriptor) noexcept
+{
+    struct stat status{};
+    return ::fstat(descriptor, &status) == 0 && S_ISREG(status.st_mode);
+}
+
+bool MulCommon::descriptorContainsRange(int descriptor, std::uint64_t offset, std::uint64_t byteCount) noexcept
+{
+    struct stat status{};
+
+    if (::fstat(descriptor, &status) != 0 || status.st_size < 0)
+    {
+        return false;
+    }
+
+    const auto fileSize = static_cast<std::uint64_t>(status.st_size);
+    return offset <= fileSize && byteCount <= fileSize - offset;
+}
+
+std::expected<std::uint64_t, Error>
+MulCommon::regularFileSize(int descriptor, const std::filesystem::path & path, const char * formatName)
+{
+    struct stat status{};
+    if (::fstat(descriptor, &status) != 0)
+    {
+        return std::unexpected(makeError(ErrorCode::io, path, 0, std::strerror(errno)));
+    }
+
+    if (!S_ISREG(status.st_mode))
+    {
+        return std::unexpected(makeError(ErrorCode::io, path, 0, std::string(formatName) + " input must be a regular file"));
+    }
+
+    if (status.st_size < 0)
+    {
+        return std::unexpected(
+            makeError(ErrorCode::io, path, 0, "could not determine " + std::string(formatName) + " file size"));
+    }
+
+    return static_cast<std::uint64_t>(status.st_size);
 }
 
 bool MulCommon::readExact(int descriptor, void * data, std::size_t size, std::uint64_t offset)

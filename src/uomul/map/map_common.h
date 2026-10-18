@@ -1,6 +1,7 @@
 #pragma once
 
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -9,7 +10,6 @@
 #include <limits>
 #include <span>
 #include <string>
-#include <type_traits>
 
 namespace uomul::detail
 {
@@ -59,9 +59,9 @@ template <typename Visitor>
 [[nodiscard]] constexpr std::expected<void, Error> visitTilesInBlock(TileRegion region, BlockCoord block, Visitor visitor)
 {
     const auto tiles = clipTilesToBlock(region, block);
-    for (std::uint32_t x = tiles.min.x; x < tiles.maxExclusive.x; ++x)
+    for (std::uint32_t x = tiles.min.x; x < tiles.maxExclusive.x; x++)
     {
-        for (std::uint32_t y = tiles.min.y; y < tiles.maxExclusive.y; ++y)
+        for (std::uint32_t y = tiles.min.y; y < tiles.maxExclusive.y; y++)
         {
             const TileCoord tile{.x = x, .y = y};
             auto result = visitor(tile, tileIndexInBlock(tile));
@@ -72,33 +72,6 @@ template <typename Visitor>
         }
     }
     return {};
-}
-
-template <typename T, std::size_t Size = sizeof(T)>
-    requires(std::is_unsigned_v<T> && Size <= sizeof(T))
-[[nodiscard]] constexpr std::array<std::byte, Size> encodeLittleEndian(T value)
-{
-    std::array<std::byte, Size> bytes{};
-    for (std::size_t index = 0; index < Size; ++index)
-    {
-        bytes.at(index) = static_cast<std::byte>((value >> (index * std::numeric_limits<unsigned char>::digits)) &
-                                                 std::numeric_limits<unsigned char>::max());
-    }
-    return bytes;
-}
-
-template <typename T, std::size_t Size = sizeof(T), std::size_t ContainerSize>
-    requires(std::is_unsigned_v<T> && Size <= ContainerSize)
-[[nodiscard]] constexpr T decodeLittleEndian(const std::array<std::byte, ContainerSize> & bytes)
-{
-    static_assert(Size <= sizeof(T));
-    T value = 0;
-    for (std::size_t index = 0; index < Size; ++index)
-    {
-        value |= static_cast<T>(std::to_integer<unsigned char>(bytes.at(index)))
-                 << (index * std::numeric_limits<unsigned char>::digits);
-    }
-    return value;
 }
 
 [[nodiscard]] constexpr MapTile decodeTile(std::span<const std::byte, 3> bytes)

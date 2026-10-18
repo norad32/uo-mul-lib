@@ -112,10 +112,7 @@ std::expected<RadarColor, Error> RadarColReader::readRawColor(std::uint32_t inde
             ErrorCode::truncatedInput, impl_->path, offset, "radar color is missing or truncated"));
     }
 
-    const auto low = static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes.at(0)));
-    const auto high = static_cast<std::uint32_t>(std::to_integer<std::uint8_t>(bytes.at(1)));
-    constexpr std::uint32_t byteShift = 8;
-    return static_cast<RadarColor>(low + (high << byteShift));
+    return detail::decodeLittleEndian<RadarColor>(bytes);
 }
 
 } // namespace uomul

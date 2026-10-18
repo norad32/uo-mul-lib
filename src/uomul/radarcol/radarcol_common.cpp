@@ -1,12 +1,9 @@
 #include "radarcol_common.h"
 #include "uomul/mul_common/mul_common.h"
-#include <cerrno>
 #include <cstdint>
-#include <cstring>
 #include <expected>
 #include <filesystem>
 #include <limits>
-#include <sys/stat.h>
 #include <system_error>
 
 namespace uomul::detail
@@ -15,23 +12,12 @@ namespace uomul::detail
 std::expected<std::uint32_t, Error>
 RadarColCommon::inspectFile(int descriptor, const std::filesystem::path & path, std::uint64_t & fileSize)
 {
-    struct stat status{};
-    if (::fstat(descriptor, &status) != 0)
+    auto inspectedSize = MulCommon::regularFileSize(descriptor, path, "radar color");
+    if (!inspectedSize)
     {
-        return std::unexpected(MulCommon::makeError(ErrorCode::io, path, 0, std::strerror(errno)));
+        return std::unexpected(inspectedSize.error());
     }
-
-    if (!S_ISREG(status.st_mode))
-    {
-        return std::unexpected(MulCommon::makeError(ErrorCode::io, path, 0, "radar color input must be a regular file"));
-    }
-
-    if (status.st_size < 0)
-    {
-        return std::unexpected(MulCommon::makeError(ErrorCode::io, path, 0, "could not determine radar color file size"));
-    }
-
-    fileSize = static_cast<std::uint64_t>(status.st_size);
+    fileSize = *inspectedSize;
 
     if (fileSize % colorByteSize != 0)
     {
