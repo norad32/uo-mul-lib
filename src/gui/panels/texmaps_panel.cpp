@@ -50,18 +50,20 @@ void updatePageCount(TexmapsPanelState & state) noexcept
 
 [[nodiscard]] MapColor convert16ToRgb(std::uint16_t pixel) noexcept
 {
-    // Texture format: XBBBBBGGGGGRRRRR (5-5-5 RGB with unused high bit)
+    // Texture format: XRRRRRGGGGGBBBBB (5-5-5 RGB with unused high bit, shifted left)
+    constexpr std::uint32_t redShift = 10;
+    constexpr std::uint32_t greenShift = 5;
     constexpr std::uint32_t channelMask = 0x1FU;
     constexpr std::uint32_t maxByteValue = 255U;
     constexpr std::uint32_t max5BitValue = 31U;
     constexpr std::uint32_t roundingValue = 15U;
 
     const std::uint32_t pixelValue = static_cast<std::uint32_t>(pixel);
-    const std::uint32_t red = (pixelValue & channelMask);
-    const std::uint32_t green = ((pixelValue >> 5U) & channelMask);
-    const std::uint32_t blue = ((pixelValue >> 10U) & channelMask);
+    const std::uint32_t red = ((pixelValue >> redShift) & channelMask);
+    const std::uint32_t green = ((pixelValue >> greenShift) & channelMask);
+    const std::uint32_t blue = (pixelValue & channelMask);
 
-    // Scale 5-bit values to 8-bit
+    // Scale 5-bit values to 8-bit (same as radarcol)
     const auto scale5to8 = [](std::uint32_t value) -> std::uint8_t {
         return static_cast<std::uint8_t>(((value * maxByteValue) + roundingValue) / max5BitValue);
     };
