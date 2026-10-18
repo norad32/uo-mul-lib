@@ -14,6 +14,13 @@
       "description": "Select build target",
       "options": ["gui", "headless", "all"],
       "default": "all"
+    },
+    {
+      "id": "benchmarkTarget",
+      "type": "pickString",
+      "description": "Select benchmarks to run",
+      "options": ["all", "map", "radarcol"],
+      "default": "all"
     }
   ],
   "tasks": [
@@ -55,6 +62,19 @@
       "type": "shell",
       "command": "cmake --preset debug-headless -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-headless",
       "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Run Benchmarks",
+      "type": "shell",
+      "command": "compiler=\"$(command -v g++-14 || command -v g++)\"; target=\"${input:benchmarkTarget}\"; cmake --preset release-map-benchmarks -DCMAKE_CXX_COMPILER=\"$compiler\" || exit $?; targets=(map_benchmarks radarcol_benchmarks); if [[ \"$target\" != all ]]; then targets=(\"${target}_benchmarks\"); fi; cmake --build --preset release-map-benchmarks --target \"${targets[@]}\" --parallel 2 || exit $?; for benchmark in \"${targets[@]}\"; do build/release-map-benchmarks/benchmarks/\"$benchmark\" --benchmark-samples 10 --benchmark-resamples 1000 --benchmark-warmup-time 0 || exit $?; done",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "/bin/bash",
+          "args": ["-c"]
+        }
+      },
       "problemMatcher": ["$gcc"]
     },
     {

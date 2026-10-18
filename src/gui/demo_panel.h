@@ -4,7 +4,7 @@
 #include <imgui.h>
 #include <spdlog/logger.h>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 struct DemoPanelState
@@ -24,4 +24,4 @@ void drawDemoPanel(spdlog::logger & logger,
                    float bottomPanelHeight,
                    DemoPanelState & state);
 
-}
+} // namespace uo_mule::gui

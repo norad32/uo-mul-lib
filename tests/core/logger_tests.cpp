@@ -1,3 +1,4 @@
+#include "core/app_info.h"
 #include "core/log_level.h"
 #include "core/logger.h"
 #include <catch2/catch_test_macros.hpp>
@@ -26,9 +27,10 @@ TEST_CASE("Logger_Should_IgnoreRelativeXdgStateHome")
     setenv("HOME", log_directory.c_str(), 1);
     setenv("XDG_STATE_HOME", "relative-state-home", 1);
 
-    im_cpp::core::Logger logger("relative-state-test");
-    logger.setup(im_cpp::core::defaultLogLevel());
-    const auto expected_path = log_directory / ".local" / "state" / "im-cpp" / "logs" / "relative-state-test.log";
+    uo_mule::core::Logger logger("relative-state-test");
+    logger.setup(uo_mule::core::defaultLogLevel());
+    const auto expected_path =
+        log_directory / ".local" / "state" / uo_mule::core::applicationName() / "logs" / "relative-state-test.log";
     const auto actual_path = logger.logFilePath();
     logger.shutdown();
     REQUIRE(actual_path == expected_path);
@@ -58,8 +60,8 @@ TEST_CASE("Logger_Should_WriteLogToRotatingFile")
     const auto log_directory = std::filesystem::temp_directory_path() / "logger-tests";
     std::filesystem::remove_all(log_directory);
 
-    im_cpp::core::Logger logger("test");
-    logger.setup(im_cpp::core::defaultLogLevel(), log_directory);
+    uo_mule::core::Logger logger("test");
+    logger.setup(uo_mule::core::defaultLogLevel(), log_directory);
     const auto guiSink = logger.attachGuiSink();
     SPDLOG_LOGGER_INFO(logger.get(), "test log message");
     logger.shutdown();
@@ -69,8 +71,8 @@ TEST_CASE("Logger_Should_WriteLogToRotatingFile")
     const auto guiEntries = guiSink->drain();
     REQUIRE(contents.contains("test log message"));
     REQUIRE(guiEntries.size() == 1);
-#ifdef IM_CPP_DEBUG_BUILD
-    constexpr std::string_view expectedLogSuffix{" [info] [logger_tests.cpp] [64] test log message\n"};
+#ifdef DEBUG_BUILD
+    constexpr std::string_view expectedLogSuffix{" [info] [logger_tests.cpp] [66] test log message\n"};
 #else
     constexpr std::string_view expectedLogSuffix{" [info] test log message\n"};
 #endif
@@ -85,10 +87,10 @@ TEST_CASE("Logger_Should_UseSourceFilenameForDebugAndTraceAndDisableThemInReleas
     const auto log_directory = std::filesystem::temp_directory_path() / "logger-level-tests";
     std::filesystem::remove_all(log_directory);
 
-    im_cpp::core::Logger logger("level-test");
-    logger.setup(im_cpp::core::LogLevel::trace, log_directory);
+    uo_mule::core::Logger logger("level-test");
+    logger.setup(uo_mule::core::LogLevel::trace, log_directory);
     const auto guiSink = logger.attachGuiSink();
-    logger.setLevel(im_cpp::core::LogLevel::trace);
+    logger.setLevel(uo_mule::core::LogLevel::trace);
     const auto activeLogger = logger.get();
     constexpr int debugSourceLine = 42;
     constexpr int traceSourceLine = 43;
@@ -103,7 +105,7 @@ TEST_CASE("Logger_Should_UseSourceFilenameForDebugAndTraceAndDisableThemInReleas
     REQUIRE(entries.empty());
 #else
     REQUIRE(entries.size() == 2);
-#ifdef IM_CPP_DEBUG_BUILD
+#ifdef DEBUG_BUILD
     REQUIRE(entries.at(0).formattedMessage.ends_with(" [debug] [debug_source.cpp] [42] debug message\n"));
     REQUIRE(entries.at(1).formattedMessage.ends_with(" [trace] [trace_source.cpp] [43] trace message\n"));
 #else

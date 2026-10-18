@@ -1,5 +1,5 @@
-#include "core/app_info.h"
 #include "core/logger.h"
+#include "core/app_info.h"
 #include "core/gui_log_sink.h"
 #include "core/log_level.h"
 #include <cstdlib>
@@ -18,7 +18,7 @@
 #include <string_view>
 #include <vector>
 
-namespace im_cpp::core
+namespace uo_mule::core
 {
 namespace
 {
@@ -51,7 +51,7 @@ public:
 {
     auto formatter = std::make_unique<spdlog::pattern_formatter>();
     formatter->add_flag<SourceFilenameFlagFormatter>('N');
-#ifdef IM_CPP_DEBUG_BUILD
+#ifdef DEBUG_BUILD
     formatter->set_pattern("%Y-%m-%d %H:%M:%S.%e [%l] [%N] [%#] %v");
 #else
     formatter->set_pattern("%Y-%m-%d %H:%M:%S.%e [%l] %v");
@@ -92,8 +92,7 @@ public:
 [[nodiscard]] std::filesystem::path defaultLogDirectory()
 {
     if (const char * stateDirectory = std::getenv("XDG_STATE_HOME");
-        stateDirectory != nullptr && *stateDirectory != '\0' &&
-        std::filesystem::path(stateDirectory).is_absolute())
+        stateDirectory != nullptr && *stateDirectory != '\0' && std::filesystem::path(stateDirectory).is_absolute())
     {
         return std::filesystem::path(stateDirectory) / std::string(applicationName()) / "logs";
     }
@@ -182,4 +181,4 @@ std::shared_ptr<spdlog::logger> Logger::get() const noexcept
     return logger_;
 }
 
-} // namespace im_cpp::core
+} // namespace uo_mule::core

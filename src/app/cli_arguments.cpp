@@ -3,7 +3,7 @@
 #include <string_view>
 #include <vector>
 
-namespace im_cpp::app
+namespace uo_mule::app
 {
 
 std::vector<std::string_view> makeCliArguments(std::span<char *> arguments)
@@ -20,4 +20,4 @@ std::vector<std::string_view> makeCliArguments(std::span<char *> arguments)
     return cliArguments;
 }
 
-}
+} // namespace uo_mule::app

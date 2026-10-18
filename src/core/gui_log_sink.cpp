@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-namespace im_cpp::core
+namespace uo_mule::core
 {
 
 GuiLogSink::GuiLogSink(std::size_t capacity) : capacity_(capacity)
@@ -49,4 +49,4 @@ void GuiLogSink::flush_()
 {
 }
 
-} // namespace im_cpp::core
+} // namespace uo_mule::core

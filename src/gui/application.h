@@ -5,7 +5,7 @@
 #include <memory>
 #include <spdlog/logger.h>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 class Application
@@ -21,4 +21,4 @@ private:
     bool shouldClose_ = false;
 };
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 struct Preferences
@@ -16,4 +16,4 @@ struct Preferences
 [[nodiscard]] Preferences loadPreferences();
 void savePreferences(const Preferences & preferences);
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

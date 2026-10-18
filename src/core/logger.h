@@ -9,7 +9,7 @@
 #include <string>
 #include <string_view>
 
-namespace im_cpp::core
+namespace uo_mule::core
 {
 
 class Logger
@@ -37,4 +37,4 @@ private:
     std::shared_ptr<GuiLogSink> guiSink_;
 };
 
-} // namespace im_cpp::core
+} // namespace uo_mule::core

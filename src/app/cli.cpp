@@ -1,4 +1,5 @@
 #include "app/cli.h"
+#include "app/map_cli.h"
 #include "core/app_info.h"
 #include "core/gui_log_sink.h"
 #include "core/log_level.h"
@@ -18,7 +19,7 @@
 #include <string_view>
 #include <vector>
 
-namespace im_cpp::app
+namespace uo_mule::app
 {
 namespace
 {
@@ -35,7 +36,12 @@ namespace
     return cliArguments;
 }
 
-void configureApplication(CLI::App & application, std::string & logLevel, CLI::App *& checkCommand, CLI::App *& guiCommand)
+void configureApplication(CLI::App & application,
+                          std::string & logLevel,
+                          CLI::App *& checkCommand,
+                          CLI::App *& guiCommand,
+                          MapCommandOptions & mapOptions,
+                          CLI::App *& mapCommand)
 {
     application.set_help_flag("-h,--help");
     application.set_version_flag("-V,--version",
@@ -44,6 +50,7 @@ void configureApplication(CLI::App & application, std::string & logLevel, CLI::A
 
     checkCommand = application.add_subcommand("check", "Run a logging check");
     guiCommand = application.add_subcommand("gui", "Launch the graphical interface");
+    mapCommand = configureMapCommand(application, mapOptions);
     checkCommand->add_option("--log-level,-l", logLevel, "Set the logging level");
     guiCommand->add_option("--log-level,-l", logLevel, "Set the logging level");
 }
@@ -69,7 +76,9 @@ int runCli(std::span<const std::string_view> arguments,
     CLI::App application{"", std::string(core::applicationName())};
     CLI::App * checkCommand = nullptr;
     CLI::App * guiCommand = nullptr;
-    configureApplication(application, logLevelValue, checkCommand, guiCommand);
+    CLI::App * mapCommand = nullptr;
+    MapCommandOptions mapOptions;
+    configureApplication(application, logLevelValue, checkCommand, guiCommand, mapOptions, mapCommand);
 
     try
     {
@@ -83,10 +92,13 @@ int runCli(std::span<const std::string_view> arguments,
     }
 
     const bool runCheck = checkCommand->parsed();
-    const bool runGuiCommand = guiCommand->parsed() || (!runCheck && arguments.empty());
-    if (!runCheck && !runGuiCommand)
+    const bool executeMapCommand = mapCommand->parsed();
+    const bool runGuiCommand = guiCommand->parsed() || (!runCheck && !executeMapCommand && arguments.empty());
+    if (static_cast<unsigned int>(runCheck) + static_cast<unsigned int>(runGuiCommand) +
+            static_cast<unsigned int>(executeMapCommand) !=
+        1U)
     {
-        error << "Exactly one of the commands 'check' or 'gui' is required\n";
+        error << "Exactly one of the commands 'check', 'gui', or 'map' is required\n";
         return 2;
     }
 
@@ -134,6 +146,14 @@ int runCli(std::span<const std::string_view> arguments,
         }
     }
 
+    if (executeMapCommand)
+    {
+        const int result = uo_mule::app::runMapCommand(mapOptions, output, error);
+        SPDLOG_LOGGER_INFO(activeLogger, "Application closed");
+        logger.shutdown();
+        return result;
+    }
+
     SPDLOG_LOGGER_INFO(activeLogger, "I'm C++ OK");
     SPDLOG_LOGGER_INFO(activeLogger, "Application closed");
     logger.shutdown();
@@ -141,4 +161,4 @@ int runCli(std::span<const std::string_view> arguments,
     return 0;
 }
 
-} // namespace im_cpp::app
+} // namespace uo_mule::app

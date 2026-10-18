@@ -1,0 +1,7 @@
+add_executable(map_benchmarks map_benchmarks.cpp)
+target_link_libraries(map_benchmarks PRIVATE Catch2::Catch2WithMain uomul)
+apply_common_compile_options(map_benchmarks)
+
+add_executable(radarcol_benchmarks radarcol_benchmarks.cpp)
+target_link_libraries(radarcol_benchmarks PRIVATE Catch2::Catch2WithMain uomul)
+apply_common_compile_options(radarcol_benchmarks)

@@ -10,7 +10,7 @@ TEST_CASE("makeCliArguments_Should_ExcludeExecutableAndPreserveOrder")
     std::array<char, 10> second{"--verbose"};
     std::array<char *, 3> arguments{executable.data(), first.data(), second.data()};
 
-    const auto parsed = im_cpp::app::makeCliArguments(arguments);
+    const auto parsed = uo_mule::app::makeCliArguments(arguments);
 
     REQUIRE(parsed.size() == 2);
     REQUIRE(parsed[0] == std::string_view("check"));

@@ -2,7 +2,7 @@
 
 #include "core/app_metadata.h"
 
-namespace im_cpp::core
+namespace uo_mule::core
 {
 
 [[nodiscard]] constexpr std::string_view applicationName() noexcept
@@ -40,4 +40,4 @@ namespace im_cpp::core
     return metadata::applicationAuthor;
 }
 
-} // namespace im_cpp::core
+} // namespace uo_mule::core

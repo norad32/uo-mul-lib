@@ -29,6 +29,7 @@ endif()
 option(ENABLE_CLANG_TIDY
        "Run clang-tidy during compilation and fail on diagnostics" OFF)
 option(BUILD_TESTS "Build and register unit tests" OFF)
+option(BUILD_BENCHMARKS "Build Catch2 map and radarcol benchmarks" OFF)
 option(ENABLE_COVERAGE "Instrument project code for Debug gcovr reports" OFF)
 option(BUILD_GUI "Build the ImGui GLFW/OpenGL desktop GUI" ON)
 option(BUILD_GUI_RUNTIME "Build the separately packaged GUI runtime executable"
@@ -122,6 +123,7 @@ if(NOT CLI11_FOUND)
 endif()
 
 add_subdirectory(src/core)
+add_subdirectory(src/uomul)
 add_subdirectory(src/app)
 
 add_executable(${EXECUTABLE_NAME} "${APPLICATION_SOURCE_DIR}/src/main.cpp")
@@ -134,7 +136,11 @@ else()
     target_compile_definitions(${EXECUTABLE_NAME} PRIVATE HAS_GUI=0)
 endif()
 
-set(compile_targets core app ${EXECUTABLE_NAME})
+set(compile_targets
+    core
+    uomul
+    app
+    ${EXECUTABLE_NAME})
 
 if(BUILD_GUI)
     list(APPEND compile_targets gui)
@@ -146,15 +152,24 @@ foreach(target IN LISTS compile_targets)
     apply_common_compile_options(${target})
 endforeach()
 
+if(BUILD_TESTS OR BUILD_BENCHMARKS)
+    find_package(Catch2 CONFIG REQUIRED COMPONENTS Catch2WithMain)
+endif()
 if(BUILD_TESTS)
     include(CTest)
-    find_package(Catch2 CONFIG REQUIRED COMPONENTS Catch2WithMain)
     add_subdirectory(tests "${PROJECT_BINARY_DIR}/unit-tests")
+endif()
+if(BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
 
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
-    set(clang_tidy_targets core app ${EXECUTABLE_NAME})
+    set(clang_tidy_targets
+        core
+        uomul
+        app
+        ${EXECUTABLE_NAME})
     if(BUILD_GUI)
         list(APPEND clang_tidy_targets gui)
         if(BUILD_GUI_RUNTIME)

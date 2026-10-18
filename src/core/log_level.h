@@ -4,7 +4,7 @@
 #include <optional>
 #include <string_view>
 
-namespace im_cpp::core
+namespace uo_mule::core
 {
 
 enum class LogLevel : std::uint8_t
@@ -19,7 +19,7 @@ enum class LogLevel : std::uint8_t
 
 [[nodiscard]] constexpr LogLevel defaultLogLevel() noexcept
 {
-#ifdef IM_CPP_DEBUG_BUILD
+#ifdef DEBUG_BUILD
     return LogLevel::trace;
 #else
     return LogLevel::info;
@@ -29,4 +29,4 @@ enum class LogLevel : std::uint8_t
 [[nodiscard]] std::optional<LogLevel> parseLogLevel(std::string_view value);
 [[nodiscard]] std::string_view toString(LogLevel level) noexcept;
 
-} // namespace im_cpp::core
+} // namespace uo_mule::core

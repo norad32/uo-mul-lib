@@ -1,5 +1,5 @@
-#include "core/app_info.h"
 #include "gui/preferences.h"
+#include "core/app_info.h"
 #include "gui/preferences_store.h"
 #include <algorithm>
 #include <atomic>
@@ -18,7 +18,7 @@
 #include <system_error>
 #include <unistd.h>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 namespace
 {
@@ -39,9 +39,11 @@ constexpr std::uint32_t maximumTemporaryFileAttempts = 128;
             {
                 throw std::system_error(errno, std::generic_category(), "Cannot create temporary preferences file");
             }
+
             return descriptor;
         }
     }
+
     throw std::system_error(EEXIST, std::generic_category(), "Cannot create temporary preferences file");
 }
 
@@ -52,10 +54,12 @@ constexpr std::uint32_t maximumTemporaryFileAttempts = 128;
     {
         return std::filesystem::path(configDirectory) / std::string(core::applicationName()) / "preferences.conf";
     }
+
     if (const char * homeDirectory = std::getenv("HOME"); homeDirectory != nullptr && !std::string_view(homeDirectory).empty())
     {
         return std::filesystem::path(homeDirectory) / ".config" / std::string(core::applicationName()) / "preferences.conf";
     }
+
     return std::nullopt;
 }
 
@@ -73,6 +77,7 @@ public:
         {
             close(descriptor_);
         }
+
         if (!committed_)
         {
             unlink(path_.c_str());
@@ -107,16 +112,20 @@ public:
         {
             throw std::system_error(errno, std::generic_category(), "Cannot sync preferences file");
         }
+
         if (close(descriptor_) == -1)
         {
             descriptor_ = -1;
             throw std::system_error(errno, std::generic_category(), "Cannot close preferences file");
         }
+
         descriptor_ = -1;
+
         if (rename(path_.c_str(), destination.c_str()) == -1)
         {
             throw std::system_error(errno, std::generic_category(), "Cannot replace preferences file");
         }
+
         committed_ = true;
     }
 
@@ -188,4 +197,4 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
     temporaryFile.commit(path);
 }
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

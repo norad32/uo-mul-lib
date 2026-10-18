@@ -11,7 +11,7 @@
 #include "core/gui_log_sink.h"
 #include "core/logger.h"
 
-namespace im_cpp::app
+namespace uo_mule::app
 {
 
 [[nodiscard]] int

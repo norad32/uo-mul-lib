@@ -4,10 +4,9 @@
 #include <string_view>
 #include <vector>
 
-namespace im_cpp::app
+namespace uo_mule::app
 {
 
-[[nodiscard]] std::vector<std::string_view>
-makeCliArguments(std::span<char *> arguments);
+[[nodiscard]] std::vector<std::string_view> makeCliArguments(std::span<char *> arguments);
 
 }
