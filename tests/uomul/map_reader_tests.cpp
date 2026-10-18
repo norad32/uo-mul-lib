@@ -1,5 +1,6 @@
 #include "map_test_helpers.h"
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <array>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -9,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,6 +32,10 @@ constexpr std::size_t landHeaderByteCount = 4;
 constexpr uomul::Dimensions partialEdgeDimensions{.widthTiles = 17, .heightTiles = 9};
 constexpr uomul::Dimensions truncatedMapDimensions{.widthTiles = 32, .heightTiles = 16};
 constexpr std::uint32_t partialEdgeFixtureBlockCount = 6;
+constexpr std::uint32_t extraCompleteBlockFixtureCount = 5;
+constexpr double expectedAverageElevation = 31.484375;
+constexpr double expectedMedianElevation = 31.5;
+constexpr double expectedSingleTilePercentage = 100.0 / (dimensions.widthTiles * dimensions.heightTiles);
 
 void writeTruncatedEdgeFixture(const std::filesystem::path & path)
 {
@@ -55,6 +61,20 @@ void writeTruncatedEdgeFixture(const std::filesystem::path & path)
         return std::unexpected(result.error());
     }
     return coordinates;
+}
+
+[[nodiscard]] bool blockCoordinatesAreInReadOrder(const std::vector<uomul::BlockCoord> & coordinates)
+{
+    return coordinates.size() == 4 && coordinates.at(0).x == 0 && coordinates.at(0).y == 0 && coordinates.at(1).x == 0 &&
+           coordinates.at(1).y == 1 && coordinates.at(2).x == 1 && coordinates.at(2).y == 0 && coordinates.at(3).x == 1 &&
+           coordinates.at(3).y == 1;
+}
+
+template <typename Result>
+void requireInvalidCoordinate(const Result & result)
+{
+    REQUIRE_FALSE(result);
+    REQUIRE(result.error().code == uomul::ErrorCode::invalidCoordinate);
 }
 
 } // namespace
@@ -138,8 +158,8 @@ TEST_CASE("open_Should_ExposeCompletePrefixAndMissingBlocks_If_RecoveryIsEnabled
     REQUIRE(reader);
     REQUIRE(reader->completeBlocks() == 2);
     REQUIRE(reader->missingBlocks() == 2);
-    REQUIRE(reader->readBlock({0, 1}));
-    const auto missing = reader->readBlock({1, 0});
+    REQUIRE(reader->readBlock({.x = 0, .y = 1}));
+    const auto missing = reader->readBlock({.x = 1, .y = 0});
     REQUIRE_FALSE(missing);
     REQUIRE(missing.error().code == uomul::ErrorCode::truncatedInput);
 }
@@ -183,7 +203,7 @@ TEST_CASE("open_Should_RejectExtraCompleteBlocks_If_RecoveryIsEnabled")
 {
     const TestDirectory directory;
     const auto path = directory.path() / "map.mul";
-    writeFixture(path, 5);
+    writeFixture(path, extraCompleteBlockFixtureCount);
 
     const auto reader = uomul::MapReader::open(path, dimensions, {.recoverTruncatedMap = true});
 
@@ -203,8 +223,8 @@ TEST_CASE("open_Should_ReportMissingBlocksAndTrailingBytes_If_RecoveredMapIsTrun
     REQUIRE(reader->completeBlocks() == partialEdgeFixtureBlockCount);
     REQUIRE(reader->missingBlocks() == 2);
     REQUIRE(reader->ignoredTrailingBytes() == 2);
-    REQUIRE(reader->readBlock({2, 1}));
-    REQUIRE_FALSE(reader->readBlock({3, 0}));
+    REQUIRE(reader->readBlock({.x = 2, .y = 1}));
+    REQUIRE_FALSE(reader->readBlock({.x = 3, .y = 0}));
 }
 
 TEST_CASE("moveConstructor_Should_KeepReaderUsable_If_ReaderIsMoved")
@@ -215,7 +235,7 @@ TEST_CASE("moveConstructor_Should_KeepReaderUsable_If_ReaderIsMoved")
     auto opened = uomul::MapReader::open(path, dimensions);
     REQUIRE(opened);
 
-    uomul::MapReader reader(std::move(*opened));
+    const uomul::MapReader reader(std::move(*opened));
 
     REQUIRE(reader.dimensions() == dimensions);
     REQUIRE(reader.readTile({0, 0})->id == 0);
@@ -259,7 +279,7 @@ TEST_CASE("readBlock_Should_DecodeTileIdsAndSignedElevations_If_BlockIsAvailable
     const auto reader = uomul::MapReader::open(path, dimensions);
     REQUIRE(reader);
 
-    const auto block = reader->readBlock({0, 0});
+    const auto block = reader->readBlock({.x = 0, .y = 0});
 
     REQUIRE(block);
     REQUIRE(block->at(0).id == 0);
@@ -295,7 +315,7 @@ TEST_CASE("readBlock_Should_ReportReadFailure_If_FileIsTruncatedAfterOpening")
     REQUIRE(reader);
     std::filesystem::resize_file(path, 0);
 
-    const auto block = reader->readBlock({0, 0});
+    const auto block = reader->readBlock({.x = 0, .y = 0});
 
     REQUIRE_FALSE(block);
     REQUIRE(block.error().code == uomul::ErrorCode::truncatedInput);
@@ -397,15 +417,7 @@ TEST_CASE("readBlocks_Should_VisitHalfOpenRegionInBlockOrder_If_RegionIsValid")
         });
 
     REQUIRE(result);
-    REQUIRE(coordinates.size() == 4);
-    REQUIRE(coordinates.at(0).x == 0);
-    REQUIRE(coordinates.at(0).y == 0);
-    REQUIRE(coordinates.at(1).x == 0);
-    REQUIRE(coordinates.at(1).y == 1);
-    REQUIRE(coordinates.at(2).x == 1);
-    REQUIRE(coordinates.at(2).y == 0);
-    REQUIRE(coordinates.at(3).x == 1);
-    REQUIRE(coordinates.at(3).y == 1);
+    REQUIRE(blockCoordinatesAreInReadOrder(coordinates));
 }
 
 TEST_CASE("readBlocks_Should_ReturnSuccessWithoutCallbacks_If_RegionIsEmpty")
@@ -417,7 +429,7 @@ TEST_CASE("readBlocks_Should_ReturnSuccessWithoutCallbacks_If_RegionIsEmpty")
     REQUIRE(reader);
 
     const auto result =
-        reader->readBlocks({.min = {0, 0}, .maxExclusive = {0, 2}},
+        reader->readBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 0, .y = 2}},
                            [](uomul::BlockCoord, const uomul::MapBlock &) -> std::expected<void, uomul::Error> { return {}; });
 
     REQUIRE(result);
@@ -432,16 +444,14 @@ TEST_CASE("readBlocks_Should_RejectRequest_If_RegionIsReversedOrOutOfBounds")
     REQUIRE(reader);
     const auto callback = [](uomul::BlockCoord, const uomul::MapBlock &) -> std::expected<void, uomul::Error> { return {}; };
 
-    const auto reversedX = reader->readBlocks({.min = {1, 0}, .maxExclusive = {0, 1}}, callback);
-    const auto reversedY = reader->readBlocks({.min = {0, 1}, .maxExclusive = {1, 0}}, callback);
-    const auto outside = reader->readBlocks({.min = {0, 0}, .maxExclusive = {0, blockGridSize + 1}}, callback);
+    const auto reversedX = reader->readBlocks({.min = {.x = 1, .y = 0}, .maxExclusive = {.x = 0, .y = 1}}, callback);
+    const auto reversedY = reader->readBlocks({.min = {.x = 0, .y = 1}, .maxExclusive = {.x = 1, .y = 0}}, callback);
+    const auto outside =
+        reader->readBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 0, .y = blockGridSize + 1}}, callback);
 
-    REQUIRE_FALSE(reversedX);
-    REQUIRE(reversedX.error().code == uomul::ErrorCode::invalidCoordinate);
-    REQUIRE_FALSE(reversedY);
-    REQUIRE(reversedY.error().code == uomul::ErrorCode::invalidCoordinate);
-    REQUIRE_FALSE(outside);
-    REQUIRE(outside.error().code == uomul::ErrorCode::invalidCoordinate);
+    requireInvalidCoordinate(reversedX);
+    requireInvalidCoordinate(reversedY);
+    requireInvalidCoordinate(outside);
 }
 
 TEST_CASE("readBlocks_Should_RejectRequest_If_CallbackIsEmpty")
@@ -452,7 +462,7 @@ TEST_CASE("readBlocks_Should_RejectRequest_If_CallbackIsEmpty")
     const auto reader = uomul::MapReader::open(path, dimensions);
     REQUIRE(reader);
 
-    const auto result = reader->readBlocks({.min = {0, 0}, .maxExclusive = {1, 1}}, {});
+    const auto result = reader->readBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, {});
 
     REQUIRE_FALSE(result);
     REQUIRE(result.error().code == uomul::ErrorCode::io);
@@ -471,10 +481,14 @@ TEST_CASE("readBlocks_Should_PropagateCallbackError_If_CallbackFails")
         reader->readBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = testRegionEnd, .y = testRegionEnd}},
                            [&callbackCount](uomul::BlockCoord, const uomul::MapBlock &) -> std::expected<void, uomul::Error>
                            {
-                               if (++callbackCount == callbackFailureInvocation)
+                               if (callbackCount++ == callbackFailureInvocation)
                                {
                                    return std::unexpected(uomul::Error{
-                                       .code = uomul::ErrorCode::io, .path = {}, .offset = 0, .message = "callback failure"});
+                                       .code = uomul::ErrorCode::io,
+                                       .path = {},
+                                       .offset = 0,
+                                       .message = "callback failure",
+                                   });
                                }
                                return {};
                            });
@@ -514,11 +528,11 @@ TEST_CASE("readRawBlocks_Should_PreserveHeaders_If_BlocksAreRead")
         [&callbackCount](uomul::BlockCoord coordinate, const uomul::MapBlockBytes & bytes) -> std::expected<void, uomul::Error>
         {
             const auto blockId = (coordinate.x * blockGridSize) + coordinate.y;
-            for (std::size_t byte = 0; byte < landHeaderByteCount; ++byte)
+            for (std::size_t byte = 0; byte < landHeaderByteCount; byte++)
             {
                 REQUIRE(std::to_integer<std::uint8_t>(bytes.at(byte)) == blockId + byte + 1);
             }
-            ++callbackCount;
+            callbackCount++;
             return {};
         });
 
@@ -536,10 +550,10 @@ TEST_CASE("readRawBlocks_Should_ReturnSuccessWithoutCallbacks_If_RegionIsEmpty")
     std::uint32_t callbackCount = 0;
 
     const auto result = reader->readRawBlocks(
-        {.min = {0, 0}, .maxExclusive = {0, 2}},
+        {.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 0, .y = 2}},
         [&callbackCount](uomul::BlockCoord, const uomul::MapBlockBytes &) -> std::expected<void, uomul::Error>
         {
-            ++callbackCount;
+            callbackCount++;
             return {};
         });
 
@@ -557,7 +571,8 @@ TEST_CASE("readRawBlocks_Should_RejectRequest_If_RegionIsOutOfBounds")
     const auto callback = [](uomul::BlockCoord, const uomul::MapBlockBytes &) -> std::expected<void, uomul::Error>
     { return {}; };
 
-    const auto result = reader->readRawBlocks({.min = {0, 0}, .maxExclusive = {0, blockGridSize + 1}}, callback);
+    const auto result =
+        reader->readRawBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 0, .y = blockGridSize + 1}}, callback);
 
     REQUIRE_FALSE(result);
     REQUIRE(result.error().code == uomul::ErrorCode::invalidCoordinate);
@@ -571,7 +586,7 @@ TEST_CASE("readRawBlocks_Should_RejectRequest_If_CallbackIsEmpty")
     const auto reader = uomul::MapReader::open(path, dimensions);
     REQUIRE(reader);
 
-    const auto result = reader->readRawBlocks({.min = {0, 0}, .maxExclusive = {1, 1}}, {});
+    const auto result = reader->readRawBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, {});
 
     REQUIRE_FALSE(result);
     REQUIRE(result.error().code == uomul::ErrorCode::io);
@@ -664,19 +679,17 @@ TEST_CASE("readTiles_Should_RejectRequest_If_RegionIsReversedOrOutOfBounds")
     REQUIRE(reader);
     const auto callback = [](uomul::TileCoord, const uomul::MapTile &) -> std::expected<void, uomul::Error> { return {}; };
 
-    const auto reversedX = reader->readTiles({.min = {2, 0}, .maxExclusive = {1, 1}}, callback);
-    const auto reversedY = reader->readTiles({.min = {0, 2}, .maxExclusive = {1, 1}}, callback);
-    const auto outsideX = reader->readTiles({.min = {0, 0}, .maxExclusive = {dimensions.widthTiles + 1, 1}}, callback);
-    const auto outsideY = reader->readTiles({.min = {0, 0}, .maxExclusive = {1, dimensions.heightTiles + 1}}, callback);
+    const auto reversedX = reader->readTiles({.min = {.x = 2, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, callback);
+    const auto reversedY = reader->readTiles({.min = {.x = 0, .y = 2}, .maxExclusive = {.x = 1, .y = 1}}, callback);
+    const auto outsideX =
+        reader->readTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = dimensions.widthTiles + 1, .y = 1}}, callback);
+    const auto outsideY =
+        reader->readTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = dimensions.heightTiles + 1}}, callback);
 
-    REQUIRE_FALSE(reversedX);
-    REQUIRE(reversedX.error().code == uomul::ErrorCode::invalidCoordinate);
-    REQUIRE_FALSE(reversedY);
-    REQUIRE(reversedY.error().code == uomul::ErrorCode::invalidCoordinate);
-    REQUIRE_FALSE(outsideX);
-    REQUIRE(outsideX.error().code == uomul::ErrorCode::invalidCoordinate);
-    REQUIRE_FALSE(outsideY);
-    REQUIRE(outsideY.error().code == uomul::ErrorCode::invalidCoordinate);
+    requireInvalidCoordinate(reversedX);
+    requireInvalidCoordinate(reversedY);
+    requireInvalidCoordinate(outsideX);
+    requireInvalidCoordinate(outsideY);
 }
 
 TEST_CASE("readTiles_Should_RejectRequest_If_CallbackIsEmpty")
@@ -687,7 +700,7 @@ TEST_CASE("readTiles_Should_RejectRequest_If_CallbackIsEmpty")
     const auto reader = uomul::MapReader::open(path, dimensions);
     REQUIRE(reader);
 
-    const auto result = reader->readTiles({.min = {0, 0}, .maxExclusive = {1, 1}}, {});
+    const auto result = reader->readTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, {});
 
     REQUIRE_FALSE(result);
     REQUIRE(result.error().code == uomul::ErrorCode::io);
@@ -706,7 +719,7 @@ TEST_CASE("readTiles_Should_PropagateCallbackError_If_CallbackFailsAfterCrossing
         {.min = {.x = 7, .y = 0}, .maxExclusive = {.x = 9, .y = 1}},
         [&callbackCount](uomul::TileCoord, const uomul::MapTile &) -> std::expected<void, uomul::Error>
         {
-            if (++callbackCount == 2)
+            if (callbackCount++ == 2)
             {
                 return std::unexpected(
                     uomul::Error{.code = uomul::ErrorCode::io, .path = {}, .offset = 0, .message = "tile callback failure"});
@@ -757,13 +770,13 @@ TEST_CASE("stats_Should_ReportWholeMapTileIdAndElevationDistributions")
     REQUIRE(result->zs.size() == 64);
     REQUIRE(result->tileIds.front().value == 0);
     REQUIRE(result->tileIds.front().count == 1);
-    REQUIRE(result->tileIds.front().percentage == Catch::Approx(100.0 / 256.0));
+    REQUIRE(result->tileIds.front().percentage == Catch::Approx(expectedSingleTilePercentage));
     REQUIRE(result->zs.front().value == -1);
     REQUIRE(result->zs.front().count == 4);
     REQUIRE(result->averageZ);
-    REQUIRE(*result->averageZ == Catch::Approx(31.484375));
+    REQUIRE(result->averageZ.value_or(std::numeric_limits<double>::quiet_NaN()) == Catch::Approx(expectedAverageElevation));
     REQUIRE(result->medianZ);
-    REQUIRE(*result->medianZ == Catch::Approx(31.5));
+    REQUIRE(result->medianZ.value_or(std::numeric_limits<double>::quiet_NaN()) == Catch::Approx(expectedMedianElevation));
 }
 
 TEST_CASE("stats_Should_UseExactTileOrBlockRegionAndLeaveEmptyStatisticsUnset")
@@ -774,9 +787,9 @@ TEST_CASE("stats_Should_UseExactTileOrBlockRegionAndLeaveEmptyStatisticsUnset")
     const auto reader = uomul::MapReader::open(path, dimensions);
     REQUIRE(reader);
 
-    const auto statsTiles = reader->statsTiles({.min = {0, 0}, .maxExclusive = {2, 2}});
-    const auto statsBlocks = reader->statsBlocks({.min = {0, 0}, .maxExclusive = {1, 1}});
-    const auto emptyStats = reader->statsTiles({.min = {3, 4}, .maxExclusive = {3, 4}});
+    const auto statsTiles = reader->statsTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 2, .y = 2}});
+    const auto statsBlocks = reader->statsBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}});
+    const auto emptyStats = reader->statsTiles({.min = {.x = 3, .y = 4}, .maxExclusive = {.x = 3, .y = 4}});
 
     REQUIRE(statsTiles);
     REQUIRE(statsTiles->tileCount == 4);

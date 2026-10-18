@@ -1,7 +1,9 @@
 #pragma once
 
 #include "gui/map_workspace.h"
+#include "uomul/map.h"
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <string>

@@ -96,7 +96,7 @@ void drawBlock(const uomul::MapBlock & block,
     const float axisTextY = gridOrigin.y;
     drawList->AddText(ImVec2(gridOrigin.x, axisTextY), ImGui::GetColorU32(ImGuiCol_Text), "Y/X");
 
-    for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
+    for (std::size_t column = 0; column < uomul::mapBlockDimension; column++)
     {
         const std::string coordinate =
             std::to_string((blockCoordinate.x * uomul::mapBlockDimension) + static_cast<std::uint32_t>(column));
@@ -106,7 +106,7 @@ void drawBlock(const uomul::MapBlock & block,
         drawList->AddText(ImVec2(x, axisTextY), ImGui::GetColorU32(ImGuiCol_Text), coordinate.c_str());
     }
 
-    for (std::size_t row = 0; row < uomul::mapBlockDimension; ++row)
+    for (std::size_t row = 0; row < uomul::mapBlockDimension; row++)
     {
         const std::string coordinate =
             std::to_string((blockCoordinate.y * uomul::mapBlockDimension) + static_cast<std::uint32_t>(row));
@@ -116,7 +116,7 @@ void drawBlock(const uomul::MapBlock & block,
         drawList->AddText(ImVec2(gridOrigin.x + coordinateColumnWidth - textSize.x - ImGui::GetStyle().ItemSpacing.x, y),
                           ImGui::GetColorU32(ImGuiCol_Text),
                           coordinate.c_str());
-        for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
+        for (std::size_t column = 0; column < uomul::mapBlockDimension; column++)
         {
             drawTileCell(block, blockCoordinate, workspace, radarcolState, row, column, gridOrigin);
         }

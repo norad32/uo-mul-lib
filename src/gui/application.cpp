@@ -144,7 +144,7 @@ using AppIconPixels = std::array<unsigned char, appIconWidth * appIconHeight * a
     }
 
     AppIconColor color{};
-    for (std::size_t channel = 0; channel < appIconRgbChannels; ++channel)
+    for (std::size_t channel = 0; channel < appIconRgbChannels; channel++)
     {
         constexpr std::size_t hexPrefixLength = 1;
         constexpr std::size_t hexDigitsPerChannel = 2;
@@ -160,7 +160,7 @@ using AppIconPixels = std::array<unsigned char, appIconWidth * appIconHeight * a
 [[nodiscard]] AppIconPalette loadAppIconPalette(std::ifstream & file)
 {
     AppIconPalette colors{};
-    for (std::size_t index = 0; index < appIconPaletteSize; ++index)
+    for (std::size_t index = 0; index < appIconPaletteSize; index++)
     {
         std::string colorDefinition;
         if (!std::getline(file, colorDefinition))
@@ -180,18 +180,18 @@ using AppIconPixels = std::array<unsigned char, appIconWidth * appIconHeight * a
 void loadAppIconPixels(std::ifstream & file, const AppIconPalette & colors, AppIconPixels & pixels)
 {
     std::string row;
-    for (std::size_t y = 0; y < appIconHeight; ++y)
+    for (std::size_t y = 0; y < appIconHeight; y++)
     {
         if (!std::getline(file, row) || row.size() != appIconWidth)
         {
             throw std::runtime_error("Invalid application icon row");
         }
 
-        for (std::size_t x = 0; x < appIconWidth; ++x)
+        for (std::size_t x = 0; x < appIconWidth; x++)
         {
             const AppIconColor & color = colors.at(appIconPaletteIndex(row.at(x)));
             const std::size_t pixelOffset = ((y * appIconWidth) + x) * appIconChannels;
-            for (std::size_t channel = 0; channel < appIconChannels; ++channel)
+            for (std::size_t channel = 0; channel < appIconChannels; channel++)
             {
                 pixels.at(pixelOffset + channel) = color.at(channel);
             }

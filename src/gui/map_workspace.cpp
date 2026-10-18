@@ -48,7 +48,7 @@ std::atomic<std::uint64_t> temporaryPathCounter = 0;
         return std::unexpected(makeWorkspaceError(source, filesystemError.message()));
     }
 
-    for (std::uint32_t attempt = 0; attempt < maximumTemporaryPathAttempts; ++attempt)
+    for (std::uint32_t attempt = 0; attempt < maximumTemporaryPathAttempts; attempt++)
     {
         const auto sequence = temporaryPathCounter.fetch_add(1, std::memory_order_relaxed);
         const auto filename =

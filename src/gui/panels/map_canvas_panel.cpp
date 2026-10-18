@@ -246,7 +246,7 @@ void rasterizeLodRow(const MapWorkspace & workspace,
     std::uint32_t loadedBlockX = std::numeric_limits<std::uint32_t>::max();
     const MapCanvasCachedBlock * loadedBlock = nullptr;
 
-    for (std::uint32_t pixelX = 0; pixelX < rasterWidth; ++pixelX)
+    for (std::uint32_t pixelX = 0; pixelX < rasterWidth; pixelX++)
     {
         const double screenX = (static_cast<double>(pixelX) + 0.5) / (scaleX * lodRasterScale);
         const double mapX = (screenX - state.panX) / state.zoom;
@@ -294,14 +294,14 @@ void rasterizeLod(const MapWorkspace & workspace,
     state.lodPixels.resize(pixelCount * lodPixelChannels);
     const ImU32 backgroundColor = theme::packedColor(theme::background);
 
-    for (std::size_t pixel = 0; pixel < pixelCount; ++pixel)
+    for (std::size_t pixel = 0; pixel < pixelCount; pixel++)
     {
         writeLodPixel(state.lodPixels, pixel, backgroundColor);
     }
 
     state.lodReadError.reset();
 
-    for (std::uint32_t pixelY = 0; pixelY < rasterHeight; ++pixelY)
+    for (std::uint32_t pixelY = 0; pixelY < rasterHeight; pixelY++)
     {
         rasterizeLodRow(workspace, radarcolState, state, state.lodPixels, rasterWidth, pixelY, scaleX, scaleY, mode);
     }
@@ -486,7 +486,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
         state.lodCacheValid = false;
         state.lodReadError.reset();
 
-        for (std::uint64_t tileY = minY; tileY < maxY; ++tileY)
+        for (std::uint64_t tileY = minY; tileY < maxY; tileY++)
         {
             const std::uint32_t tileRow = static_cast<std::uint32_t>(tileY);
             const std::uint32_t blockY = tileRow / uomul::mapBlockDimension;
@@ -494,7 +494,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
             std::uint32_t cachedBlockX = std::numeric_limits<std::uint32_t>::max();
             const MapCanvasCachedBlock * cached = nullptr;
 
-            for (std::uint64_t tileX = minX; tileX < maxX; ++tileX)
+            for (std::uint64_t tileX = minX; tileX < maxX; tileX++)
             {
                 const std::uint32_t tileColumn = static_cast<std::uint32_t>(tileX);
                 const std::uint32_t blockX = tileColumn / uomul::mapBlockDimension;

@@ -1,11 +1,13 @@
 #include "../map_test_helpers.h"
+#include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
+#include <csignal>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <ios>
-#include <signal.h>
+#include <limits>
 #include <sys/resource.h>
 #include <utility>
 
@@ -14,14 +16,18 @@ namespace
 
 using uomul::test::TestDirectory;
 
+constexpr std::uint16_t colorByteMask = std::numeric_limits<std::uint8_t>::max();
+constexpr unsigned colorBitsPerByte = std::numeric_limits<unsigned char>::digits;
+constexpr std::uint32_t existingPrefixColorCount = 8;
+
 void writeColors(const std::filesystem::path & path, std::uint32_t count)
 {
     std::ofstream output(path, std::ios::binary | std::ios::trunc);
-    for (std::uint32_t index = 0; index < count; ++index)
+    for (std::uint32_t index = 0; index < count; index++)
     {
         const auto value = static_cast<std::uint16_t>((index * 17U) & 0x7FFFU);
-        output.put(static_cast<char>(value & 0xFF));
-        output.put(static_cast<char>(value >> 8));
+        output.put(static_cast<char>(value & colorByteMask));
+        output.put(static_cast<char>(value >> colorBitsPerByte));
     }
 }
 
@@ -73,7 +79,7 @@ TEST_CASE("RadarColEditor_commit_Should_ExtendPrefixAndZeroFillGap_If_HigherInde
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
     const auto output = directory.path() / "edited.mul";
-    writeColors(source, 8);
+    writeColors(source, existingPrefixColorCount);
 
     auto editor = uomul::RadarColEditor::create(source, output);
     REQUIRE(editor);
@@ -117,6 +123,7 @@ TEST_CASE("RadarColEditor_createEmpty_Should_RejectFileSizeLimit_If_StagingFileC
     struct rlimit limit{};
     REQUIRE(::getrlimit(RLIMIT_FSIZE, &limit) == 0);
     const auto originalLimit = limit;
+    // NOLINTNEXTLINE(misc-include-cleaner)
     const auto originalHandler = ::signal(SIGXFSZ, SIG_IGN);
     limit.rlim_cur = 0;
     REQUIRE(::setrlimit(RLIMIT_FSIZE, &limit) == 0);
@@ -140,6 +147,7 @@ TEST_CASE("RadarColEditor_editRawColor_Should_FailAndDeactivate_If_FileSizeLimit
     struct rlimit limit{};
     REQUIRE(::getrlimit(RLIMIT_FSIZE, &limit) == 0);
     const auto originalLimit = limit;
+    // NOLINTNEXTLINE(misc-include-cleaner)
     const auto originalHandler = ::signal(SIGXFSZ, SIG_IGN);
     limit.rlim_cur = 0;
     REQUIRE(::setrlimit(RLIMIT_FSIZE, &limit) == 0);
@@ -177,7 +185,7 @@ TEST_CASE("RadarColEditor_commit_Should_FailAndCleanStagingFile_If_OutputAppears
     {
         if (entry.path().filename().string().starts_with("output.mul.uomul-tmp-"))
         {
-            ++stagingFiles;
+            stagingFiles++;
         }
     }
     REQUIRE(stagingFiles == 0);
@@ -208,7 +216,7 @@ TEST_CASE("RadarColEditor_editRawColor_Should_ReturnInactiveError_If_EditorWasMo
     const auto output = directory.path() / "empty.mul";
     auto opened = uomul::RadarColEditor::createEmpty(output);
     REQUIRE(opened);
-    uomul::RadarColEditor editor(std::move(*opened));
+    const uomul::RadarColEditor editor(std::move(*opened));
 
     const auto result = opened->editRawColor(0, 1);
 

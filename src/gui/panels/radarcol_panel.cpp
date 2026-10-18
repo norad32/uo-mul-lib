@@ -131,7 +131,7 @@ void loadPage(RadarcolPanelState & state)
     }
 
     const std::uint32_t firstColor = pageColorBase(state);
-    for (std::size_t slot = 0; slot < radarcolPageColorCount; ++slot)
+    for (std::size_t slot = 0; slot < radarcolPageColorCount; slot++)
     {
         const std::uint32_t colorIndex = firstColor + static_cast<std::uint32_t>(slot);
         const auto color = state.reader->readRawColor(colorIndex);
@@ -328,7 +328,7 @@ void drawRadarcolColorTable(RadarcolPanelState & state, std::uint32_t firstColor
         return;
     }
 
-    for (std::size_t slot = 0; slot < radarcolPageColorCount; ++slot)
+    for (std::size_t slot = 0; slot < radarcolPageColorCount; slot++)
     {
         const std::uint32_t index = firstColor + static_cast<std::uint32_t>(slot);
         ImGui::TableNextColumn();

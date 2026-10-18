@@ -1,10 +1,13 @@
 #include "gui/map_workspace.h"
+#include "uomul/map.h"
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <filesystem>
 #include <limits>
+#include <optional>
 #include <string>
+#include <system_error>
 
 namespace
 {
@@ -16,6 +19,26 @@ using uo_mule::gui::PendingChangesAction;
 
 constexpr uomul::Dimensions testDimensions{.widthTiles = 16, .heightTiles = 16};
 constexpr uomul::MapTile initialTile{.id = 17, .z = -4};
+constexpr double canvasOriginX = 10.0;
+constexpr double canvasOriginY = 20.0;
+constexpr double tilePixelSize = 10.0;
+constexpr double panOffset = 5.0;
+constexpr double screenTileX = 35.0;
+constexpr double screenTileY = 55.0;
+constexpr double outsideScreenCoordinate = -1.0;
+constexpr double zeroOffset = 0.0;
+constexpr double zeroTileSize = 0.0;
+constexpr double mapRightEdgeScreenCoordinate =
+    canvasOriginX + (static_cast<double>(testDimensions.widthTiles) * tilePixelSize);
+constexpr std::uint32_t tileSelectionMaxY = 5;
+constexpr std::uint16_t deterministicTileId = 1234;
+constexpr std::uint16_t alternateTileId = 1235;
+constexpr std::uint16_t selectionReplacementTileId = 99;
+constexpr std::uint16_t selectedReplacementTileId = 23;
+constexpr std::uint16_t rejectedReplacementTileId = 44;
+constexpr std::int8_t filledElevation = 2;
+constexpr std::int8_t blockElevation = 31;
+constexpr std::uint64_t selectedTileCount = 4;
 std::atomic<std::uint64_t> testDirectoryCounter = 0;
 
 class TestDirectory
@@ -27,6 +50,11 @@ public:
         path_ = std::filesystem::temp_directory_path() / ("map-workspace-tests-" + std::to_string(sequence));
         std::filesystem::create_directories(path_);
     }
+
+    TestDirectory(const TestDirectory &) = delete;
+    TestDirectory & operator=(const TestDirectory &) = delete;
+    TestDirectory(TestDirectory &&) = delete;
+    TestDirectory & operator=(TestDirectory &&) = delete;
 
     ~TestDirectory()
     {
@@ -58,13 +86,50 @@ TEST_CASE("mapCoordinateHelpers_Should_ConvertScreenAndTileCoordinates")
     const auto block = uo_mule::gui::tileToBlock({.x = 15, .y = 8});
     REQUIRE(block.x == 1);
     REQUIRE(block.y == 1);
-    const auto tile = uo_mule::gui::screenToTile(35.0, 55.0, 10.0, 20.0, 5.0, 5.0, 10.0, testDimensions);
-    REQUIRE(tile);
-    REQUIRE(tile->x == 2);
-    REQUIRE(tile->y == 3);
-    REQUIRE_FALSE(uo_mule::gui::screenToTile(9.0, 25.0, 10.0, 20.0, 0.0, 0.0, 10.0, testDimensions));
-    REQUIRE_FALSE(uo_mule::gui::screenToTile(170.0, 20.0, 10.0, 20.0, 0.0, 0.0, 10.0, testDimensions));
-    REQUIRE_FALSE(uo_mule::gui::screenToTile(10.0, 20.0, 10.0, 20.0, 0.0, 0.0, 0.0, testDimensions));
+    const auto tile = uo_mule::gui::screenToTile(screenTileX,
+                                                 screenTileY,
+                                                 canvasOriginX,
+                                                 canvasOriginY,
+                                                 panOffset,
+                                                 panOffset,
+                                                 tilePixelSize,
+                                                 testDimensions);
+    const auto convertedTile = tile.value_or(uomul::TileCoord{});
+    REQUIRE(tile.has_value());
+    REQUIRE(convertedTile.x == 2);
+    REQUIRE(convertedTile.y == 3);
+    REQUIRE_FALSE(uo_mule::gui::screenToTile(canvasOriginX + outsideScreenCoordinate,
+                                            canvasOriginY + panOffset,
+                                            canvasOriginX,
+                                            canvasOriginY,
+                                            zeroOffset,
+                                            zeroOffset,
+                                            tilePixelSize,
+                                            testDimensions));
+    REQUIRE_FALSE(uo_mule::gui::screenToTile(canvasOriginX + panOffset,
+                                            canvasOriginY + outsideScreenCoordinate,
+                                            canvasOriginX,
+                                            canvasOriginY,
+                                            zeroOffset,
+                                            zeroOffset,
+                                            tilePixelSize,
+                                            testDimensions));
+    REQUIRE_FALSE(uo_mule::gui::screenToTile(mapRightEdgeScreenCoordinate,
+                                            canvasOriginY,
+                                            canvasOriginX,
+                                            canvasOriginY,
+                                            zeroOffset,
+                                            zeroOffset,
+                                            tilePixelSize,
+                                            testDimensions));
+    REQUIRE_FALSE(uo_mule::gui::screenToTile(canvasOriginX,
+                                            canvasOriginY,
+                                            canvasOriginX,
+                                            canvasOriginY,
+                                            zeroOffset,
+                                            zeroOffset,
+                                            zeroTileSize,
+                                            testDimensions));
 }
 
 TEST_CASE("mapSelectionHelpers_Should_CreateHalfOpenSingleAndReverseDragRegions")
@@ -100,12 +165,12 @@ TEST_CASE("mapSelectionHelpers_Should_CreateHalfOpenSingleAndReverseDragRegions"
 
 TEST_CASE("mapColorHelpers_Should_BeDeterministicAndMapSignedElevationExtrema")
 {
-    REQUIRE(uo_mule::gui::tileIdColor(1234) == uo_mule::gui::tileIdColor(1234));
-    REQUIRE_FALSE(uo_mule::gui::tileIdColor(1234) == uo_mule::gui::tileIdColor(1235));
+    REQUIRE(uo_mule::gui::tileIdColor(deterministicTileId) == uo_mule::gui::tileIdColor(deterministicTileId));
+    REQUIRE_FALSE(uo_mule::gui::tileIdColor(deterministicTileId) == uo_mule::gui::tileIdColor(alternateTileId));
     REQUIRE(uo_mule::gui::zGrayscale(std::numeric_limits<std::int8_t>::min()) == 0);
     REQUIRE(uo_mule::gui::zGrayscale(0) == 128);
     REQUIRE(uo_mule::gui::zGrayscale(std::numeric_limits<std::int8_t>::max()) == 255);
-    const uomul::MapTile tile{.id = 1234, .z = -12};
+    const uomul::MapTile tile{.id = deterministicTileId, .z = -12};
     REQUIRE(uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::tileIds, tile) == uo_mule::gui::tileIdColor(tile.id));
     const uo_mule::gui::MapColor radarColor{.red = 12, .green = 34, .blue = 56};
     REQUIRE(uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::tileIds, tile, radarColor) == radarColor);
@@ -128,39 +193,48 @@ TEST_CASE("mapWorkspace_Should_OpenCreateHoverAndExposeSelectionState")
     REQUIRE(workspace.mapPath() == mapPath);
     REQUIRE(workspace.dimensions() == testDimensions);
     REQUIRE(workspace.reader()->readTile({.x = 8, .y = 9}) == initialTile);
-    REQUIRE(workspace.updateHover({.x = 8, .y = 9}));
-    REQUIRE(workspace.hoveredTile());
-    REQUIRE(workspace.hoveredTile()->x == 8);
-    REQUIRE(workspace.hoveredTile()->y == 9);
+    const uomul::TileCoord hoveredCoordinate{.x = 8, .y = 9};
+    REQUIRE(workspace.updateHover(hoveredCoordinate));
+    REQUIRE(workspace.hoveredTile().has_value());
+    const auto hoveredTile = workspace.hoveredTile().value_or(uomul::TileCoord{});
+    REQUIRE(hoveredTile.x == hoveredCoordinate.x);
+    REQUIRE(hoveredTile.y == hoveredCoordinate.y);
     REQUIRE(workspace.hoveredValue() == initialTile);
     workspace.clearHover();
     REQUIRE_FALSE(workspace.hoveredTile());
     REQUIRE_FALSE(workspace.selectedTile());
-    REQUIRE(workspace.updateSelectedTile({.x = 3, .y = 4}));
-    REQUIRE(workspace.selectedTile());
-    REQUIRE(workspace.selectedTile()->x == 3);
-    REQUIRE(workspace.selectedTile()->y == 4);
+    const uomul::TileCoord selectedCoordinate{.x = 3, .y = 4};
+    REQUIRE(workspace.updateSelectedTile(selectedCoordinate));
+    REQUIRE(workspace.selectedTile().has_value());
+    const auto selectedTile = workspace.selectedTile().value_or(uomul::TileCoord{});
+    REQUIRE(selectedTile.x == selectedCoordinate.x);
+    REQUIRE(selectedTile.y == selectedCoordinate.y);
     REQUIRE(workspace.selectedValue() == initialTile);
     workspace.clearHover();
     REQUIRE_FALSE(workspace.hoveredTile());
-    REQUIRE(workspace.selectedTile());
-    REQUIRE(workspace.selectedTile()->x == 3);
-    REQUIRE(workspace.selectedTile()->y == 4);
+    REQUIRE(workspace.selectedTile().has_value());
+    const auto remainingSelectedTile = workspace.selectedTile().value_or(uomul::TileCoord{});
+    REQUIRE(remainingSelectedTile.x == selectedCoordinate.x);
+    REQUIRE(remainingSelectedTile.y == selectedCoordinate.y);
 
-    workspace.setTileSelection({.min = {.x = 2, .y = 3}, .maxExclusive = {.x = 4, .y = 5}});
+    workspace.setTileSelection({.min = {.x = 2, .y = 3}, .maxExclusive = {.x = 4, .y = tileSelectionMaxY}});
     REQUIRE(workspace.selectionMode() == MapSelectionMode::tiles);
     const auto tileStats = workspace.selectionStats();
-    REQUIRE(tileStats);
-    REQUIRE(tileStats->has_value());
-    REQUIRE(tileStats->value().tileCount == 4);
+    REQUIRE(tileStats.has_value());
+    REQUIRE(tileStats.has_value());
+    const auto availableTileStats = tileStats.value_or(std::nullopt);
+    REQUIRE(availableTileStats.has_value());
+    REQUIRE(availableTileStats.value_or(uomul::MapStats{}).tileCount == selectedTileCount);
 
     workspace.setSelectionMode(MapSelectionMode::blocks);
     REQUIRE_FALSE(workspace.tileSelection());
     workspace.setBlockSelection({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}});
     const auto blockStats = workspace.selectionStats();
-    REQUIRE(blockStats);
-    REQUIRE(blockStats->has_value());
-    REQUIRE(blockStats->value().tileCount == uomul::mapBlockTileCount);
+    REQUIRE(blockStats.has_value());
+    REQUIRE(blockStats.has_value());
+    const auto availableBlockStats = blockStats.value_or(std::nullopt);
+    REQUIRE(availableBlockStats.has_value());
+    REQUIRE(availableBlockStats.value_or(uomul::MapStats{}).tileCount == uomul::mapBlockTileCount);
 
     REQUIRE_FALSE(workspace.updateHover({.x = 16, .y = 0}));
     REQUIRE_FALSE(workspace.hoveredTile());
@@ -181,19 +255,23 @@ TEST_CASE("mapWorkspace_Should_StageEditsAndRequireExplicitDirtyResolution")
 
     MapWorkspace workspace;
     REQUIRE(workspace.openMap(originalPath, testDimensions));
-    REQUIRE_FALSE(workspace.fill({.id = 99, .z = 2}, MapEditScope::wholeMap));
+    REQUIRE_FALSE(workspace.fill({.id = selectionReplacementTileId, .z = filledElevation}, MapEditScope::wholeMap));
     REQUIRE_FALSE(workspace.dirty());
     workspace.setEditMode(true);
     workspace.setTileSelection({.min = {.x = 1, .y = 2}, .maxExclusive = {.x = 3, .y = 4}});
-    REQUIRE(workspace.fill({.id = 99, .z = 2}, MapEditScope::selection));
+    REQUIRE(workspace.fill({.id = selectionReplacementTileId, .z = filledElevation}, MapEditScope::selection));
     REQUIRE(workspace.dirty());
-    REQUIRE(workspace.workingPath());
-    REQUIRE(workspace.mapPath() == *workspace.workingPath());
-    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 2}) == uomul::MapTile{.id = 99, .z = 2});
+    REQUIRE(workspace.workingPath().has_value());
+    const auto & stagedPath = workspace.workingPath();
+    REQUIRE(workspace.mapPath() == stagedPath.value_or(std::filesystem::path{}));
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 2}) ==
+            uomul::MapTile{.id = selectionReplacementTileId, .z = filledElevation});
     REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == initialTile);
 
     REQUIRE_FALSE(workspace.openMap(otherPath, testDimensions));
-    REQUIRE(workspace.mapPath() == *workspace.workingPath());
+    REQUIRE(workspace.workingPath().has_value());
+    const auto & retainedStagedPath = workspace.workingPath();
+    REQUIRE(workspace.mapPath() == retainedStagedPath.value_or(std::filesystem::path{}));
     REQUIRE_FALSE(workspace.openMap(otherPath, testDimensions, PendingChangesAction::cancel));
     REQUIRE(workspace.openMap(otherPath, testDimensions, PendingChangesAction::discard));
     REQUIRE_FALSE(workspace.dirty());
@@ -202,13 +280,17 @@ TEST_CASE("mapWorkspace_Should_StageEditsAndRequireExplicitDirtyResolution")
     REQUIRE(workspace.openMap(originalPath, testDimensions));
     workspace.setEditMode(true);
     REQUIRE(workspace.replaceTileId(initialTile.id, 23, MapEditScope::wholeMap));
-    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == uomul::MapTile{.id = 23, .z = initialTile.z});
+    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) ==
+            uomul::MapTile{.id = selectedReplacementTileId, .z = initialTile.z});
     REQUIRE(workspace.replaceZ(initialTile.z, 12, MapEditScope::wholeMap));
-    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == uomul::MapTile{.id = 23, .z = 12});
+    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == uomul::MapTile{.id = selectedReplacementTileId, .z = 12});
     REQUIRE(workspace.save(savedPath));
     REQUIRE_FALSE(workspace.dirty());
     REQUIRE(workspace.mapPath() == savedPath);
-    REQUIRE(uomul::MapReader::open(savedPath, testDimensions)->readTile({.x = 0, .y = 0}) == uomul::MapTile{.id = 23, .z = 12});
+    const auto savedReader = uomul::MapReader::open(savedPath, testDimensions);
+    REQUIRE(savedReader);
+    REQUIRE(savedReader->readTile({.x = 0, .y = 0}) ==
+            uomul::MapTile{.id = selectedReplacementTileId, .z = 12});
 }
 
 TEST_CASE("mapWorkspace_Should_RejectSelectionEditsWithoutSelectionAndDiscardBackToSource")
@@ -219,12 +301,14 @@ TEST_CASE("mapWorkspace_Should_RejectSelectionEditsWithoutSelectionAndDiscardBac
     MapWorkspace workspace;
     REQUIRE(workspace.openMap(sourcePath, testDimensions));
     workspace.setEditMode(true);
-    REQUIRE_FALSE(workspace.replaceTileId(initialTile.id, 44, MapEditScope::selection));
+    REQUIRE_FALSE(workspace.replaceTileId(initialTile.id, rejectedReplacementTileId, MapEditScope::selection));
     REQUIRE_FALSE(workspace.dirty());
     workspace.setBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}});
-    REQUIRE(workspace.replaceZ(initialTile.z, 31, MapEditScope::selection));
-    REQUIRE(workspace.reader()->readTile({.x = 8, .y = 8}) == uomul::MapTile{.id = initialTile.id, .z = 31});
-    const auto workingPath = *workspace.workingPath();
+    REQUIRE(workspace.replaceZ(initialTile.z, blockElevation, MapEditScope::selection));
+    REQUIRE(workspace.reader()->readTile({.x = 8, .y = 8}) ==
+            uomul::MapTile{.id = initialTile.id, .z = blockElevation});
+    REQUIRE(workspace.workingPath().has_value());
+    const auto workingPath = workspace.workingPath().value_or(std::filesystem::path{});
     REQUIRE(workspace.discard());
     REQUIRE_FALSE(workspace.dirty());
     REQUIRE_FALSE(std::filesystem::exists(workingPath));

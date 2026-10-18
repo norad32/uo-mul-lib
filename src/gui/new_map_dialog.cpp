@@ -306,7 +306,7 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
         return;
     }
 
-    for (std::size_t index = 0; index < facetNames.size(); ++index)
+    for (std::size_t index = 0; index < facetNames.size(); index++)
     {
         const std::size_t activeIndex = preset >= 0 ? static_cast<std::size_t>(preset) : customFacetArrayIndex;
         const bool selected = activeIndex == index;

@@ -40,7 +40,7 @@ template <typename T, std::size_t Size = sizeof(T)>
 {
     std::array<std::byte, Size> bytes{};
     const auto wideValue = static_cast<std::uintmax_t>(value);
-    for (std::size_t index = 0; index < Size; ++index)
+    for (std::size_t index = 0; index < Size; index++)
     {
         const auto shift = index * std::numeric_limits<unsigned char>::digits;
         const auto byte = (wideValue >> shift) % (std::numeric_limits<unsigned char>::max() + 1U);
@@ -55,7 +55,7 @@ template <typename T, std::size_t Size = sizeof(T), std::size_t ContainerSize>
 {
     static_assert(Size <= sizeof(T));
     T value = 0;
-    for (std::size_t index = 0; index < Size; ++index)
+    for (std::size_t index = 0; index < Size; index++)
     {
         const auto byte = static_cast<std::uintmax_t>(std::to_integer<unsigned char>(bytes.at(index)));
         const auto shifted = byte << (index * std::numeric_limits<unsigned char>::digits);

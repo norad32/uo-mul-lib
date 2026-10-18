@@ -5,11 +5,12 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <limits>
 #include <span>
-#include <string>
 
 namespace uomul::detail
 {

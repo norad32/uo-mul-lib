@@ -3,6 +3,7 @@
 #include "gui/map_workspace.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>

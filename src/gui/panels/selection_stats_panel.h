@@ -1,6 +1,8 @@
 #pragma once
 
 #include "gui/map_workspace.h"
+#include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <filesystem>
 #include <optional>
 

@@ -29,7 +29,7 @@ constexpr std::uint32_t maximumTemporaryFileAttempts = 128;
 [[nodiscard]] int createTemporaryPreferencesFile(std::string & path)
 {
     const std::string basePath = path;
-    for (std::uint32_t attempt = 0; attempt < maximumTemporaryFileAttempts; ++attempt)
+    for (std::uint32_t attempt = 0; attempt < maximumTemporaryFileAttempts; attempt++)
     {
         path = basePath + ".tmp." + std::to_string(getpid()) + "." + std::to_string(temporaryFileCounter.fetch_add(1));
         const int descriptor = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
