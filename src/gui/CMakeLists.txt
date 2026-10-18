@@ -14,6 +14,7 @@ include(GuiDependencies)
 add_library(
     gui
     application.cpp
+    data_discovery.cpp
     data_profile.cpp
     data_profile_store.cpp
     data_validation.cpp
