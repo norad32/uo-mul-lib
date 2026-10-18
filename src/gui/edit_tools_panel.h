@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 enum class EditToolsOperation : std::uint8_t
@@ -31,4 +31,4 @@ struct EditToolsPanelState
 
 void drawEditToolsPanel(MapWorkspace & workspace, EditToolsPanelState & state, bool & visible);
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

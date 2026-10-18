@@ -7,7 +7,7 @@
 #include <functional>
 #include <optional>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 enum class MapDisplayMode : std::uint8_t
@@ -169,4 +169,4 @@ private:
     std::optional<uomul::Error> error_;
 };
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

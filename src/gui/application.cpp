@@ -35,7 +35,7 @@
 #include <utility>
 #include <vector>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 namespace
 {
@@ -80,8 +80,10 @@ using AppIconPixels = std::array<unsigned char, appIconWidth * appIconHeight * a
             return file;
         }
     }
+
     std::error_code error;
     const std::filesystem::path executablePath = std::filesystem::read_symlink("/proc/self/exe", error);
+
     if (!error)
     {
         std::ifstream file(executablePath.parent_path() / APPLICATION_ICON_INSTALL_RELATIVE_PATH);
@@ -99,10 +101,12 @@ using AppIconPixels = std::array<unsigned char, appIconWidth * appIconHeight * a
     {
         return static_cast<unsigned char>(value - '0');
     }
+
     if (value >= hexadecimalLowercaseStart && value <= hexadecimalLastLowercase)
     {
         return static_cast<unsigned char>(value - hexadecimalLowercaseStart + appIconHexAlphaOffset);
     }
+
     if (value >= hexadecimalUppercaseStart && value <= hexadecimalLastUppercase)
     {
         return static_cast<unsigned char>(value - hexadecimalUppercaseStart + appIconHexAlphaOffset);
@@ -116,10 +120,12 @@ using AppIconPixels = std::array<unsigned char, appIconWidth * appIconHeight * a
     {
         return 0;
     }
+
     if (symbol == '+')
     {
         return 1;
     }
+
     throw std::runtime_error("Invalid application icon symbol");
 }
 
@@ -145,6 +151,7 @@ using AppIconPixels = std::array<unsigned char, appIconWidth * appIconHeight * a
         color.at(channel) = static_cast<unsigned char>((parseHexDigit(hexColor.at(digitOffset)) * appIconHexBase) +
                                                        parseHexDigit(hexColor.at(digitOffset + 1)));
     }
+
     color.at(appIconAlphaChannel) = appIconAlpha;
     return color;
 }
@@ -159,11 +166,13 @@ using AppIconPixels = std::array<unsigned char, appIconWidth * appIconHeight * a
         {
             throw std::runtime_error("Invalid application icon palette");
         }
+
         std::istringstream colorLine(colorDefinition);
         char symbol = 0;
         colorLine >> symbol;
         colors.at(appIconPaletteIndex(symbol)) = parseAppIconColor(colorDefinition);
     }
+
     return colors;
 }
 
@@ -176,6 +185,7 @@ void loadAppIconPixels(std::ifstream & file, const AppIconPalette & colors, AppI
         {
             throw std::runtime_error("Invalid application icon row");
         }
+
         for (std::size_t x = 0; x < appIconWidth; ++x)
         {
             const AppIconColor & color = colors.at(appIconPaletteIndex(row.at(x)));
@@ -201,10 +211,12 @@ void loadAppIconPixels(std::ifstream & file, const AppIconPalette & colors, AppI
     int height = 0;
     int colorCount = 0;
     int charactersPerPixel = 0;
+
     if (!std::getline(file, line) || line != "! XPM2" || !std::getline(file, line))
     {
         throw std::runtime_error("Invalid application icon asset");
     }
+
     std::istringstream dimensions(line);
     dimensions >> width >> height >> colorCount >> charactersPerPixel;
     if (width != appIconWidthAsInt || height != appIconHeightAsInt || colorCount != appIconPaletteSizeAsInt ||
@@ -216,6 +228,7 @@ void loadAppIconPixels(std::ifstream & file, const AppIconPalette & colors, AppI
     AppIconPixels pixels{};
     const AppIconPalette colors = loadAppIconPalette(file);
     loadAppIconPixels(file, colors, pixels);
+
     return pixels;
 }
 
@@ -233,6 +246,7 @@ public:
         {
             throw std::runtime_error("Failed to initialize GLFW");
         }
+
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -399,22 +413,27 @@ void drawMapPanels(MapWorkspace & workspace,
     {
         workspace.clearHover();
     }
+
     if (visibility.tileInspector)
     {
         drawTileInspectorPanel(workspace, visibility.tileInspector);
     }
+
     if (visibility.blockInspector)
     {
         drawBlockInspectorPanel(workspace, blockInspectorState, visibility.blockInspector);
     }
+
     if (visibility.selectionStatistics)
     {
         drawSelectionStatsPanel(workspace, selectionStatsState, visibility.selectionStatistics);
     }
+
     if (visibility.mapInformation)
     {
         drawMapInfoPanel(workspace, visibility.mapInformation);
     }
+
     if (visibility.editTools)
     {
         drawEditToolsPanel(workspace, editToolsState, visibility.editTools);
@@ -438,12 +457,14 @@ void drawFrame(GLFWwindow * window,
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     drawMenuBar(workspace, menuBarState, shouldClose);
+
     if (ImGui::IsKeyPressed(ImGuiKey_GraveAccent, false) && !ImGui::GetIO().WantTextInput &&
         !ImGui::GetIO().WantCaptureKeyboard)
     {
         preferences.showLogPanel = !preferences.showLogPanel;
         savePreferences(preferences);
     }
+
     const float bottomPanelHeight = drawLogPanel(logSink, preferences, entries, followScroll);
     drawDockSpace(bottomPanelHeight);
     drawMapPanels(workspace, canvasState, blockInspectorState, selectionStatsState, editToolsState);
@@ -468,10 +489,12 @@ int Application::run()
     const std::string applicationName(core::applicationName());
     const std::unique_ptr<GLFWwindow, WindowDeleter> window{glfwCreateWindow(
         initialApplicationWindowWidth, initialApplicationWindowHeight, applicationName.c_str(), nullptr, nullptr)};
+
     if (!window)
     {
         throw std::runtime_error("Failed to create GUI window");
     }
+
     AppIconPixels appIconPixels = loadAppIcon();
     const GLFWimage icon{.width = 32, .height = 32, .pixels = appIconPixels.data()};
     glfwSetWindowIcon(window.get(), 1, &icon);
@@ -528,4 +551,4 @@ int Application::run()
     return 0;
 }
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

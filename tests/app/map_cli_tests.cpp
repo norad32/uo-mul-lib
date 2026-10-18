@@ -42,8 +42,8 @@ public:
 
 int run(const std::vector<std::string_view> & arguments, std::ostringstream & output, std::ostringstream & error)
 {
-    im_cpp::core::Logger logger("map-cli-test");
-    return im_cpp::app::runCli(arguments, output, error, logger);
+    uo_mule::core::Logger logger("map-cli-test");
+    return uo_mule::app::runCli(arguments, output, error, logger);
 }
 
 } // namespace

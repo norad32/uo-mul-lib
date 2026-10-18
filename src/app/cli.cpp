@@ -19,7 +19,7 @@
 #include <string_view>
 #include <vector>
 
-namespace im_cpp::app
+namespace uo_mule::app
 {
 namespace
 {
@@ -148,7 +148,7 @@ int runCli(std::span<const std::string_view> arguments,
 
     if (executeMapCommand)
     {
-        const int result = im_cpp::app::runMapCommand(mapOptions, output, error);
+        const int result = uo_mule::app::runMapCommand(mapOptions, output, error);
         SPDLOG_LOGGER_INFO(activeLogger, "Application closed");
         logger.shutdown();
         return result;
@@ -161,4 +161,4 @@ int runCli(std::span<const std::string_view> arguments,
     return 0;
 }
 
-} // namespace im_cpp::app
+} // namespace uo_mule::app

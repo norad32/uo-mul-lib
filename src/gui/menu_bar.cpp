@@ -3,7 +3,7 @@
 #include "gui/new_map_dialog.h"
 #include <imgui.h>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 namespace
 {
@@ -41,16 +41,20 @@ void drawFileMenu(MapWorkspace & workspace, MenuBarState & state, bool & shouldC
     {
         return;
     }
+
     if (ImGui::MenuItem("Open..."))
     {
         openDialog(state, MapFileDialogMode::openMap);
     }
+
     if (ImGui::MenuItem("New Empty Map..."))
     {
         openDialog(state, MapFileDialogMode::newMap);
     }
+
     ImGui::Separator();
     const bool hasMap = workspace.reader() != nullptr;
+
     if (ImGui::MenuItem("Save As / Commit...", nullptr, false, hasMap))
     {
         if (workspace.dirty())
@@ -63,6 +67,7 @@ void drawFileMenu(MapWorkspace & workspace, MenuBarState & state, bool & shouldC
             openDialog(state, MapFileDialogMode::error);
         }
     }
+
     if (ImGui::MenuItem("Discard", nullptr, false, workspace.dirty()))
     {
         const auto discarded = workspace.discard();
@@ -78,15 +83,18 @@ void drawFileMenu(MapWorkspace & workspace, MenuBarState & state, bool & shouldC
             state.fileDialog.error.clear();
         }
     }
+
     ImGui::Separator();
     if (ImGui::MenuItem("Close"))
     {
         requestClose(workspace, state, PendingMapOperationKind::close);
     }
+
     if (ImGui::MenuItem("Quit"))
     {
         requestClose(workspace, state, PendingMapOperationKind::quit);
     }
+
     ImGui::EndMenu();
     if (state.fileDialog.shouldClose)
     {
@@ -101,19 +109,23 @@ void drawViewMenu(MapWorkspace & workspace)
     {
         return;
     }
+
     const MapDisplayMode displayMode = workspace.displayMode();
     if (ImGui::MenuItem("Tile IDs", nullptr, displayMode == MapDisplayMode::tileIds))
     {
         workspace.setDisplayMode(MapDisplayMode::tileIds);
     }
+
     if (ImGui::MenuItem("Z", nullptr, displayMode == MapDisplayMode::z))
     {
         workspace.setDisplayMode(MapDisplayMode::z);
     }
+
     if (ImGui::MenuItem("Combined", nullptr, displayMode == MapDisplayMode::combined))
     {
         workspace.setDisplayMode(MapDisplayMode::combined);
     }
+
     ImGui::Separator();
     MapPanelVisibility & visibility = workspace.panelVisibility();
     ImGui::MenuItem("Map Canvas", nullptr, &visibility.canvas);
@@ -131,15 +143,19 @@ void drawSelectionMenu(MapWorkspace & workspace)
     {
         return;
     }
+
     const MapSelectionMode selectionMode = workspace.selectionMode();
+
     if (ImGui::MenuItem("Tile selection", nullptr, selectionMode == MapSelectionMode::tiles))
     {
         workspace.setSelectionMode(MapSelectionMode::tiles);
     }
+
     if (ImGui::MenuItem("Block selection", nullptr, selectionMode == MapSelectionMode::blocks))
     {
         workspace.setSelectionMode(MapSelectionMode::blocks);
     }
+
     ImGui::EndMenu();
 }
 
@@ -149,13 +165,16 @@ void drawEditMenu(MapWorkspace & workspace)
     {
         return;
     }
+
     bool editMode = workspace.editMode();
     const char * label = editMode ? "Edit mode (ON)" : "Edit mode (OFF)";
+
     if (ImGui::MenuItem(label, nullptr, editMode, workspace.reader() != nullptr))
     {
         editMode = !editMode;
         workspace.setEditMode(editMode);
     }
+
     ImGui::EndMenu();
 }
 
@@ -168,6 +187,7 @@ void drawMenuBar(MapWorkspace & workspace, MenuBarState & state, bool & shouldCl
         state.windowCloseRequested = false;
         requestClose(workspace, state, PendingMapOperationKind::quit);
     }
+
     if (ImGui::BeginMainMenuBar())
     {
         drawFileMenu(workspace, state, shouldClose);
@@ -176,11 +196,13 @@ void drawMenuBar(MapWorkspace & workspace, MenuBarState & state, bool & shouldCl
         drawEditMenu(workspace);
         ImGui::EndMainMenuBar();
     }
+
     if (state.fileDialog.shouldClose)
     {
         shouldClose = true;
         state.fileDialog.shouldClose = false;
     }
+
     drawNewMapDialog(workspace, state.fileDialog, shouldClose);
 }
 
@@ -189,4 +211,4 @@ void requestWindowClose(MenuBarState & state)
     state.windowCloseRequested = true;
 }
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

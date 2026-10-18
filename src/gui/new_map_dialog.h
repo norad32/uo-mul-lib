@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <string>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 inline constexpr std::size_t mapDialogPathBufferSize = 1024;
@@ -73,4 +73,4 @@ struct NewMapDialogState
 
 void drawNewMapDialog(MapWorkspace & workspace, NewMapDialogState & state, bool & shouldClose);
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

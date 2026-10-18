@@ -9,10 +9,10 @@
 namespace
 {
 
-using im_cpp::gui::MapEditScope;
-using im_cpp::gui::MapSelectionMode;
-using im_cpp::gui::MapWorkspace;
-using im_cpp::gui::PendingChangesAction;
+using uo_mule::gui::MapEditScope;
+using uo_mule::gui::MapSelectionMode;
+using uo_mule::gui::MapWorkspace;
+using uo_mule::gui::PendingChangesAction;
 
 constexpr uomul::Dimensions testDimensions{.widthTiles = 16, .heightTiles = 16};
 constexpr uomul::MapTile initialTile{.id = 17, .z = -4};
@@ -45,53 +45,53 @@ private:
 TEST_CASE("selectionInspectorTile_Should_UseTileOrContainingBlockOrigin")
 {
     const uomul::TileCoord tile{.x = 19, .y = 10};
-    const uomul::TileCoord tileSelection = im_cpp::gui::selectionInspectorTile(im_cpp::gui::MapSelectionMode::tiles, tile);
+    const uomul::TileCoord tileSelection = uo_mule::gui::selectionInspectorTile(uo_mule::gui::MapSelectionMode::tiles, tile);
     REQUIRE(tileSelection.x == 19);
     REQUIRE(tileSelection.y == 10);
-    const uomul::TileCoord blockSelection = im_cpp::gui::selectionInspectorTile(im_cpp::gui::MapSelectionMode::blocks, tile);
+    const uomul::TileCoord blockSelection = uo_mule::gui::selectionInspectorTile(uo_mule::gui::MapSelectionMode::blocks, tile);
     REQUIRE(blockSelection.x == 16);
     REQUIRE(blockSelection.y == 8);
 }
 
 TEST_CASE("mapCoordinateHelpers_Should_ConvertScreenAndTileCoordinates")
 {
-    const auto block = im_cpp::gui::tileToBlock({.x = 15, .y = 8});
+    const auto block = uo_mule::gui::tileToBlock({.x = 15, .y = 8});
     REQUIRE(block.x == 1);
     REQUIRE(block.y == 1);
-    const auto tile = im_cpp::gui::screenToTile(35.0, 55.0, 10.0, 20.0, 5.0, 5.0, 10.0, testDimensions);
+    const auto tile = uo_mule::gui::screenToTile(35.0, 55.0, 10.0, 20.0, 5.0, 5.0, 10.0, testDimensions);
     REQUIRE(tile);
     REQUIRE(tile->x == 2);
     REQUIRE(tile->y == 3);
-    REQUIRE_FALSE(im_cpp::gui::screenToTile(9.0, 25.0, 10.0, 20.0, 0.0, 0.0, 10.0, testDimensions));
-    REQUIRE_FALSE(im_cpp::gui::screenToTile(170.0, 20.0, 10.0, 20.0, 0.0, 0.0, 10.0, testDimensions));
-    REQUIRE_FALSE(im_cpp::gui::screenToTile(10.0, 20.0, 10.0, 20.0, 0.0, 0.0, 0.0, testDimensions));
+    REQUIRE_FALSE(uo_mule::gui::screenToTile(9.0, 25.0, 10.0, 20.0, 0.0, 0.0, 10.0, testDimensions));
+    REQUIRE_FALSE(uo_mule::gui::screenToTile(170.0, 20.0, 10.0, 20.0, 0.0, 0.0, 10.0, testDimensions));
+    REQUIRE_FALSE(uo_mule::gui::screenToTile(10.0, 20.0, 10.0, 20.0, 0.0, 0.0, 0.0, testDimensions));
 }
 
 TEST_CASE("mapSelectionHelpers_Should_CreateHalfOpenSingleAndReverseDragRegions")
 {
-    const auto singleTile = im_cpp::gui::tileSelectionFromDrag({.x = 4, .y = 5}, {.x = 4, .y = 5}, testDimensions);
+    const auto singleTile = uo_mule::gui::tileSelectionFromDrag({.x = 4, .y = 5}, {.x = 4, .y = 5}, testDimensions);
     REQUIRE(singleTile.min.x == 4);
     REQUIRE(singleTile.min.y == 5);
     REQUIRE(singleTile.maxExclusive.x == 5);
     REQUIRE(singleTile.maxExclusive.y == 6);
-    const auto reverseDrag = im_cpp::gui::tileSelectionFromDrag({.x = 9, .y = 12}, {.x = 3, .y = 5}, testDimensions);
+    const auto reverseDrag = uo_mule::gui::tileSelectionFromDrag({.x = 9, .y = 12}, {.x = 3, .y = 5}, testDimensions);
     REQUIRE(reverseDrag.min.x == 3);
     REQUIRE(reverseDrag.min.y == 5);
     REQUIRE(reverseDrag.maxExclusive.x == 10);
     REQUIRE(reverseDrag.maxExclusive.y == 13);
-    const auto edgeSelection = im_cpp::gui::tileSelectionFromDrag(
+    const auto edgeSelection = uo_mule::gui::tileSelectionFromDrag(
         {.x = 15, .y = 15}, {.x = std::numeric_limits<std::uint32_t>::max(), .y = 100}, testDimensions);
     REQUIRE(edgeSelection.min.x == 15);
     REQUIRE(edgeSelection.min.y == 15);
     REQUIRE(edgeSelection.maxExclusive.x == 16);
     REQUIRE(edgeSelection.maxExclusive.y == 16);
-    const auto blocks = im_cpp::gui::blockSelectionFromDrag({.x = 7, .y = 8}, {.x = 8, .y = 15}, testDimensions);
+    const auto blocks = uo_mule::gui::blockSelectionFromDrag({.x = 7, .y = 8}, {.x = 8, .y = 15}, testDimensions);
     REQUIRE(blocks.min.x == 0);
     REQUIRE(blocks.min.y == 1);
     REQUIRE(blocks.maxExclusive.x == 2);
     REQUIRE(blocks.maxExclusive.y == 2);
-    const auto clamped = im_cpp::gui::clampBlockRegion({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 9, .y = 9}},
-                                                       {.widthTiles = 24, .heightTiles = 9});
+    const auto clamped = uo_mule::gui::clampBlockRegion({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 9, .y = 9}},
+                                                        {.widthTiles = 24, .heightTiles = 9});
     REQUIRE(clamped.min.x == 0);
     REQUIRE(clamped.min.y == 0);
     REQUIRE(clamped.maxExclusive.x == 3);
@@ -100,19 +100,19 @@ TEST_CASE("mapSelectionHelpers_Should_CreateHalfOpenSingleAndReverseDragRegions"
 
 TEST_CASE("mapColorHelpers_Should_BeDeterministicAndMapSignedElevationExtrema")
 {
-    REQUIRE(im_cpp::gui::tileIdColor(1234) == im_cpp::gui::tileIdColor(1234));
-    REQUIRE_FALSE(im_cpp::gui::tileIdColor(1234) == im_cpp::gui::tileIdColor(1235));
-    REQUIRE(im_cpp::gui::zGrayscale(std::numeric_limits<std::int8_t>::min()) == 0);
-    REQUIRE(im_cpp::gui::zGrayscale(0) == 128);
-    REQUIRE(im_cpp::gui::zGrayscale(std::numeric_limits<std::int8_t>::max()) == 255);
+    REQUIRE(uo_mule::gui::tileIdColor(1234) == uo_mule::gui::tileIdColor(1234));
+    REQUIRE_FALSE(uo_mule::gui::tileIdColor(1234) == uo_mule::gui::tileIdColor(1235));
+    REQUIRE(uo_mule::gui::zGrayscale(std::numeric_limits<std::int8_t>::min()) == 0);
+    REQUIRE(uo_mule::gui::zGrayscale(0) == 128);
+    REQUIRE(uo_mule::gui::zGrayscale(std::numeric_limits<std::int8_t>::max()) == 255);
     const uomul::MapTile tile{.id = 1234, .z = -12};
-    REQUIRE(im_cpp::gui::tileDisplayColor(im_cpp::gui::MapDisplayMode::tileIds, tile) == im_cpp::gui::tileIdColor(tile.id));
-    const auto zColor = im_cpp::gui::tileDisplayColor(im_cpp::gui::MapDisplayMode::z, tile);
-    REQUIRE(zColor.red == im_cpp::gui::zGrayscale(tile.z));
+    REQUIRE(uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::tileIds, tile) == uo_mule::gui::tileIdColor(tile.id));
+    const auto zColor = uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::z, tile);
+    REQUIRE(zColor.red == uo_mule::gui::zGrayscale(tile.z));
     REQUIRE(zColor.green == zColor.red);
     REQUIRE(zColor.blue == zColor.red);
-    REQUIRE_FALSE(im_cpp::gui::tileDisplayColor(im_cpp::gui::MapDisplayMode::combined, tile) ==
-                  im_cpp::gui::tileIdColor(tile.id));
+    REQUIRE_FALSE(uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::combined, tile) ==
+                  uo_mule::gui::tileIdColor(tile.id));
 }
 
 TEST_CASE("mapWorkspace_Should_OpenCreateHoverAndExposeSelectionState")

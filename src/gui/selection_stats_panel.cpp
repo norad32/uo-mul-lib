@@ -1,22 +1,18 @@
 #include "gui/selection_stats_panel.h"
-
-#include <imgui.h>
-
+#include "gui/map_workspace.h"
+#include "gui/theme.h"
+#include "uomul/map.h"
 #include <expected>
+#include <imgui.h>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "gui/map_workspace.h"
-#include "uomul/map.h"
-
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 namespace
 {
-
-constexpr float errorColorChannel = 0.4F;
 
 [[nodiscard]] bool sameTileRegion(const std::optional<uomul::TileRegion> & left,
                                   const std::optional<uomul::TileRegion> & right) noexcept
@@ -57,7 +53,9 @@ void refreshStats(MapWorkspace & workspace, SelectionStatsPanelState & state)
     {
         return;
     }
+
     std::expected<std::optional<uomul::MapStats>, uomul::Error> result = workspace.selectionStats();
+
     if (result)
     {
         state.stats = std::move(*result);
@@ -76,6 +74,7 @@ void drawDistribution(const char * label, const std::vector<uomul::ValueStats> &
         ImGui::TextUnformatted("No samples");
         return;
     }
+
     for (const uomul::ValueStats & value : values)
     {
         ImGui::Text("%d: %llu (%.2f%%)", value.value, static_cast<unsigned long long>(value.count), value.percentage);
@@ -90,14 +89,17 @@ void drawStats(const uomul::MapStats & stats)
         ImGui::TextUnformatted("No samples in selection");
         return;
     }
+
     if (stats.averageZ)
     {
         ImGui::Text("Average Z: %.2f", *stats.averageZ);
     }
+
     if (stats.medianZ)
     {
         ImGui::Text("Median Z: %.2f", *stats.medianZ);
     }
+
     drawDistribution("Tile ID distribution", stats.tileIds);
     drawDistribution("Elevation distribution", stats.zs);
 }
@@ -110,6 +112,7 @@ void drawSelectionStatsPanel(MapWorkspace & workspace, SelectionStatsPanelState 
     {
         refreshStats(workspace, state);
     }
+
     const bool contentsVisible = ImGui::Begin("Selection Statistics", &visible);
     if (contentsVisible)
     {
@@ -119,8 +122,7 @@ void drawSelectionStatsPanel(MapWorkspace & workspace, SelectionStatsPanelState 
         }
         else if (state.error)
         {
-            ImGui::TextColored(
-                ImVec4(1.0F, errorColorChannel, errorColorChannel, 1.0F), "Statistics error: %s", state.error->message.c_str());
+            ImGui::TextColored(theme::imguiColor(theme::coral), "Statistics error: %s", state.error->message.c_str());
         }
         else if (!state.stats)
         {
@@ -131,7 +133,8 @@ void drawSelectionStatsPanel(MapWorkspace & workspace, SelectionStatsPanelState 
             drawStats(*state.stats);
         }
     }
+
     ImGui::End();
 }
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

@@ -4,7 +4,7 @@
 #include "gui/preferences.h"
 #include <vector>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 [[nodiscard]] float drawLogPanel(core::GuiLogSink & logSink,
@@ -12,4 +12,4 @@ namespace im_cpp::gui
                                  std::vector<core::GuiLogEntry> & entries,
                                  bool & followScroll);
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

@@ -45,7 +45,7 @@ function(apply_common_compile_options target_name)
     target_compile_definitions(
         ${target_name}
         ${scope}
-        $<$<CONFIG:Debug>:uo_mule_DEBUG_BUILD=1>
+        $<$<CONFIG:Debug>:DEBUG_BUILD=1>
         $<$<CONFIG:Debug>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE>
         $<$<CONFIG:Release>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO>
         $<$<CONFIG:Release>:NDEBUG=1>

@@ -1,11 +1,10 @@
 #pragma once
 
+#include "gui/map_workspace.h"
 #include <filesystem>
 #include <optional>
 
-#include "gui/map_workspace.h"
-
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 struct SelectionStatsPanelState
@@ -22,4 +21,4 @@ struct SelectionStatsPanelState
 
 void drawSelectionStatsPanel(MapWorkspace & workspace, SelectionStatsPanelState & state, bool & visible);
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

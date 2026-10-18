@@ -10,7 +10,7 @@
 #include <ostream>
 #include <string>
 
-namespace im_cpp::app
+namespace uo_mule::app
 {
 namespace
 {
@@ -452,4 +452,4 @@ int runMapCommand(const MapCommandOptions & options, std::ostream & output, std:
     return 2;
 }
 
-} // namespace im_cpp::app
+} // namespace uo_mule::app

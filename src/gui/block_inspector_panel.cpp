@@ -1,24 +1,20 @@
 #include "gui/block_inspector_panel.h"
-
-#include <imgui.h>
-
-#include <cstddef>
-#include <cstdint>
-#include <filesystem>
-#include <optional>
-#include <string>
-
 #include "gui/map_workspace.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <imgui.h>
+#include <optional>
+#include <string>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
+
 namespace
 {
 
-constexpr float errorColorChannel = 0.4F;
-constexpr float colorChannelMaximum = 255.0F;
 constexpr float tileCellSize = 40.0F;
 constexpr float coordinateColumnWidth = 38.0F;
 constexpr float selectedBorderThickness = 2.0F;
@@ -31,17 +27,19 @@ constexpr float textOutlineOffset = 1.0F;
     {
         return std::to_string(tile.id);
     }
+
     if (mode == MapDisplayMode::z)
     {
         return std::to_string(static_cast<int>(tile.z));
     }
+
     return std::to_string(tile.id) + "\n" + std::to_string(static_cast<int>(tile.z));
 }
 
 void drawOutlinedText(ImDrawList & drawList, ImVec2 position, const std::string & text)
 {
-    const ImU32 outlineColor = ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelTextOutline));
-    const ImU32 textColor = ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelText));
+    const ImU32 outlineColor = theme::packedColor(theme::stoneSurface);
+    const ImU32 textColor = theme::packedColor(theme::parchmentText);
     drawList.AddText(ImVec2(position.x - textOutlineOffset, position.y), outlineColor, text.c_str());
     drawList.AddText(ImVec2(position.x + textOutlineOffset, position.y), outlineColor, text.c_str());
     drawList.AddText(ImVec2(position.x, position.y - textOutlineOffset), outlineColor, text.c_str());
@@ -78,21 +76,14 @@ void drawTileCell(const uomul::MapBlock & block,
     drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
     drawList->AddRect(cellMinimum,
                       cellMaximum,
-                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelBorder)),
+                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::stoneBorder)),
                       0.0F,
                       ImDrawFlags_None,
                       gridLineThickness);
     if (selected)
     {
-        drawList->AddRect(cellMinimum,
-                          cellMaximum,
-                          IM_COL32(static_cast<std::uint8_t>(theme::panelTabHovered.red * colorChannelMaximum),
-                                   static_cast<std::uint8_t>(theme::panelTabHovered.green * colorChannelMaximum),
-                                   static_cast<std::uint8_t>(theme::panelTabHovered.blue * colorChannelMaximum),
-                                   255),
-                          0.0F,
-                          ImDrawFlags_None,
-                          selectedBorderThickness);
+        drawList->AddRect(
+            cellMinimum, cellMaximum, theme::packedColor(theme::brightBrass), 0.0F, ImDrawFlags_None, selectedBorderThickness);
     }
 
     const std::string label = tileLabel(workspace.displayMode(), tile);
@@ -100,11 +91,13 @@ void drawTileCell(const uomul::MapBlock & block,
     const ImVec2 textPosition(cellMinimum.x + ((tileCellSize - textSize.x) * 0.5F),
                               cellMinimum.y + ((tileCellSize - textSize.y) * 0.5F));
     drawOutlinedText(*drawList, textPosition, label);
+
     if (clicked)
     {
         const auto result = workspace.updateSelectedTile(tileCoordinate);
         static_cast<void>(result);
     }
+
     if (ImGui::IsItemHovered())
     {
         ImGui::SetTooltip("Tile (%u, %u): ID %u, Z %d",
@@ -121,6 +114,7 @@ void drawBlock(const uomul::MapBlock & block, uomul::BlockCoord blockCoordinate,
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     const float axisTextY = gridOrigin.y;
     drawList->AddText(ImVec2(gridOrigin.x, axisTextY), ImGui::GetColorU32(ImGuiCol_Text), "Y/X");
+
     for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
     {
         const std::string coordinate =
@@ -146,6 +140,7 @@ void drawBlock(const uomul::MapBlock & block, uomul::BlockCoord blockCoordinate,
             drawTileCell(block, blockCoordinate, workspace, row, column, gridOrigin);
         }
     }
+
     const float gridHeight =
         ImGui::GetTextLineHeightWithSpacing() + (static_cast<float>(uomul::mapBlockDimension) * tileCellSize);
     ImGui::SetCursorScreenPos(ImVec2(gridOrigin.x, gridOrigin.y + gridHeight));
@@ -163,6 +158,7 @@ void refreshBlock(const uomul::MapReader & reader,
     state.error.reset();
     state.cacheValid = true;
     auto result = reader.readBlock(coordinate);
+
     if (result)
     {
         state.block = *result;
@@ -175,7 +171,7 @@ void refreshBlock(const uomul::MapReader & reader,
 
 void drawBlockError(const uomul::Error & error)
 {
-    ImGui::TextColored(ImVec4(1.0F, errorColorChannel, errorColorChannel, 1.0F), "Block read error: %s", error.message.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::coral), "Block read error: %s", error.message.c_str());
 }
 
 } // namespace
@@ -190,11 +186,14 @@ void drawBlockInspectorPanel(MapWorkspace & workspace, BlockInspectorPanelState 
         state.error.reset();
         state.blockCoordinate.reset();
     }
+
     const std::optional<uomul::TileCoord> inspectedTile =
         workspace.hoveredTile() ? workspace.hoveredTile() : workspace.selectedTile();
+
     if (reader != nullptr && inspectedTile)
     {
         const uomul::BlockCoord coordinate = tileToBlock(*inspectedTile);
+
         if (!state.cacheValid || !state.blockCoordinate || state.blockCoordinate->x != coordinate.x ||
             state.blockCoordinate->y != coordinate.y)
         {
@@ -241,13 +240,15 @@ void drawBlockInspectorPanel(MapWorkspace & workspace, BlockInspectorPanelState 
                 drawBlockError(*state.error);
             }
         }
+
         if (workspace.error())
         {
             const std::string message = "Workspace error: " + workspace.error()->message;
-            ImGui::TextColored(ImVec4(1.0F, errorColorChannel, errorColorChannel, 1.0F), "%s", message.c_str());
+            ImGui::TextColored(theme::imguiColor(theme::coral), "%s", message.c_str());
         }
     }
+
     ImGui::End();
 }
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

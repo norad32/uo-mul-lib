@@ -4,7 +4,7 @@
 #include <imgui.h>
 #include <spdlog/common.h>
 
-namespace im_cpp::gui::theme
+namespace uo_mule::gui::theme
 {
 
 struct Color
@@ -160,6 +160,11 @@ inline constexpr ButtonColors alternateButtonGreen{
     return result;
 }
 
+[[nodiscard]] inline ImU32 packedColor(const Color & color) noexcept
+{
+    return ImGui::ColorConvertFloat4ToU32(imguiColor(color));
+}
+
 inline void pushButtonColors(const ButtonColors & colors)
 {
     ImGui::PushStyleColor(ImGuiCol_Button, imguiColor(colors.normal));
@@ -281,4 +286,4 @@ inline void applyImGuiStyle()
     }
 }
 
-} // namespace im_cpp::gui::theme
+} // namespace uo_mule::gui::theme

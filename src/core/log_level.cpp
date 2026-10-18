@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace im_cpp::core
+namespace uo_mule::core
 {
 namespace
 {
@@ -78,4 +78,4 @@ std::string_view toString(LogLevel level) noexcept
     return "UNKNOWN";
 }
 
-} // namespace im_cpp::core
+} // namespace uo_mule::core

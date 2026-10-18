@@ -1,11 +1,10 @@
 #pragma once
 
+#include "gui/map_workspace.h"
 #include <filesystem>
 #include <optional>
 
-#include "gui/map_workspace.h"
-
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 struct BlockInspectorPanelState
@@ -19,4 +18,4 @@ struct BlockInspectorPanelState
 
 void drawBlockInspectorPanel(MapWorkspace & workspace, BlockInspectorPanelState & state, bool & visible);
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

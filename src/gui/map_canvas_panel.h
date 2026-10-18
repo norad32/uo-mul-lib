@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 inline constexpr double defaultMapCanvasZoom = 12.0;
@@ -64,4 +64,4 @@ struct MapCanvasPanelState
 
 void drawMapCanvasPanel(MapWorkspace & workspace, MapCanvasPanelState & state, bool & visible);
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

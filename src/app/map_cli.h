@@ -5,7 +5,7 @@
 #include <iosfwd>
 #include <string>
 
-namespace im_cpp::app
+namespace uo_mule::app
 {
 
 struct MapCommandOptions
@@ -46,4 +46,4 @@ struct MapCommandOptions
 [[nodiscard]] CLI::App * configureMapCommand(CLI::App & application, MapCommandOptions & options);
 [[nodiscard]] int runMapCommand(const MapCommandOptions & options, std::ostream & output, std::ostream & error);
 
-} // namespace im_cpp::app
+} // namespace uo_mule::app

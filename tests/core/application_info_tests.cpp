@@ -3,10 +3,10 @@
 
 TEST_CASE("applicationName_Should_ReturnImCpp")
 {
-    REQUIRE(im_cpp::core::applicationName() == im_cpp::core::metadata::applicationName);
-    REQUIRE(im_cpp::core::applicationVersion() == im_cpp::core::metadata::applicationVersion);
-    REQUIRE_FALSE(im_cpp::core::applicationDescription().empty());
-    REQUIRE_FALSE(im_cpp::core::applicationHomepage().empty());
-    REQUIRE(im_cpp::core::applicationLicense() == "MIT");
-    REQUIRE(im_cpp::core::applicationAuthor() == "norad32");
+    REQUIRE(uo_mule::core::applicationName() == uo_mule::core::metadata::applicationName);
+    REQUIRE(uo_mule::core::applicationVersion() == uo_mule::core::metadata::applicationVersion);
+    REQUIRE_FALSE(uo_mule::core::applicationDescription().empty());
+    REQUIRE_FALSE(uo_mule::core::applicationHomepage().empty());
+    REQUIRE(uo_mule::core::applicationLicense() == "MIT");
+    REQUIRE(uo_mule::core::applicationAuthor() == "norad32");
 }

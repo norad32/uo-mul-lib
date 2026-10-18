@@ -1,5 +1,6 @@
 #include "gui/new_map_dialog.h"
 #include "gui/map_workspace.h"
+#include "gui/theme.h"
 #include "uomul/map.h"
 #include <array>
 #include <cstddef>
@@ -12,8 +13,9 @@
 #include <string>
 #include <system_error>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
+
 namespace
 {
 
@@ -101,7 +103,9 @@ resolveDimensions(int preset, std::uint32_t width, std::uint32_t height)
         }
         return uomul::Dimensions{.widthTiles = width, .heightTiles = height};
     }
+
     std::string presetName;
+
     switch (preset)
     {
         case feluccaFacetIndex :
@@ -125,6 +129,7 @@ resolveDimensions(int preset, std::uint32_t width, std::uint32_t height)
         default :
             break;
     }
+
     if (!presetName.empty())
     {
         const auto dimensions = uomul::facetDimensions(presetName);
@@ -132,8 +137,10 @@ resolveDimensions(int preset, std::uint32_t width, std::uint32_t height)
         {
             return std::unexpected(dimensions.error().message);
         }
+
         return *dimensions;
     }
+
     return std::unexpected("Select a supported facet preset or custom dimensions");
 }
 
@@ -141,6 +148,7 @@ resolveDimensions(int preset, std::uint32_t width, std::uint32_t height)
 {
     std::error_code filesystemError;
     const bool exists = std::filesystem::exists(path, filesystemError);
+
     if (filesystemError)
     {
         state.error = path.string() + ": " + filesystemError.message();
@@ -148,6 +156,7 @@ resolveDimensions(int preset, std::uint32_t width, std::uint32_t height)
         state.mode = MapFileDialogMode::error;
         return false;
     }
+
     return exists;
 }
 
@@ -155,10 +164,12 @@ void showOverwrite(NewMapDialogState & state, MapOverwriteKind kind)
 {
     ImGui::CloseCurrentPopup();
     state.overwriteKind = kind;
+
     if (kind == MapOverwriteKind::newMap)
     {
         state.operationOverwriteOutput = true;
     }
+
     state.mode = MapFileDialogMode::overwrite;
 }
 
@@ -169,6 +180,7 @@ void executeOperation(MapWorkspace & workspace,
                       bool overwrite)
 {
     std::expected<void, uomul::Error> result;
+
     switch (state.operation.kind)
     {
         case PendingMapOperationKind::openMap :
@@ -188,11 +200,13 @@ void executeOperation(MapWorkspace & workspace,
         case PendingMapOperationKind::none :
             break;
     }
+
     if (!result)
     {
         showError(state, result.error());
         return;
     }
+
     if (state.operation.kind == PendingMapOperationKind::close || state.operation.kind == PendingMapOperationKind::quit)
     {
         const bool quit = state.operation.kind == PendingMapOperationKind::quit;
@@ -204,6 +218,7 @@ void executeOperation(MapWorkspace & workspace,
         }
         state.shouldClose = quit;
     }
+
     state.operation = {};
     state.overwriteKind = MapOverwriteKind::none;
     state.saveForPendingOperation = false;
@@ -215,12 +230,14 @@ void executeOperation(MapWorkspace & workspace,
 void continueOperation(MapWorkspace & workspace, NewMapDialogState & state, bool overwrite)
 {
     state.operationOverwriteOutput = overwrite;
+
     if (workspace.dirty())
     {
         ImGui::CloseCurrentPopup();
         state.mode = MapFileDialogMode::dirtyChanges;
         return;
     }
+
     executeOperation(workspace, state, PendingChangesAction::cancel, std::nullopt, overwrite);
 }
 
@@ -235,10 +252,12 @@ void requestOperation(MapWorkspace & workspace, NewMapDialogState & state)
             return;
         }
     }
+
     if (state.operation.kind == PendingMapOperationKind::newMap)
     {
         std::error_code outputPathError;
         const std::filesystem::path output = std::filesystem::weakly_canonical(state.operation.path, outputPathError);
+
         if (outputPathError)
         {
             state.error = state.operation.path.string() + ": " + outputPathError.message();
@@ -246,6 +265,7 @@ void requestOperation(MapWorkspace & workspace, NewMapDialogState & state)
             state.mode = MapFileDialogMode::error;
             return;
         }
+
         if (workspace.reader() != nullptr)
         {
             std::error_code sourcePathError;
@@ -258,16 +278,19 @@ void requestOperation(MapWorkspace & workspace, NewMapDialogState & state)
                 return;
             }
         }
+
         if (outputExists(state.operation.path, state))
         {
             showOverwrite(state, MapOverwriteKind::newMap);
             return;
         }
+
         if (state.mode == MapFileDialogMode::error)
         {
             return;
         }
     }
+
     continueOperation(workspace, state, false);
 }
 
@@ -280,6 +303,7 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
     {
         return;
     }
+
     for (std::size_t index = 0; index < facetNames.size(); ++index)
     {
         const std::size_t activeIndex = preset >= 0 ? static_cast<std::size_t>(preset) : customFacetArrayIndex;
@@ -297,11 +321,13 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
                 }
             }
         }
+
         if (selected)
         {
             ImGui::SetItemDefaultFocus();
         }
     }
+
     ImGui::EndCombo();
 }
 
@@ -327,11 +353,14 @@ void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
     ImGui::TextUnformatted("Map path");
     ImGui::SetNextItemWidth(dialogInputWidth);
     ImGui::InputText("##OpenPath", state.openPath.data(), state.openPath.size());
+
     const bool validDimensions = drawDimensionsFields("OpenDimensions", state.openFacet, state.openWidth, state.openHeight);
+
     if (!validDimensions)
     {
-        ImGui::TextUnformatted("Dimensions must be positive multiples of 8 tiles.");
+        ImGui::TextColored(theme::imguiColor(theme::amber), "Dimensions must be positive multiples of 8 tiles.");
     }
+
     if (ImGui::Button("Open") && state.openPath.front() != '\0' && validDimensions)
     {
         state.operation = {
@@ -345,7 +374,9 @@ void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
         };
         requestOperation(workspace, state);
     }
+
     ImGui::SameLine();
+
     if (ImGui::Button("Cancel"))
     {
         state.operation = {};
@@ -360,18 +391,21 @@ void drawNewMapForm(MapWorkspace & workspace, NewMapDialogState & state)
     ImGui::InputText("##NewMapPath", state.newMapPath.data(), state.newMapPath.size());
     const bool validDimensions =
         drawDimensionsFields("NewDimensions", state.newMapFacet, state.newMapWidth, state.newMapHeight);
+
     if (!validDimensions)
     {
-        ImGui::TextUnformatted("Dimensions must be positive multiples of 8 tiles.");
+        ImGui::TextColored(theme::imguiColor(theme::amber), "Dimensions must be positive multiples of 8 tiles.");
     }
+
     ImGui::InputInt("Default tile ID", &state.initialTileId);
     ImGui::InputInt("Default Z", &state.initialTileZ);
     const bool validTile = state.initialTileId >= 0 && state.initialTileId <= maximumTileId &&
                            state.initialTileZ >= minimumTileZ && state.initialTileZ <= maximumTileZ;
     if (!validTile)
     {
-        ImGui::TextUnformatted("ID must be 0-65535 and Z must be -128 to 127.");
+        ImGui::TextColored(theme::imguiColor(theme::amber), "ID must be 0-65535 and Z must be -128 to 127.");
     }
+
     if (ImGui::Button("Create") && state.newMapPath.front() != '\0' && validDimensions && validTile)
     {
         const auto dimensions = resolveDimensions(state.newMapFacet, state.newMapWidth, state.newMapHeight);
@@ -396,7 +430,9 @@ void drawNewMapForm(MapWorkspace & workspace, NewMapDialogState & state)
             state.mode = MapFileDialogMode::error;
         }
     }
+
     ImGui::SameLine();
+
     if (ImGui::Button("Cancel"))
     {
         state.operation = {};
@@ -409,6 +445,7 @@ void drawSaveAsDialog(MapWorkspace & workspace, NewMapDialogState & state)
     ImGui::TextUnformatted("Commit staged changes to");
     ImGui::SetNextItemWidth(dialogInputWidth);
     ImGui::InputText("##SaveMapPath", state.savePath.data(), state.savePath.size());
+
     if (ImGui::Button("Save / Commit") && state.savePath.front() != '\0')
     {
         const std::filesystem::path path(state.savePath.data());
@@ -417,16 +454,20 @@ void drawSaveAsDialog(MapWorkspace & workspace, NewMapDialogState & state)
             showOverwrite(state, MapOverwriteKind::save);
             return;
         }
+
         if (state.mode == MapFileDialogMode::error)
         {
             return;
         }
+
         const auto saved = workspace.save(path, false);
+
         if (!saved)
         {
             showError(state, saved.error());
             return;
         }
+
         if (state.saveForPendingOperation)
         {
             const PendingMapOperationKind operation = state.operation.kind;
@@ -455,7 +496,9 @@ void drawSaveAsDialog(MapWorkspace & workspace, NewMapDialogState & state)
         }
         closeDialog(state);
     }
+
     ImGui::SameLine();
+
     if (ImGui::Button("Cancel"))
     {
         state.saveForPendingOperation = false;
@@ -466,6 +509,7 @@ void drawSaveAsDialog(MapWorkspace & workspace, NewMapDialogState & state)
 void drawDirtyDialog(MapWorkspace & workspace, NewMapDialogState & state)
 {
     ImGui::TextWrapped("The current map has staged changes. Save, discard, or cancel this operation?");
+
     if (ImGui::Button("Save As..."))
     {
         state.saveForPendingOperation = true;
@@ -473,13 +517,17 @@ void drawDirtyDialog(MapWorkspace & workspace, NewMapDialogState & state)
         state.mode = MapFileDialogMode::saveAs;
         ImGui::CloseCurrentPopup();
     }
+
     ImGui::SameLine();
+
     if (ImGui::Button("Discard"))
     {
         executeOperation(workspace, state, PendingChangesAction::discard, std::nullopt, state.operationOverwriteOutput);
         ImGui::CloseCurrentPopup();
     }
+
     ImGui::SameLine();
+
     if (ImGui::Button("Cancel"))
     {
         state.operation = {};
@@ -493,6 +541,7 @@ void drawOverwriteDialog(MapWorkspace & workspace, NewMapDialogState & state)
     const std::filesystem::path path =
         state.overwriteKind == MapOverwriteKind::save ? std::filesystem::path(state.savePath.data()) : state.operation.path;
     ImGui::TextWrapped("The file already exists:\n%s\nReplace it?", path.string().c_str());
+
     if (ImGui::Button("Overwrite"))
     {
         if (state.overwriteKind == MapOverwriteKind::save)
@@ -541,9 +590,12 @@ void drawOverwriteDialog(MapWorkspace & workspace, NewMapDialogState & state)
         {
             executeOperation(workspace, state, PendingChangesAction::cancel, std::nullopt, true);
         }
+
         ImGui::CloseCurrentPopup();
     }
+
     ImGui::SameLine();
+
     if (ImGui::Button("Cancel"))
     {
         state.overwriteKind = MapOverwriteKind::none;
@@ -562,18 +614,22 @@ void drawNewMapDialog(MapWorkspace & workspace, NewMapDialogState & state, bool 
     {
         return;
     }
+
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
     ImGui::SetNextWindowViewport(viewport->ID);
     ImGui::Begin("MapFileDialogHost", nullptr, hostFlags);
     ImGui::PushID("MapFileDialogs");
+
     if (state.activePopup != state.mode)
     {
         ImGui::OpenPopup(popupName(state.mode));
         state.activePopup = state.mode;
     }
+
     const MapFileDialogMode currentMode = state.mode;
+
     if (!ImGui::BeginPopupModal(popupName(currentMode), nullptr, modalFlags))
     {
         state.mode = MapFileDialogMode::none;
@@ -582,6 +638,7 @@ void drawNewMapDialog(MapWorkspace & workspace, NewMapDialogState & state, bool 
         ImGui::End();
         return;
     }
+
     switch (currentMode)
     {
         case MapFileDialogMode::openMap :
@@ -600,7 +657,7 @@ void drawNewMapDialog(MapWorkspace & workspace, NewMapDialogState & state, bool 
             drawOverwriteDialog(workspace, state);
             break;
         case MapFileDialogMode::error :
-            ImGui::TextWrapped("%s", state.error.c_str());
+            ImGui::TextColored(theme::imguiColor(theme::coral), "%s", state.error.c_str());
             if (ImGui::Button("OK"))
             {
                 state.operation = {};
@@ -612,9 +669,11 @@ void drawNewMapDialog(MapWorkspace & workspace, NewMapDialogState & state, bool 
         case MapFileDialogMode::none :
             break;
     }
+
     ImGui::EndPopup();
     ImGui::PopID();
     ImGui::End();
+
     if (state.shouldClose)
     {
         shouldClose = true;
@@ -622,4 +681,4 @@ void drawNewMapDialog(MapWorkspace & workspace, NewMapDialogState & state, bool 
     }
 }
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

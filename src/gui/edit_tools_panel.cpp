@@ -1,5 +1,6 @@
 #include "gui/edit_tools_panel.h"
 #include "gui/map_workspace.h"
+#include "gui/theme.h"
 #include "uomul/map.h"
 #include <cstdint>
 #include <expected>
@@ -8,8 +9,9 @@
 #include <optional>
 #include <string>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
+
 namespace
 {
 
@@ -19,17 +21,9 @@ constexpr int minimumTileZ = -(std::numeric_limits<std::uint8_t>::max() / 2) - 1
 constexpr int maximumTileZ = std::numeric_limits<std::uint8_t>::max() / 2;
 constexpr ImGuiWindowFlags confirmationFlags = ImGuiWindowFlags_AlwaysAutoResize;
 constexpr const char * wholeMapConfirmationPopup = "Confirm Whole-Map Edit###EditToolsWholeMapConfirmation";
-constexpr float errorRed = 0.95F;
-constexpr float errorGreenBlue = 0.35F;
-constexpr float successRed = 0.35F;
-constexpr float successGreen = 0.85F;
-constexpr float successBlue = 0.45F;
-constexpr float opaqueAlpha = 1.0F;
-
 [[nodiscard]] ImVec4 statusColor(bool isError) noexcept
 {
-    return isError ? ImVec4(errorRed, errorGreenBlue, errorGreenBlue, opaqueAlpha)
-                   : ImVec4(successRed, successGreen, successBlue, opaqueAlpha);
+    return theme::imguiColor(isError ? theme::coral : theme::sageGreen);
 }
 
 [[nodiscard]] bool selectionAvailable(const MapWorkspace & workspace) noexcept
@@ -39,6 +33,7 @@ constexpr float opaqueAlpha = 1.0F;
         const std::optional<uomul::TileRegion> & selection = workspace.tileSelection();
         return selection && selection->min.x < selection->maxExclusive.x && selection->min.y < selection->maxExclusive.y;
     }
+
     const std::optional<uomul::BlockRegion> & selection = workspace.blockSelection();
     return selection && selection->min.x < selection->maxExclusive.x && selection->min.y < selection->maxExclusive.y;
 }
@@ -104,6 +99,7 @@ void drawSelectionDetails(const MapWorkspace & workspace)
                     selection.maxExclusive.y);
         return;
     }
+
     if (workspace.selectionMode() == MapSelectionMode::blocks && workspace.blockSelection())
     {
         const uomul::BlockRegion & selection = *workspace.blockSelection();
@@ -114,6 +110,7 @@ void drawSelectionDetails(const MapWorkspace & workspace)
                     selection.maxExclusive.y);
         return;
     }
+
     ImGui::TextUnformatted("No active selection");
 }
 
@@ -138,6 +135,7 @@ void drawOperationPreview(const EditToolsPanelState & state, EditToolsOperation 
 void applyOperation(MapWorkspace & workspace, EditToolsPanelState & state, EditToolsOperation operation, MapEditScope scope)
 {
     std::expected<void, uomul::Error> result;
+
     switch (operation)
     {
         case EditToolsOperation::fill :
@@ -155,6 +153,7 @@ void applyOperation(MapWorkspace & workspace, EditToolsPanelState & state, EditT
         case EditToolsOperation::none :
             return;
     }
+
     if (!result)
     {
         const uomul::Error & error = result.error();
@@ -162,6 +161,7 @@ void applyOperation(MapWorkspace & workspace, EditToolsPanelState & state, EditT
         state.statusIsError = true;
         return;
     }
+
     state.status = std::string(operationName(operation)) + " staged successfully";
     state.statusIsError = false;
 }
@@ -201,6 +201,7 @@ void drawConfirmationPopup(MapWorkspace & workspace, EditToolsPanelState & state
     {
         ImGui::OpenPopup(wholeMapConfirmationPopup);
     }
+
     if (ImGui::BeginPopupModal(wholeMapConfirmationPopup, nullptr, confirmationFlags))
     {
         ImGui::Text("Apply this operation to the entire map?");
@@ -214,14 +215,17 @@ void drawConfirmationPopup(MapWorkspace & workspace, EditToolsPanelState & state
             state.scope = MapEditScope::selection;
             ImGui::CloseCurrentPopup();
         }
+
         ImGui::EndDisabled();
         ImGui::SameLine();
+
         if (ImGui::Button("Cancel"))
         {
             state.confirmationOperation = EditToolsOperation::none;
             state.scope = MapEditScope::selection;
             ImGui::CloseCurrentPopup();
         }
+
         ImGui::EndPopup();
     }
 }
@@ -237,6 +241,7 @@ void drawOperationButton(MapWorkspace & workspace,
     const bool selectionBlocked = state.scope == MapEditScope::selection && !hasSelection;
     const bool wholeMapBlocked = state.scope == MapEditScope::wholeMap && !operationInputsValid(state, operation);
     ImGui::BeginDisabled(!canApply || !valid || selectionBlocked || wholeMapBlocked);
+
     if (ImGui::Button(label))
     {
         if (state.scope == MapEditScope::wholeMap)
@@ -248,6 +253,7 @@ void drawOperationButton(MapWorkspace & workspace,
             applyOperation(workspace, state, operation, MapEditScope::selection);
         }
     }
+
     ImGui::EndDisabled();
 }
 
@@ -257,14 +263,17 @@ void drawWarnings(const EditToolsPanelState & state, bool canApply, bool hasSele
     {
         ImGui::TextColored(statusColor(true), "One or more values are outside the supported ID/Z ranges.");
     }
+
     if (!canApply)
     {
         ImGui::TextColored(statusColor(true), "Editing requires an open map and Edit mode ON.");
     }
+
     if (state.scope == MapEditScope::selection && !hasSelection)
     {
         ImGui::TextColored(statusColor(true), "Select a non-empty region to use selection scope.");
     }
+
     if (!state.status.empty())
     {
         ImGui::TextColored(statusColor(state.statusIsError), "%s", state.status.c_str());
@@ -277,6 +286,7 @@ void drawEditToolsContents(MapWorkspace & workspace, EditToolsPanelState & state
     const bool editEnabled = workspace.editMode();
     const bool hasSelection = selectionAvailable(workspace);
     const bool canApply = mapOpen && editEnabled;
+
     if (state.confirmationOperation != EditToolsOperation::none && !canApply)
     {
         state.confirmationOperation = EditToolsOperation::none;
@@ -288,15 +298,19 @@ void drawEditToolsContents(MapWorkspace & workspace, EditToolsPanelState & state
 
     ImGui::SeparatorText("Scope");
     const bool selectionScope = state.scope == MapEditScope::selection;
+
     if (ImGui::RadioButton("Current selection", selectionScope))
     {
         state.scope = MapEditScope::selection;
     }
+
     ImGui::SameLine();
+
     if (ImGui::RadioButton("Whole map", !selectionScope))
     {
         state.scope = MapEditScope::wholeMap;
     }
+
     ImGui::Text("Effective scope: %s",
                 state.scope == MapEditScope::selection ? selectionStyleName(workspace.selectionMode()) : "Whole map");
 
@@ -332,4 +346,4 @@ void drawEditToolsPanel(MapWorkspace & workspace, EditToolsPanelState & state, b
     ImGui::End();
 }
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

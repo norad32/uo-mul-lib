@@ -1,5 +1,5 @@
-#include "core/app_info.h"
 #include "gui/demo_panel.h"
+#include "core/app_info.h"
 #include "gui/preferences.h"
 #include <algorithm>
 #include <cmath>
@@ -8,8 +8,9 @@
 #include <spdlog/logger.h>
 #include <string>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
+
 namespace
 {
 
@@ -19,7 +20,7 @@ constexpr float minimumDemoPanelWidth = 240.0F;
 constexpr float minimumDemoPanelHeight = 100.0F;
 constexpr float positionTolerance = 0.5F;
 
-}
+} // namespace
 
 void drawDemoPanel(spdlog::logger & logger,
                    Preferences & preferences,
@@ -29,16 +30,19 @@ void drawDemoPanel(spdlog::logger & logger,
                    DemoPanelState & state)
 {
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
+
     if (state.width <= 0.0F)
     {
         state.width = initialDemoPanelWidth;
         state.height = initialDemoPanelHeight;
     }
+
     const ImVec2 workBottom(viewport->WorkPos.x + viewport->WorkSize.x,
                             viewport->WorkPos.y + viewport->WorkSize.y - bottomPanelHeight);
     const float availableWidth = std::max(0.0F, workBottom.x - viewport->WorkPos.x);
     const float availableHeight = std::max(0.0F, workBottom.y - viewport->WorkPos.y);
     bool resizeToFit = false;
+
     if (!state.hasWindowGeometry)
     {
         ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_FirstUseEver);
@@ -56,6 +60,7 @@ void drawDemoPanel(spdlog::logger & logger,
         {
             ImGui::SetNextWindowPos(ImVec2(constrainedX, constrainedY), ImGuiCond_Always);
         }
+
         if (std::abs(constrainedWidth - state.width) > positionTolerance ||
             std::abs(constrainedHeight - state.height) > positionTolerance)
         {
@@ -64,13 +69,16 @@ void drawDemoPanel(spdlog::logger & logger,
             resizeToFit = true;
         }
     }
+
     ImGui::SetNextWindowSize(ImVec2(state.width, state.height), resizeToFit ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
+
     if (!state.docked)
     {
-        ImGui::SetNextWindowSizeConstraints(ImVec2(std::min(minimumDemoPanelWidth, availableWidth),
-                                                   std::min(minimumDemoPanelHeight, availableHeight)),
-                                            ImVec2(availableWidth, availableHeight));
+        ImGui::SetNextWindowSizeConstraints(
+            ImVec2(std::min(minimumDemoPanelWidth, availableWidth), std::min(minimumDemoPanelHeight, availableHeight)),
+            ImVec2(availableWidth, availableHeight));
     }
+
     const std::string panelName(core::applicationName());
     const bool windowContentsVisible = ImGui::Begin(panelName.c_str());
     state.docked = ImGui::IsWindowDocked();
@@ -79,6 +87,7 @@ void drawDemoPanel(spdlog::logger & logger,
     state.width = ImGui::GetWindowSize().x;
     state.height = ImGui::GetWindowSize().y;
     state.hasWindowGeometry = true;
+
     if (windowContentsVisible)
     {
         ImGui::Text("Hello I'm C++!");
@@ -90,21 +99,17 @@ void drawDemoPanel(spdlog::logger & logger,
         ImGui::SameLine();
         if (ImGui::Button("Generate Test Logs"))
         {
-            logger.log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION},
-                       spdlog::level::trace,
-                       "Generated a trace message");
-            logger.log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION},
-                       spdlog::level::debug,
-                       "Generated a debug message");
+            logger.log(
+                spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::trace, "Generated a trace message");
+            logger.log(
+                spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::debug, "Generated a debug message");
             logger.log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION},
                        spdlog::level::info,
                        "Generated an information message");
-            logger.log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION},
-                       spdlog::level::warn,
-                       "Generated a warning message");
-            logger.log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION},
-                       spdlog::level::err,
-                       "Generated an error message");
+            logger.log(
+                spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::warn, "Generated a warning message");
+            logger.log(
+                spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::err, "Generated an error message");
         }
         ImGui::SameLine();
         if (ImGui::Button("Close"))
@@ -115,4 +120,4 @@ void drawDemoPanel(spdlog::logger & logger,
     ImGui::End();
 }
 
-}
+} // namespace uo_mule::gui

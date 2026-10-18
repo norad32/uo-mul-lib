@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace im_cpp::core
+namespace uo_mule::core
 {
 
 inline constexpr std::size_t defaultGuiLogCapacity = 1024;
@@ -35,4 +35,4 @@ private:
     std::vector<GuiLogEntry> entries_;
 };
 
-} // namespace im_cpp::core
+} // namespace uo_mule::core

@@ -1,15 +1,13 @@
 #include "gui/tile_inspector_panel.h"
-
-#include <imgui.h>
-
-#include <string>
-
 #include "gui/map_workspace.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
+#include <imgui.h>
+#include <string>
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
+
 namespace
 {
 
@@ -23,10 +21,12 @@ constexpr float textOutlineOffset = 1.0F;
     {
         return std::to_string(tile.id);
     }
+
     if (mode == MapDisplayMode::z)
     {
         return std::to_string(static_cast<int>(tile.z));
     }
+
     return std::to_string(tile.id) + "\n" + std::to_string(static_cast<int>(tile.z));
 }
 
@@ -37,25 +37,16 @@ void drawTilePreview(uomul::MapTile tile, MapDisplayMode mode)
     const MapColor mapColor = tileDisplayColor(mode, tile);
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
-    drawList->AddRect(cellMinimum,
-                      cellMaximum,
-                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelBorder)),
-                      0.0F,
-                      ImDrawFlags_None,
-                      1.0F);
-    drawList->AddRect(cellMinimum,
-                      cellMaximum,
-                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelTabHovered)),
-                      0.0F,
-                      ImDrawFlags_None,
-                      selectedBorderThickness);
+    drawList->AddRect(cellMinimum, cellMaximum, theme::packedColor(theme::stoneBorder), 0.0F, ImDrawFlags_None, 1.0F);
+    drawList->AddRect(
+        cellMinimum, cellMaximum, theme::packedColor(theme::brightBrass), 0.0F, ImDrawFlags_None, selectedBorderThickness);
 
     const std::string label = tileLabel(mode, tile);
     const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
     const ImVec2 textPosition(cellMinimum.x + ((tilePreviewSize - textSize.x) * 0.5F),
                               cellMinimum.y + ((tilePreviewSize - textSize.y) * 0.5F));
-    const ImU32 outlineColor = ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelTextOutline));
-    const ImU32 textColor = ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::panelText));
+    const ImU32 outlineColor = theme::packedColor(theme::stoneSurface);
+    const ImU32 textColor = theme::packedColor(theme::parchmentText);
     drawList->AddText(ImVec2(textPosition.x - textOutlineOffset, textPosition.y), outlineColor, label.c_str());
     drawList->AddText(ImVec2(textPosition.x + textOutlineOffset, textPosition.y), outlineColor, label.c_str());
     drawList->AddText(ImVec2(textPosition.x, textPosition.y - textOutlineOffset), outlineColor, label.c_str());
@@ -68,6 +59,7 @@ void drawTileDetails(const MapWorkspace & workspace)
 {
     const auto & tileValue = workspace.hoveredTile() ? workspace.hoveredTile() : workspace.selectedTile();
     const auto & dataValue = workspace.hoveredValue() ? workspace.hoveredValue() : workspace.selectedValue();
+
     if (!tileValue || !dataValue)
     {
         ImGui::TextUnformatted("Tile inspection data unavailable");
@@ -88,14 +80,17 @@ void drawTileDetails(const MapWorkspace & workspace)
     ImGui::SameLine();
     ImGui::BeginGroup();
     ImGui::Text("Tile: (%u, %u)", tile.x, tile.y);
+
     if (workspace.displayMode() != MapDisplayMode::z)
     {
         ImGui::TextColored(color, "ID: %u", static_cast<unsigned int>(value.id));
     }
+
     if (workspace.displayMode() != MapDisplayMode::tileIds)
     {
         ImGui::TextColored(color, "Z: %d", static_cast<int>(value.z));
     }
+
     ImGui::Text("Block: (%u, %u)", block.x, block.y);
     ImGui::EndGroup();
 }
@@ -105,6 +100,7 @@ void drawTileDetails(const MapWorkspace & workspace)
 void drawTileInspectorPanel(const MapWorkspace & workspace, bool & visible)
 {
     const bool contentsVisible = ImGui::Begin("Tile Inspector", &visible);
+
     if (contentsVisible)
     {
         if (workspace.reader() == nullptr)
@@ -121,7 +117,8 @@ void drawTileInspectorPanel(const MapWorkspace & workspace, bool & visible)
             drawTileDetails(workspace);
         }
     }
+
     ImGui::End();
 }
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui

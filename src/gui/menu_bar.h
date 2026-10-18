@@ -3,7 +3,7 @@
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
 
-namespace im_cpp::gui
+namespace uo_mule::gui
 {
 
 struct MenuBarState
@@ -15,4 +15,4 @@ struct MenuBarState
 void drawMenuBar(MapWorkspace & workspace, MenuBarState & state, bool & shouldClose);
 void requestWindowClose(MenuBarState & state);
 
-} // namespace im_cpp::gui
+} // namespace uo_mule::gui
