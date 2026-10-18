@@ -22,6 +22,7 @@ add_library(
     map_workspace.cpp
     menu_bar.cpp
     new_map_dialog.cpp
+    panels/radarcol_panel.cpp
     preferences.cpp
     selection_stats_panel.cpp
     tile_inspector_panel.cpp)

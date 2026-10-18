@@ -134,6 +134,7 @@ void drawViewMenu(MapWorkspace & workspace)
     ImGui::MenuItem("Selection Statistics", nullptr, &visibility.selectionStatistics);
     ImGui::MenuItem("Map Information", nullptr, &visibility.mapInformation);
     ImGui::MenuItem("Edit Tools", nullptr, &visibility.editTools);
+    ImGui::MenuItem("Radarcol", nullptr, &visibility.radarcol);
     ImGui::EndMenu();
 }
 

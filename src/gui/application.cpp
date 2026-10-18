@@ -8,6 +8,7 @@
 #include "gui/map_info_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/menu_bar.h"
+#include "gui/panels/radarcol_panel.h"
 #include "gui/preferences.h"
 #include "gui/selection_stats_panel.h"
 #include "gui/theme.h"
@@ -373,6 +374,7 @@ void drawDockSpace(float bottomPanelHeight)
         ImGuiID editNode = 0;
         ImGui::DockBuilderSplitNode(detailsNode, ImGuiDir_Down, dockSecondaryHeightRatio, &infoNode, &editNode);
         ImGui::DockBuilderDockWindow("Map Canvas", centerNode);
+        ImGui::DockBuilderDockWindow("Radarcol", centerNode);
         ImGui::DockBuilderDockWindow("Tile Inspector", leftNode);
         ImGui::DockBuilderDockWindow("Block Inspector", inspectorNode);
         ImGui::DockBuilderDockWindow("Selection Statistics", rightNode);
@@ -402,7 +404,8 @@ void drawMapPanels(MapWorkspace & workspace,
                    MapCanvasPanelState & canvasState,
                    BlockInspectorPanelState & blockInspectorState,
                    SelectionStatsPanelState & selectionStatsState,
-                   EditToolsPanelState & editToolsState)
+                   EditToolsPanelState & editToolsState,
+                   RadarcolPanelState & radarcolState)
 {
     MapPanelVisibility & visibility = workspace.panelVisibility();
     if (visibility.canvas)
@@ -438,6 +441,11 @@ void drawMapPanels(MapWorkspace & workspace,
     {
         drawEditToolsPanel(workspace, editToolsState, visibility.editTools);
     }
+
+    if (visibility.radarcol)
+    {
+        drawRadarcolPanel(radarcolState, workspace.editMode(), visibility.radarcol);
+    }
 }
 
 void drawFrame(GLFWwindow * window,
@@ -451,7 +459,9 @@ void drawFrame(GLFWwindow * window,
                MapCanvasPanelState & canvasState,
                BlockInspectorPanelState & blockInspectorState,
                SelectionStatsPanelState & selectionStatsState,
-               EditToolsPanelState & editToolsState)
+               EditToolsPanelState & editToolsState,
+               RadarcolPanelState & radarcolState)
+
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -467,7 +477,7 @@ void drawFrame(GLFWwindow * window,
 
     const float bottomPanelHeight = drawLogPanel(logSink, preferences, entries, followScroll);
     drawDockSpace(bottomPanelHeight);
-    drawMapPanels(workspace, canvasState, blockInspectorState, selectionStatsState, editToolsState);
+    drawMapPanels(workspace, canvasState, blockInspectorState, selectionStatsState, editToolsState, radarcolState);
     renderFrame(window);
 }
 
@@ -519,6 +529,7 @@ int Application::run()
     BlockInspectorPanelState blockInspectorState;
     SelectionStatsPanelState selectionStatsState;
     EditToolsPanelState editToolsState;
+    RadarcolPanelState radarcolState;
     glfwSetWindowUserPointer(window.get(), &menuBarState);
     glfwSetWindowCloseCallback(window.get(),
                                [](GLFWwindow * glfwWindow)
@@ -544,7 +555,8 @@ int Application::run()
                   mapCanvasState,
                   blockInspectorState,
                   selectionStatsState,
-                  editToolsState);
+                  editToolsState,
+                  radarcolState);
     }
 
     SPDLOG_LOGGER_INFO(logger_, "GUI closed");

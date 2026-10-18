@@ -44,6 +44,7 @@ struct MapPanelVisibility
     bool selectionStatistics = true;
     bool mapInformation = true;
     bool editTools = true;
+    bool radarcol = true;
 };
 
 struct MapColor
