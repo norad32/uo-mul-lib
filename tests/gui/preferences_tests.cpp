@@ -40,6 +40,7 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
         .autoScroll = false,
         .logPanelCollapsed = true,
         .logPanelHeight = expectedLogPanelHeight,
+        .activeDataProfile = {},
     };
 
     uo_mule::gui::savePreferences(expected, preferencesFile);
@@ -69,7 +70,7 @@ TEST_CASE("savePreferences_Should_ReplaceSymlinkWithoutWritingToItsTarget")
     }
     std::filesystem::create_symlink(externalFile, preferencesFile);
 
-    uo_mule::gui::savePreferences(uo_mule::gui::Preferences{.showLogPanel = true}, preferencesFile);
+    uo_mule::gui::savePreferences(uo_mule::gui::Preferences{.showLogPanel = true, .activeDataProfile = {}}, preferencesFile);
 
     std::ifstream target(externalFile);
     const std::string targetContents((std::istreambuf_iterator<char>(target)), std::istreambuf_iterator<char>());
@@ -85,7 +86,7 @@ TEST_CASE("savePreferences_Should_ReplaceExistingPreferences")
     const auto preferencesFile = preferencesDirectory / "preferences.conf";
     std::filesystem::remove_all(preferencesDirectory);
 
-    uo_mule::gui::savePreferences(uo_mule::gui::Preferences{.showLogPanel = true}, preferencesFile);
+    uo_mule::gui::savePreferences(uo_mule::gui::Preferences{.showLogPanel = true, .activeDataProfile = {}}, preferencesFile);
     const auto loaded = uo_mule::gui::loadPreferences(preferencesFile);
 
     REQUIRE(std::filesystem::is_regular_file(preferencesFile));

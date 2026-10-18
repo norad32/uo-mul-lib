@@ -171,6 +171,10 @@ Preferences loadPreferences(const std::filesystem::path & path)
         {
             preferences.logPanelCollapsed = value == "1";
         }
+        else if (key == "active_data_profile")
+        {
+            preferences.activeDataProfile = value;
+        }
     }
     return preferences;
 }
@@ -192,6 +196,7 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
     contents << "logs_autoscroll " << static_cast<int>(preferences.autoScroll) << '\n';
     contents << "logs_panel_height " << preferences.logPanelHeight << '\n';
     contents << "logs_panel_collapsed " << static_cast<int>(preferences.logPanelCollapsed) << '\n';
+    contents << "active_data_profile " << preferences.activeDataProfile << '\n';
     TemporaryPreferencesFile temporaryFile(path);
     temporaryFile.write(contents.str());
     temporaryFile.commit(path);

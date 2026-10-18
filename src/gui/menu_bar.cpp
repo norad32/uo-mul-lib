@@ -1,4 +1,6 @@
 #include "gui/menu_bar.h"
+#include "gui/dialogs/data_paths_dialog.h"
+#include "gui/data_profile.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
 #include "gui/panels/common.h"
@@ -180,8 +182,10 @@ void drawEditMenu(MapWorkspace & workspace)
 
 } // namespace
 
-void drawMenuBar(MapWorkspace & workspace, MenuBarState & state, bool & shouldClose)
+bool drawMenuBar(MapWorkspace & workspace, DataProfile & activeProfile, MenuBarState & state, bool & shouldClose)
 {
+    bool profileChanged = false;
+
     if (state.windowCloseRequested && state.fileDialog.mode == MapFileDialogMode::none)
     {
         state.windowCloseRequested = false;
@@ -194,6 +198,17 @@ void drawMenuBar(MapWorkspace & workspace, MenuBarState & state, bool & shouldCl
         drawViewMenu(workspace);
         drawSelectionMenu(workspace);
         drawEditMenu(workspace);
+
+        if (ImGui::BeginMenu("Data"))
+        {
+            if (ImGui::MenuItem("UO Data Paths..."))
+            {
+                requestDataPathsDialog(state.dataPathsDialog, activeProfile);
+            }
+
+            ImGui::EndMenu();
+        }
+
         ImGui::EndMainMenuBar();
     }
 
@@ -204,6 +219,8 @@ void drawMenuBar(MapWorkspace & workspace, MenuBarState & state, bool & shouldCl
     }
 
     drawNewMapDialog(workspace, state.fileDialog, shouldClose);
+    profileChanged = drawDataPathsDialog(state.dataPathsDialog, activeProfile);
+    return profileChanged;
 }
 
 void requestWindowClose(MenuBarState & state)

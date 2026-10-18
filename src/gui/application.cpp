@@ -1,6 +1,8 @@
 #include "gui/application.h"
 #include "core/app_info.h"
 #include "core/gui_log_sink.h"
+#include "gui/data_profile.h"
+#include "gui/data_profile_store.h"
 #include "gui/log_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/menu_bar.h"
@@ -458,6 +460,7 @@ void drawMapPanels(MapWorkspace & workspace,
 void drawFrame(GLFWwindow * window,
                core::GuiLogSink & logSink,
                Preferences & preferences,
+               DataProfile & activeProfile,
                bool & shouldClose,
                std::vector<core::GuiLogEntry> & entries,
                bool & followScroll,
@@ -474,7 +477,13 @@ void drawFrame(GLFWwindow * window,
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    drawMenuBar(workspace, menuBarState, shouldClose);
+    const bool profileChanged = drawMenuBar(workspace, activeProfile, menuBarState, shouldClose);
+
+    if (profileChanged)
+    {
+        preferences.activeDataProfile = activeProfile.name;
+        savePreferences(preferences);
+    }
 
     if (ImGui::IsKeyPressed(ImGuiKey_GraveAccent, false) && !ImGui::GetIO().WantTextInput &&
         !ImGui::GetIO().WantCaptureKeyboard)
@@ -531,6 +540,16 @@ int Application::run()
     std::vector<core::GuiLogEntry> entries;
     bool followScroll = true;
     MapWorkspace mapWorkspace;
+    DataProfile activeProfile;
+    activeProfile.name = preferences_.activeDataProfile;
+    if (!activeProfile.name.empty())
+    {
+        const auto loaded = loadDataProfile(dataProfilePath(activeProfile.name));
+        if (loaded.diagnostics.empty())
+        {
+            activeProfile = loaded.profile;
+        }
+    }
     MenuBarState menuBarState;
     MapCanvasPanelState mapCanvasState;
     mapCanvasState.zoom = initialMapZoom;
@@ -554,9 +573,10 @@ int Application::run()
     {
         glfwPollEvents();
          drawFrame(window.get(),
-                   *logSink_,
-                   preferences_,
-                   shouldClose_,
+                    *logSink_,
+                    preferences_,
+                    activeProfile,
+                    shouldClose_,
                    entries,
                    followScroll,
                    mapWorkspace,

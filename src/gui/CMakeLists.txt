@@ -18,6 +18,7 @@ add_library(
     data_profile.cpp
     data_profile_store.cpp
     data_validation.cpp
+    dialogs/data_paths_dialog.cpp
     log_panel.cpp
     map_workspace.cpp
     menu_bar.cpp

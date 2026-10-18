@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 namespace uo_mule::gui
 {
 
@@ -9,6 +11,7 @@ struct Preferences
     bool autoScroll = true;
     bool logPanelCollapsed = false;
     float logPanelHeight = 0.0F;
+    std::string activeDataProfile;
 };
 
 [[nodiscard]] Preferences loadPreferences();
