@@ -1,4 +1,4 @@
-#include "gui/map_canvas_panel.h"
+#include "gui/panels/map_canvas_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/theme.h"
 #include "uomul/map.h"

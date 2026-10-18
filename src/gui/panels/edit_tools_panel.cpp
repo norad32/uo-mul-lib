@@ -1,4 +1,4 @@
-#include "gui/edit_tools_panel.h"
+#include "gui/panels/edit_tools_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/theme.h"
 #include "uomul/map.h"

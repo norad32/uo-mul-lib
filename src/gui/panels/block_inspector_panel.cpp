@@ -1,4 +1,4 @@
-#include "gui/block_inspector_panel.h"
+#include "gui/panels/block_inspector_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
