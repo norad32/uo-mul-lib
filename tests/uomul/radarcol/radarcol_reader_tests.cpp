@@ -104,16 +104,18 @@ TEST_CASE("RadarColReader_open_Should_RejectPartialColor_If_FileSizeIsOdd")
     REQUIRE(reader.error().code == uomul::ErrorCode::truncatedInput);
 }
 
-TEST_CASE("RadarColReader_open_Should_RejectOversizedTable_If_ColorCountExceedsLimit")
+TEST_CASE("RadarColReader_open_Should_AcceptExtendedTable_If_ColorCountExceedsClassicRange")
 {
     const TestDirectory directory;
-    const auto path = directory.path() / "oversized.mul";
-    writeColors(path, uomul::radarColorCount + 1);
+    const auto path = directory.path() / "extended.mul";
+    const std::uint32_t colorCount = 0x13FDC;
+    writeColors(path, colorCount);
 
     const auto reader = uomul::RadarColReader::open(path);
 
-    REQUIRE_FALSE(reader);
-    REQUIRE(reader.error().code == uomul::ErrorCode::truncatedInput);
+    REQUIRE(reader);
+    REQUIRE(reader->colorCount() == colorCount);
+    REQUIRE(reader->readRawColor(colorCount - 1) == static_cast<uomul::RadarColor>(((colorCount - 1) * 17U) & 0x7FFFU));
 }
 
 TEST_CASE("RadarColReader_readMapColor_Should_RejectInvalidId_If_IdExceedsMapColorCount")
@@ -130,21 +132,20 @@ TEST_CASE("RadarColReader_readMapColor_Should_RejectInvalidId_If_IdExceedsMapCol
     REQUIRE(color.error().code == uomul::ErrorCode::invalidCoordinate);
 }
 
-TEST_CASE("RadarColReader_readStaticColor_Should_RejectInvalidId_If_IdExceedsMapColorCount")
+TEST_CASE("RadarColReader_readStaticColor_Should_ReadExtendedId_If_ColorExistsInFile")
 {
     const TestDirectory directory;
-    const auto path = directory.path() / "valid.mul";
-    writeColors(path, 2);
+    const auto path = directory.path() / "extended.mul";
+    constexpr std::uint16_t extendedId = 0xFFDB;
+    writeColors(path, uomul::radarStaticColorOffset + extendedId + 1U);
     const auto reader = uomul::RadarColReader::open(path);
     REQUIRE(reader);
 
-    const auto color = reader->readStaticColor(uomul::radarMapColorCount);
-
-    REQUIRE_FALSE(color);
-    REQUIRE(color.error().code == uomul::ErrorCode::invalidCoordinate);
+    REQUIRE(reader->readStaticColor(extendedId) ==
+            static_cast<uomul::RadarColor>(((uomul::radarStaticColorOffset + extendedId) * 17U) & 0x7FFFU));
 }
 
-TEST_CASE("RadarColReader_readRawColor_Should_RejectInvalidIndex_If_IndexExceedsTableLimit")
+TEST_CASE("RadarColReader_readRawColor_Should_RejectUnavailableIndex_If_IndexExceedsFileLength")
 {
     const TestDirectory directory;
     const auto path = directory.path() / "valid.mul";
@@ -152,10 +153,10 @@ TEST_CASE("RadarColReader_readRawColor_Should_RejectInvalidIndex_If_IndexExceeds
     const auto reader = uomul::RadarColReader::open(path);
     REQUIRE(reader);
 
-    const auto color = reader->readRawColor(uomul::radarColorCount);
+    const auto color = reader->readRawColor(2);
 
     REQUIRE_FALSE(color);
-    REQUIRE(color.error().code == uomul::ErrorCode::invalidCoordinate);
+    REQUIRE(color.error().code == uomul::ErrorCode::truncatedInput);
 }
 
 TEST_CASE("RadarColReader_readRawColor_Should_ReportUnavailableColor_If_IndexExceedsPrefix")

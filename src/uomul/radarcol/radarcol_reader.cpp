@@ -85,13 +85,6 @@ std::expected<RadarColor, Error> RadarColReader::readMapColor(std::uint16_t id) 
 
 std::expected<RadarColor, Error> RadarColReader::readStaticColor(std::uint16_t id) const
 {
-    if (id >= radarMapColorCount)
-    {
-        const auto path = impl_ ? impl_->path : std::filesystem::path{};
-        return std::unexpected(detail::MulCommon::makeError(
-            ErrorCode::invalidCoordinate, path, radarStaticColorOffset + id, "static color ID is outside the radar table"));
-    }
-
     return readRawColor(radarStaticColorOffset + id);
 }
 
@@ -101,14 +94,6 @@ std::expected<RadarColor, Error> RadarColReader::readRawColor(std::uint32_t inde
     {
         return std::unexpected(detail::MulCommon::makeError(
             ErrorCode::io, {}, detail::RadarColCommon::colorOffset(index), "reader is no longer active"));
-    }
-
-    if (index >= radarColorCount)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidCoordinate,
-                                                            impl_->path,
-                                                            detail::RadarColCommon::colorOffset(index),
-                                                            "color index is outside the radar table"));
     }
 
     const auto offset = detail::RadarColCommon::colorOffset(index);

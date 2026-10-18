@@ -27,12 +27,13 @@ void writeColors(const std::filesystem::path & path, std::uint32_t count)
 
 } // namespace
 
-TEST_CASE("RadarColEditor_create_Should_StageSourceTable_If_SourceIsValid")
+TEST_CASE("RadarColEditor_create_Should_PreserveExtendedSourceTable_If_SourceIsValid")
 {
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
     const auto output = directory.path() / "edited.mul";
-    writeColors(source, uomul::radarColorCount);
+    const std::uint32_t colorCount = 0x13FDC;
+    writeColors(source, colorCount);
 
     auto editor = uomul::RadarColEditor::create(source, output);
 
@@ -41,7 +42,8 @@ TEST_CASE("RadarColEditor_create_Should_StageSourceTable_If_SourceIsValid")
     REQUIRE(editor->commit());
     const auto reader = uomul::RadarColReader::open(output);
     REQUIRE(reader);
-    REQUIRE(reader->colorCount() == uomul::radarColorCount);
+    REQUIRE(reader->colorCount() == colorCount);
+    REQUIRE(reader->readRawColor(colorCount - 1) == static_cast<uomul::RadarColor>(((colorCount - 1) * 17U) & 0x7FFFU));
 }
 
 TEST_CASE("RadarColEditor_editColors_Should_ReplaceMapStaticAndRawEntries_If_SourceIsFull")
@@ -357,34 +359,43 @@ TEST_CASE("RadarColEditor_editMapColor_Should_RejectInvalidId_If_IdExceedsMapCol
     REQUIRE(result.error().code == uomul::ErrorCode::invalidCoordinate);
 }
 
-TEST_CASE("RadarColEditor_editStaticColor_Should_RejectInvalidId_If_IdExceedsMapColorCount")
+TEST_CASE("RadarColEditor_editStaticColor_Should_EditExtendedId_If_SourceIncludesEntry")
 {
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
     const auto output = directory.path() / "output.mul";
-    writeColors(source, 2);
+    constexpr std::uint16_t extendedId = 0xFFDB;
+    const std::uint32_t colorCount = uomul::radarStaticColorOffset + extendedId + 1U;
+    writeColors(source, colorCount);
     auto editor = uomul::RadarColEditor::create(source, output);
     REQUIRE(editor);
 
-    const auto result = editor->editStaticColor(uomul::radarMapColorCount, 1);
+    REQUIRE(editor->editStaticColor(extendedId, 0x1234));
+    REQUIRE(editor->commit());
 
-    REQUIRE_FALSE(result);
-    REQUIRE(result.error().code == uomul::ErrorCode::invalidCoordinate);
+    const auto reader = uomul::RadarColReader::open(output);
+    REQUIRE(reader);
+    REQUIRE(reader->colorCount() == colorCount);
+    REQUIRE(reader->readStaticColor(extendedId) == 0x1234);
 }
 
-TEST_CASE("RadarColEditor_editRawColor_Should_RejectInvalidIndex_If_IndexExceedsTableLimit")
+TEST_CASE("RadarColEditor_editRawColor_Should_EditExtendedIndex_If_IndexFitsSourceRange")
 {
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
     const auto output = directory.path() / "output.mul";
-    writeColors(source, 2);
+    const std::uint32_t index = uomul::radarColorCount + 3;
+    writeColors(source, index + 1);
     auto editor = uomul::RadarColEditor::create(source, output);
     REQUIRE(editor);
 
-    const auto result = editor->editRawColor(uomul::radarColorCount, 1);
+    REQUIRE(editor->editRawColor(index, 0x1234));
+    REQUIRE(editor->commit());
 
-    REQUIRE_FALSE(result);
-    REQUIRE(result.error().code == uomul::ErrorCode::invalidCoordinate);
+    const auto reader = uomul::RadarColReader::open(output);
+    REQUIRE(reader);
+    REQUIRE(reader->colorCount() == index + 1);
+    REQUIRE(reader->readRawColor(index) == 0x1234);
 }
 
 TEST_CASE("RadarColEditor_editRawColor_Should_ExtendPrefix_If_IndexIsAvailable")

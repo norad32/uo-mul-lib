@@ -26,6 +26,7 @@ public:
     static constexpr std::uint32_t channelMask = 0x1F;
     static constexpr std::uint32_t rgbMask = 0x00FFFFFF;
     static constexpr std::uint32_t colorMask = 0x7FFF;
+
     /** @brief Converts 8-bit RGB channels to the radar RGB555 layout.
      *  The low three bits of each input channel are discarded.
      *  @param red Red channel in the range [0, 255].
@@ -119,8 +120,8 @@ public:
      */
     [[nodiscard]] static std::expected<RadarColReader, Error> open(const std::filesystem::path & path);
 
-    /** @brief Returns the number of 16-bit colors present in the file.
-     *  @retval value Number of readable colors; a full table contains 0x8000 entries.
+    /** @brief Returns the number of RGB555 colors present in the file.
+     *  @retval value Number of readable colors present in the file, 0x8000 is the classic table size.
      */
     [[nodiscard]] std::uint32_t colorCount() const noexcept;
 
@@ -132,9 +133,9 @@ public:
     [[nodiscard]] std::expected<RadarColor, Error> readMapColor(std::uint16_t id) const;
 
     /** @brief Reads a static radar color by static tile ID.
-     *  @param id Static tile ID in the range [0, 0x4000).
+     *  @param id Static tile ID whose offset is added to 0x4000.
      *  @retval value Raw RGB555 color word at staticId + 0x4000.
-     *  @retval error ID is out of range or the color is unavailable.
+     *  @retval error The color is unavailable or the file read fails.
      */
     [[nodiscard]] std::expected<RadarColor, Error> readStaticColor(std::uint16_t id) const;
 
@@ -190,15 +191,15 @@ public:
     [[nodiscard]] std::expected<void, Error> editMapColor(std::uint16_t mapId, RadarColor value);
 
     /** @brief Edits the radar color associated with a static tile ID.
-     *  @param id Static tile ID in the range [0, 0x4000).
+     *  @param id Static tile ID whose offset is added to 0x4000.
      *  @param value Replacement RGB555 color word.
      *  @retval value Success when the change is staged.
-     *  @retval error Inactive editor, invalid ID, or staging I/O failure details.
+     *  @retval error Inactive editor or staging I/O failure details.
      */
     [[nodiscard]] std::expected<void, Error> editStaticColor(std::uint16_t id, RadarColor value);
 
     /** @brief Edits a radar color by its raw table index.
-     *  @param index Raw color-table index, including the static color offset where applicable.
+     *  @param index Raw color-table index in the existing table or within the uint32 index range.
      *  @param value Replacement RGB555 color word.
      *  @retval value Success when the change is staged.
      *  @retval error Inactive editor, invalid index, or staging I/O failure details.

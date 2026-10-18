@@ -189,14 +189,6 @@ std::expected<void, Error> RadarColEditor::editMapColor(std::uint16_t mapId, Rad
 
 std::expected<void, Error> RadarColEditor::editStaticColor(std::uint16_t id, RadarColor value)
 {
-    if (id >= radarMapColorCount)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidCoordinate,
-                                                            impl_ ? impl_->output : std::filesystem::path{},
-                                                            radarStaticColorOffset + id,
-                                                            "static color ID is outside the radar table"));
-    }
-
     return editRawColor(radarStaticColorOffset + id, value);
 }
 
@@ -210,14 +202,6 @@ std::expected<void, Error> RadarColEditor::editRawColor(std::uint32_t index, Rad
     if (auto active = ensureActive(impl_->committed, impl_->failed, impl_->descriptor, impl_->output); !active)
     {
         return active;
-    }
-
-    if (index >= radarColorCount)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidCoordinate,
-                                                            impl_->output,
-                                                            detail::RadarColCommon::colorOffset(index),
-                                                            "color index is outside the radar table"));
     }
 
     const auto offset = detail::RadarColCommon::colorOffset(index);

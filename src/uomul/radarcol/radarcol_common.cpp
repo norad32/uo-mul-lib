@@ -5,6 +5,7 @@
 #include <cstring>
 #include <expected>
 #include <filesystem>
+#include <limits>
 #include <sys/stat.h>
 #include <system_error>
 
@@ -38,13 +39,14 @@ RadarColCommon::inspectFile(int descriptor, const std::filesystem::path & path, 
             ErrorCode::truncatedInput, path, fileSize - (fileSize % colorByteSize), "radar color table has a partial color"));
     }
 
-    if (fileSize > tableByteSize)
+    const std::uint64_t colorCount = fileSize / colorByteSize;
+    if (colorCount > std::numeric_limits<std::uint32_t>::max())
     {
-        return std::unexpected(
-            MulCommon::makeError(ErrorCode::truncatedInput, path, tableByteSize, "radar color table exceeds 0x8000 colors"));
+        return std::unexpected(MulCommon::makeError(
+            ErrorCode::truncatedInput, path, fileSize, "radar color count exceeds the supported index range"));
     }
 
-    return static_cast<std::uint32_t>(fileSize / colorByteSize);
+    return static_cast<std::uint32_t>(colorCount);
 }
 
 std::uint64_t RadarColCommon::colorOffset(std::uint32_t index) noexcept
