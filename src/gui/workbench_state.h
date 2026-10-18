@@ -1,0 +1,55 @@
+#pragma once
+
+#include "core/gui_log_sink.h"
+#include "gui/command_registry.h"
+#include "gui/data_profile.h"
+#include "gui/data_profile_store.h"
+#include "gui/dialogs/data_paths_dialog.h"
+#include "gui/map_workspace.h"
+#include "gui/new_map_dialog.h"
+#include "gui/panels/block_inspector_panel.h"
+#include "gui/panels/edit_tools_panel.h"
+#include "gui/panels/map_canvas_panel.h"
+#include "gui/panels/radarcol_panel.h"
+#include "gui/panels/selection_stats_panel.h"
+#include "gui/panels/texmaps_panel.h"
+#include "gui/preferences.h"
+#include <vector>
+
+namespace uo_mule::gui
+{
+
+struct MenuBarState
+{
+    NewMapDialogState fileDialog;
+    DataPathsDialogState dataPathsDialog;
+    bool windowCloseRequested = false;
+};
+
+struct WorkbenchState
+{
+    explicit WorkbenchState(Preferences initialPreferences = {});
+    ~WorkbenchState() = default;
+    WorkbenchState(const WorkbenchState &) = delete;
+    WorkbenchState & operator=(const WorkbenchState &) = delete;
+    WorkbenchState(WorkbenchState &&) = delete;
+    WorkbenchState & operator=(WorkbenchState &&) = delete;
+
+    Preferences preferences;
+    DataProfileStore profileStore;
+    DataProfile activeProfile;
+    MapWorkspace workspace;
+    CommandRegistry commands;
+    MenuBarState menuBarState;
+    MapCanvasPanelState mapCanvasState;
+    BlockInspectorPanelState blockInspectorState;
+    SelectionStatsPanelState selectionStatsState;
+    EditToolsPanelState editToolsState;
+    RadarcolPanelState radarcolState;
+    TexmapsPanelState texmapsState;
+    std::vector<core::GuiLogEntry> logEntries;
+    bool followLogScroll = true;
+    bool shouldClose = false;
+};
+
+} // namespace uo_mule::gui

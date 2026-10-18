@@ -14,6 +14,7 @@ include(GuiDependencies)
 add_library(
     gui
     application.cpp
+    command_registry.cpp
     data_discovery.cpp
     data_profile.cpp
     data_profile_store.cpp
@@ -32,7 +33,8 @@ add_library(
     panels/selection_stats_panel.cpp
     panels/texmaps_panel.cpp
     panels/tile_inspector_panel.cpp
-    preferences.cpp)
+    preferences.cpp
+    workbench_state.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(

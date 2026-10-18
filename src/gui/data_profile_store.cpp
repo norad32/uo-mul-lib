@@ -438,6 +438,25 @@ std::filesystem::path dataProfilePath(std::string_view profileName, const std::f
     return baseDirectory / (safeProfileFileStem(profileName) + ".profile");
 }
 
+DataProfileStore::DataProfileStore(std::filesystem::path directory) : directory_(directory.empty() ? dataProfilesDirectory() : std::move(directory))
+{
+}
+
+DataProfileLoadResult DataProfileStore::load(std::string_view profileName) const
+{
+    return loadDataProfile(path(profileName));
+}
+
+void DataProfileStore::save(const DataProfile & profile) const
+{
+    saveDataProfile(profile, path(profile.name));
+}
+
+std::filesystem::path DataProfileStore::path(std::string_view profileName) const
+{
+    return dataProfilePath(profileName, directory_);
+}
+
 DataProfileLoadResult loadDataProfile(const std::filesystem::path & path)
 {
     DataProfileLoadResult result;

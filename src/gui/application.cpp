@@ -16,6 +16,7 @@
 #include "gui/panels/tile_inspector_panel.h"
 #include "gui/preferences.h"
 #include "gui/theme.h"
+#include "gui/workbench_state.h"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -64,7 +65,6 @@ constexpr float dockRightWidthRatio = 0.24F;
 constexpr float dockDetailsHeightRatio = 0.40F;
 constexpr float dockInspectorHeightRatio = 0.50F;
 constexpr float dockSecondaryHeightRatio = 0.50F;
-constexpr double initialMapZoom = 12.0;
 constexpr char hexadecimalLowercaseStart = 'a';
 constexpr char hexadecimalUppercaseStart = 'A';
 constexpr char hexadecimalLastDigit = '9';
@@ -461,58 +461,60 @@ void drawMapPanels(MapWorkspace & workspace,
     }
 }
 
-void drawFrame(GLFWwindow * window,
-               core::GuiLogSink & logSink,
-               Preferences & preferences,
-               DataProfile & activeProfile,
-               bool & shouldClose,
-               std::vector<core::GuiLogEntry> & entries,
-               bool & followScroll,
-               MapWorkspace & workspace,
-               MenuBarState & menuBarState,
-               MapCanvasPanelState & canvasState,
-               BlockInspectorPanelState & blockInspectorState,
-               SelectionStatsPanelState & selectionStatsState,
-               EditToolsPanelState & editToolsState,
-               RadarcolPanelState & radarcolState,
-               TexmapsPanelState & texmapsState)
-
+void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    const bool profileChanged = drawMenuBar(workspace, activeProfile, menuBarState, shouldClose);
+    const bool profileChanged = drawMenuBar(state);
 
     if (profileChanged)
     {
-        preferences.activeDataProfile = activeProfile.name;
-        savePreferences(preferences);
+        state.preferences.activeDataProfile = state.activeProfile.name;
+        savePreferences(state.preferences);
     }
 
-    if (ImGui::IsKeyPressed(ImGuiKey_GraveAccent, false) && !ImGui::GetIO().WantTextInput &&
-        !ImGui::GetIO().WantCaptureKeyboard)
+    if (!ImGui::GetIO().WantTextInput && !ImGui::GetIO().WantCaptureKeyboard)
     {
-        preferences.showLogPanel = !preferences.showLogPanel;
-        savePreferences(preferences);
+        if (ImGui::IsKeyPressed(ImGuiKey_GraveAccent, false))
+        {
+            static_cast<void>(state.commands.executeShortcut("`", state));
+        }
+        else if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_S, false))
+        {
+            static_cast<void>(state.commands.executeShortcut("Ctrl+Shift+S", state));
+        }
+        else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O, false))
+        {
+            static_cast<void>(state.commands.executeShortcut("Ctrl+O", state));
+        }
+        else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_N, false))
+        {
+            static_cast<void>(state.commands.executeShortcut("Ctrl+N", state));
+        }
+        else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Q, false))
+        {
+            static_cast<void>(state.commands.executeShortcut("Ctrl+Q", state));
+        }
     }
 
-    const float bottomPanelHeight = drawLogPanel(logSink, preferences, entries, followScroll);
+    const float bottomPanelHeight = drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
     drawDockSpace(bottomPanelHeight);
-    drawMapPanels(workspace,
-                  activeProfile,
-                  canvasState,
-                  blockInspectorState,
-                  selectionStatsState,
-                  editToolsState,
-                  radarcolState,
-                  texmapsState);
+    drawMapPanels(state.workspace,
+                  state.activeProfile,
+                  state.mapCanvasState,
+                  state.blockInspectorState,
+                  state.selectionStatsState,
+                  state.editToolsState,
+                  state.radarcolState,
+                  state.texmapsState);
     renderFrame(window);
 }
 
 } // namespace
 
 Application::Application(std::shared_ptr<spdlog::logger> logger, std::shared_ptr<core::GuiLogSink> logSink) :
-    logger_(std::move(logger)), logSink_(std::move(logSink)), preferences_(loadPreferences())
+    logger_(std::move(logger)), logSink_(std::move(logSink))
 {
 }
 
@@ -548,56 +550,32 @@ int Application::run()
     ImGui::GetIO().IniFilename = nullptr;
     ImGui::GetIO().ConfigFlags = static_cast<ImGuiConfigFlags>(static_cast<unsigned int>(ImGui::GetIO().ConfigFlags) |
                                                                static_cast<unsigned int>(ImGuiConfigFlags_DockingEnable));
-    std::vector<core::GuiLogEntry> entries;
-    bool followScroll = true;
-    MapWorkspace mapWorkspace;
-    DataProfile activeProfile;
-    activeProfile.name = preferences_.activeDataProfile;
-    if (!activeProfile.name.empty())
+    WorkbenchState state(loadPreferences());
+    state.activeProfile.name = state.preferences.activeDataProfile;
+    if (!state.activeProfile.name.empty())
     {
-        const auto loaded = loadDataProfile(dataProfilePath(activeProfile.name));
+        const auto loaded = state.profileStore.load(state.activeProfile.name);
         if (loaded.diagnostics.empty())
         {
-            activeProfile = loaded.profile;
+            state.activeProfile = loaded.profile;
         }
     }
-    MenuBarState menuBarState;
-    MapCanvasPanelState mapCanvasState;
-    mapCanvasState.zoom = initialMapZoom;
-    BlockInspectorPanelState blockInspectorState;
-    SelectionStatsPanelState selectionStatsState;
-    EditToolsPanelState editToolsState;
-    RadarcolPanelState radarcolState;
-    TexmapsPanelState texmapsState;
-    glfwSetWindowUserPointer(window.get(), &menuBarState);
+    glfwSetWindowUserPointer(window.get(), &state);
     glfwSetWindowCloseCallback(window.get(),
                                [](GLFWwindow * glfwWindow)
                                {
-                                   auto * state = static_cast<MenuBarState *>(glfwGetWindowUserPointer(glfwWindow));
-                                   if (state != nullptr)
-                                   {
-                                       glfwSetWindowShouldClose(glfwWindow, GLFW_FALSE);
-                                       requestWindowClose(*state);
-                                   }
+                                    auto * callbackState =
+                                        static_cast<WorkbenchState *>(glfwGetWindowUserPointer(glfwWindow));
+                                    if (callbackState != nullptr)
+                                    {
+                                        glfwSetWindowShouldClose(glfwWindow, GLFW_FALSE);
+                                        requestWindowClose(*callbackState);
+                                    }
                                });
-    while (glfwWindowShouldClose(window.get()) == GLFW_FALSE && !shouldClose_)
+    while (glfwWindowShouldClose(window.get()) == GLFW_FALSE && !state.shouldClose)
     {
         glfwPollEvents();
-         drawFrame(window.get(),
-                    *logSink_,
-                    preferences_,
-                    activeProfile,
-                    shouldClose_,
-                   entries,
-                   followScroll,
-                   mapWorkspace,
-                   menuBarState,
-                   mapCanvasState,
-                   blockInspectorState,
-                   selectionStatsState,
-                   editToolsState,
-                   radarcolState,
-                   texmapsState);
+        drawFrame(window.get(), *logSink_, state);
     }
 
     SPDLOG_LOGGER_INFO(logger_, "GUI closed");
