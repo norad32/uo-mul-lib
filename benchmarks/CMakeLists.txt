@@ -5,3 +5,7 @@ apply_common_compile_options(map_benchmarks)
 add_executable(radarcol_benchmarks radarcol_benchmarks.cpp)
 target_link_libraries(radarcol_benchmarks PRIVATE Catch2::Catch2WithMain uomul)
 apply_common_compile_options(radarcol_benchmarks)
+
+add_executable(texmaps_benchmarks texmaps_benchmarks.cpp)
+target_link_libraries(texmaps_benchmarks PRIVATE Catch2::Catch2WithMain uomul)
+apply_common_compile_options(texmaps_benchmarks)
