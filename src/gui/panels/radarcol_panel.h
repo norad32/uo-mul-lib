@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gui/map_workspace.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
 #include <cstdint>
@@ -22,6 +23,9 @@ struct RadarcolPanelState
     std::array<bool, radarcolPageColorCount> pageColorAvailable{};
     std::array<float, 3> pickerColor{};
     std::optional<uomul::RadarColReader> reader;
+    std::array<MapColor, uomul::radarMapColorCount> mapColorCache{};
+    std::array<std::uint8_t, uomul::radarMapColorCount> mapColorCacheStatus{};
+    std::uint64_t colorRevision = 0;
     std::optional<uomul::RadarColEditor> editor;
     std::string error;
     std::uint32_t page = 0;
@@ -32,6 +36,7 @@ struct RadarcolPanelState
     bool overwriteOutput = false;
 };
 
+[[nodiscard]] std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::uint16_t id);
 void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible);
 
 } // namespace uo_mule::gui

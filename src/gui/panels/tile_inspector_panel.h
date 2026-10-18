@@ -5,6 +5,8 @@
 namespace uo_mule::gui
 {
 
-void drawTileInspectorPanel(const MapWorkspace & workspace, bool & visible);
+struct RadarcolPanelState;
 
-}
+void drawTileInspectorPanel(const MapWorkspace & workspace, RadarcolPanelState & radarcolState, bool & visible);
+
+} // namespace uo_mule::gui

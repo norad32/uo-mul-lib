@@ -196,7 +196,7 @@ MapColor tileIdColor(std::uint16_t id) noexcept
     return {.red = red, .green = green, .blue = blue};
 }
 
-MapColor tileDisplayColor(MapDisplayMode mode, uomul::MapTile tile) noexcept
+MapColor tileDisplayColor(MapDisplayMode mode, uomul::MapTile tile, std::optional<MapColor> radarColor) noexcept
 {
     if (mode == MapDisplayMode::z)
     {
@@ -204,7 +204,7 @@ MapColor tileDisplayColor(MapDisplayMode mode, uomul::MapTile tile) noexcept
         return {.red = gray, .green = gray, .blue = gray};
     }
 
-    MapColor color = tileIdColor(tile.id);
+    MapColor color = radarColor.value_or(tileIdColor(tile.id));
     if (mode == MapDisplayMode::combined)
     {
         constexpr double combinedBrightnessMinimum = 0.5;

@@ -107,7 +107,9 @@ TEST_CASE("mapColorHelpers_Should_BeDeterministicAndMapSignedElevationExtrema")
     REQUIRE(uo_mule::gui::zGrayscale(std::numeric_limits<std::int8_t>::max()) == 255);
     const uomul::MapTile tile{.id = 1234, .z = -12};
     REQUIRE(uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::tileIds, tile) == uo_mule::gui::tileIdColor(tile.id));
-    const auto zColor = uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::z, tile);
+    const uo_mule::gui::MapColor radarColor{.red = 12, .green = 34, .blue = 56};
+    REQUIRE(uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::tileIds, tile, radarColor) == radarColor);
+    const auto zColor = uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::z, tile, radarColor);
     REQUIRE(zColor.red == uo_mule::gui::zGrayscale(tile.z));
     REQUIRE(zColor.green == zColor.red);
     REQUIRE(zColor.blue == zColor.red);

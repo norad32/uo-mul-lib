@@ -1,18 +1,18 @@
 #include "gui/application.h"
 #include "core/app_info.h"
 #include "core/gui_log_sink.h"
-#include "gui/panels/block_inspector_panel.h"
-#include "gui/panels/edit_tools_panel.h"
 #include "gui/log_panel.h"
-#include "gui/panels/map_canvas_panel.h"
-#include "gui/panels/map_info_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/menu_bar.h"
+#include "gui/panels/block_inspector_panel.h"
+#include "gui/panels/edit_tools_panel.h"
+#include "gui/panels/map_canvas_panel.h"
+#include "gui/panels/map_info_panel.h"
 #include "gui/panels/radarcol_panel.h"
-#include "gui/preferences.h"
 #include "gui/panels/selection_stats_panel.h"
-#include "gui/theme.h"
 #include "gui/panels/tile_inspector_panel.h"
+#include "gui/preferences.h"
+#include "gui/theme.h"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -410,7 +410,7 @@ void drawMapPanels(MapWorkspace & workspace,
     MapPanelVisibility & visibility = workspace.panelVisibility();
     if (visibility.canvas)
     {
-        drawMapCanvasPanel(workspace, canvasState, visibility.canvas);
+        drawMapCanvasPanel(workspace, radarcolState, canvasState, visibility.canvas);
     }
     else
     {
@@ -419,12 +419,12 @@ void drawMapPanels(MapWorkspace & workspace,
 
     if (visibility.tileInspector)
     {
-        drawTileInspectorPanel(workspace, visibility.tileInspector);
+        drawTileInspectorPanel(workspace, radarcolState, visibility.tileInspector);
     }
 
     if (visibility.blockInspector)
     {
-        drawBlockInspectorPanel(workspace, blockInspectorState, visibility.blockInspector);
+        drawBlockInspectorPanel(workspace, radarcolState, blockInspectorState, visibility.blockInspector);
     }
 
     if (visibility.selectionStatistics)

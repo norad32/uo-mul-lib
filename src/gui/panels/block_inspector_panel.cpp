@@ -1,6 +1,7 @@
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/panels/common.h"
+#include "gui/panels/radarcol_panel.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -25,6 +26,7 @@ constexpr float gridLineThickness = 1.0F;
 void drawTileCell(const uomul::MapBlock & block,
                   uomul::BlockCoord blockCoordinate,
                   MapWorkspace & workspace,
+                  RadarcolPanelState & radarcolState,
                   std::size_t row,
                   std::size_t column,
                   ImVec2 gridOrigin)
@@ -37,7 +39,7 @@ void drawTileCell(const uomul::MapBlock & block,
     };
     const bool selected = workspace.selectedTile() && workspace.selectedTile()->x == tileCoordinate.x &&
                           workspace.selectedTile()->y == tileCoordinate.y;
-    const MapColor mapColor = tileDisplayColor(workspace.displayMode(), tile);
+    const MapColor mapColor = tileDisplayColor(workspace.displayMode(), tile, radarMapDisplayColor(radarcolState, tile.id));
     const ImVec2 cellMinimum(gridOrigin.x + coordinateColumnWidth + (static_cast<float>(column) * tileCellSize),
                              gridOrigin.y + ImGui::GetTextLineHeightWithSpacing() + (static_cast<float>(row) * tileCellSize));
     const ImVec2 cellMaximum(cellMinimum.x + tileCellSize, cellMinimum.y + tileCellSize);
@@ -65,7 +67,8 @@ void drawTileCell(const uomul::MapBlock & block,
     const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
     const ImVec2 textPosition(cellMinimum.x + ((tileCellSize - textSize.x) * 0.5F),
                               cellMinimum.y + ((tileCellSize - textSize.y) * 0.5F));
-    drawOutlinedText(*drawList, textPosition, label);
+    const ImU32 inverseColor = IM_COL32(255U - mapColor.red, 255U - mapColor.green, 255U - mapColor.blue, 255U);
+    drawList->AddText(textPosition, inverseColor, label.c_str());
 
     if (clicked)
     {
@@ -83,7 +86,10 @@ void drawTileCell(const uomul::MapBlock & block,
     }
 }
 
-void drawBlock(const uomul::MapBlock & block, uomul::BlockCoord blockCoordinate, MapWorkspace & workspace)
+void drawBlock(const uomul::MapBlock & block,
+               uomul::BlockCoord blockCoordinate,
+               MapWorkspace & workspace,
+               RadarcolPanelState & radarcolState)
 {
     const ImVec2 gridOrigin = ImGui::GetCursorScreenPos();
     ImDrawList * drawList = ImGui::GetWindowDrawList();
@@ -112,7 +118,7 @@ void drawBlock(const uomul::MapBlock & block, uomul::BlockCoord blockCoordinate,
                           coordinate.c_str());
         for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
         {
-            drawTileCell(block, blockCoordinate, workspace, row, column, gridOrigin);
+            drawTileCell(block, blockCoordinate, workspace, radarcolState, row, column, gridOrigin);
         }
     }
 
@@ -151,7 +157,10 @@ void drawBlockError(const uomul::Error & error)
 
 } // namespace
 
-void drawBlockInspectorPanel(MapWorkspace & workspace, BlockInspectorPanelState & state, bool & visible)
+void drawBlockInspectorPanel(MapWorkspace & workspace,
+                             RadarcolPanelState & radarcolState,
+                             BlockInspectorPanelState & state,
+                             bool & visible)
 {
     const uomul::MapReader * reader = workspace.reader();
     if (reader == nullptr || (state.cacheValid && state.mapPath != workspace.mapPath()))
@@ -198,7 +207,7 @@ void drawBlockInspectorPanel(MapWorkspace & workspace, BlockInspectorPanelState 
                         (blockCoordinate.y * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U);
             if (state.block)
             {
-                drawBlock(*state.block, blockCoordinate, workspace);
+                drawBlock(*state.block, blockCoordinate, workspace, radarcolState);
                 if (workspace.selectedTile() && workspace.selectedValue())
                 {
                     const uomul::TileCoord tileCoordinate = *workspace.selectedTile();

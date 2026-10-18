@@ -7,6 +7,8 @@
 namespace uo_mule::gui
 {
 
+struct RadarcolPanelState;
+
 struct BlockInspectorPanelState
 {
     std::filesystem::path mapPath;
@@ -16,6 +18,9 @@ struct BlockInspectorPanelState
     bool cacheValid = false;
 };
 
-void drawBlockInspectorPanel(MapWorkspace & workspace, BlockInspectorPanelState & state, bool & visible);
+void drawBlockInspectorPanel(MapWorkspace & workspace,
+                             RadarcolPanelState & radarcolState,
+                             BlockInspectorPanelState & state,
+                             bool & visible);
 
 } // namespace uo_mule::gui

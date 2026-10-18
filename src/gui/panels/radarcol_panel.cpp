@@ -1,4 +1,5 @@
 #include "gui/panels/radarcol_panel.h"
+#include "gui/map_workspace.h"
 #include "gui/panels/common.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
@@ -9,6 +10,7 @@
 #include <cstring>
 #include <filesystem>
 #include <imgui.h>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -57,6 +59,7 @@ constexpr float radarcolSwatchSize = 24.0F;
 constexpr float radarcolChannelScale = 1.0F / 31.0F;
 constexpr float radarcolByteScale = 255.0F;
 constexpr std::uint32_t radarcolChannelMask = 0x1FU;
+constexpr std::uint32_t radarcolChannelMaximum = 255U;
 constexpr int radarcolPageStep = 1;
 constexpr int radarcolPageFastStep = 8;
 constexpr std::size_t radarcolRedChannelIndex = 0;
@@ -74,6 +77,23 @@ constexpr std::size_t radarcolBlueChannelIndex = 2;
             1.0F};
 }
 
+[[nodiscard]] MapColor radarColorToMapColor(uomul::RadarColor color) noexcept
+{
+    constexpr std::uint32_t redShift = 10;
+    constexpr std::uint32_t greenShift = 5;
+    const std::uint32_t packed = static_cast<std::uint32_t>(color);
+    const auto expandChannel = [](std::uint32_t channel)
+    {
+        const std::uint32_t scaledChannel = channel * radarcolChannelMaximum;
+        return static_cast<std::uint8_t>((scaledChannel + (radarcolChannelMask / 2U)) / radarcolChannelMask);
+    };
+    return {
+        .red = expandChannel((packed >> redShift) & radarcolChannelMask),
+        .green = expandChannel((packed >> greenShift) & radarcolChannelMask),
+        .blue = expandChannel(packed & radarcolChannelMask),
+    };
+}
+
 [[nodiscard]] uomul::RadarColor colorFromPicker(const std::array<float, 3> & color) noexcept
 {
     const auto channel = [](float value)
@@ -89,6 +109,12 @@ void setPath(std::array<char, radarcolPathBufferSize> & buffer, const std::files
     const std::size_t length = std::min(value.size(), buffer.size() - 1);
     std::memcpy(buffer.data(), value.data(), length);
     buffer.at(length) = '\0';
+}
+
+void invalidateMapColorCache(RadarcolPanelState & state) noexcept
+{
+    state.mapColorCacheStatus.fill(0);
+    ++state.colorRevision;
 }
 
 void loadPage(RadarcolPanelState & state)
@@ -124,12 +150,14 @@ void loadSource(RadarcolPanelState & state)
     if (!reader)
     {
         state.reader.reset();
+        invalidateMapColorCache(state);
         state.error = formatError(reader.error());
         return;
     }
 
     state.reader.emplace(std::move(*reader));
     state.loadedPageIndex = unloadedRadarcolPage;
+    invalidateMapColorCache(state);
     state.error.clear();
 }
 
@@ -251,6 +279,12 @@ void applyColor(RadarcolPanelState & state, std::uint32_t index, uomul::RadarCol
 
     state.pageColors.at(slot) = color;
     state.pageColorAvailable.at(slot) = true;
+    if (index < uomul::radarMapColorCount)
+    {
+        state.mapColorCache.at(index) = radarColorToMapColor(color);
+        state.mapColorCacheStatus.at(index) = 1;
+        ++state.colorRevision;
+    }
     state.error.clear();
 }
 
@@ -358,12 +392,14 @@ void saveChanges(RadarcolPanelState & state)
     if (!reader)
     {
         state.reader.reset();
+        invalidateMapColorCache(state);
         state.error = formatError(reader.error());
         return;
     }
 
     state.reader.emplace(std::move(*reader));
     state.loadedPageIndex = unloadedRadarcolPage;
+    invalidateMapColorCache(state);
     state.error.clear();
 }
 
@@ -378,6 +414,38 @@ void discardChanges(RadarcolPanelState & state)
 }
 
 } // namespace
+
+std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::uint16_t id)
+{
+    if (id >= uomul::radarMapColorCount)
+    {
+        return std::nullopt;
+    }
+
+    const std::size_t index = id;
+    if (state.mapColorCacheStatus.at(index) != 0U)
+    {
+        return state.mapColorCacheStatus.at(index) == 1U ? std::optional<MapColor>(state.mapColorCache.at(index))
+                                                         : std::nullopt;
+    }
+
+    if (!state.reader)
+    {
+        return std::nullopt;
+    }
+
+    const auto radarColor = state.reader->readMapColor(id);
+    if (!radarColor)
+    {
+        state.mapColorCacheStatus.at(index) = 2;
+        return std::nullopt;
+    }
+
+    const MapColor color = radarColorToMapColor(*radarColor);
+    state.mapColorCache.at(index) = color;
+    state.mapColorCacheStatus.at(index) = 1;
+    return color;
+}
 
 void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible)
 {
