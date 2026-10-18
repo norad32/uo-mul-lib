@@ -44,29 +44,20 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
     state.menuBarState.fileDialog.mode = mode;
     state.menuBarState.fileDialog.activePopup = MapFileDialogMode::none;
     state.menuBarState.fileDialog.error.clear();
-    state.menuBarState.fileDialog.openProfileInitialized = false;
+    state.menuBarState.fileDialog.openPickerRequested = mode == MapFileDialogMode::openMap;
+    if (mode == MapFileDialogMode::openMap)
+    {
+        state.menuBarState.fileDialog.openPath.fill('\0');
+    }
 }
 
 void requestClose(WorkbenchState & state, PendingMapOperationKind kind)
 {
-    state.menuBarState.fileDialog.operation = PendingMapOperation{};
-    state.menuBarState.fileDialog.operation.kind = kind;
-    if (state.workspace.dirty())
-    {
-        openDialog(state, MapFileDialogMode::dirtyChanges);
-        return;
-    }
-
-    const auto closed = state.workspace.closeMap();
-    if (!closed)
-    {
-        openDialog(state, MapFileDialogMode::error);
-        state.menuBarState.fileDialog.error = closed.error().message;
-        return;
-    }
-
-    state.menuBarState.fileDialog.shouldClose = kind == PendingMapOperationKind::quit;
-    state.menuBarState.fileDialog.operation = {};
+    requestCloseOperation(state.workspace,
+                          state.menuBarState.fileDialog,
+                          state.operationController,
+                          kind,
+                          state.notifications);
 }
 
 void togglePanel(bool & visibility)

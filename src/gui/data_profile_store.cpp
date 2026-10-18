@@ -249,80 +249,6 @@ void parseSchemaVersion(DataProfileLoadResult & result,
     return true;
 }
 
-[[nodiscard]] bool
-parseFacetName(DataProfileLoadResult & result, std::string_view key, std::istringstream & line, std::string & value)
-{
-    if (!key.ends_with(".facet") || !readQuoted(line, value))
-    {
-        return false;
-    }
-
-    const auto roleName = key.substr(0, key.size() - std::string_view(".facet").size());
-    if (const auto role = dataFileRoleFromName(roleName); role && isMapRole(*role))
-    {
-        result.profile.facets.at(mapRoleIndex(*role)).facet = value;
-    }
-
-    return true;
-}
-
-[[nodiscard]] bool parseFacetProperty(DataProfileLoadResult & result,
-                                      const std::filesystem::path & path,
-                                      std::string_view key,
-                                      std::istringstream & line)
-{
-    const bool isDimension = key.ends_with(".width") || key.ends_with(".height");
-    const bool isRecovery = key.ends_with(".recover_truncated");
-    if (!isDimension && !isRecovery)
-    {
-        return false;
-    }
-
-    const auto separator = key.find('.');
-    if (separator == std::string_view::npos)
-    {
-        return true;
-    }
-
-    const auto role = dataFileRoleFromName(key.substr(0, separator));
-    if (!role || !isMapRole(*role))
-    {
-        return true;
-    }
-
-    bool boolean = false;
-    if (isRecovery && (line >> boolean))
-    {
-        result.profile.facets.at(mapRoleIndex(*role)).recoverTruncated = boolean;
-        return true;
-    }
-
-    auto & dimensions = result.profile.facets.at(mapRoleIndex(*role)).dimensions;
-    if (!dimensions)
-    {
-        dimensions.emplace();
-    }
-
-    std::uint32_t number = 0;
-    if (line >> number)
-    {
-        if (key.ends_with(".width"))
-        {
-            dimensions->widthTiles = number;
-        }
-        else
-        {
-            dimensions->heightTiles = number;
-        }
-    }
-    else
-    {
-        addParseDiagnostic(result, path, key);
-    }
-
-    return true;
-}
-
 void parseProfileLine(DataProfileLoadResult & result,
                       const std::filesystem::path & path,
                       std::string_view key,
@@ -335,8 +261,7 @@ void parseProfileLine(DataProfileLoadResult & result,
         parseSchemaVersion(result, path, line, key);
     }
     else if (!parseGeneralField(result, path, key, line, value) && !parseRolePath(result, path, key, line, value) &&
-             !parseRoleOverride(result, path, key, line) && !parseFacetName(result, key, line, value) &&
-             !parseFacetProperty(result, path, key, line))
+             !parseRoleOverride(result, path, key, line))
     {
         addDiagnostic(result, Diagnostic::Severity::info, "ignored unknown profile key '" + std::string(key) + "'", path);
     }
@@ -366,30 +291,6 @@ void appendRoleFiles(std::ostringstream & contents, const DataProfile & profile)
         {
             contents << rolePathKey(role) << ' ' << std::quoted(entry->second.path.string()) << '\n';
             contents << dataFileRoleName(role) << ".override " << entry->second.userOverride << '\n';
-        }
-    }
-}
-
-void appendFacetSettings(std::ostringstream & contents, const DataProfile & profile)
-{
-    for (std::size_t index = 0; index < profile.facets.size(); index++)
-    {
-        const auto role = static_cast<DataFileRole>(index);
-        const auto & facet = profile.facets.at(index);
-        if (!facet.facet.empty())
-        {
-            contents << dataFileRoleName(role) << ".facet " << std::quoted(facet.facet) << '\n';
-        }
-
-        if (facet.dimensions)
-        {
-            contents << dataFileRoleName(role) << ".width " << facet.dimensions->widthTiles << '\n';
-            contents << dataFileRoleName(role) << ".height " << facet.dimensions->heightTiles << '\n';
-        }
-
-        if (facet.dimensions || facet.recoverTruncated)
-        {
-            contents << dataFileRoleName(role) << ".recover_truncated " << facet.recoverTruncated << '\n';
         }
     }
 }
@@ -491,7 +392,6 @@ void saveDataProfile(const DataProfile & profile, const std::filesystem::path & 
     std::ostringstream contents;
     contents << serializeProfile(profile);
     appendRoleFiles(contents, profile);
-    appendFacetSettings(contents, profile);
     writeProfileAtomically(path, contents.str());
 }
 

@@ -1,5 +1,7 @@
 #include "gui/new_map_dialog.h"
 #include "gui/data_profile.h"
+#include "gui/notification_state.h"
+#include "gui/operation_controller.h"
 #include "gui/theme.h"
 #include "gui/map_workspace.h"
 #include "gui/panels/common.h"
@@ -9,6 +11,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <expected>
 #include <filesystem>
 #include <imgui.h>
@@ -48,6 +51,7 @@ constexpr int malasFacetIndex = 4;
 constexpr int tokunoFacetIndex = 5;
 constexpr int terMurFacetIndex = 6;
 constexpr float dialogInputWidth = 420.0F;
+constexpr float openMapFileListHeight = 180.0F;
 constexpr ImGuiWindowFlags modalFlags = ImGuiWindowFlags_AlwaysAutoResize;
 constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     static_cast<unsigned int>(ImGuiWindowFlags_NoDecoration) | static_cast<unsigned int>(ImGuiWindowFlags_NoBackground) |
@@ -86,11 +90,19 @@ void closeDialog(NewMapDialogState & state)
     state.mode = MapFileDialogMode::none;
     state.activePopup = MapFileDialogMode::none;
     state.error.clear();
+    state.openPickerRequested = false;
+    state.openPickerDirectory.clear();
+    state.openPickerSelection.clear();
+    state.openPickerError.clear();
 }
 
 void showError(NewMapDialogState & state, const uomul::Error & error)
 {
     state.error = formatError(error);
+    if (state.notifications != nullptr)
+    {
+        state.notifications->add(NotificationSeverity::error, state.error);
+    }
     ImGui::CloseCurrentPopup();
     state.mode = MapFileDialogMode::error;
 }
@@ -245,8 +257,56 @@ void continueOperation(MapWorkspace & workspace, NewMapDialogState & state, bool
     executeOperation(workspace, state, PendingChangesAction::cancel, std::nullopt, overwrite);
 }
 
+[[nodiscard]] bool beginControlledOperation(NewMapDialogState & state, const MapWorkspace & workspace)
+{
+    if (state.controller == nullptr)
+    {
+        return true;
+    }
+
+    const OperationKind kind = state.operation.kind == PendingMapOperationKind::newMap ? OperationKind::newMap : OperationKind::openMap;
+    std::error_code outputError;
+    const bool outputExists = kind == OperationKind::newMap && std::filesystem::exists(state.operation.path, outputError);
+    const auto transition = state.controller->begin({.kind = kind,
+                                                      .path = state.operation.path,
+                                                      .dimensions = state.operation.dimensions,
+                                                      .initialTile = state.operation.initialTile,
+                                                     },
+                                                     workspace.dirty(),
+                                                     outputExists,
+                                                     state.collisionPolicy);
+    if (transition.kind == OperationTransitionKind::rejected)
+    {
+        state.error = transition.error;
+        if (state.notifications != nullptr)
+        {
+            state.notifications->add(NotificationSeverity::error, state.error);
+        }
+        ImGui::CloseCurrentPopup();
+        state.mode = MapFileDialogMode::error;
+        return false;
+    }
+    if (transition.kind == OperationTransitionKind::showDirtyDecision)
+    {
+        ImGui::CloseCurrentPopup();
+        state.mode = MapFileDialogMode::dirtyChanges;
+        return false;
+    }
+    if (transition.kind == OperationTransitionKind::showOverwriteConfirmation)
+    {
+        showOverwrite(state, MapOverwriteKind::newMap);
+        return false;
+    }
+    return true;
+}
+
 void requestOperation(MapWorkspace & workspace, NewMapDialogState & state)
 {
+    if (!beginControlledOperation(state, workspace))
+    {
+        return;
+    }
+
     if (state.operation.kind == PendingMapOperationKind::openMap)
     {
         const auto candidate = uomul::MapReader::open(state.operation.path, state.operation.dimensions);
@@ -352,94 +412,120 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
     return valid;
 }
 
-void initializeProfileMapSelection(const DataProfile & profile, NewMapDialogState & state)
+void copyPathToBuffer(std::array<char, mapDialogPathBufferSize> & buffer, const std::filesystem::path & path)
 {
-    const auto availableMapCount = static_cast<int>(std::min(mapFacetCount, profile.files.size()));
+    const std::string value = path.string();
+    const std::size_t length = std::min(value.size(), buffer.size() - 1U);
+    std::memcpy(buffer.data(), value.data(), length);
+    buffer.at(length) = '\0';
+}
 
-    if (state.openProfileInitialized)
+void navigateOpenPicker(NewMapDialogState & state, const std::filesystem::path & path)
+{
+    std::error_code error;
+    const std::filesystem::path directory = std::filesystem::absolute(path, error).lexically_normal();
+    if (error || !std::filesystem::is_directory(directory, error))
     {
+        state.openPickerError = error ? error.message() : "Path is not a directory";
         return;
     }
-
-    state.openProfileInitialized = true;
-    state.openMapRole = std::clamp(state.openMapRole, 0, std::max(0, availableMapCount - 1));
+    state.openPickerDirectory = directory;
+    state.openPickerSelection.clear();
+    state.openPickerError.clear();
+    copyPathToBuffer(state.openPickerLocation, directory);
 }
 
-[[nodiscard]] std::optional<std::filesystem::path>
-profileMapPath(const DataProfile & profile, int mapRoleIndex)
+void drawOpenPicker(NewMapDialogState & state)
 {
-    const auto role = static_cast<DataFileRole>(mapRoleIndex);
-    auto path = resolvedDataFilePath(profile, role);
-    if (path.empty())
+    if (state.openPickerDirectory.empty())
     {
-        return std::nullopt;
+        navigateOpenPicker(state, std::filesystem::current_path());
     }
 
-    return path;
-}
-
-[[nodiscard]] std::optional<uomul::Dimensions>
-profileMapDimensions(const DataProfile & profile, int mapRoleIndex)
-{
-    const auto index = static_cast<std::size_t>(mapRoleIndex);
-    return profile.facets.at(index).dimensions;
-}
-
-void drawOpenDialog(MapWorkspace & workspace, const DataProfile & profile, NewMapDialogState & state)
-{
-    initializeProfileMapSelection(profile, state);
-    std::array<std::string, mapFacetCount> mapLabels{};
-    std::array<const char *, mapFacetCount> mapLabelPointers{};
-    for (std::size_t index = 0; index < mapFacetCount; index++)
-    {
-        mapLabels.at(index) = std::string(dataFileRoleName(static_cast<DataFileRole>(index)));
-        mapLabelPointers.at(index) = mapLabels.at(index).c_str();
-    }
-
-    ImGui::TextUnformatted("Map role");
     ImGui::SetNextItemWidth(dialogInputWidth);
-    ImGui::Combo("##OpenMapRole", &state.openMapRole, mapLabelPointers.data(), static_cast<int>(mapLabelPointers.size()));
-    const auto path = profileMapPath(profile, state.openMapRole);
-    const auto dimensions = profileMapDimensions(profile, state.openMapRole);
-
-    if (path)
+    const bool navigateFromInput = ImGui::InputText("Location",
+                                                    state.openPickerLocation.data(),
+                                                    state.openPickerLocation.size(),
+                                                    ImGuiInputTextFlags_EnterReturnsTrue);
+    ImGui::SameLine();
+    if (ImGui::Button("Go") || navigateFromInput)
     {
-        ImGui::Text("Path: %s", path->string().c_str());
+        navigateOpenPicker(state, state.openPickerLocation.data());
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Up"))
+    {
+        navigateOpenPicker(state, state.openPickerDirectory.parent_path());
     }
 
-    if (!path)
+    ImGui::TextUnformatted(state.openPickerDirectory.string().c_str());
+    ImGui::BeginChild("OpenMapFiles", ImVec2(0.0F, openMapFileListHeight), ImGuiChildFlags_Borders);
+    std::error_code error;
+    for (const auto & entry : std::filesystem::directory_iterator(state.openPickerDirectory, error))
     {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "The selected map role is missing from the active profile.");
+        if (!entry.is_regular_file(error))
+        {
+            continue;
+        }
+        const std::string label = entry.path().filename().string();
+        if (ImGui::Selectable(label.c_str(), state.openPickerSelection == entry.path()))
+        {
+            state.openPickerSelection = entry.path();
+        }
+    }
+    ImGui::EndChild();
+
+    if (error)
+    {
+        state.openPickerError = error.message();
+    }
+    if (!state.openPickerError.empty())
+    {
+        ImGui::TextColored(theme::imguiColor(theme::amber), "%s", state.openPickerError.c_str());
     }
 
-    const bool validDimensions = dimensions.has_value();
-    if (dimensions)
+    if (ImGui::Button("Use Selected File") && !state.openPickerSelection.empty())
     {
-        ImGui::Text("Dimensions: %u x %u", dimensions->widthTiles, dimensions->heightTiles);
+        copyPathToBuffer(state.openPath, state.openPickerSelection);
+        state.openPickerRequested = false;
     }
+}
 
-    if (!dimensions)
+void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
+{
+    if (state.openPickerRequested)
     {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "Configure facet dimensions in UO Data Paths first.");
+        drawOpenPicker(state);
     }
-
-    if (!validDimensions)
+    else
     {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "Map dimensions are required before opening this role.");
-    }
-
-    if (ImGui::Button("Open") && path && validDimensions)
-    {
-        state.operation = {
-            .kind = PendingMapOperationKind::openMap,
-            .path = *path,
-            .dimensions = *dimensions,
-        };
-        requestOperation(workspace, state);
+        ImGui::Text("Map path: %s", state.openPath.data());
+        const bool validDimensions = drawDimensionsFields("OpenDimensions", state.openFacet, state.openWidth, state.openHeight);
+        if (!validDimensions)
+        {
+            ImGui::TextColored(theme::imguiColor(theme::amber), "Dimensions must be positive multiples of 8 tiles.");
+        }
+        if (ImGui::Button("Open") && state.openPath.front() != '\0' && validDimensions)
+        {
+            const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
+            if (dimensions)
+            {
+                state.operation = {
+                    .kind = PendingMapOperationKind::openMap,
+                    .path = state.openPath.data(),
+                    .dimensions = *dimensions,
+                };
+                requestOperation(workspace, state);
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Choose Another File"))
+        {
+            state.openPickerRequested = true;
+        }
     }
 
     ImGui::SameLine();
-
     if (ImGui::Button("Cancel"))
     {
         state.operation = {};
@@ -575,6 +661,10 @@ void drawDirtyDialog(MapWorkspace & workspace, NewMapDialogState & state)
 
     if (ImGui::Button("Save As..."))
     {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
+        }
         state.saveForPendingOperation = true;
         state.savePath.fill('\0');
         state.mode = MapFileDialogMode::saveAs;
@@ -585,6 +675,10 @@ void drawDirtyDialog(MapWorkspace & workspace, NewMapDialogState & state)
 
     if (ImGui::Button("Discard"))
     {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::discard));
+        }
         executeOperation(workspace, state, PendingChangesAction::discard, std::nullopt, state.operationOverwriteOutput);
         ImGui::CloseCurrentPopup();
     }
@@ -593,10 +687,64 @@ void drawDirtyDialog(MapWorkspace & workspace, NewMapDialogState & state)
 
     if (ImGui::Button("Cancel"))
     {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->cancel());
+        }
         state.operation = {};
         state.overwriteKind = MapOverwriteKind::none;
         closeDialog(state);
     }
+}
+
+void finishPendingCloseAfterSave(MapWorkspace & workspace, NewMapDialogState & state)
+{
+    const bool quit = state.operation.kind == PendingMapOperationKind::quit;
+    const auto closed = workspace.closeMap();
+    if (!closed)
+    {
+        showError(state, closed.error());
+        return;
+    }
+    state.shouldClose = quit;
+    state.operation = {};
+    state.saveForPendingOperation = false;
+    state.mode = MapFileDialogMode::none;
+    state.activePopup = MapFileDialogMode::none;
+}
+
+void handleOverwriteSave(MapWorkspace & workspace, NewMapDialogState & state, const std::filesystem::path & path)
+{
+    const auto saved = workspace.save(path, true);
+    if (!saved)
+    {
+        showError(state, saved.error());
+        return;
+    }
+    if (!state.saveForPendingOperation)
+    {
+        state.mode = MapFileDialogMode::none;
+        return;
+    }
+    if (state.operation.kind == PendingMapOperationKind::close || state.operation.kind == PendingMapOperationKind::quit)
+    {
+        finishPendingCloseAfterSave(workspace, state);
+        return;
+    }
+    const bool overwriteOperation = state.operationOverwriteOutput;
+    state.overwriteKind = MapOverwriteKind::none;
+    continueOperation(workspace, state, overwriteOperation);
+}
+
+void handleOverwriteNewMap(MapWorkspace & workspace, NewMapDialogState & state)
+{
+    if (workspace.dirty())
+    {
+        state.overwriteKind = MapOverwriteKind::newMap;
+        state.mode = MapFileDialogMode::dirtyChanges;
+        return;
+    }
+    executeOperation(workspace, state, PendingChangesAction::cancel, std::nullopt, true);
 }
 
 void drawOverwriteDialog(MapWorkspace & workspace, NewMapDialogState & state)
@@ -607,51 +755,17 @@ void drawOverwriteDialog(MapWorkspace & workspace, NewMapDialogState & state)
 
     if (ImGui::Button("Overwrite"))
     {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->resolveOverwrite(true));
+        }
         if (state.overwriteKind == MapOverwriteKind::save)
         {
-            const auto saved = workspace.save(path, true);
-            if (!saved)
-            {
-                showError(state, saved.error());
-            }
-            else if (state.saveForPendingOperation)
-            {
-                if (state.operation.kind == PendingMapOperationKind::close ||
-                    state.operation.kind == PendingMapOperationKind::quit)
-                {
-                    const bool quit = state.operation.kind == PendingMapOperationKind::quit;
-                    const auto closed = workspace.closeMap();
-                    if (!closed)
-                    {
-                        showError(state, closed.error());
-                        return;
-                    }
-                    state.shouldClose = quit;
-                    state.operation = {};
-                    state.saveForPendingOperation = false;
-                    state.mode = MapFileDialogMode::none;
-                    state.activePopup = MapFileDialogMode::none;
-                }
-                else
-                {
-                    const bool overwriteOperation = state.operationOverwriteOutput;
-                    state.overwriteKind = MapOverwriteKind::none;
-                    continueOperation(workspace, state, overwriteOperation);
-                }
-            }
-            else
-            {
-                state.mode = MapFileDialogMode::none;
-            }
-        }
-        else if (workspace.dirty())
-        {
-            state.overwriteKind = MapOverwriteKind::newMap;
-            state.mode = MapFileDialogMode::dirtyChanges;
+            handleOverwriteSave(workspace, state, path);
         }
         else
         {
-            executeOperation(workspace, state, PendingChangesAction::cancel, std::nullopt, true);
+            handleOverwriteNewMap(workspace, state);
         }
 
         ImGui::CloseCurrentPopup();
@@ -661,6 +775,10 @@ void drawOverwriteDialog(MapWorkspace & workspace, NewMapDialogState & state)
 
     if (ImGui::Button("Cancel"))
     {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->resolveOverwrite(false));
+        }
         state.overwriteKind = MapOverwriteKind::none;
         state.operation = {};
         state.saveForPendingOperation = false;
@@ -671,11 +789,19 @@ void drawOverwriteDialog(MapWorkspace & workspace, NewMapDialogState & state)
 } // namespace
 
 void drawNewMapDialog(MapWorkspace & workspace,
-                      const DataProfile & profile,
                       NewMapDialogState & state,
+                      OperationController & controller,
+                      OutputCollisionPolicy collisionPolicy,
+                      NotificationState & notifications,
                       bool & shouldClose)
 {
+    static_cast<void>(controller);
+    static_cast<void>(collisionPolicy);
+    static_cast<void>(notifications);
     state.shouldClose = false;
+    state.controller = &controller;
+    state.collisionPolicy = collisionPolicy;
+    state.notifications = &notifications;
     if (state.mode == MapFileDialogMode::none)
     {
         return;
@@ -708,7 +834,7 @@ void drawNewMapDialog(MapWorkspace & workspace,
     switch (currentMode)
     {
         case MapFileDialogMode::openMap :
-            drawOpenDialog(workspace, profile, state);
+            drawOpenDialog(workspace, state);
             break;
         case MapFileDialogMode::newMap :
             drawNewMapForm(workspace, state);
@@ -744,6 +870,49 @@ void drawNewMapDialog(MapWorkspace & workspace,
     {
         shouldClose = true;
         state.shouldClose = false;
+    }
+}
+
+void requestCloseOperation(MapWorkspace & workspace,
+                           NewMapDialogState & state,
+                           OperationController & controller,
+                           PendingMapOperationKind kind,
+                           NotificationState & notifications)
+{
+    const OperationKind operationKind = kind == PendingMapOperationKind::quit ? OperationKind::quit : OperationKind::close;
+    OperationRequest request{};
+    request.kind = operationKind;
+    const auto transition = controller.begin(request,
+                                              workspace.dirty(),
+                                              false,
+                                              OutputCollisionPolicy::confirm);
+    state.operation = {};
+    state.operation.kind = kind;
+    if (transition.kind == OperationTransitionKind::showDirtyDecision)
+    {
+        state.mode = MapFileDialogMode::dirtyChanges;
+        state.activePopup = MapFileDialogMode::none;
+        return;
+    }
+    if (transition.kind == OperationTransitionKind::rejected)
+    {
+        state.error = transition.error;
+        state.mode = MapFileDialogMode::error;
+        notifications.add(NotificationSeverity::error, transition.error);
+        return;
+    }
+    if (transition.kind == OperationTransitionKind::execute)
+    {
+        const auto closed = workspace.closeMap();
+        if (!closed)
+        {
+            state.error = closed.error().message;
+            state.mode = MapFileDialogMode::error;
+            notifications.add(NotificationSeverity::error, state.error);
+            return;
+        }
+        state.shouldClose = kind == PendingMapOperationKind::quit;
+        state.operation = {};
     }
 }
 

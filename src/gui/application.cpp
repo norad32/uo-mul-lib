@@ -3,6 +3,7 @@
 #include "core/gui_log_sink.h"
 #include "gui/data_profile.h"
 #include "gui/data_profile_store.h"
+#include "gui/command_registry.h"
 #include "gui/log_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/menu_bar.h"
@@ -403,7 +404,7 @@ void renderFrame(GLFWwindow * window)
     glfwSwapBuffers(window);
 }
 
-void drawMapPanels(MapWorkspace & workspace,
+void drawMapPanels(WorkbenchState & state,
                    const DataProfile & activeProfile,
                    MapCanvasPanelState & canvasState,
                    BlockInspectorPanelState & blockInspectorState,
@@ -412,13 +413,19 @@ void drawMapPanels(MapWorkspace & workspace,
                    RadarcolPanelState & radarcolState,
                    TexmapsPanelState & texmapsState)
 {
+    MapWorkspace & workspace = state.workspace;
     syncRadarcolPanel(radarcolState, activeProfile);
     syncTexmapsPanel(texmapsState, activeProfile);
 
     MapPanelVisibility & visibility = workspace.panelVisibility();
     if (visibility.canvas)
     {
-        drawMapCanvasPanel(workspace, radarcolState, canvasState, visibility.canvas);
+        drawMapCanvasPanel(workspace,
+                           radarcolState,
+                           canvasState,
+                           [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
+                           [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
+                           visibility.canvas);
     }
     else
     {
@@ -500,7 +507,7 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
 
     const float bottomPanelHeight = drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
     drawDockSpace(bottomPanelHeight);
-    drawMapPanels(state.workspace,
+    drawMapPanels(state,
                   state.activeProfile,
                   state.mapCanvasState,
                   state.blockInspectorState,

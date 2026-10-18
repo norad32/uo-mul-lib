@@ -2,7 +2,6 @@
 #include "gui/data_discovery.h"
 #include "gui/data_profile_store.h"
 #include "gui/data_validation.h"
-#include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
@@ -12,9 +11,6 @@
 
 namespace
 {
-
-constexpr auto feluccaWidth = 6144U;
-constexpr auto feluccaHeight = 4096U;
 
 void createFile(const std::filesystem::path & path)
 {
@@ -58,15 +54,8 @@ TEST_CASE("DataProfile_Should_RoundTripRolePathsAndPolicies")
     expected.createOutputIfMissing = false;
     expected.useSourceFolderForOutput = false;
     expected.outputCollisionPolicy = uo_mule::gui::OutputCollisionPolicy::reject;
-    expected.files[uo_mule::gui::DataFileRole::map0] = {
-        .path = "map0.mul",
-        .userOverride = true,
-    };
     expected.files[uo_mule::gui::DataFileRole::texidx] = {.path = "texidx.mul"};
     expected.files[uo_mule::gui::DataFileRole::texmaps] = {.path = "texmaps.mul"};
-    expected.facets.at(0).facet = "felucca";
-    expected.facets.at(0).dimensions = uomul::Dimensions{.widthTiles = feluccaWidth, .heightTiles = feluccaHeight};
-    expected.facets.at(0).recoverTruncated = true;
 
     uo_mule::gui::saveDataProfile(expected, profilePath);
     const auto loaded = uo_mule::gui::loadDataProfile(profilePath);
@@ -78,10 +67,6 @@ TEST_CASE("DataProfile_Should_RoundTripRolePathsAndPolicies")
     REQUIRE(loaded.profile.outputRoot == expected.outputRoot);
     REQUIRE(loaded.profile.discoveryMode == expected.discoveryMode);
     REQUIRE(loaded.profile.outputCollisionPolicy == expected.outputCollisionPolicy);
-    REQUIRE(loaded.profile.files.at(uo_mule::gui::DataFileRole::map0).path == "map0.mul");
-    REQUIRE(loaded.profile.files.at(uo_mule::gui::DataFileRole::map0).userOverride);
-    REQUIRE(loaded.profile.facets.at(0).dimensions == expected.facets.at(0).dimensions);
-    REQUIRE(loaded.profile.facets.at(0).recoverTruncated);
 }
 
 TEST_CASE("DataProfileStore_Should_IgnoreUnknownKeysAndRejectUnsafeProfileNames")
@@ -97,9 +82,8 @@ TEST_CASE("DataProfileStore_Should_IgnoreUnknownKeysAndRejectUnsafeProfileNames"
     }
 
     const auto loaded = uo_mule::gui::loadDataProfile(profilePath);
-    REQUIRE(loaded.profile.files.at(uo_mule::gui::DataFileRole::map0).path == "map0.mul");
-    REQUIRE(loaded.diagnostics.size() == 1);
-    REQUIRE(loaded.diagnostics.front().severity == uo_mule::gui::Diagnostic::Severity::info);
+    REQUIRE(loaded.profile.files.empty());
+    REQUIRE(loaded.diagnostics.size() == 2);
 
     const auto safePath = uo_mule::gui::dataProfilePath("../secret/profile", directory.path());
     REQUIRE(safePath.parent_path() == directory.path());
@@ -165,7 +149,6 @@ TEST_CASE("DataDiscovery_Should_FindRootAndKnownChildFilesCaseInsensitively")
 {
     const TemporaryProfileDirectory directory;
     const auto root = directory.path() / "installation";
-    createFile(root / "map0.mul");
     createFile(root / "Data" / "RADARCOL.MUL");
     {
         std::ofstream radarcol(root / "Data" / "RADARCOL.MUL", std::ios::binary);
@@ -178,53 +161,30 @@ TEST_CASE("DataDiscovery_Should_FindRootAndKnownChildFilesCaseInsensitively")
     const auto result = uo_mule::gui::discoverDataFiles(root, uo_mule::gui::DiscoveryMode::installation);
 
     REQUIRE(result.diagnostics.size() >= 1);
-    REQUIRE(result.find(uo_mule::gui::DataFileRole::map0)->status == uo_mule::gui::DataFileStatus::found);
-    REQUIRE(result.find(uo_mule::gui::DataFileRole::map0)->selectedCandidate.has_value());
+    REQUIRE(result.find(uo_mule::gui::DataFileRole::radarcol) != nullptr);
     REQUIRE(result.find(uo_mule::gui::DataFileRole::radarcol)->status == uo_mule::gui::DataFileStatus::invalid);
     REQUIRE(result.find(uo_mule::gui::DataFileRole::texidx)->status == uo_mule::gui::DataFileStatus::found);
     REQUIRE(result.find(uo_mule::gui::DataFileRole::texmaps)->status == uo_mule::gui::DataFileStatus::found);
     REQUIRE(result.find(uo_mule::gui::DataFileRole::tiledata)->status == uo_mule::gui::DataFileStatus::unsupported);
 }
 
-TEST_CASE("DataDiscovery_Should_ReportEquivalentCandidatesAsAmbiguous")
+TEST_CASE("DataDiscovery_Should_NotRecognizeMapFilesAsDataPaths")
 {
     const TemporaryProfileDirectory directory;
     const auto root = directory.path() / "ambiguous";
     createFile(root / "Data" / "map0.mul");
     createFile(root / "Client" / "map0.mul");
-
     const auto result = uo_mule::gui::discoverDataFiles(root, uo_mule::gui::DiscoveryMode::folder);
-    const auto * map = result.find(uo_mule::gui::DataFileRole::map0);
-
-    REQUIRE(map != nullptr);
-    REQUIRE(map->candidates.size() == 2);
-    REQUIRE(map->status == uo_mule::gui::DataFileStatus::ambiguous);
-    REQUIRE_FALSE(map->selectedCandidate.has_value());
+    REQUIRE(result.files.size() == uo_mule::gui::knownDataFileRoles().size());
+    REQUIRE(result.find(uo_mule::gui::DataFileRole::radarcol)->status == uo_mule::gui::DataFileStatus::missing);
 }
 
 TEST_CASE("DataDiscovery_Should_ClearAmbiguousAutomaticPathButPreserveOverride")
 {
     const TemporaryProfileDirectory directory;
     const auto root = directory.path() / "rescan";
-    createFile(root / "map0.mul");
-
     uo_mule::gui::DataProfile profile;
-    profile.files[uo_mule::gui::DataFileRole::map0] = {.path = "old-map0.mul"};
     const auto firstScan = uo_mule::gui::discoverDataFiles(root, uo_mule::gui::DiscoveryMode::folder);
     uo_mule::gui::applyDiscovery(profile, firstScan);
-    REQUIRE(profile.files.at(uo_mule::gui::DataFileRole::map0).path == "map0.mul");
-
-    createFile(root / "Data" / "map0.mul");
-    createFile(root / "Client" / "map0.mul");
-    const auto secondScan = uo_mule::gui::discoverDataFiles(root, uo_mule::gui::DiscoveryMode::folder);
-    uo_mule::gui::applyDiscovery(profile, secondScan);
-    REQUIRE(profile.files.find(uo_mule::gui::DataFileRole::map0) == profile.files.end());
-
-    profile.files[uo_mule::gui::DataFileRole::map0] = {
-        .path = "custom/map0.mul",
-        .userOverride = true,
-    };
-    uo_mule::gui::applyDiscovery(profile, secondScan);
-    REQUIRE(profile.files.at(uo_mule::gui::DataFileRole::map0).path == "custom/map0.mul");
-    REQUIRE(profile.files.at(uo_mule::gui::DataFileRole::map0).userOverride);
+    REQUIRE(profile.files.empty());
 }

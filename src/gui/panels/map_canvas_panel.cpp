@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <imgui.h>
 #include <iterator>
 #include <limits>
@@ -41,6 +42,7 @@ constexpr double errorTextLeftPadding = 10.0;
 constexpr double errorTextTopPadding = 8.0;
 constexpr double readErrorTextOffset = 28.0;
 constexpr double noMapTextPadding = 12.0;
+constexpr double noMapButtonOffset = 28.0;
 
 [[nodiscard]] ImU32 colorForTile(MapDisplayMode mode, uomul::MapTile tile, RadarcolPanelState & radarcolState)
 {
@@ -737,14 +739,30 @@ void updateSelectionDrag(MapWorkspace & workspace,
     state.dragEnd.reset();
 }
 
-void drawEmptyCanvas(ImVec2 canvasOrigin, ImVec2 canvasMaximum, const MapWorkspace & workspace)
+void drawEmptyCanvas(ImVec2 canvasOrigin,
+                     ImVec2 canvasMaximum,
+                     const MapWorkspace & workspace,
+                     const std::function<void()> & openMap,
+                     const std::function<void()> & createMap)
 {
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     drawList->AddRectFilled(canvasOrigin, canvasMaximum, theme::packedColor(theme::background));
     drawList->AddText(
         ImVec2(canvasOrigin.x + static_cast<float>(noMapTextPadding), canvasOrigin.y + static_cast<float>(noMapTextPadding)),
         theme::packedColor(theme::parchmentText),
-        "No map open");
+         "No map open");
+
+    ImGui::SetCursorScreenPos(ImVec2(canvasOrigin.x + static_cast<float>(noMapTextPadding),
+                                     canvasOrigin.y + static_cast<float>(noMapTextPadding + noMapButtonOffset)));
+    if (ImGui::Button("Open Map..."))
+    {
+        openMap();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Create New..."))
+    {
+        createMap();
+    }
 
     if (workspace.error())
     {
@@ -770,6 +788,8 @@ MapCanvasPanelState::~MapCanvasPanelState()
 void drawMapCanvasPanel(MapWorkspace & workspace,
                         RadarcolPanelState & radarcolState,
                         MapCanvasPanelState & state,
+                        const std::function<void()> & openMap,
+                        const std::function<void()> & createMap,
                         bool & visible)
 {
     state.panX = std::isfinite(state.panX) ? state.panX : 0.0;
@@ -824,7 +844,7 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     {
         if (!hasDocument)
         {
-            drawEmptyCanvas(canvasOrigin, canvasMaximum, workspace);
+            drawEmptyCanvas(canvasOrigin, canvasMaximum, workspace, openMap, createMap);
         }
         else
         {

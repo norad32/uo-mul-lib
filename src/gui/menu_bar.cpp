@@ -144,7 +144,12 @@ bool drawMenuBar(WorkbenchState & state)
         state.menuBarState.fileDialog.shouldClose = false;
     }
 
-    drawNewMapDialog(state.workspace, state.activeProfile, state.menuBarState.fileDialog, state.shouldClose);
+    drawNewMapDialog(state.workspace,
+                     state.menuBarState.fileDialog,
+                     state.operationController,
+                     state.activeProfile.outputCollisionPolicy,
+                     state.notifications,
+                     state.shouldClose);
     profileChanged = drawDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile);
     return profileChanged;
 }

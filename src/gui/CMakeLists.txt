@@ -24,6 +24,7 @@ add_library(
     map_workspace.cpp
     menu_bar.cpp
     new_map_dialog.cpp
+    operation_controller.cpp
     panels/block_inspector_panel.cpp
     panels/common.cpp
     panels/edit_tools_panel.cpp

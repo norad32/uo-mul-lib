@@ -7,6 +7,8 @@
 #include "gui/dialogs/data_paths_dialog.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
+#include "gui/notification_state.h"
+#include "gui/operation_controller.h"
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/panels/edit_tools_panel.h"
 #include "gui/panels/map_canvas_panel.h"
@@ -40,6 +42,8 @@ struct WorkbenchState
     DataProfile activeProfile;
     MapWorkspace workspace;
     CommandRegistry commands;
+    OperationController operationController;
+    NotificationState notifications;
     MenuBarState menuBarState;
     MapCanvasPanelState mapCanvasState;
     BlockInspectorPanelState blockInspectorState;

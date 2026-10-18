@@ -267,7 +267,7 @@ void drawPicker(DataPathsDialogState & state)
     ImGui::EndPopup();
 }
 
-void requestPicker(DataPathsDialogState & state, DataPathPickerMode mode, DataFileRole role = DataFileRole::map0)
+void requestPicker(DataPathsDialogState & state, DataPathPickerMode mode, DataFileRole role = DataFileRole::radarcol)
 {
     std::filesystem::path initialDirectory = std::filesystem::current_path();
     if (mode == DataPathPickerMode::sourceFolder && state.sourceRoot.front() != '\0')
@@ -402,6 +402,35 @@ void drawSourceSection(DataPathsDialogState & state)
     }
 }
 
+void drawFileRow(DataPathsDialogState & state, DataFileRole role)
+{
+    const auto * file = state.validation.find(role);
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::TextUnformatted(std::string(dataFileRoleName(role)).c_str());
+    ImGui::TableNextColumn();
+    ImGui::TextUnformatted(file == nullptr ? "" : file->path.string().c_str());
+    ImGui::TableNextColumn();
+    ImGui::TextUnformatted(file == nullptr ? "missing" : std::string(dataFileStatusName(file->status)).c_str());
+    ImGui::TableNextColumn();
+    if (file != nullptr && file->fileSize)
+    {
+        ImGui::Text("%llu", static_cast<unsigned long long>(*file->fileSize));
+    }
+    ImGui::TableNextColumn();
+    if (ImGui::SmallButton(("Override##" + std::string(dataFileRoleName(role))).c_str()))
+    {
+        requestPicker(state, DataPathPickerMode::fileOverride, role);
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton(("Clear##" + std::string(dataFileRoleName(role))).c_str()))
+    {
+        state.overrides.erase(role);
+        state.workingProfile.files.erase(role);
+        scanWorkingProfile(state);
+    }
+}
+
 void drawFileRows(DataPathsDialogState & state)
 {
     if (!ImGui::CollapsingHeader("Recognized Files", ImGuiTreeNodeFlags_DefaultOpen))
@@ -420,32 +449,7 @@ void drawFileRows(DataPathsDialogState & state)
 
         for (const auto role : knownDataFileRoles())
         {
-            const auto * file = state.validation.find(role);
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(std::string(dataFileRoleName(role)).c_str());
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(file == nullptr ? "" : file->path.string().c_str());
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(file == nullptr ? "missing" : std::string(dataFileStatusName(file->status)).c_str());
-            ImGui::TableNextColumn();
-            if (file != nullptr && file->fileSize)
-            {
-                ImGui::Text("%llu", static_cast<unsigned long long>(*file->fileSize));
-            }
-            ImGui::TableNextColumn();
-            if (ImGui::SmallButton(("Override##" + std::string(dataFileRoleName(role))).c_str()))
-            {
-                requestPicker(state, DataPathPickerMode::fileOverride, role);
-            }
-            ImGui::SameLine();
-
-            if (ImGui::SmallButton(("Clear##" + std::string(dataFileRoleName(role))).c_str()))
-            {
-                state.overrides.erase(role);
-                state.workingProfile.files.erase(role);
-                scanWorkingProfile(state);
-            }
+            drawFileRow(state, role);
         }
 
         ImGui::EndTable();

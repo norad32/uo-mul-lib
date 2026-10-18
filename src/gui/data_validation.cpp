@@ -1,6 +1,5 @@
 #include "gui/data_validation.h"
 #include "gui/data_profile.h"
-#include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include <algorithm>
@@ -19,15 +18,7 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::array<bool, 12> supportedRoles{
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
+constexpr std::array<bool, 4> supportedRoles{
     true,
     true,
     true,
@@ -48,13 +39,6 @@ void addDiagnostic(DataProfileValidation & result,
         .message = std::move(message),
         .fixSuggestions = std::move(suggestions),
     });
-}
-
-[[nodiscard]] bool dimensionsAreValid(const uomul::Dimensions & dimensions) noexcept
-{
-    return dimensions.widthTiles > 0 && dimensions.heightTiles > 0 &&
-           dimensions.widthTiles % uomul::mapBlockDimension == 0 &&
-           dimensions.heightTiles % uomul::mapBlockDimension == 0;
 }
 
 [[nodiscard]] DataFileValidation makeValidation(DataFileRole role, const std::filesystem::path & path)
@@ -201,56 +185,6 @@ void validateTexmaps(const DataProfile & profile, DataProfileValidation & result
                   {"Configure both texidx.mul and texmaps.mul."});
 }
 
-void validateMapRole(const DataProfile & profile, DataProfileValidation & result, std::size_t facetIndex)
-{
-    const auto role = static_cast<DataFileRole>(facetIndex);
-    auto * file = result.find(role);
-    if (isUnavailable(file))
-    {
-        return;
-    }
-
-    const auto & facet = profile.facets.at(facetIndex);
-    if (!facet.dimensions)
-    {
-        addDiagnostic(result,
-                      Diagnostic::Severity::info,
-                      role,
-                      file->path,
-                      "map dimensions are not configured; structural validation is incomplete");
-        return;
-    }
-
-    if (!dimensionsAreValid(*facet.dimensions))
-    {
-        addDiagnostic(result, Diagnostic::Severity::error, role, file->path, "map dimensions must be positive multiples of 8");
-        file->status = DataFileStatus::invalid;
-        return;
-    }
-
-    const uomul::OpenOptions options{.recoverTruncatedMap = facet.recoverTruncated};
-    auto reader = uomul::MapReader::open(file->path, *facet.dimensions, options);
-    if (!reader)
-    {
-        addDiagnostic(result, Diagnostic::Severity::error, role, file->path, reader.error().message);
-        file->status = DataFileStatus::invalid;
-        return;
-    }
-
-    if (!profile.files.at(role).userOverride)
-    {
-        file->status = DataFileStatus::foundAndValidated;
-    }
-}
-
-void validateMaps(const DataProfile & profile, DataProfileValidation & result)
-{
-    for (std::size_t facetIndex = 0; facetIndex < mapFacetCount; facetIndex++)
-    {
-        validateMapRole(profile, result, facetIndex);
-    }
-}
-
 void validateOutputFolder(const DataProfile & profile, DataProfileValidation & result)
 {
     if (profile.outputRoot.empty() && !profile.useSourceFolderForOutput)
@@ -332,7 +266,6 @@ DataProfileValidation validateDataProfile(const DataProfile & profile)
     validateKnownFiles(profile, result);
     validateRadarcol(profile, result);
     validateTexmaps(profile, result);
-    validateMaps(profile, result);
     validateOutputFolder(profile, result);
     return result;
 }

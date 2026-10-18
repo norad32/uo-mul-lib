@@ -457,21 +457,6 @@ void validateTexturePairs(DataDiscoveryResult & result)
     return false;
 }
 
-void addDeferredMapDiagnostics(DataDiscoveryResult & result)
-{
-    for (const auto & file : result.files)
-    {
-        if (isMapRole(file.role) && file.status == DataFileStatus::found)
-        {
-            addDiagnostic(result,
-                          Diagnostic::Severity::info,
-                          result.sourceRoot,
-                          "map dimensions are not inferred during discovery; validation is deferred",
-                          file.role);
-        }
-    }
-}
-
 } // namespace
 
 DiscoveredDataFile * DataDiscoveryResult::find(DataFileRole role) noexcept
@@ -517,7 +502,6 @@ DataDiscoveryResult discoverDataFiles(const std::filesystem::path & root, Discov
     const auto directories = scanDirectories(result.sourceRoot, mode, result);
     collectCandidates(result.sourceRoot, directories, options.validateCandidates, result);
     validateTexturePairs(result);
-    addDeferredMapDiagnostics(result);
     return result;
 }
 

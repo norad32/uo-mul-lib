@@ -1,7 +1,8 @@
 #pragma once
 
 #include "gui/map_workspace.h"
-#include "gui/data_profile.h"
+#include "gui/notification_state.h"
+#include "gui/operation_controller.h"
 #include "uomul/map.h"
 #include <array>
 #include <cstddef>
@@ -53,6 +54,9 @@ struct PendingMapOperation
 
 struct NewMapDialogState
 {
+    OperationController * controller = nullptr;
+    NotificationState * notifications = nullptr;
+    OutputCollisionPolicy collisionPolicy = OutputCollisionPolicy::confirm;
     std::array<char, mapDialogPathBufferSize> openPath{};
     std::array<char, mapDialogPathBufferSize> newMapPath{};
     std::array<char, mapDialogPathBufferSize> savePath{};
@@ -61,8 +65,11 @@ struct NewMapDialogState
     std::uint32_t newMapWidth = defaultMapDialogWidth;
     std::uint32_t newMapHeight = defaultMapDialogHeight;
     int openFacet = 1;
-    int openMapRole = 0;
-    bool openProfileInitialized = false;
+    bool openPickerRequested = false;
+    std::filesystem::path openPickerDirectory;
+    std::filesystem::path openPickerSelection;
+    std::array<char, mapDialogPathBufferSize> openPickerLocation{};
+    std::string openPickerError;
     int newMapFacet = 1;
     int initialTileId = 0;
     int initialTileZ = 0;
@@ -77,8 +84,16 @@ struct NewMapDialogState
 };
 
 void drawNewMapDialog(MapWorkspace & workspace,
-                      const DataProfile & profile,
                       NewMapDialogState & state,
+                      OperationController & controller,
+                      OutputCollisionPolicy collisionPolicy,
+                      NotificationState & notifications,
                       bool & shouldClose);
+
+void requestCloseOperation(MapWorkspace & workspace,
+                           NewMapDialogState & state,
+                           OperationController & controller,
+                           PendingMapOperationKind kind,
+                           NotificationState & notifications);
 
 } // namespace uo_mule::gui

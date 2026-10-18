@@ -1,6 +1,5 @@
 #include "gui/data_profile.h"
 #include <array>
-#include <cstddef>
 #include <filesystem>
 #include <optional>
 #include <string_view>
@@ -12,15 +11,7 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::array<DataFileRole, 12> roles{
-    DataFileRole::map0,
-    DataFileRole::map1,
-    DataFileRole::map2,
-    DataFileRole::map3,
-    DataFileRole::map4,
-    DataFileRole::map5,
-    DataFileRole::map6,
-    DataFileRole::map7,
+constexpr std::array<DataFileRole, 4> roles{
     DataFileRole::radarcol,
     DataFileRole::texidx,
     DataFileRole::texmaps,
@@ -39,22 +30,6 @@ std::string_view dataFileRoleName(DataFileRole role) noexcept
 {
     switch (role)
     {
-        case DataFileRole::map0 :
-            return "map0";
-        case DataFileRole::map1 :
-            return "map1";
-        case DataFileRole::map2 :
-            return "map2";
-        case DataFileRole::map3 :
-            return "map3";
-        case DataFileRole::map4 :
-            return "map4";
-        case DataFileRole::map5 :
-            return "map5";
-        case DataFileRole::map6 :
-            return "map6";
-        case DataFileRole::map7 :
-            return "map7";
         case DataFileRole::radarcol :
             return "radarcol";
         case DataFileRole::texidx :
@@ -155,33 +130,6 @@ std::optional<OutputCollisionPolicy> outputCollisionPolicyFromName(std::string_v
         }
     }
     return std::nullopt;
-}
-
-bool isMapRole(DataFileRole role) noexcept
-{
-    switch (role)
-    {
-        case DataFileRole::map0 :
-        case DataFileRole::map1 :
-        case DataFileRole::map2 :
-        case DataFileRole::map3 :
-        case DataFileRole::map4 :
-        case DataFileRole::map5 :
-        case DataFileRole::map6 :
-        case DataFileRole::map7 :
-            return true;
-        case DataFileRole::radarcol :
-        case DataFileRole::texidx :
-        case DataFileRole::texmaps :
-        case DataFileRole::tiledata :
-            return false;
-    }
-    return false;
-}
-
-std::size_t mapRoleIndex(DataFileRole role) noexcept
-{
-    return static_cast<std::size_t>(role);
 }
 
 std::filesystem::path resolvedDataFilePath(const DataProfile & profile, DataFileRole role)

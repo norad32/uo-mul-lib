@@ -1,7 +1,5 @@
 #pragma once
 
-#include "uomul/map.h"
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -14,18 +12,8 @@
 namespace uo_mule::gui
 {
 
-inline constexpr std::size_t mapFacetCount = 8;
-
 enum class DataFileRole : std::uint8_t
 {
-    map0,
-    map1,
-    map2,
-    map3,
-    map4,
-    map5,
-    map6,
-    map7,
     radarcol,
     texidx,
     texmaps,
@@ -81,13 +69,6 @@ struct DataFileEntry
     bool userOverride = false;
 };
 
-struct MapFacetConfiguration
-{
-    std::string facet;
-    std::optional<uomul::Dimensions> dimensions;
-    bool recoverTruncated = false;
-};
-
 struct DataProfile
 {
     static constexpr std::uint32_t currentSchemaVersion = 1;
@@ -102,7 +83,6 @@ struct DataProfile
     OutputCollisionPolicy outputCollisionPolicy = OutputCollisionPolicy::confirm;
     bool allowSourceOutputSame = false;
     std::map<DataFileRole, DataFileEntry> files;
-    std::array<MapFacetConfiguration, mapFacetCount> facets{};
 };
 
 [[nodiscard]] const std::vector<DataFileRole> & knownDataFileRoles() noexcept;
@@ -114,8 +94,6 @@ struct DataProfile
 [[nodiscard]] std::string_view outputCollisionPolicyName(OutputCollisionPolicy policy) noexcept;
 [[nodiscard]] std::optional<OutputCollisionPolicy> outputCollisionPolicyFromName(std::string_view name) noexcept;
 
-[[nodiscard]] bool isMapRole(DataFileRole role) noexcept;
-[[nodiscard]] std::size_t mapRoleIndex(DataFileRole role) noexcept;
 [[nodiscard]] std::filesystem::path resolvedDataFilePath(const DataProfile & profile, DataFileRole role);
 
 } // namespace uo_mule::gui

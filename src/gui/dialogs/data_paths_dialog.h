@@ -27,7 +27,7 @@ struct DataPathPickerState
 {
     DataPathPickerMode mode = DataPathPickerMode::none;
     bool openRequested = false;
-    DataFileRole role = DataFileRole::map0;
+    DataFileRole role = DataFileRole::radarcol;
     std::filesystem::path directory;
     std::filesystem::path selectedPath;
     std::array<char, dataPathsDialogBufferSize> location{};

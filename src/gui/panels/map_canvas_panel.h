@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <unordered_map>
 #include <vector>
@@ -71,6 +72,8 @@ struct MapCanvasPanelState
 void drawMapCanvasPanel(MapWorkspace & workspace,
                         RadarcolPanelState & radarcolState,
                         MapCanvasPanelState & state,
+                        const std::function<void()> & openMap,
+                        const std::function<void()> & createMap,
                         bool & visible);
 
 } // namespace uo_mule::gui
