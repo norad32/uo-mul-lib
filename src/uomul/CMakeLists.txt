@@ -1,6 +1,7 @@
 add_library(
     uomul
     mul_common/mul_common.cpp
+    mul_common/output_transaction.cpp
     radarcol/radarcol_common.cpp
     radarcol/radarcol_editor.cpp
     radarcol/radarcol_reader.cpp

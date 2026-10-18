@@ -1,6 +1,8 @@
 #include "texmaps_common.h"
+#include "uomul/mul_common/mul_common.h"
 #include "uomul/texmaps/texmaps.h"
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 #include <expected>
 #include <fcntl.h>

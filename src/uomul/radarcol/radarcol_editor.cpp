@@ -1,5 +1,6 @@
 #include "radarcol_common.h"
 #include "uomul/mul_common/mul_common.h"
+#include "uomul/mul_common/output_transaction.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <array>
@@ -57,13 +58,17 @@ std::expected<void, Error> ensureActive(bool committed, bool failed, int descrip
 
 struct RadarColEditor::Impl
 {
-    std::filesystem::path output;
-    std::filesystem::path staging;
-    int descriptor = -1;
+    detail::OutputTransaction transaction;
+    detail::OutputTransaction::OutputId outputId = 0;
     std::uint32_t colors = 0;
-    bool overwrite = false;
     bool committed = false;
     bool failed = false;
+
+    [[nodiscard]] int descriptor() const { return transaction.descriptor(outputId); }
+
+    [[nodiscard]] const std::filesystem::path & output() const { return transaction.destination(outputId); }
+
+    [[nodiscard]] const std::filesystem::path & staging() const { return transaction.stagedPath(outputId); }
 };
 
 RadarColEditor::RadarColEditor(std::unique_ptr<Impl> impl) : impl_(std::move(impl))
@@ -112,26 +117,19 @@ std::expected<RadarColEditor, Error> RadarColEditor::create(const std::filesyste
     }
 
     auto impl = std::make_unique<Impl>();
-    impl->output = outputFile;
-    impl->overwrite = options.overwriteOutput;
-    auto temporaryDescriptor = detail::MulCommon::createTemporary(outputFile, impl->staging);
-
-    if (!temporaryDescriptor)
+    auto output = impl->transaction.addOutput(outputFile, options.overwriteOutput);
+    if (!output)
     {
-        return std::unexpected(temporaryDescriptor.error());
+        return std::unexpected(output.error());
     }
+    impl->outputId = *output;
 
-    detail::TemporaryPath cleanup(impl->staging);
-    detail::ScopedDescriptor stagingDescriptor(*temporaryDescriptor);
-
-    if (auto copied = stageSource(sourceDescriptor.get(), stagingDescriptor.get(), sourceSize, impl->staging); !copied)
+    if (auto copied = stageSource(sourceDescriptor.get(), impl->descriptor(), sourceSize, impl->staging()); !copied)
     {
         return std::unexpected(copied.error());
     }
 
-    impl->descriptor = stagingDescriptor.release();
     impl->colors = *colorCount;
-    cleanup.release();
 
     return RadarColEditor(std::move(impl));
 }
@@ -145,31 +143,24 @@ std::expected<RadarColEditor, Error> RadarColEditor::createEmpty(const std::file
     }
 
     auto impl = std::make_unique<Impl>();
-    impl->output = outputFile;
-    impl->overwrite = options.overwriteOutput;
-    auto temporaryDescriptor = detail::MulCommon::createTemporary(outputFile, impl->staging);
-
-    if (!temporaryDescriptor)
+    auto output = impl->transaction.addOutput(outputFile, options.overwriteOutput);
+    if (!output)
     {
-        return std::unexpected(temporaryDescriptor.error());
+        return std::unexpected(output.error());
+    }
+    impl->outputId = *output;
+
+    if (::ftruncate(impl->descriptor(), static_cast<off_t>(detail::RadarColCommon::tableByteSize)) != 0)
+    {
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, impl->staging(), 0, std::strerror(errno)));
     }
 
-    detail::TemporaryPath cleanup(impl->staging);
-    detail::ScopedDescriptor stagingDescriptor(*temporaryDescriptor);
-
-    if (::ftruncate(stagingDescriptor.get(), static_cast<off_t>(detail::RadarColCommon::tableByteSize)) != 0)
+    if (auto synced = impl->transaction.sync(impl->outputId, ErrorCode::io); !synced)
     {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, impl->staging, 0, std::strerror(errno)));
+        return std::unexpected(synced.error());
     }
 
-    if (::fsync(stagingDescriptor.get()) != 0)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, impl->staging, 0, std::strerror(errno)));
-    }
-
-    impl->descriptor = stagingDescriptor.release();
     impl->colors = radarColorCount;
-    cleanup.release();
 
     return RadarColEditor(std::move(impl));
 }
@@ -179,7 +170,7 @@ std::expected<void, Error> RadarColEditor::editMapColor(std::uint16_t mapId, Rad
     if (mapId >= radarMapColorCount)
     {
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidCoordinate,
-                                                            impl_ ? impl_->output : std::filesystem::path{},
+                                                            impl_ ? impl_->output() : std::filesystem::path{},
                                                             mapId,
                                                             "map color ID is outside the radar table"));
     }
@@ -199,7 +190,7 @@ std::expected<void, Error> RadarColEditor::editRawColor(std::uint32_t index, Rad
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, {}, 0, "editor is no longer active"));
     }
 
-    if (auto active = ensureActive(impl_->committed, impl_->failed, impl_->descriptor, impl_->output); !active)
+    if (auto active = ensureActive(impl_->committed, impl_->failed, impl_->descriptor(), impl_->output()); !active)
     {
         return active;
     }
@@ -207,11 +198,11 @@ std::expected<void, Error> RadarColEditor::editRawColor(std::uint32_t index, Rad
     const auto offset = detail::RadarColCommon::colorOffset(index);
     const auto bytes = detail::encodeLittleEndian(value);
 
-    if (!detail::MulCommon::writeExact(impl_->descriptor, bytes.data(), bytes.size(), offset))
+    if (!detail::MulCommon::writeExact(impl_->descriptor(), bytes.data(), bytes.size(), offset))
     {
         impl_->failed = true;
         return std::unexpected(
-            detail::MulCommon::makeError(ErrorCode::io, impl_->staging, offset, "could not stage radar color"));
+            detail::MulCommon::makeError(ErrorCode::io, impl_->staging(), offset, "could not stage radar color"));
     }
 
     impl_->colors = std::max(impl_->colors, index + 1);
@@ -225,43 +216,30 @@ std::expected<void, Error> RadarColEditor::commit()
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, {}, 0, "editor is no longer active"));
     }
 
-    if (auto active = ensureActive(impl_->committed, impl_->failed, impl_->descriptor, impl_->output); !active)
+    if (auto active = ensureActive(impl_->committed, impl_->failed, impl_->descriptor(), impl_->output()); !active)
     {
         return active;
     }
 
-    if (::fsync(impl_->descriptor) != 0)
+    if (auto synced = impl_->transaction.sync(impl_->outputId, ErrorCode::commitFailed); !synced)
     {
-        const auto error = detail::MulCommon::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
-        static_cast<void>(::close(impl_->descriptor));
-        impl_->descriptor = -1;
-        static_cast<void>(::unlink(impl_->staging.c_str()));
+        const Error & error = synced.error();
+        impl_->transaction.abort();
         impl_->committed = true;
         return std::unexpected(error);
     }
 
-    if (::close(impl_->descriptor) != 0)
+    if (auto closed = impl_->transaction.close(impl_->outputId, ErrorCode::commitFailed); !closed)
     {
-        const auto error = detail::MulCommon::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
-        impl_->descriptor = -1;
-        static_cast<void>(::unlink(impl_->staging.c_str()));
+        const Error & error = closed.error();
+        impl_->transaction.abort();
         impl_->committed = true;
         return std::unexpected(error);
     }
 
-    impl_->descriptor = -1;
-
-    auto published = detail::MulCommon::publishFile(impl_->staging, impl_->output, impl_->overwrite);
-
-    if (!published)
-    {
-        static_cast<void>(::unlink(impl_->staging.c_str()));
-        impl_->committed = true;
-        return published;
-    }
-
+    auto published = impl_->transaction.publish();
     impl_->committed = true;
-    return {};
+    return published;
 }
 
 void RadarColEditor::abort() noexcept
@@ -271,17 +249,7 @@ void RadarColEditor::abort() noexcept
         return;
     }
 
-    if (impl_->descriptor >= 0)
-    {
-        static_cast<void>(::close(impl_->descriptor));
-        impl_->descriptor = -1;
-    }
-
-    if (!impl_->committed && !impl_->staging.empty())
-    {
-        static_cast<void>(::unlink(impl_->staging.c_str()));
-    }
-
+    impl_->transaction.abort();
     impl_->committed = true;
 }
 

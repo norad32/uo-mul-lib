@@ -1,4 +1,6 @@
 #include "texmaps_common.h"
+#include "uomul/mul_common/mul_common.h"
+#include "uomul/texmaps/texmaps.h"
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -6,7 +8,6 @@
 #include <expected>
 #include <filesystem>
 #include <iterator>
-#include <limits>
 #include <vector>
 
 namespace uomul::detail
@@ -136,7 +137,7 @@ readTexMapsTexture(int descriptor, const std::filesystem::path & path, TexMapsIn
     for (std::size_t index = 0; index < image.pixels.size(); index++)
     {
         const std::array<std::byte, sizeof(std::uint16_t)> word{bytes.at(index * sizeof(std::uint16_t)),
-                                                                bytes.at((index * sizeof(std::uint16_t)) + 1)};
+                                                                bytes.at((index * sizeof(std::uint16_t)) + 1),};
         image.pixels.at(index) = decodeLittleEndian<std::uint16_t>(word);
     }
 

@@ -1,6 +1,7 @@
 #include "map_common.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
+#include "uomul/mul_common/output_transaction.h"
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -196,13 +197,17 @@ std::expected<void, Error> validateEditRequest(bool committed,
 struct MapEditor::Impl
 {
     std::filesystem::path source;
-    std::filesystem::path output;
-    std::filesystem::path staging;
     Dimensions dimensions{};
-    int descriptor = -1;
-    bool overwrite = false;
+    detail::OutputTransaction transaction;
+    detail::OutputTransaction::OutputId outputId = 0;
     bool committed = false;
     bool failed = false;
+
+    [[nodiscard]] int descriptor() const { return transaction.descriptor(outputId); }
+
+    [[nodiscard]] const std::filesystem::path & output() const { return transaction.destination(outputId); }
+
+    [[nodiscard]] const std::filesystem::path & staging() const { return transaction.stagedPath(outputId); }
 };
 
 MapEditor::MapEditor(std::unique_ptr<Impl> impl) : impl_(std::move(impl))
@@ -242,30 +247,25 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
 
     auto impl = std::make_unique<Impl>();
     impl->source = sourceMap;
-    impl->output = outputMap;
     impl->dimensions = dimensions;
-    impl->overwrite = options.overwriteOutput;
-    auto temporaryDescriptor = detail::MulCommon::createTemporary(outputMap, impl->staging);
-    if (!temporaryDescriptor)
+    auto output = impl->transaction.addOutput(outputMap, options.overwriteOutput);
+    if (!output)
     {
-        return std::unexpected(temporaryDescriptor.error());
+        return std::unexpected(output.error());
     }
-    detail::TemporaryPath stagingCleanup(impl->staging);
-    detail::ScopedDescriptor stagedDescriptor(*temporaryDescriptor);
+    impl->outputId = *output;
     const detail::ScopedDescriptor sourceDescriptor(::open(sourceMap.c_str(), O_RDONLY | O_CLOEXEC));
     if (sourceDescriptor.get() < 0)
     {
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, sourceMap, 0, std::strerror(errno)));
     }
     const auto totalBytes = source->completeBlocks() * MapCommon::mapBlockByteSize;
-    if (auto staged = stageSourceMap(sourceDescriptor.get(), stagedDescriptor.get(), totalBytes, sourceMap, impl->staging);
+    if (auto staged = stageSourceMap(sourceDescriptor.get(), impl->descriptor(), totalBytes, sourceMap, impl->staging());
         !staged)
     {
         return std::unexpected(staged.error());
     }
 
-    impl->descriptor = stagedDescriptor.release();
-    stagingCleanup.release();
     return MapEditor(std::move(impl));
 }
 
@@ -306,14 +306,15 @@ MapEditor::createEmpty(const std::filesystem::path & outputMap, Dimensions dimen
             ErrorCode::io, outputMap, 0, statusError ? statusError.message() : "output must be a regular file"));
     }
 
-    std::filesystem::path staging;
-    auto temporaryDescriptor = detail::MulCommon::createTemporary(outputMap, staging);
-    if (!temporaryDescriptor)
+    detail::OutputTransaction transaction;
+    auto stagedOutput = transaction.addOutput(outputMap, options.overwriteOutput);
+    if (!stagedOutput)
     {
-        return std::unexpected(temporaryDescriptor.error());
+        return std::unexpected(stagedOutput.error());
     }
-    detail::TemporaryPath stagingCleanup(staging);
-    detail::ScopedDescriptor stagedDescriptor(*temporaryDescriptor);
+    const auto outputId = *stagedOutput;
+    const int stagedDescriptor = transaction.descriptor(outputId);
+    const auto & staging = transaction.stagedPath(outputId);
 
     MapBlock block{};
     block.fill(initialTile);
@@ -324,7 +325,7 @@ MapEditor::createEmpty(const std::filesystem::path & outputMap, Dimensions dimen
         for (std::uint32_t y = 0; y < dimensions.heightTiles / mapBlockDimension; y++)
         {
             const auto offset = MapCommon::blockOffset({.x = x, .y = y}, dimensions);
-            if (!detail::MulCommon::writeExact(stagedDescriptor.get(), raw.data(), raw.size(), offset))
+            if (!detail::MulCommon::writeExact(stagedDescriptor, raw.data(), raw.size(), offset))
             {
                 return std::unexpected(
                     detail::MulCommon::makeError(ErrorCode::io, staging, offset, "failed to write initialized map block"));
@@ -332,26 +333,21 @@ MapEditor::createEmpty(const std::filesystem::path & outputMap, Dimensions dimen
         }
     }
 
-    if (::fsync(stagedDescriptor.get()) != 0)
+    if (auto synced = transaction.sync(outputId, ErrorCode::io); !synced)
     {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, staging, 0, std::strerror(errno)));
+        return synced;
     }
-    if (stagedDescriptor.close() != 0)
+    if (auto closed = transaction.close(outputId, ErrorCode::io); !closed)
     {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, staging, 0, std::strerror(errno)));
+        return closed;
     }
 
-    if (auto published = detail::MulCommon::publishFile(staging, outputMap, options.overwriteOutput); !published)
-    {
-        return published;
-    }
-    stagingCleanup.release();
-    return {};
+    return transaction.publish();
 }
 
 std::expected<void, Error> MapEditor::editBlock(BlockCoord block, const MapBlock & data)
 {
-    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
+    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor(), impl_->failed, impl_->output()); !active)
     {
         return active;
     }
@@ -362,16 +358,16 @@ std::expected<void, Error> MapEditor::editBlock(BlockCoord block, const MapBlock
 
     MapBlockBytes raw{};
     const auto offset = MapCommon::blockOffset(block, impl_->dimensions);
-    if (!detail::MulCommon::readExact(impl_->descriptor, raw.data(), raw.size(), offset))
+    if (!detail::MulCommon::readExact(impl_->descriptor(), raw.data(), raw.size(), offset))
     {
         return std::unexpected(
-            detail::MulCommon::makeError(ErrorCode::io, impl_->staging, offset, "could not read staged block"));
+            detail::MulCommon::makeError(ErrorCode::io, impl_->staging(), offset, "could not read staged block"));
     }
     MapCommon::encodeBlock(raw, data);
-    if (!detail::MulCommon::writeExact(impl_->descriptor, raw.data(), raw.size(), offset))
+    if (!detail::MulCommon::writeExact(impl_->descriptor(), raw.data(), raw.size(), offset))
     {
         return std::unexpected(
-            detail::MulCommon::makeError(ErrorCode::io, impl_->staging, offset, "could not stage land block"));
+            detail::MulCommon::makeError(ErrorCode::io, impl_->staging(), offset, "could not stage land block"));
     }
 
     return {};
@@ -379,7 +375,7 @@ std::expected<void, Error> MapEditor::editBlock(BlockCoord block, const MapBlock
 
 std::expected<void, Error> MapEditor::editTile(TileCoord tile, MapTile data)
 {
-    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
+    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor(), impl_->failed, impl_->output()); !active)
     {
         return active;
     }
@@ -392,15 +388,15 @@ std::expected<void, Error> MapEditor::editTile(TileCoord tile, MapTile data)
     const auto tileOffset = MapCommon::blockOffset(coordinate, impl_->dimensions) + MapCommon::mapHeaderByteSize +
                             (detail::tileIndexInBlock(tile) * MapCommon::mapTileByteSize);
     const auto raw = detail::encodeTile(data);
-    if (!detail::MulCommon::descriptorContainsRange(impl_->descriptor, tileOffset, raw.size()))
+    if (!detail::MulCommon::descriptorContainsRange(impl_->descriptor(), tileOffset, raw.size()))
     {
         return std::unexpected(detail::MulCommon::makeError(
-            ErrorCode::truncatedInput, impl_->staging, tileOffset, "could not read complete land block"));
+            ErrorCode::truncatedInput, impl_->staging(), tileOffset, "could not read complete land block"));
     }
-    if (!detail::MulCommon::writeExact(impl_->descriptor, raw.data(), raw.size(), tileOffset))
+    if (!detail::MulCommon::writeExact(impl_->descriptor(), raw.data(), raw.size(), tileOffset))
     {
         return std::unexpected(
-            detail::MulCommon::makeError(ErrorCode::io, impl_->staging, tileOffset, "could not stage land tile"));
+            detail::MulCommon::makeError(ErrorCode::io, impl_->staging(), tileOffset, "could not stage land tile"));
     }
     return {};
 }
@@ -694,9 +690,9 @@ std::expected<void, Error> applyJournaledEdit(int stagedDescriptor,
 std::expected<void, Error> MapEditor::editBlocks(BlockRegion region, const MapBlockEdit & callback)
 {
     if (auto valid = validateEditRequest(impl_->committed,
-                                         impl_->descriptor,
+                                         impl_->descriptor(),
                                          impl_->failed,
-                                         impl_->output,
+                                         impl_->output(),
                                          impl_->source,
                                          region,
                                          callback,
@@ -707,15 +703,15 @@ std::expected<void, Error> MapEditor::editBlocks(BlockRegion region, const MapBl
     }
 
     return applyJournaledEdit(
-        impl_->descriptor, impl_->staging, impl_->output, impl_->dimensions, region, callback, impl_->failed);
+        impl_->descriptor(), impl_->staging(), impl_->output(), impl_->dimensions, region, callback, impl_->failed);
 }
 
 std::expected<void, Error> MapEditor::editTiles(TileRegion region, const MapTileEdit & callback)
 {
     if (auto valid = validateEditRequest(impl_->committed,
-                                         impl_->descriptor,
+                                         impl_->descriptor(),
                                          impl_->failed,
-                                         impl_->output,
+                                         impl_->output(),
                                          impl_->source,
                                          region,
                                          callback,
@@ -727,9 +723,9 @@ std::expected<void, Error> MapEditor::editTiles(TileRegion region, const MapTile
 
     const auto blocks = detail::blockRegionForTiles(region);
     return applyJournaledEdit(
-        impl_->descriptor,
-        impl_->staging,
-        impl_->output,
+        impl_->descriptor(),
+        impl_->staging(),
+        impl_->output(),
         impl_->dimensions,
         blocks,
         [&region, &callback](BlockCoord coordinate, const MapBlock & current) -> std::expected<MapBlock, Error>
@@ -854,42 +850,30 @@ std::expected<void, Error> MapEditor::replaceZBlocks(BlockRegion region, std::in
 
 std::expected<void, Error> MapEditor::commit()
 {
-    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor, impl_->failed, impl_->output); !active)
+    if (auto active = ensureEditorActive(impl_->committed, impl_->descriptor(), impl_->failed, impl_->output()); !active)
     {
         return active;
     }
 
-    if (::fsync(impl_->descriptor) != 0)
+    if (auto synced = impl_->transaction.sync(impl_->outputId, ErrorCode::commitFailed); !synced)
     {
-        const auto error = detail::MulCommon::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
-        static_cast<void>(::close(impl_->descriptor));
-        impl_->descriptor = -1;
-        static_cast<void>(::unlink(impl_->staging.c_str()));
+        const Error & error = synced.error();
+        impl_->transaction.abort();
         impl_->committed = true;
         return std::unexpected(error);
     }
 
-    if (::close(impl_->descriptor) != 0)
+    if (auto closed = impl_->transaction.close(impl_->outputId, ErrorCode::commitFailed); !closed)
     {
-        const auto error = detail::MulCommon::makeError(ErrorCode::commitFailed, impl_->staging, 0, std::strerror(errno));
-        impl_->descriptor = -1;
-        static_cast<void>(::unlink(impl_->staging.c_str()));
+        const Error & error = closed.error();
+        impl_->transaction.abort();
         impl_->committed = true;
         return std::unexpected(error);
     }
 
-    impl_->descriptor = -1;
-
-    auto result = detail::MulCommon::publishFile(impl_->staging, impl_->output, impl_->overwrite);
-    if (!result)
-    {
-        static_cast<void>(::unlink(impl_->staging.c_str()));
-        impl_->committed = true;
-        return result;
-    }
-
+    auto result = impl_->transaction.publish();
     impl_->committed = true;
-    return {};
+    return result;
 }
 
 void MapEditor::abort() noexcept
@@ -899,17 +883,7 @@ void MapEditor::abort() noexcept
         return;
     }
 
-    if (impl_->descriptor >= 0)
-    {
-        static_cast<void>(::close(impl_->descriptor));
-        impl_->descriptor = -1;
-    }
-
-    if (!impl_->committed && !impl_->staging.empty())
-    {
-        static_cast<void>(::unlink(impl_->staging.c_str()));
-    }
-
+    impl_->transaction.abort();
     impl_->committed = true;
 }
 

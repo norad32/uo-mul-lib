@@ -1,6 +1,6 @@
 #pragma once
 
-#include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -71,8 +71,8 @@ public:
      *  @retval value Reader for the validated texture pair.
      *  @retval error Invalid paths, malformed index entries, or data-range errors.
      */
-    [[nodiscard]] static std::expected<TexMapsReader, Error>
-    open(const std::filesystem::path & indexFile, const std::filesystem::path & dataFile);
+    [[nodiscard]] static std::expected<TexMapsReader, Error> open(const std::filesystem::path & indexFile,
+                                                                  const std::filesystem::path & dataFile);
 
     /** @brief Returns the number of complete 12-byte index slots.
      *  @retval value Number of slots present, at most 0x4000.
@@ -118,12 +118,11 @@ public:
      *  @retval value Editor for the staged texture pair.
      *  @retval error Invalid paths, malformed input pair, or staging I/O failure details.
      */
-    [[nodiscard]] static std::expected<TexMapsEditor, Error>
-    create(const std::filesystem::path & sourceIndex,
-           const std::filesystem::path & sourceData,
-           const std::filesystem::path & outputIndex,
-           const std::filesystem::path & outputData,
-           TexMapsEditOptions options = {});
+    [[nodiscard]] static std::expected<TexMapsEditor, Error> create(const std::filesystem::path & sourceIndex,
+                                                                    const std::filesystem::path & sourceData,
+                                                                    const std::filesystem::path & outputIndex,
+                                                                    const std::filesystem::path & outputData,
+                                                                    TexMapsEditOptions options = {});
 
     /** @brief Creates an editor for a new empty texture pair.
      *  The index contains 0x4000 empty entries and the payload file is empty.
@@ -133,10 +132,9 @@ public:
      *  @retval value Editor for the new staged texture pair.
      *  @retval error Invalid paths or staging I/O failure details.
      */
-    [[nodiscard]] static std::expected<TexMapsEditor, Error>
-    createEmpty(const std::filesystem::path & outputIndex,
-                const std::filesystem::path & outputData,
-                TexMapsEditOptions options = {});
+    [[nodiscard]] static std::expected<TexMapsEditor, Error> createEmpty(const std::filesystem::path & outputIndex,
+                                                                         const std::filesystem::path & outputData,
+                                                                         TexMapsEditOptions options = {});
 
     /** @brief Replaces or fills one texture slot and updates its index entry.
      *  The new payload is appended to the staged texmaps.mul; the previous payload, if any,
@@ -161,7 +159,8 @@ public:
      *  payload, rebuilds the data file with unique referenced payloads, and preserves empty entries.
      *  Equality is determined by full pixel comparison, not hash equality alone.
      *  @retval value Counts of scanned entries, unique payloads, duplicates, and bytes before/after.
-     *  @retval error Inactive editor, malformed staged pair, or staging I/O failure details; failure leaves the editor state unchanged.
+     *  @retval error Inactive editor, malformed staged pair, or staging I/O failure details; failure leaves the editor state
+     * unchanged.
      */
     [[nodiscard]] std::expected<TextureDeduplicationReport, Error> deduplicateTextures();
 

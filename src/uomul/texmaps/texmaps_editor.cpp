@@ -1,5 +1,6 @@
 #include "texmaps_common.h"
 #include "uomul/mul_common/mul_common.h"
+#include "uomul/mul_common/output_transaction.h"
 #include "uomul/texmaps/texmaps.h"
 #include <algorithm>
 #include <array>
@@ -11,7 +12,6 @@
 #include <expected>
 #include <fcntl.h>
 #include <filesystem>
-#include <iterator>
 #include <limits>
 #include <memory>
 #include <string>
@@ -33,7 +33,6 @@ using detail::encodeTexMapsEntry;
 using detail::encodeTexMapsTexture;
 using detail::loadTexMapsIndex;
 using detail::readTexMapsTexture;
-constexpr int temporaryPathAttempts = 16;
 constexpr std::uint64_t fnvOffsetBasis = 1469598103934665603ULL;
 constexpr std::uint64_t fnvPrime = 1099511628211ULL;
 constexpr std::uint32_t byteMask = std::numeric_limits<std::uint8_t>::max();
@@ -180,6 +179,16 @@ std::expected<void, Error> validatePairPaths(const std::filesystem::path & outpu
     return {};
 }
 
+std::expected<void, Error> syncDescriptor(int descriptor, const std::filesystem::path & path, ErrorCode code)
+{
+    if (::fsync(descriptor) != 0)
+    {
+        return std::unexpected(detail::MulCommon::makeError(code, path, 0, std::strerror(errno)));
+    }
+
+    return {};
+}
+
 std::expected<void, Error> copyFile(int source, int destination, std::uint64_t size, const std::filesystem::path & path)
 {
     constexpr std::size_t bufferSize = 65536;
@@ -198,36 +207,6 @@ std::expected<void, Error> copyFile(int source, int destination, std::uint64_t s
     }
 
     return {};
-}
-
-std::expected<void, Error> syncDescriptor(int descriptor, const std::filesystem::path & path, ErrorCode code)
-{
-    if (::fsync(descriptor) != 0)
-    {
-        return std::unexpected(detail::MulCommon::makeError(code, path, 0, std::strerror(errno)));
-    }
-
-    return {};
-}
-
-std::expected<std::filesystem::path, Error> linkBackup(const std::filesystem::path & source)
-{
-    for (int attempt = 0; attempt < temporaryPathAttempts; attempt++)
-    {
-        auto backup = detail::MulCommon::temporaryPath(source);
-        if (::link(source.c_str(), backup.c_str()) == 0)
-        {
-            return backup;
-        }
-
-        if (errno != EEXIST)
-        {
-            return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, source, 0, std::strerror(errno)));
-        }
-    }
-
-    return std::unexpected(
-        detail::MulCommon::makeError(ErrorCode::commitFailed, source, 0, "unable to allocate pair backup path"));
 }
 
 [[nodiscard]] std::uint64_t hashTexture(const TextureImage & texture)
@@ -261,6 +240,27 @@ writeAt(int descriptor, const std::byte * data, std::size_t size, std::uint64_t 
     }
 
     return {};
+}
+
+std::expected<std::filesystem::path, Error> linkBackup(const std::filesystem::path & source)
+{
+    constexpr int maximumAttempts = 16;
+    for (int attempt = 0; attempt < maximumAttempts; attempt++)
+    {
+        auto backup = detail::MulCommon::temporaryPath(source);
+        if (::link(source.c_str(), backup.c_str()) == 0)
+        {
+            return backup;
+        }
+
+        if (errno != EEXIST)
+        {
+            return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, source, 0, std::strerror(errno)));
+        }
+    }
+
+    return std::unexpected(
+        detail::MulCommon::makeError(ErrorCode::commitFailed, source, 0, "unable to allocate pair backup path"));
 }
 
 std::expected<void, Error>
@@ -434,141 +434,6 @@ std::expected<void, Error> replaceStagedPair(const std::filesystem::path & curre
     return {};
 }
 
-std::expected<void, Error>
-publishOutputFile(const std::filesystem::path & staged, const std::filesystem::path & destination, bool overwrite)
-{
-    const int result = overwrite ? ::rename(staged.c_str(), destination.c_str()) : ::link(staged.c_str(), destination.c_str());
-    if (result != 0)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, destination, 0, std::strerror(errno)));
-    }
-
-    return {};
-}
-
-struct OutputBackups
-{
-    std::filesystem::path index;
-    std::filesystem::path data;
-};
-
-void removeBackup(const std::filesystem::path & path) noexcept
-{
-    if (!path.empty())
-    {
-        static_cast<void>(::unlink(path.c_str()));
-    }
-}
-
-std::expected<OutputBackups, Error>
-makeOutputBackups(const std::filesystem::path & outputIndex, const std::filesystem::path & outputData, bool overwrite)
-{
-    OutputBackups backups;
-    if (!overwrite)
-    {
-        return backups;
-    }
-
-    std::error_code error;
-    const bool indexExists = std::filesystem::exists(outputIndex, error);
-
-    if (error)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, outputIndex, 0, error.message()));
-    }
-
-    if (indexExists)
-    {
-        auto backup = linkBackup(outputIndex);
-        if (!backup)
-        {
-            return std::unexpected(backup.error());
-        }
-        backups.index = std::move(*backup);
-    }
-
-    error.clear();
-    const bool dataExists = std::filesystem::exists(outputData, error);
-
-    if (error)
-    {
-        removeBackup(backups.index);
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, outputData, 0, error.message()));
-    }
-
-    if (dataExists)
-    {
-        auto backup = linkBackup(outputData);
-        if (!backup)
-        {
-            removeBackup(backups.index);
-            return std::unexpected(backup.error());
-        }
-
-        backups.data = std::move(*backup);
-    }
-
-    return backups;
-}
-
-std::expected<void, Error> rollbackOutputPair(const OutputBackups & backups,
-                                              const std::filesystem::path & outputIndex,
-                                              const std::filesystem::path & outputData,
-                                              const Error & cause)
-{
-    const auto rollbackIndex = restoreBackup(backups.index, outputIndex, true);
-    const auto rollbackData = restoreBackup(backups.data, outputData, true);
-    const bool restored = rollbackIndex && rollbackData;
-    const std::string message =
-        cause.message + (restored ? "; rollback succeeded" : "; rollback failed; output pair may be inconsistent");
-    return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, outputData, 0, message));
-}
-
-std::expected<void, Error> publishOutputPair(const std::filesystem::path & stagedIndex,
-                                             const std::filesystem::path & stagedData,
-                                             const std::filesystem::path & outputIndex,
-                                             const std::filesystem::path & outputData,
-                                             bool overwrite)
-{
-    auto backups = makeOutputBackups(outputIndex, outputData, overwrite);
-    if (!backups)
-    {
-        return std::unexpected(backups.error());
-    }
-
-    auto publishedIndex = publishOutputFile(stagedIndex, outputIndex, overwrite);
-    if (!publishedIndex)
-    {
-        removeBackup(backups->index);
-        removeBackup(backups->data);
-        return std::unexpected(publishedIndex.error());
-    }
-
-    auto publishedData = publishOutputFile(stagedData, outputData, overwrite);
-    if (!publishedData)
-    {
-        return rollbackOutputPair(*backups, outputIndex, outputData, publishedData.error());
-    }
-
-    if (!overwrite)
-    {
-        const int indexCleanup = ::unlink(stagedIndex.c_str());
-        const int dataCleanup = ::unlink(stagedData.c_str());
-        if (indexCleanup != 0 || dataCleanup != 0)
-        {
-            return std::unexpected(detail::MulCommon::makeError(
-                ErrorCode::commitFailed, stagedIndex, 0, "outputs published but temporary links could not be removed"));
-        }
-
-        return {};
-    }
-
-    removeBackup(backups->index);
-    removeBackup(backups->data);
-
-    return {};
-}
-
 std::expected<void, Error> rollbackTextureAppend(int indexDescriptor,
                                                  int dataDescriptor,
                                                  std::vector<TextureIndexEntry> & entries,
@@ -700,15 +565,24 @@ std::expected<void, Error> stageTextureUpdate(int indexDescriptor,
 
 struct TexMapsEditor::Impl
 {
-    std::filesystem::path outputIndex;
-    std::filesystem::path outputData;
-    std::filesystem::path stagedIndex;
-    std::filesystem::path stagedData;
-    detail::ScopedDescriptor indexDescriptor;
-    detail::ScopedDescriptor dataDescriptor;
+    detail::OutputTransaction transaction;
+    detail::OutputTransaction::OutputId indexId = 0;
+    detail::OutputTransaction::OutputId dataId = 0;
     std::vector<TextureIndexEntry> entries;
     bool overwrite = false;
     bool active = true;
+
+    [[nodiscard]] int descriptor(detail::OutputTransaction::OutputId output) const { return transaction.descriptor(output); }
+
+    [[nodiscard]] const std::filesystem::path & stagedPath(detail::OutputTransaction::OutputId output) const
+    {
+        return transaction.stagedPath(output);
+    }
+
+    [[nodiscard]] const std::filesystem::path & destination(detail::OutputTransaction::OutputId output) const
+    {
+        return transaction.destination(output);
+    }
 };
 
 TexMapsEditor::TexMapsEditor(std::unique_ptr<Impl> impl) : impl_(std::move(impl))
@@ -768,25 +642,19 @@ std::expected<TexMapsEditor, Error> TexMapsEditor::create(const std::filesystem:
     }
 
     auto impl = std::make_unique<Impl>();
-    impl->outputIndex = outputIndex;
-    impl->outputData = outputData;
     impl->overwrite = options.overwriteOutput;
-
-    auto indexTemporary = detail::MulCommon::createTemporary(outputIndex, impl->stagedIndex);
-    if (!indexTemporary)
+    auto indexOutput = impl->transaction.addOutput(outputIndex, options.overwriteOutput);
+    if (!indexOutput)
     {
-        return std::unexpected(indexTemporary.error());
+        return std::unexpected(indexOutput.error());
     }
-    detail::TemporaryPath indexCleanup(impl->stagedIndex);
-    detail::ScopedDescriptor stagedIndex(*indexTemporary);
-
-    auto dataTemporary = detail::MulCommon::createTemporary(outputData, impl->stagedData);
-    if (!dataTemporary)
+    impl->indexId = *indexOutput;
+    auto dataOutput = impl->transaction.addOutput(outputData, options.overwriteOutput);
+    if (!dataOutput)
     {
-        return std::unexpected(dataTemporary.error());
+        return std::unexpected(dataOutput.error());
     }
-    detail::TemporaryPath dataCleanup(impl->stagedData);
-    detail::ScopedDescriptor stagedData(*dataTemporary);
+    impl->dataId = *dataOutput;
 
     auto indexSize = detail::MulCommon::regularFileSize(sourceIndexDescriptor.get(), sourceIndex, "texture index");
     if (!indexSize)
@@ -794,20 +662,20 @@ std::expected<TexMapsEditor, Error> TexMapsEditor::create(const std::filesystem:
         return std::unexpected(indexSize.error());
     }
 
-    if (auto copied = copyFile(sourceIndexDescriptor.get(), stagedIndex.get(), *indexSize, impl->stagedIndex); !copied)
+    if (auto copied =
+            copyFile(sourceIndexDescriptor.get(), impl->descriptor(impl->indexId), *indexSize, impl->stagedPath(impl->indexId));
+        !copied)
     {
         return std::unexpected(copied.error());
     }
 
-    if (auto copied = copyFile(sourceDataDescriptor.get(), stagedData.get(), *sourceDataSize, impl->stagedData); !copied)
+    if (auto copied = copyFile(
+            sourceDataDescriptor.get(), impl->descriptor(impl->dataId), *sourceDataSize, impl->stagedPath(impl->dataId));
+        !copied)
     {
         return std::unexpected(copied.error());
     }
-    impl->indexDescriptor = std::move(stagedIndex);
-    impl->dataDescriptor = std::move(stagedData);
     impl->entries = std::move(*entries);
-    indexCleanup.release();
-    dataCleanup.release();
 
     return TexMapsEditor(std::move(impl));
 }
@@ -822,27 +690,19 @@ std::expected<TexMapsEditor, Error> TexMapsEditor::createEmpty(const std::filesy
     }
 
     auto impl = std::make_unique<Impl>();
-    impl->outputIndex = outputIndex;
-    impl->outputData = outputData;
     impl->overwrite = options.overwriteOutput;
-
-    auto indexTemporary = detail::MulCommon::createTemporary(outputIndex, impl->stagedIndex);
-    if (!indexTemporary)
+    auto indexOutput = impl->transaction.addOutput(outputIndex, options.overwriteOutput);
+    if (!indexOutput)
     {
-        return std::unexpected(indexTemporary.error());
+        return std::unexpected(indexOutput.error());
     }
-
-    detail::TemporaryPath indexCleanup(impl->stagedIndex);
-    detail::ScopedDescriptor stagedIndex(*indexTemporary);
-
-    auto dataTemporary = detail::MulCommon::createTemporary(outputData, impl->stagedData);
-    if (!dataTemporary)
+    impl->indexId = *indexOutput;
+    auto dataOutput = impl->transaction.addOutput(outputData, options.overwriteOutput);
+    if (!dataOutput)
     {
-        return std::unexpected(dataTemporary.error());
+        return std::unexpected(dataOutput.error());
     }
-
-    detail::TemporaryPath dataCleanup(impl->stagedData);
-    detail::ScopedDescriptor stagedData(*dataTemporary);
+    impl->dataId = *dataOutput;
 
     const auto indexBytes = static_cast<std::uint64_t>(textureCount) * textureIndexEntryByteCount;
     if (indexBytes > static_cast<std::uint64_t>(std::numeric_limits<off_t>::max()))
@@ -851,16 +711,13 @@ std::expected<TexMapsEditor, Error> TexMapsEditor::createEmpty(const std::filesy
             ErrorCode::invalidFormat, outputIndex, 0, "empty texture index exceeds the supported file size"));
     }
 
-    if (::ftruncate(stagedIndex.get(), static_cast<off_t>(indexBytes)) != 0)
+    if (::ftruncate(impl->descriptor(impl->indexId), static_cast<off_t>(indexBytes)) != 0)
     {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, impl->stagedIndex, 0, std::strerror(errno)));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, impl->stagedPath(impl->indexId), 0, std::strerror(errno)));
     }
 
     impl->entries.resize(textureCount);
-    impl->indexDescriptor = std::move(stagedIndex);
-    impl->dataDescriptor = std::move(stagedData);
-    indexCleanup.release();
-    dataCleanup.release();
 
     return TexMapsEditor(std::move(impl));
 }
@@ -875,13 +732,13 @@ std::expected<void, Error> TexMapsEditor::editTexture(std::uint32_t id, const Te
     if (id >= textureCount)
     {
         return std::unexpected(detail::MulCommon::makeError(
-            ErrorCode::invalidCoordinate, impl_->stagedIndex, id, "texture ID is outside the supported range"));
+            ErrorCode::invalidCoordinate, impl_->stagedPath(impl_->indexId), id, "texture ID is outside the supported range"));
     }
 
-    auto updated = stageTextureUpdate(impl_->indexDescriptor.get(),
-                                      impl_->dataDescriptor.get(),
-                                      impl_->stagedIndex,
-                                      impl_->stagedData,
+    auto updated = stageTextureUpdate(impl_->descriptor(impl_->indexId),
+                                      impl_->descriptor(impl_->dataId),
+                                      impl_->stagedPath(impl_->indexId),
+                                      impl_->stagedPath(impl_->dataId),
                                       impl_->entries,
                                       id,
                                       texture);
@@ -904,7 +761,7 @@ std::expected<void, Error> TexMapsEditor::clearTexture(std::uint32_t id)
     if (id >= textureCount)
     {
         return std::unexpected(detail::MulCommon::makeError(
-            ErrorCode::invalidCoordinate, impl_->stagedIndex, id, "texture ID is outside the supported range"));
+            ErrorCode::invalidCoordinate, impl_->stagedPath(impl_->indexId), id, "texture ID is outside the supported range"));
     }
 
     const auto oldCount = impl_->entries.size();
@@ -916,14 +773,16 @@ std::expected<void, Error> TexMapsEditor::clearTexture(std::uint32_t id)
         const auto newIndexBytes = (static_cast<std::uint64_t>(id) + 1) * textureIndexEntryByteCount;
         if (newIndexBytes > static_cast<std::uint64_t>(std::numeric_limits<off_t>::max()))
         {
-            return std::unexpected(detail::MulCommon::makeError(
-                ErrorCode::invalidFormat, impl_->stagedIndex, oldIndexBytes, "texture index exceeds the supported file size"));
+            return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidFormat,
+                                                                impl_->stagedPath(impl_->indexId),
+                                                                oldIndexBytes,
+                                                                "texture index exceeds the supported file size"));
         }
 
-        if (::ftruncate(impl_->indexDescriptor.get(), static_cast<off_t>(newIndexBytes)) != 0)
+        if (::ftruncate(impl_->descriptor(impl_->indexId), static_cast<off_t>(newIndexBytes)) != 0)
         {
             return std::unexpected(detail::MulCommon::makeError(
-                ErrorCode::io, impl_->stagedIndex, static_cast<std::uint64_t>(oldSize), std::strerror(errno)));
+                ErrorCode::io, impl_->stagedPath(impl_->indexId), static_cast<std::uint64_t>(oldSize), std::strerror(errno)));
         }
 
         impl_->entries.resize(static_cast<std::size_t>(id) + 1);
@@ -932,15 +791,15 @@ std::expected<void, Error> TexMapsEditor::clearTexture(std::uint32_t id)
     const auto empty = encodeTexMapsEntry({});
     const auto offset = static_cast<std::uint64_t>(id) * textureIndexEntryByteCount;
 
-    if (!detail::MulCommon::writeExact(impl_->indexDescriptor.get(), empty.data(), empty.size(), offset))
+    if (!detail::MulCommon::writeExact(impl_->descriptor(impl_->indexId), empty.data(), empty.size(), offset))
     {
         const auto previous = encodeTexMapsEntry(oldEntry);
         const bool restored =
-            detail::MulCommon::writeExact(impl_->indexDescriptor.get(), previous.data(), previous.size(), offset);
+            detail::MulCommon::writeExact(impl_->descriptor(impl_->indexId), previous.data(), previous.size(), offset);
 
         if (id >= oldCount)
         {
-            static_cast<void>(::ftruncate(impl_->indexDescriptor.get(), oldSize));
+            static_cast<void>(::ftruncate(impl_->descriptor(impl_->indexId), oldSize));
             impl_->entries.resize(oldCount);
         }
 
@@ -951,7 +810,7 @@ std::expected<void, Error> TexMapsEditor::clearTexture(std::uint32_t id)
 
         return std::unexpected(detail::MulCommon::makeError(
             ErrorCode::io,
-            impl_->stagedIndex,
+            impl_->stagedPath(impl_->indexId),
             offset,
             restored ? "could not clear texture index entry" : "texture clear failed and staged rollback was incomplete"));
     }
@@ -967,14 +826,15 @@ std::expected<TextureDeduplicationReport, Error> TexMapsEditor::deduplicateTextu
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, {}, 0, "editor is no longer active"));
     }
 
-    auto inputSize = detail::MulCommon::regularFileSize(impl_->dataDescriptor.get(), impl_->stagedData, "texture data");
+    auto inputSize =
+        detail::MulCommon::regularFileSize(impl_->descriptor(impl_->dataId), impl_->stagedPath(impl_->dataId), "texture data");
     if (!inputSize)
     {
         return std::unexpected(inputSize.error());
     }
 
     std::filesystem::path replacementIndexPath;
-    auto replacementIndex = detail::MulCommon::createTemporary(impl_->stagedIndex, replacementIndexPath);
+    auto replacementIndex = detail::MulCommon::createTemporary(impl_->stagedPath(impl_->indexId), replacementIndexPath);
     if (!replacementIndex)
     {
         return std::unexpected(replacementIndex.error());
@@ -984,7 +844,7 @@ std::expected<TextureDeduplicationReport, Error> TexMapsEditor::deduplicateTextu
     detail::ScopedDescriptor indexDescriptor(*replacementIndex);
     std::filesystem::path replacementDataPath;
 
-    auto replacementData = detail::MulCommon::createTemporary(impl_->stagedData, replacementDataPath);
+    auto replacementData = detail::MulCommon::createTemporary(impl_->stagedPath(impl_->dataId), replacementDataPath);
     if (!replacementData)
     {
         return std::unexpected(replacementData.error());
@@ -992,8 +852,12 @@ std::expected<TextureDeduplicationReport, Error> TexMapsEditor::deduplicateTextu
 
     detail::TemporaryPath dataCleanup(replacementDataPath);
     detail::ScopedDescriptor dataDescriptor(*replacementData);
-    auto state = buildDeduplicatedPayload(
-        impl_->dataDescriptor.get(), dataDescriptor.get(), impl_->stagedData, replacementDataPath, impl_->entries, *inputSize);
+    auto state = buildDeduplicatedPayload(impl_->descriptor(impl_->dataId),
+                                          dataDescriptor.get(),
+                                          impl_->stagedPath(impl_->dataId),
+                                          replacementDataPath,
+                                          impl_->entries,
+                                          *inputSize);
 
     if (!state)
     {
@@ -1023,7 +887,8 @@ std::expected<TextureDeduplicationReport, Error> TexMapsEditor::deduplicateTextu
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, replacementIndexPath, 0, std::strerror(errno)));
     }
 
-    if (auto replaced = replaceStagedPair(impl_->stagedIndex, impl_->stagedData, replacementIndexPath, replacementDataPath);
+    if (auto replaced = replaceStagedPair(
+            impl_->stagedPath(impl_->indexId), impl_->stagedPath(impl_->dataId), replacementIndexPath, replacementDataPath);
         !replaced)
     {
         return std::unexpected(replaced.error());
@@ -1031,23 +896,27 @@ std::expected<TextureDeduplicationReport, Error> TexMapsEditor::deduplicateTextu
 
     indexCleanup.release();
     dataCleanup.release();
-    detail::ScopedDescriptor newIndex(::open(impl_->stagedIndex.c_str(), O_RDWR | O_CLOEXEC));
+    detail::ScopedDescriptor newIndex(::open(impl_->stagedPath(impl_->indexId).c_str(), O_RDWR | O_CLOEXEC));
 
     if (newIndex.get() < 0)
     {
+        impl_->transaction.abort();
         impl_->active = false;
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, impl_->stagedIndex, 0, std::strerror(errno)));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, impl_->stagedPath(impl_->indexId), 0, std::strerror(errno)));
     }
 
-    detail::ScopedDescriptor newData(::open(impl_->stagedData.c_str(), O_RDWR | O_CLOEXEC));
+    detail::ScopedDescriptor newData(::open(impl_->stagedPath(impl_->dataId).c_str(), O_RDWR | O_CLOEXEC));
     if (newData.get() < 0)
     {
+        impl_->transaction.abort();
         impl_->active = false;
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, impl_->stagedData, 0, std::strerror(errno)));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, impl_->stagedPath(impl_->dataId), 0, std::strerror(errno)));
     }
 
-    impl_->indexDescriptor = std::move(newIndex);
-    impl_->dataDescriptor = std::move(newData);
+    impl_->transaction.replaceDescriptor(impl_->indexId, std::move(newIndex));
+    impl_->transaction.replaceDescriptor(impl_->dataId, std::move(newData));
     impl_->entries = std::move(state->entries);
 
     return state->report;
@@ -1060,45 +929,36 @@ std::expected<void, Error> TexMapsEditor::commit()
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, {}, 0, "editor is no longer active"));
     }
 
-    if (auto synced = syncDescriptor(impl_->indexDescriptor.get(), impl_->stagedIndex, ErrorCode::commitFailed); !synced)
+    if (auto synced = impl_->transaction.sync(impl_->indexId, ErrorCode::commitFailed); !synced)
     {
         return synced;
     }
 
-    if (auto synced = syncDescriptor(impl_->dataDescriptor.get(), impl_->stagedData, ErrorCode::commitFailed); !synced)
+    if (auto synced = impl_->transaction.sync(impl_->dataId, ErrorCode::commitFailed); !synced)
     {
         return synced;
     }
 
-    if (const auto closed = impl_->indexDescriptor.close(); closed != 0)
+    if (auto closed = impl_->transaction.close(impl_->indexId, ErrorCode::commitFailed); !closed)
     {
-        return std::unexpected(
-            detail::MulCommon::makeError(ErrorCode::commitFailed, impl_->stagedIndex, 0, std::strerror(errno)));
+        return closed;
     }
 
-    if (const auto closed = impl_->dataDescriptor.close(); closed != 0)
+    if (auto closed = impl_->transaction.close(impl_->dataId, ErrorCode::commitFailed); !closed)
     {
-        return std::unexpected(
-            detail::MulCommon::makeError(ErrorCode::commitFailed, impl_->stagedData, 0, std::strerror(errno)));
+        return closed;
     }
 
-    if (auto valid = validatePairPaths(impl_->outputIndex, impl_->outputData, impl_->overwrite); !valid)
+    if (auto valid = validatePairPaths(impl_->destination(impl_->indexId), impl_->destination(impl_->dataId), impl_->overwrite);
+        !valid)
     {
         return std::unexpected(detail::MulCommon::makeError(
             ErrorCode::commitFailed, valid.error().path, valid.error().offset, valid.error().message));
     }
 
-    auto published =
-        publishOutputPair(impl_->stagedIndex, impl_->stagedData, impl_->outputIndex, impl_->outputData, impl_->overwrite);
-
-    if (!published)
-    {
-        impl_->active = false;
-        return std::unexpected(published.error());
-    }
-
+    auto published = impl_->transaction.publish();
     impl_->active = false;
-    return {};
+    return published;
 }
 
 void TexMapsEditor::abort() noexcept
@@ -1108,19 +968,7 @@ void TexMapsEditor::abort() noexcept
         return;
     }
 
-    static_cast<void>(impl_->indexDescriptor.close());
-    static_cast<void>(impl_->dataDescriptor.close());
-
-    if (!impl_->stagedIndex.empty())
-    {
-        static_cast<void>(::unlink(impl_->stagedIndex.c_str()));
-    }
-
-    if (!impl_->stagedData.empty())
-    {
-        static_cast<void>(::unlink(impl_->stagedData.c_str()));
-    }
-
+    impl_->transaction.abort();
     impl_->active = false;
 }
 
