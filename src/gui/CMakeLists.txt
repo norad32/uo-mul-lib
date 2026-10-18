@@ -14,18 +14,19 @@ include(GuiDependencies)
 add_library(
     gui
     application.cpp
-    block_inspector_panel.cpp
-    edit_tools_panel.cpp
     log_panel.cpp
-    map_canvas_panel.cpp
-    map_info_panel.cpp
     map_workspace.cpp
     menu_bar.cpp
     new_map_dialog.cpp
+    panels/block_inspector_panel.cpp
+    panels/common.cpp
+    panels/edit_tools_panel.cpp
+    panels/map_canvas_panel.cpp
+    panels/map_info_panel.cpp
     panels/radarcol_panel.cpp
-    preferences.cpp
-    selection_stats_panel.cpp
-    tile_inspector_panel.cpp)
+    panels/selection_stats_panel.cpp
+    panels/tile_inspector_panel.cpp
+    preferences.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(

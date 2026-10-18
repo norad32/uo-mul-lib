@@ -72,7 +72,8 @@ tileSelectionFromDrag(uomul::TileCoord first, uomul::TileCoord last, uomul::Dime
 [[nodiscard]] uomul::BlockRegion
 blockSelectionFromDrag(uomul::TileCoord first, uomul::TileCoord last, uomul::Dimensions dimensions) noexcept;
 [[nodiscard]] MapColor tileIdColor(std::uint16_t id) noexcept;
-[[nodiscard]] MapColor tileDisplayColor(MapDisplayMode mode, uomul::MapTile tile) noexcept;
+[[nodiscard]] MapColor
+tileDisplayColor(MapDisplayMode mode, uomul::MapTile tile, std::optional<MapColor> radarColor = std::nullopt) noexcept;
 [[nodiscard]] std::uint8_t zGrayscale(std::int8_t z) noexcept;
 
 class MapWorkspace

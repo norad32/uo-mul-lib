@@ -1,6 +1,7 @@
 #include "gui/menu_bar.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
+#include "gui/panels/common.h"
 #include <imgui.h>
 
 namespace uo_mule::gui
@@ -74,9 +75,7 @@ void drawFileMenu(MapWorkspace & workspace, MenuBarState & state, bool & shouldC
         if (!discarded)
         {
             openDialog(state, MapFileDialogMode::error);
-            state.fileDialog.error = discarded.error().path.empty()
-                                         ? discarded.error().message
-                                         : discarded.error().path.string() + ": " + discarded.error().message;
+            state.fileDialog.error = formatError(discarded.error());
         }
         else
         {

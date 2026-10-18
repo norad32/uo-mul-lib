@@ -20,6 +20,8 @@ struct MapCanvasCachedBlock
     std::uint64_t lastUsed = 0;
 };
 
+struct RadarcolPanelState;
+
 struct MapCanvasPanelState
 {
     MapCanvasPanelState() = default;
@@ -53,6 +55,7 @@ struct MapCanvasPanelState
     double lodPanY = 0.0;
     double lodZoom = 0.0;
     MapDisplayMode lodDisplayMode = MapDisplayMode::tileIds;
+    std::uint64_t lodRadarColorRevision = 0;
     std::optional<uomul::Error> lodReadError;
     bool lodCacheValid = false;
     std::filesystem::path documentPath;
@@ -62,6 +65,9 @@ struct MapCanvasPanelState
     bool panning = false;
 };
 
-void drawMapCanvasPanel(MapWorkspace & workspace, MapCanvasPanelState & state, bool & visible);
+void drawMapCanvasPanel(MapWorkspace & workspace,
+                        RadarcolPanelState & radarcolState,
+                        MapCanvasPanelState & state,
+                        bool & visible);
 
 } // namespace uo_mule::gui
