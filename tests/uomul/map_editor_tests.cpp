@@ -59,7 +59,8 @@ constexpr uomul::TileRegion smallTileRegion{.min = {.x = 0, .y = 0}, .maxExclusi
 [[nodiscard]] std::expected<uomul::MapBlock, uomul::Error>
 failEditedBlockAfterThreeCalls(std::uint32_t & callbackCount, uomul::BlockCoord coordinate, const uomul::MapBlock & current)
 {
-    if (callbackCount++ == 3)
+    callbackCount++;
+    if (callbackCount == 3)
     {
         return std::unexpected(
             uomul::Error{.code = uomul::ErrorCode::io, .path = {}, .offset = 0, .message = "callback failure"});
@@ -72,7 +73,8 @@ failEditedBlockAfterThreeCalls(std::uint32_t & callbackCount, uomul::BlockCoord 
 [[nodiscard]] std::expected<uomul::MapTile, uomul::Error>
 failEditedTileAfterFiveCalls(std::uint32_t & callbackCount, uomul::TileCoord coordinate, const uomul::MapTile & current)
 {
-    if (callbackCount++ == callbackFailureTileInvocation)
+    callbackCount++;
+    if (callbackCount == callbackFailureTileInvocation)
     {
         return std::unexpected(
             uomul::Error{.code = uomul::ErrorCode::io, .path = {}, .offset = 0, .message = "callback failure"});

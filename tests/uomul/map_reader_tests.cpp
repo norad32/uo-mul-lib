@@ -480,10 +480,11 @@ TEST_CASE("readBlocks_Should_PropagateCallbackError_If_CallbackFails")
     const auto result =
         reader->readBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = testRegionEnd, .y = testRegionEnd}},
                            [&callbackCount](uomul::BlockCoord, const uomul::MapBlock &) -> std::expected<void, uomul::Error>
-                           {
-                               if (callbackCount++ == callbackFailureInvocation)
-                               {
-                                   return std::unexpected(uomul::Error{
+                            {
+                                callbackCount++;
+                                if (callbackCount == callbackFailureInvocation)
+                                {
+                                    return std::unexpected(uomul::Error{
                                        .code = uomul::ErrorCode::io,
                                        .path = {},
                                        .offset = 0,
@@ -719,7 +720,8 @@ TEST_CASE("readTiles_Should_PropagateCallbackError_If_CallbackFailsAfterCrossing
         {.min = {.x = 7, .y = 0}, .maxExclusive = {.x = 9, .y = 1}},
         [&callbackCount](uomul::TileCoord, const uomul::MapTile &) -> std::expected<void, uomul::Error>
         {
-            if (callbackCount++ == 2)
+            callbackCount++;
+            if (callbackCount == 2)
             {
                 return std::unexpected(
                     uomul::Error{.code = uomul::ErrorCode::io, .path = {}, .offset = 0, .message = "tile callback failure"});
