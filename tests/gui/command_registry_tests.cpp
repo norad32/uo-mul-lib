@@ -51,3 +51,18 @@ TEST_CASE("commandRegistry_Should_DispatchRegisteredShortcuts")
     REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::newMap);
     REQUIRE_FALSE(state.commands.executeShortcut("Ctrl+P", state));
 }
+
+TEST_CASE("defaultCommands_Should_ExposeSeparateTileAndBlockNavigationCommands")
+{
+    const WorkbenchState state;
+
+    const auto * tile = state.commands.find(CommandId::mapGoToCoordinate);
+    REQUIRE(tile != nullptr);
+    REQUIRE(tile->label == "Go to Coordinate...");
+    REQUIRE(tile->defaultShortcut == "Ctrl+G");
+
+    const auto * block = state.commands.find(CommandId::mapGoToBlockCoordinate);
+    REQUIRE(block != nullptr);
+    REQUIRE(block->label == "Go to Block...");
+    REQUIRE(block->defaultShortcut.empty());
+}

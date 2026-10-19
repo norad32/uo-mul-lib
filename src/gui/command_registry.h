@@ -41,6 +41,7 @@ enum class CommandId : std::uint8_t
     mapCenterSelection,
     mapResetView,
     mapGoToCoordinate,
+    mapGoToBlockCoordinate,
 };
 
 struct CommandAvailability

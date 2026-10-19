@@ -138,19 +138,19 @@ TEST_CASE("workbenchSession_Should_RecordKnownFacetForRecentMapDimensions")
 
 TEST_CASE("parseCoordinate_Should_ParseTilesAndBlocks")
 {
-    const auto tile = uo_mule::gui::parseCoordinate("12, 34");
+    const auto tile = uo_mule::gui::parseCoordinate("12 34", uo_mule::gui::CoordinateKind::tile);
     REQUIRE(tile.has_value());
     REQUIRE(tile->kind == uo_mule::gui::CoordinateKind::tile);
     REQUIRE(tile->value.x == 12);
     REQUIRE(tile->value.y == 34);
 
-    const auto block = uo_mule::gui::parseCoordinate("block:2,3");
+    const auto block = uo_mule::gui::parseCoordinate("2 3", uo_mule::gui::CoordinateKind::block);
     REQUIRE(block.has_value());
     REQUIRE(block->kind == uo_mule::gui::CoordinateKind::block);
     REQUIRE(block->value.x == 2);
     REQUIRE(block->value.y == 3);
 
-    REQUIRE_FALSE(uo_mule::gui::parseCoordinate("invalid").has_value());
+    REQUIRE_FALSE(uo_mule::gui::parseCoordinate("invalid", uo_mule::gui::CoordinateKind::tile).has_value());
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)

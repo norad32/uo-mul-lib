@@ -121,6 +121,7 @@ void drawMapMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::mapCenterSelection);
     drawCommandItem(state, CommandId::mapResetView);
     drawCommandItem(state, CommandId::mapGoToCoordinate);
+    drawCommandItem(state, CommandId::mapGoToBlockCoordinate);
     ImGui::EndMenu();
 }
 

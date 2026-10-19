@@ -638,6 +638,17 @@ void drawLayerControls(MapWorkspace & workspace, MapCanvasPanelState & state)
     ImGui::SameLine();
     if (ImGui::Button("Go to Coordinate..."))
     {
+        state.coordinateInputKind = CoordinateKind::tile;
+        state.coordinateInputFocusRequested = true;
+        state.coordinateInput.fill('\0');
+        state.coordinatePopupRequested = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Go to Block..."))
+    {
+        state.coordinateInputKind = CoordinateKind::block;
+        state.coordinateInputFocusRequested = true;
+        state.coordinateInput.fill('\0');
         state.coordinatePopupRequested = true;
     }
 }
@@ -771,6 +782,7 @@ void drawCoordinatePopup(MapCanvasPanelState & state)
     constexpr auto coordinateDialogFlags = static_cast<ImGuiWindowFlags>(
         static_cast<unsigned int>(ImGuiWindowFlags_AlwaysAutoResize) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoDocking) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoTitleBar) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings));
     if (!ImGui::Begin("Go to Coordinate###map.coordinate-dialog",
                       &state.coordinateDialogVisible,
@@ -779,13 +791,25 @@ void drawCoordinatePopup(MapCanvasPanelState & state)
         ImGui::End();
         return;
     }
-    ImGui::TextUnformatted("Enter x,y or block:x,y.");
-    const bool submitted = ImGui::InputText("Coordinate",
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        state.coordinateInput.fill('\0');
+        state.coordinateDialogVisible = false;
+        ImGui::End();
+        return;
+    }
+    ImGui::TextUnformatted(state.coordinateInputKind == CoordinateKind::tile ? "Enter x y." : "Enter block x y.");
+    if (state.coordinateInputFocusRequested)
+    {
+        ImGui::SetKeyboardFocusHere();
+        state.coordinateInputFocusRequested = false;
+    }
+    const bool submitted = ImGui::InputText("##Coordinate",
                                             state.coordinateInput.data(),
                                             state.coordinateInput.size(),
                                             ImGuiInputTextFlags_EnterReturnsTrue);
-    const auto parsed = parseCoordinate(state.coordinateInput.data());
-    if (submitted || ImGui::Button("Go"))
+    const auto parsed = parseCoordinate(state.coordinateInput.data(), state.coordinateInputKind);
+    if (submitted)
     {
         if (parsed)
         {
@@ -801,12 +825,6 @@ void drawCoordinatePopup(MapCanvasPanelState & state)
     if (!parsed && state.coordinateInput.front() != '\0')
     {
         ImGui::TextColored(theme::imguiColor(theme::amber), "%s", parsed.error().c_str());
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Cancel"))
-    {
-        state.coordinateInput.fill('\0');
-        state.coordinateDialogVisible = false;
     }
     ImGui::End();
 }

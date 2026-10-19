@@ -13,8 +13,6 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::size_t blockPrefixLength = 6;
-
 [[nodiscard]] std::string trim(std::string_view input)
 {
     while (!input.empty() && std::isspace(static_cast<unsigned char>(input.front())) != 0)
@@ -46,28 +44,38 @@ constexpr std::size_t blockPrefixLength = 6;
 
 } // namespace
 
-std::expected<ParsedCoordinate, std::string> parseCoordinate(std::string_view input)
+std::expected<ParsedCoordinate, std::string> parseCoordinate(std::string_view input, CoordinateKind kind)
 {
-    CoordinateKind kind = CoordinateKind::tile;
     const std::string trimmed = trim(input);
-    std::string_view coordinates = trimmed;
-    if (coordinates.starts_with("block:"))
+    if (trimmed.empty())
     {
-        kind = CoordinateKind::block;
-        coordinates.remove_prefix(blockPrefixLength);
+        return std::unexpected("coordinates must contain two values separated by whitespace");
     }
 
-    const std::size_t separator = coordinates.find(',');
+    const std::size_t separator = trimmed.find_first_of(" \t\n\r\f\v");
     if (separator == std::string_view::npos)
     {
-        return std::unexpected("coordinates must use x,y or block:x,y");
+        return std::unexpected("coordinates must contain two values separated by whitespace");
     }
 
-    const auto x = parseNumber(coordinates.substr(0, separator));
-    const auto y = parseNumber(coordinates.substr(separator + 1));
+    const auto x = parseNumber(std::string_view(trimmed).substr(0, separator));
+    std::string_view remaining = std::string_view(trimmed).substr(separator + 1);
+    while (!remaining.empty() && std::isspace(static_cast<unsigned char>(remaining.front())) != 0)
+    {
+        remaining.remove_prefix(1);
+    }
+    const std::size_t trailingWhitespace = remaining.find_first_of(" \t\n\r\f\v");
+    const auto y = parseNumber(trailingWhitespace == std::string_view::npos
+                                   ? remaining
+                                   : remaining.substr(0, trailingWhitespace));
     if (!x || !y)
     {
         return std::unexpected(x ? y.error() : x.error());
+    }
+    if (trailingWhitespace != std::string_view::npos &&
+        !trim(remaining.substr(trailingWhitespace + 1)).empty())
+    {
+        return std::unexpected("coordinates must contain exactly two values");
     }
     return ParsedCoordinate{.kind = kind, .value = {.x = *x, .y = *y}};
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gui/coordinate_parser.h"
 #include "gui/map_workspace.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -97,6 +98,8 @@ struct MapCanvasPanelState
     MapCanvasNavigationRequest navigationRequest;
     bool coordinatePopupRequested = false;
     bool coordinateDialogVisible = false;
+    CoordinateKind coordinateInputKind = CoordinateKind::tile;
+    bool coordinateInputFocusRequested = false;
     std::array<char, coordinateInputBufferSize> coordinateInput{};
 };
 

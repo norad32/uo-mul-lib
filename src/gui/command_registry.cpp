@@ -1,4 +1,5 @@
 #include "gui/command_registry.h"
+#include "gui/coordinate_parser.h"
 #include "gui/dialogs/data_paths_dialog.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
@@ -84,6 +85,14 @@ void requestClose(WorkbenchState & state, PendingMapOperationKind kind)
 void togglePanel(bool & visibility)
 {
     visibility = !visibility;
+}
+
+void requestCoordinateDialog(WorkbenchState & state, CoordinateKind kind)
+{
+    state.mapCanvasState.coordinateInputKind = kind;
+    state.mapCanvasState.coordinateInputFocusRequested = true;
+    state.mapCanvasState.coordinateInput.fill('\0');
+    state.mapCanvasState.coordinatePopupRequested = true;
 }
 
 bool & panelVisibility(WorkbenchState & state, PanelId id)
@@ -323,10 +332,19 @@ void registerDefaultCommands(CommandRegistry & registry)
         "map.go-to-coordinate",
         "Go to Coordinate...",
         "Map",
-        "Center the map on a tile or block coordinate",
+        "Center the map on a tile coordinate",
         "Ctrl+G",
         requiresMapDocument,
-        [](WorkbenchState & state) { state.mapCanvasState.coordinatePopupRequested = true; });
+        [](WorkbenchState & state) { requestCoordinateDialog(state, CoordinateKind::tile); });
+    add(registry,
+        CommandId::mapGoToBlockCoordinate,
+        "map.go-to-block-coordinate",
+        "Go to Block...",
+        "Map",
+        "Center the map on a block coordinate",
+        "",
+        requiresMapDocument,
+        [](WorkbenchState & state) { requestCoordinateDialog(state, CoordinateKind::block); });
 }
 
 } // namespace uo_mule::gui
