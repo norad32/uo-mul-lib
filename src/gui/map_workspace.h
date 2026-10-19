@@ -37,18 +37,6 @@ enum class MapEditScope : std::uint8_t
     wholeMap,
 };
 
-struct MapPanelVisibility
-{
-    bool canvas = true;
-    bool tileInspector = true;
-    bool blockInspector = true;
-    bool selectionStatistics = true;
-    bool mapInformation = true;
-    bool editTools = true;
-    bool radarcol = true;
-    bool texmaps = true;
-};
-
 struct MapColor
 {
     std::uint8_t red = 0;
@@ -134,8 +122,6 @@ public:
     [[nodiscard]] const std::optional<uomul::MapTile> & hoveredValue() const noexcept;
     [[nodiscard]] const std::optional<uomul::TileCoord> & selectedTile() const noexcept;
     [[nodiscard]] const std::optional<uomul::MapTile> & selectedValue() const noexcept;
-    [[nodiscard]] const MapPanelVisibility & panelVisibility() const noexcept;
-    [[nodiscard]] MapPanelVisibility & panelVisibility() noexcept;
     [[nodiscard]] bool editMode() const noexcept;
     void setEditMode(bool enabled) noexcept;
     [[nodiscard]] const std::optional<uomul::Error> & error() const noexcept;
@@ -168,7 +154,6 @@ private:
     std::optional<uomul::MapTile> hoveredValue_;
     std::optional<uomul::TileCoord> selectedTile_;
     std::optional<uomul::MapTile> selectedValue_;
-    MapPanelVisibility panelVisibility_{};
     bool editMode_ = false;
     std::optional<uomul::Error> error_;
 };

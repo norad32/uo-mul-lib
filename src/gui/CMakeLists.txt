@@ -21,6 +21,7 @@ add_library(
     data_validation.cpp
     dialogs/data_paths_dialog.cpp
     log_panel.cpp
+    layout_store.cpp
     map_workspace.cpp
     menu_bar.cpp
     new_map_dialog.cpp
@@ -34,6 +35,7 @@ add_library(
     panels/selection_stats_panel.cpp
     panels/texmaps_panel.cpp
     panels/tile_inspector_panel.cpp
+    panel_registry.cpp
     preferences.cpp
     workbench_state.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)

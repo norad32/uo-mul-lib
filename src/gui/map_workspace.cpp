@@ -689,16 +689,6 @@ const std::optional<uomul::MapTile> & MapWorkspace::selectedValue() const noexce
     return selectedValue_;
 }
 
-const MapPanelVisibility & MapWorkspace::panelVisibility() const noexcept
-{
-    return panelVisibility_;
-}
-
-MapPanelVisibility & MapWorkspace::panelVisibility() noexcept
-{
-    return panelVisibility_;
-}
-
 bool MapWorkspace::editMode() const noexcept
 {
     return editMode_;

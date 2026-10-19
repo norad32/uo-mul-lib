@@ -4,6 +4,7 @@
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
 #include "gui/workbench_state.h"
+#include "gui/panel_registry.h"
 #include <imgui.h>
 #include <string>
 
@@ -63,16 +64,16 @@ void drawViewMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::viewCombined, displayMode == MapDisplayMode::combined);
 
     ImGui::Separator();
-    const MapPanelVisibility & visibility = state.workspace.panelVisibility();
-    drawCommandItem(state, CommandId::panelMapCanvas, visibility.canvas);
-    drawCommandItem(state, CommandId::panelTileInspector, visibility.tileInspector);
-    drawCommandItem(state, CommandId::panelBlockInspector, visibility.blockInspector);
-    drawCommandItem(state, CommandId::panelSelectionStatistics, visibility.selectionStatistics);
-    drawCommandItem(state, CommandId::panelMapInformation, visibility.mapInformation);
-    drawCommandItem(state, CommandId::panelEditTools, visibility.editTools);
-    drawCommandItem(state, CommandId::panelRadarcol, visibility.radarcol);
-    drawCommandItem(state, CommandId::panelTexmaps, visibility.texmaps);
+    drawCommandItem(state, CommandId::panelMapCanvas, state.panelRegistry.find(PanelId::mapCanvas)->visible);
+    drawCommandItem(state, CommandId::panelTileInspector, state.panelRegistry.find(PanelId::tileInspector)->visible);
+    drawCommandItem(state, CommandId::panelBlockInspector, state.panelRegistry.find(PanelId::blockInspector)->visible);
+    drawCommandItem(state, CommandId::panelSelectionStatistics, state.panelRegistry.find(PanelId::selectionStatistics)->visible);
+    drawCommandItem(state, CommandId::panelMapInformation, state.panelRegistry.find(PanelId::mapInformation)->visible);
+    drawCommandItem(state, CommandId::panelEditTools, state.panelRegistry.find(PanelId::editTools)->visible);
+    drawCommandItem(state, CommandId::panelRadarcol, state.panelRegistry.find(PanelId::radarcol)->visible);
+    drawCommandItem(state, CommandId::panelTexmaps, state.panelRegistry.find(PanelId::texmaps)->visible);
     drawCommandItem(state, CommandId::viewToggleLogPanel, state.preferences.showLogPanel);
+    drawCommandItem(state, CommandId::resetLayout);
     ImGui::EndMenu();
 }
 

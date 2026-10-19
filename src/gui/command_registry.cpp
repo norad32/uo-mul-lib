@@ -4,6 +4,7 @@
 #include "gui/new_map_dialog.h"
 #include "gui/panels/common.h"
 #include "gui/preferences.h"
+#include "gui/panel_registry.h"
 #include "gui/workbench_state.h"
 #include <functional>
 #include <string_view>
@@ -63,6 +64,11 @@ void requestClose(WorkbenchState & state, PendingMapOperationKind kind)
 void togglePanel(bool & visibility)
 {
     visibility = !visibility;
+}
+
+bool & panelVisibility(WorkbenchState & state, PanelId id)
+{
+    return state.panelRegistry.find(id)->visible;
 }
 
 void add(CommandRegistry & registry,
@@ -229,21 +235,21 @@ void registerDefaultCommands(CommandRegistry & registry)
         });
 
     add(registry, CommandId::panelMapCanvas, "view.panel.map-canvas", "Map Canvas", "View", "Show or hide the map canvas", "",
-        enabled, [](WorkbenchState & state) { togglePanel(state.workspace.panelVisibility().canvas); });
+        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::mapCanvas)); });
     add(registry, CommandId::panelTileInspector, "view.panel.tile-inspector", "Tile Inspector", "View", "Show or hide the tile inspector", "",
-        enabled, [](WorkbenchState & state) { togglePanel(state.workspace.panelVisibility().tileInspector); });
+        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tileInspector)); });
     add(registry, CommandId::panelBlockInspector, "view.panel.block-inspector", "Block Inspector", "View", "Show or hide the block inspector", "",
-        enabled, [](WorkbenchState & state) { togglePanel(state.workspace.panelVisibility().blockInspector); });
+        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::blockInspector)); });
     add(registry, CommandId::panelSelectionStatistics, "view.panel.selection-statistics", "Selection Statistics", "View", "Show or hide selection statistics", "",
-        enabled, [](WorkbenchState & state) { togglePanel(state.workspace.panelVisibility().selectionStatistics); });
+        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::selectionStatistics)); });
     add(registry, CommandId::panelMapInformation, "view.panel.map-information", "Map Information", "View", "Show or hide map information", "",
-        enabled, [](WorkbenchState & state) { togglePanel(state.workspace.panelVisibility().mapInformation); });
+        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::mapInformation)); });
     add(registry, CommandId::panelEditTools, "view.panel.edit-tools", "Edit Tools", "View", "Show or hide edit tools", "",
-        enabled, [](WorkbenchState & state) { togglePanel(state.workspace.panelVisibility().editTools); });
+        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::editTools)); });
     add(registry, CommandId::panelRadarcol, "view.panel.radarcol", "Radarcol", "View", "Show or hide radar colors", "",
-        enabled, [](WorkbenchState & state) { togglePanel(state.workspace.panelVisibility().radarcol); });
+        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
     add(registry, CommandId::panelTexmaps, "view.panel.texmaps", "Texmaps", "View", "Show or hide textures", "",
-        enabled, [](WorkbenchState & state) { togglePanel(state.workspace.panelVisibility().texmaps); });
+        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::texmaps)); });
 
     add(registry, CommandId::selectionTiles, "selection.tiles", "Tile selection", "Selection", "Select individual tiles", "", enabled,
         [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::tiles); });
@@ -253,6 +259,12 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state) { state.workspace.setEditMode(!state.workspace.editMode()); });
     add(registry, CommandId::dataPaths, "data.paths", "UO Data Paths...", "Data", "Configure the active UO data profile", "", enabled,
         [](WorkbenchState & state) { requestDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile); });
+    add(registry, CommandId::resetLayout, "view.reset-layout", "Reset Layout", "View", "Restore the default workbench layout", "", enabled,
+        [](WorkbenchState & state)
+        {
+            state.panelRegistry.resetToDefaults();
+            state.layoutResetRequested = true;
+        });
 }
 
 } // namespace uo_mule::gui

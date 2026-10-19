@@ -15,8 +15,10 @@
 #include "gui/panels/radarcol_panel.h"
 #include "gui/panels/selection_stats_panel.h"
 #include "gui/panels/texmaps_panel.h"
+#include "gui/panel_registry.h"
 #include "gui/preferences.h"
 #include <vector>
+#include <string>
 
 namespace uo_mule::gui
 {
@@ -44,6 +46,9 @@ struct WorkbenchState
     CommandRegistry commands;
     OperationController operationController;
     NotificationState notifications;
+    PanelRegistry panelRegistry;
+    std::string dockingIni;
+    bool layoutResetRequested = false;
     MenuBarState menuBarState;
     MapCanvasPanelState mapCanvasState;
     BlockInspectorPanelState blockInspectorState;

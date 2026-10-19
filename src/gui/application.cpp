@@ -18,6 +18,8 @@
 #include "gui/preferences.h"
 #include "gui/theme.h"
 #include "gui/workbench_state.h"
+#include "gui/layout_store.h"
+#include "gui/panel_registry.h"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -63,9 +65,8 @@ constexpr int appIconHexAlphaOffset = 10;
 constexpr int appIconAlpha = 255;
 constexpr float dockLeftWidthRatio = 0.20F;
 constexpr float dockRightWidthRatio = 0.24F;
-constexpr float dockDetailsHeightRatio = 0.40F;
-constexpr float dockInspectorHeightRatio = 0.50F;
-constexpr float dockSecondaryHeightRatio = 0.50F;
+constexpr float dockLeftPanelSplitRatio = 0.50F;
+constexpr float statusBarHeight = 24.0F;
 constexpr char hexadecimalLowercaseStart = 'a';
 constexpr char hexadecimalUppercaseStart = 'A';
 constexpr char hexadecimalLastDigit = '9';
@@ -345,10 +346,10 @@ private:
     bool initialized_ = false;
 };
 
-void drawDockSpace(float bottomPanelHeight)
+void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
 {
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
-    const float dockSpaceHeight = std::max(0.0F, viewport->WorkSize.y - bottomPanelHeight);
+    const float dockSpaceHeight = std::max(0.0F, viewport->WorkSize.y - bottomPanelHeight - statusBarHeight);
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, dockSpaceHeight), ImGuiCond_Always);
     constexpr auto dockSpaceWindowFlags = static_cast<ImGuiWindowFlags>(
@@ -361,29 +362,29 @@ void drawDockSpace(float bottomPanelHeight)
     ImGui::Begin("BackgroundDockSpace", nullptr, dockSpaceWindowFlags);
     constexpr ImGuiDockNodeFlags dockSpaceFlags = ImGuiDockNodeFlags_PassthruCentralNode;
     const ImGuiID dockSpaceId = ImGui::GetID("BackgroundDockSpace");
-    if (ImGui::DockBuilderGetNode(dockSpaceId) == nullptr)
+    if (state.layoutResetRequested || ImGui::DockBuilderGetNode(dockSpaceId) == nullptr)
     {
+        state.layoutResetRequested = false;
+        ImGui::DockBuilderRemoveNode(dockSpaceId);
         ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceId, ImVec2(viewport->WorkSize.x, dockSpaceHeight));
         ImGuiID leftNode = 0;
         ImGuiID centerNode = 0;
         ImGuiID rightNode = 0;
-        ImGuiID inspectorNode = 0;
-        ImGuiID detailsNode = 0;
+        ImGuiID tileInspectorNode = 0;
+        ImGuiID blockInspectorNode = 0;
         ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, dockLeftWidthRatio, &leftNode, &centerNode);
         ImGui::DockBuilderSplitNode(centerNode, ImGuiDir_Right, dockRightWidthRatio, &rightNode, &centerNode);
-        ImGui::DockBuilderSplitNode(rightNode, ImGuiDir_Down, dockDetailsHeightRatio, &detailsNode, &rightNode);
-        ImGui::DockBuilderSplitNode(leftNode, ImGuiDir_Down, dockInspectorHeightRatio, &inspectorNode, &leftNode);
-        ImGuiID infoNode = 0;
-        ImGuiID editNode = 0;
-        ImGui::DockBuilderSplitNode(detailsNode, ImGuiDir_Down, dockSecondaryHeightRatio, &infoNode, &editNode);
+        ImGui::DockBuilderSplitNode(
+            leftNode, ImGuiDir_Down, dockLeftPanelSplitRatio, &tileInspectorNode, &blockInspectorNode);
         ImGui::DockBuilderDockWindow("Map Canvas", centerNode);
-        ImGui::DockBuilderDockWindow("Radarcol", centerNode);
-        ImGui::DockBuilderDockWindow("Tile Inspector", leftNode);
-        ImGui::DockBuilderDockWindow("Block Inspector", inspectorNode);
+        ImGui::DockBuilderDockWindow("Block Inspector", tileInspectorNode);
+        ImGui::DockBuilderDockWindow("Tile Inspector", blockInspectorNode);
+        ImGui::DockBuilderDockWindow("Radarcol", rightNode);
+        ImGui::DockBuilderDockWindow("Texmaps", rightNode);
         ImGui::DockBuilderDockWindow("Selection Statistics", rightNode);
-        ImGui::DockBuilderDockWindow("Map Information", infoNode);
-        ImGui::DockBuilderDockWindow("Edit Tools", editNode);
+        ImGui::DockBuilderDockWindow("Map Information", rightNode);
+        ImGui::DockBuilderDockWindow("Edit Tools", rightNode);
 
         ImGui::DockBuilderFinish(dockSpaceId);
     }
@@ -417,55 +418,76 @@ void drawMapPanels(WorkbenchState & state,
     syncRadarcolPanel(radarcolState, activeProfile);
     syncTexmapsPanel(texmapsState, activeProfile);
 
-    MapPanelVisibility & visibility = workspace.panelVisibility();
-    if (visibility.canvas)
+    if (state.panelRegistry.find(PanelId::mapCanvas)->visible)
     {
         drawMapCanvasPanel(workspace,
                            radarcolState,
                            canvasState,
                            [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
                            [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
-                           visibility.canvas);
+                           state.panelRegistry.find(PanelId::mapCanvas)->visible);
     }
     else
     {
         workspace.clearHover();
     }
 
-    if (visibility.tileInspector)
+    if (state.panelRegistry.find(PanelId::tileInspector)->visible)
     {
-        drawTileInspectorPanel(workspace, radarcolState, texmapsState, visibility.tileInspector);
+        drawTileInspectorPanel(workspace, radarcolState, texmapsState, state.panelRegistry.find(PanelId::tileInspector)->visible);
     }
 
-    if (visibility.blockInspector)
+    if (state.panelRegistry.find(PanelId::blockInspector)->visible)
     {
-        drawBlockInspectorPanel(workspace, radarcolState, blockInspectorState, visibility.blockInspector);
+        drawBlockInspectorPanel(workspace, radarcolState, blockInspectorState, state.panelRegistry.find(PanelId::blockInspector)->visible);
     }
 
-    if (visibility.selectionStatistics)
+    if (state.panelRegistry.find(PanelId::selectionStatistics)->visible)
     {
-        drawSelectionStatsPanel(workspace, selectionStatsState, visibility.selectionStatistics);
+        drawSelectionStatsPanel(workspace, selectionStatsState, state.panelRegistry.find(PanelId::selectionStatistics)->visible);
     }
 
-    if (visibility.mapInformation)
+    if (state.panelRegistry.find(PanelId::mapInformation)->visible)
     {
-        drawMapInfoPanel(workspace, visibility.mapInformation);
+        drawMapInfoPanel(workspace, state.panelRegistry.find(PanelId::mapInformation)->visible);
     }
 
-    if (visibility.editTools)
+    if (state.panelRegistry.find(PanelId::editTools)->visible)
     {
-        drawEditToolsPanel(workspace, editToolsState, visibility.editTools);
+        drawEditToolsPanel(workspace, editToolsState, state.panelRegistry.find(PanelId::editTools)->visible);
     }
 
-    if (visibility.radarcol)
+    if (state.panelRegistry.find(PanelId::radarcol)->visible)
     {
-        drawRadarcolPanel(radarcolState, workspace.editMode(), visibility.radarcol);
+        drawRadarcolPanel(radarcolState, workspace.editMode(), state.panelRegistry.find(PanelId::radarcol)->visible);
     }
 
-    if (visibility.texmaps)
+    if (state.panelRegistry.find(PanelId::texmaps)->visible)
     {
-        drawTexmapsPanel(texmapsState, visibility.texmaps);
+        drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible);
     }
+}
+
+void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
+{
+    const ImGuiViewport * viewport = ImGui::GetMainViewport();
+    const float statusY = viewport->WorkPos.y + viewport->WorkSize.y - bottomPanelHeight - statusBarHeight;
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, statusY), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, statusBarHeight), ImGuiCond_Always);
+    constexpr auto statusFlags = static_cast<ImGuiWindowFlags>(
+        static_cast<unsigned int>(ImGuiWindowFlags_NoDecoration) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoDocking) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoMove) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar));
+    ImGui::Begin("Workbench Status", nullptr, statusFlags);
+    ImGui::Text("Profile: %s", state.activeProfile.name.empty() ? "None" : state.activeProfile.name.c_str());
+    ImGui::SameLine();
+    ImGui::Text("Map: %s", state.workspace.reader() == nullptr ? "None" : state.workspace.mapPath().string().c_str());
+    ImGui::SameLine();
+    ImGui::Text("State: %s", state.workspace.dirty() ? "Staged changes" : "Clean");
+    ImGui::End();
 }
 
 void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
@@ -506,7 +528,7 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
     }
 
     const float bottomPanelHeight = drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
-    drawDockSpace(bottomPanelHeight);
+    drawDockSpace(state, bottomPanelHeight);
     drawMapPanels(state,
                   state.activeProfile,
                   state.mapCanvasState,
@@ -515,6 +537,7 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
                   state.editToolsState,
                   state.radarcolState,
                   state.texmapsState);
+    drawStatusBar(state, bottomPanelHeight);
     renderFrame(window);
 }
 
@@ -558,6 +581,7 @@ int Application::run()
     ImGui::GetIO().ConfigFlags = static_cast<ImGuiConfigFlags>(static_cast<unsigned int>(ImGui::GetIO().ConfigFlags) |
                                                                static_cast<unsigned int>(ImGuiConfigFlags_DockingEnable));
     WorkbenchState state(loadPreferences());
+    loadLayout(state.panelRegistry, state.dockingIni);
     state.activeProfile.name = state.preferences.activeDataProfile;
     if (!state.activeProfile.name.empty())
     {
@@ -584,6 +608,8 @@ int Application::run()
         glfwPollEvents();
         drawFrame(window.get(), *logSink_, state);
     }
+
+    saveLayout(state.panelRegistry, state.dockingIni);
 
     SPDLOG_LOGGER_INFO(logger_, "GUI closed");
     return 0;

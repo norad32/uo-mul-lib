@@ -2,6 +2,7 @@
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
 #include "gui/workbench_state.h"
+#include "gui/panel_registry.h"
 #include <catch2/catch_test_macros.hpp>
 #include <string>
 
@@ -37,9 +38,9 @@ TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")
     REQUIRE(state.workspace.displayMode() == uo_mule::gui::MapDisplayMode::combined);
 
     REQUIRE(state.commands.execute(CommandId::panelTexmaps, state));
-    REQUIRE_FALSE(state.workspace.panelVisibility().texmaps);
+    REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
     REQUIRE(state.commands.execute(CommandId::panelTexmaps, state));
-    REQUIRE(state.workspace.panelVisibility().texmaps);
+    REQUIRE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
 }
 
 TEST_CASE("commandRegistry_Should_DispatchRegisteredShortcuts")

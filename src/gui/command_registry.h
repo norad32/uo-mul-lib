@@ -35,6 +35,7 @@ enum class CommandId : std::uint8_t
     selectionBlocks,
     editToggle,
     dataPaths,
+    resetLayout,
 };
 
 struct CommandAvailability
