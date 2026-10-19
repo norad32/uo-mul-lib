@@ -44,6 +44,19 @@ constexpr double readErrorTextOffset = 28.0;
 constexpr double noMapTextPadding = 12.0;
 constexpr double noMapButtonOffset = 28.0;
 
+[[nodiscard]] float canvasContentExtent(std::uint32_t tileCount, double zoom, float viewportExtent) noexcept
+{
+    const double extent = static_cast<double>(tileCount) * zoom;
+    return std::max(viewportExtent, static_cast<float>(std::min(extent, static_cast<double>(std::numeric_limits<float>::max()))));
+}
+
+[[nodiscard]] double minimumZoomForCanvas(uomul::Dimensions dimensions, ImVec2 canvasSize) noexcept
+{
+    const double widthZoom = static_cast<double>(canvasSize.x) / static_cast<double>(dimensions.widthTiles);
+    const double heightZoom = static_cast<double>(canvasSize.y) / static_cast<double>(dimensions.heightTiles);
+    return std::clamp(std::max(widthZoom, heightZoom), std::numeric_limits<double>::epsilon(), maximumCanvasZoom);
+}
+
 [[nodiscard]] ImU32 colorForTile(MapDisplayMode mode, uomul::MapTile tile, RadarcolPanelState & radarcolState)
 {
     const MapColor color = tileDisplayColor(mode, tile, radarMapDisplayColor(radarcolState, tile.id));
@@ -599,7 +612,7 @@ void drawLayerButton(MapWorkspace & workspace, MapDisplayMode mode, const char *
     }
 }
 
-void drawLayerControls(MapWorkspace & workspace, const MapCanvasPanelState & state)
+void drawLayerControls(MapWorkspace & workspace)
 {
     drawLayerButton(workspace, MapDisplayMode::tileIds, "Tile IDs");
     ImGui::SameLine();
@@ -612,9 +625,6 @@ void drawLayerControls(MapWorkspace & workspace, const MapCanvasPanelState & sta
         ImGui::SameLine();
         ImGui::TextColored(theme::imguiColor(theme::sageGreen), "EDIT MODE");
     }
-
-    ImGui::SameLine();
-    ImGui::Text("Zoom %.3gx", state.zoom);
 }
 
 void resetForDocument(const MapWorkspace & workspace, MapCanvasPanelState & state, uomul::Dimensions dimensions)
@@ -642,6 +652,7 @@ void resetForDocument(const MapWorkspace & workspace, MapCanvasPanelState & stat
     state.workingPath = workspace.workingPath();
     state.documentDimensions = dimensions;
     state.hasDocument = hasDocument;
+    state.scrollResetPending = true;
 }
 
 void updateHover(MapWorkspace & workspace, std::optional<uomul::TileCoord> tile)
@@ -660,9 +671,16 @@ void updateHover(MapWorkspace & workspace, std::optional<uomul::TileCoord> tile)
     }
 }
 
-void updateNavigation(MapCanvasPanelState & state, ImVec2 mouse, ImVec2 canvasOrigin, bool canvasHovered)
+void updateNavigation(MapCanvasPanelState & state,
+                      ImVec2 mouse,
+                      ImVec2 canvasOrigin,
+                      bool canvasHovered,
+                      double minimumZoom)
 {
-    if (canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
+    state.panX = -static_cast<double>(ImGui::GetScrollX());
+    state.panY = -static_cast<double>(ImGui::GetScrollY());
+
+    if (canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
     {
         state.panning = true;
         state.panStartMouseX = mouse.x;
@@ -671,13 +689,17 @@ void updateNavigation(MapCanvasPanelState & state, ImVec2 mouse, ImVec2 canvasOr
         state.panStartY = state.panY;
     }
 
-    if (state.panning && ImGui::IsMouseDown(ImGuiMouseButton_Middle))
+    if (state.panning && ImGui::IsMouseDown(ImGuiMouseButton_Right))
     {
-        state.panX = std::clamp(state.panStartX + mouse.x - state.panStartMouseX, -maximumPanMagnitude, maximumPanMagnitude);
-        state.panY = std::clamp(state.panStartY + mouse.y - state.panStartMouseY, -maximumPanMagnitude, maximumPanMagnitude);
+        state.panX = std::clamp(state.panStartX + mouse.x - state.panStartMouseX, -maximumPanMagnitude, 0.0);
+        state.panY = std::clamp(state.panStartY + mouse.y - state.panStartMouseY, -maximumPanMagnitude, 0.0);
+        ImGui::SetScrollX(static_cast<float>(-state.panX));
+        ImGui::SetScrollY(static_cast<float>(-state.panY));
+        state.panX = -static_cast<double>(ImGui::GetScrollX());
+        state.panY = -static_cast<double>(ImGui::GetScrollY());
     }
 
-    if (ImGui::IsMouseReleased(ImGuiMouseButton_Middle))
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
     {
         state.panning = false;
     }
@@ -689,12 +711,16 @@ void updateNavigation(MapCanvasPanelState & state, ImVec2 mouse, ImVec2 canvasOr
 
     const double oldZoom = state.zoom;
     const double newZoom =
-        std::clamp(oldZoom * std::pow(canvasZoomFactor, ImGui::GetIO().MouseWheel), minimumCanvasZoom, maximumCanvasZoom);
+        std::clamp(oldZoom * std::pow(canvasZoomFactor, ImGui::GetIO().MouseWheel), minimumZoom, maximumCanvasZoom);
     const double mapX = (static_cast<double>(mouse.x) - canvasOrigin.x - state.panX) / oldZoom;
     const double mapY = (static_cast<double>(mouse.y) - canvasOrigin.y - state.panY) / oldZoom;
     state.panX = static_cast<double>(mouse.x) - canvasOrigin.x - (mapX * newZoom);
     state.panY = static_cast<double>(mouse.y) - canvasOrigin.y - (mapY * newZoom);
     state.zoom = newZoom;
+    ImGui::SetScrollX(static_cast<float>(std::max(0.0, -state.panX)));
+    ImGui::SetScrollY(static_cast<float>(std::max(0.0, -state.panY)));
+    state.panX = -static_cast<double>(ImGui::GetScrollX());
+    state.panY = -static_cast<double>(ImGui::GetScrollY());
 }
 
 void updateSelectionDrag(MapWorkspace & workspace,
@@ -790,6 +816,7 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
                         MapCanvasPanelState & state,
                         const std::function<void()> & openMap,
                         const std::function<void()> & createMap,
+                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
                         bool & visible)
 {
     state.panX = std::isfinite(state.panX) ? state.panX : 0.0;
@@ -812,14 +839,17 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
         return;
     }
 
-    drawLayerControls(workspace, state);
-    const float statusHeight = ImGui::GetFrameHeightWithSpacing();
+    drawLayerControls(workspace);
     const bool canvasContentsVisible = ImGui::BeginChild("MapCanvasViewport",
-                                                         ImVec2(0.0F, -statusHeight),
+                                                         ImVec2(0.0F, 0.0F),
                                                          ImGuiChildFlags_Borders,
-                                                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    const ImVec2 canvasOrigin = ImGui::GetCursorScreenPos();
+                                                         ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    const ImVec2 canvasOrigin(
+        ImGui::GetWindowPos().x + ImGui::GetStyle().WindowBorderSize + ImGui::GetStyle().WindowPadding.x,
+        ImGui::GetWindowPos().y + ImGui::GetStyle().WindowBorderSize + ImGui::GetStyle().WindowPadding.y);
     const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
+    const double minimumZoom = hasDocument ? minimumZoomForCanvas(dimensions, canvasSize) : minimumCanvasZoom;
+    state.zoom = std::clamp(state.zoom, minimumZoom, maximumCanvasZoom);
     const ImVec2 canvasMaximum(canvasOrigin.x + canvasSize.x, canvasOrigin.y + canvasSize.y);
     const bool canvasHovered = canvasContentsVisible && ImGui::IsWindowHovered() &&
                                ImGui::IsMouseHoveringRect(canvasOrigin, canvasMaximum, false) &&
@@ -828,9 +858,16 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     std::optional<uomul::TileCoord> currentTile;
     std::optional<uomul::Error> visibleReadError;
 
+    if (state.scrollResetPending)
+    {
+        ImGui::SetScrollX(0.0F);
+        ImGui::SetScrollY(0.0F);
+        state.scrollResetPending = false;
+    }
+
     if (hasDocument && canvasContentsVisible)
     {
-        updateNavigation(state, mouse, canvasOrigin, canvasHovered);
+        updateNavigation(state, mouse, canvasOrigin, canvasHovered, minimumZoom);
         currentTile = tileAtMouse(mouse, canvasOrigin, canvasSize, state, dimensions, canvasHovered);
         updateHover(workspace, currentTile);
         updateSelectionDrag(workspace, state, currentTile, dimensions, canvasHovered);
@@ -838,6 +875,22 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     else
     {
         workspace.clearHover();
+    }
+
+    const ImVec2 contentSize(
+        hasDocument ? canvasContentExtent(dimensions.widthTiles, state.zoom, canvasSize.x) : canvasSize.x,
+        hasDocument ? canvasContentExtent(dimensions.heightTiles, state.zoom, canvasSize.y) : canvasSize.y);
+    ImGui::Dummy(contentSize);
+
+    if (state.panning)
+    {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    }
+
+    if (canvasContentsVisible && canvasHovered)
+    {
+        updateLastHoveredCanvas(MapCanvasStatus{
+            .canvasId = "Map Canvas", .hasDocument = hasDocument, .tile = currentTile, .zoom = state.zoom,});
     }
 
     if (canvasContentsVisible)
@@ -853,22 +906,6 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     }
 
     ImGui::EndChild();
-
-    ImGui::Separator();
-
-    if (!hasDocument || !canvasHovered || !currentTile)
-    {
-        ImGui::TextUnformatted("No tile under pointer");
-    }
-    else if (workspace.selectionMode() == MapSelectionMode::tiles)
-    {
-        ImGui::Text("Tile (%u, %u)", currentTile->x, currentTile->y);
-    }
-    else
-    {
-        const uomul::BlockCoord block = tileToBlock(*currentTile);
-        ImGui::Text("Block (%u, %u)", block.x, block.y);
-    }
 
     ImGui::End();
 }

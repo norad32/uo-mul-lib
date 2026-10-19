@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -25,6 +26,14 @@ struct MapCanvasCachedBlock
 };
 
 struct RadarcolPanelState;
+
+struct MapCanvasStatus
+{
+    std::string canvasId = "Map Canvas";
+    bool hasDocument = false;
+    std::optional<uomul::TileCoord> tile;
+    double zoom = defaultMapCanvasZoom;
+};
 
 struct MapCanvasPanelState
 {
@@ -67,13 +76,15 @@ struct MapCanvasPanelState
     uomul::Dimensions documentDimensions{};
     bool hasDocument = false;
     bool panning = false;
+    bool scrollResetPending = false;
 };
 
 void drawMapCanvasPanel(MapWorkspace & workspace,
                         RadarcolPanelState & radarcolState,
-                        MapCanvasPanelState & state,
-                        const std::function<void()> & openMap,
-                        const std::function<void()> & createMap,
-                        bool & visible);
+                         MapCanvasPanelState & state,
+                         const std::function<void()> & openMap,
+                         const std::function<void()> & createMap,
+                         const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
+                         bool & visible);
 
 } // namespace uo_mule::gui

@@ -19,6 +19,7 @@
 #include "gui/preferences.h"
 #include <vector>
 #include <string>
+#include <optional>
 
 namespace uo_mule::gui
 {
@@ -51,6 +52,7 @@ struct WorkbenchState
     bool layoutResetRequested = false;
     MenuBarState menuBarState;
     MapCanvasPanelState mapCanvasState;
+    std::optional<MapCanvasStatus> lastHoveredCanvasStatus;
     BlockInspectorPanelState blockInspectorState;
     SelectionStatsPanelState selectionStatsState;
     EditToolsPanelState editToolsState;

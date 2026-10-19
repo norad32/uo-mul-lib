@@ -20,6 +20,7 @@
 #include "gui/workbench_state.h"
 #include "gui/layout_store.h"
 #include "gui/panel_registry.h"
+#include "uomul/map.h"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
@@ -425,6 +426,7 @@ void drawMapPanels(WorkbenchState & state,
                            canvasState,
                            [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
                            [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
+                           [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
                            state.panelRegistry.find(PanelId::mapCanvas)->visible);
     }
     else
@@ -482,11 +484,46 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar));
     ImGui::Begin("Workbench Status", nullptr, statusFlags);
-    ImGui::Text("Profile: %s", state.activeProfile.name.empty() ? "None" : state.activeProfile.name.c_str());
+    bool hasCanvasStatus = false;
+    if (state.lastHoveredCanvasStatus)
+    {
+        hasCanvasStatus = true;
+        const MapCanvasStatus & canvasStatus = *state.lastHoveredCanvasStatus;
+        if (!canvasStatus.hasDocument || !canvasStatus.tile)
+        {
+            ImGui::Text("%s: No tile under pointer  Zoom %.3gx", canvasStatus.canvasId.c_str(), canvasStatus.zoom);
+        }
+        else
+        {
+            const uomul::BlockCoord block = tileToBlock(*canvasStatus.tile);
+            ImGui::Text("%s: Tile (%u, %u)  Block (%u, %u)  Zoom %.3gx",
+                        canvasStatus.canvasId.c_str(),
+                        canvasStatus.tile->x,
+                        canvasStatus.tile->y,
+                        block.x,
+                        block.y,
+                        canvasStatus.zoom);
+        }
+    }
+
+    if (hasCanvasStatus)
+    {
+        ImGui::SameLine();
+    }
+
+    const std::string profileStatus = "Profile: " + (state.activeProfile.name.empty() ? std::string("None") : state.activeProfile.name);
+    const std::string mapStatus =
+        "Map: " + (state.workspace.reader() == nullptr ? std::string("None") : state.workspace.mapPath().string());
+    const std::string stateStatus = "State: " + std::string(state.workspace.dirty() ? "Staged changes" : "Clean");
+    const float rightContentWidth = ImGui::CalcTextSize(profileStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
+                                    ImGui::CalcTextSize(mapStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
+                                    ImGui::CalcTextSize(stateStatus.c_str()).x;
+    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - rightContentWidth));
+    ImGui::TextUnformatted(profileStatus.c_str());
     ImGui::SameLine();
-    ImGui::Text("Map: %s", state.workspace.reader() == nullptr ? "None" : state.workspace.mapPath().string().c_str());
+    ImGui::TextUnformatted(mapStatus.c_str());
     ImGui::SameLine();
-    ImGui::Text("State: %s", state.workspace.dirty() ? "Staged changes" : "Clean");
+    ImGui::TextUnformatted(stateStatus.c_str());
     ImGui::End();
 }
 
