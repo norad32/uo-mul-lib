@@ -1,6 +1,8 @@
 #pragma once
 
 #include "gui/data_profile.h"
+#include "gui/map_context.h"
+#include "gui/map_document.h"
 #include "gui/recent_maps.h"
 #include <cstdint>
 
@@ -42,11 +44,16 @@ public:
     [[nodiscard]] const std::vector<RecentMap> & recentMaps() const noexcept;
     void recordRecentMap(const std::filesystem::path & path, uomul::Dimensions dimensions);
     void refreshRecentMaps();
+    void syncDocument(const MapWorkspace & workspace);
+    void closeDocument() noexcept;
+    [[nodiscard]] const std::optional<MapDocument> & activeDocument() const noexcept;
+    [[nodiscard]] MapContextSnapshot contextSnapshot(const MapWorkspace & workspace) const;
 
 private:
     ProfileReadinessState profileState_ = ProfileReadinessState::needsProfile;
     StartupState startupState_ = StartupState::configureProfile;
     RecentMapStore recentMaps_;
+    DocumentManager documents_;
 };
 
 } // namespace uo_mule::gui

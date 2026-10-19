@@ -1,6 +1,7 @@
 #include "gui/panels/map_canvas_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/panels/radarcol_panel.h"
+#include "gui/coordinate_parser.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -30,6 +31,8 @@ constexpr double minimumCanvasZoom = 0.125;
 constexpr double maximumCanvasZoom = 64.0;
 constexpr double canvasZoomFactor = 1.15;
 constexpr double maximumPanMagnitude = 1.0e12;
+constexpr double coordinateCenterDivisor = 2.0;
+constexpr float coordinateDialogPivot = 0.5F;
 constexpr double lodRasterScale = 0.5;
 constexpr double lodZoomThreshold = 1.0;
 constexpr std::size_t lodPixelChannels = 4;
@@ -54,7 +57,14 @@ constexpr double noMapButtonOffset = 28.0;
 {
     const double widthZoom = static_cast<double>(canvasSize.x) / static_cast<double>(dimensions.widthTiles);
     const double heightZoom = static_cast<double>(canvasSize.y) / static_cast<double>(dimensions.heightTiles);
-    return std::clamp(std::max(widthZoom, heightZoom), std::numeric_limits<double>::epsilon(), maximumCanvasZoom);
+    return std::clamp(std::min(widthZoom, heightZoom), std::numeric_limits<double>::epsilon(), maximumCanvasZoom);
+}
+
+[[nodiscard]] double fitZoomForCanvas(uomul::Dimensions dimensions, ImVec2 canvasSize) noexcept
+{
+    const double widthZoom = static_cast<double>(canvasSize.x) / static_cast<double>(dimensions.widthTiles);
+    const double heightZoom = static_cast<double>(canvasSize.y) / static_cast<double>(dimensions.heightTiles);
+    return std::clamp(std::min(widthZoom, heightZoom), minimumCanvasZoom, maximumCanvasZoom);
 }
 
 [[nodiscard]] ImU32 colorForTile(MapDisplayMode mode, uomul::MapTile tile, RadarcolPanelState & radarcolState)
@@ -612,7 +622,7 @@ void drawLayerButton(MapWorkspace & workspace, MapDisplayMode mode, const char *
     }
 }
 
-void drawLayerControls(MapWorkspace & workspace)
+void drawLayerControls(MapWorkspace & workspace, MapCanvasPanelState & state)
 {
     drawLayerButton(workspace, MapDisplayMode::tileIds, "Tile IDs");
     ImGui::SameLine();
@@ -624,6 +634,11 @@ void drawLayerControls(MapWorkspace & workspace)
     {
         ImGui::SameLine();
         ImGui::TextColored(theme::imguiColor(theme::sageGreen), "EDIT MODE");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Go to Coordinate..."))
+    {
+        state.coordinatePopupRequested = true;
     }
 }
 
@@ -655,6 +670,147 @@ void resetForDocument(const MapWorkspace & workspace, MapCanvasPanelState & stat
     state.scrollResetPending = true;
 }
 
+void applyNavigationRequest(MapCanvasPanelState & state, const MapWorkspace & workspace, ImVec2 canvasSize, double minimumZoom)
+{
+    const MapCanvasViewRequest request = state.navigationRequest.request;
+    if (request == MapCanvasViewRequest::none || workspace.reader() == nullptr)
+    {
+        return;
+    }
+
+    const auto selectionBounds = [] (const MapWorkspace & selectionWorkspace) -> std::optional<uomul::TileRegion>
+    {
+        if (selectionWorkspace.selectionMode() == MapSelectionMode::tiles && selectionWorkspace.tileSelection())
+        {
+            return selectionWorkspace.tileSelection();
+        }
+        if (selectionWorkspace.selectionMode() == MapSelectionMode::blocks && selectionWorkspace.blockSelection())
+        {
+            const auto blocks = *selectionWorkspace.blockSelection();
+            return uomul::TileRegion{
+                .min = {.x = blocks.min.x * uomul::mapBlockDimension, .y = blocks.min.y * uomul::mapBlockDimension},
+                .maxExclusive = {.x = std::min(selectionWorkspace.dimensions().widthTiles, blocks.maxExclusive.x * uomul::mapBlockDimension),
+                                 .y = std::min(selectionWorkspace.dimensions().heightTiles, blocks.maxExclusive.y * uomul::mapBlockDimension),},
+            };
+        }
+        return std::nullopt;
+    };
+
+    if (request == MapCanvasViewRequest::resetView || request == MapCanvasViewRequest::fitMap)
+    {
+        state.zoom = request == MapCanvasViewRequest::fitMap ? fitZoomForCanvas(workspace.dimensions(), canvasSize)
+                                                             : std::clamp(defaultMapCanvasZoom, minimumZoom, maximumCanvasZoom);
+        state.panX = (static_cast<double>(canvasSize.x) -
+                      (static_cast<double>(workspace.dimensions().widthTiles) * state.zoom)) /
+                     coordinateCenterDivisor;
+        state.panY = (static_cast<double>(canvasSize.y) -
+                      (static_cast<double>(workspace.dimensions().heightTiles) * state.zoom)) /
+                     coordinateCenterDivisor;
+    }
+    else if (request == MapCanvasViewRequest::fitSelection || request == MapCanvasViewRequest::centerSelection)
+    {
+        const auto selection = selectionBounds(workspace);
+        if (selection)
+        {
+            if (request == MapCanvasViewRequest::fitSelection)
+            {
+                const double widthZoom = static_cast<double>(canvasSize.x) /
+                                          static_cast<double>(std::max(1U, selection->maxExclusive.x - selection->min.x));
+                const double heightZoom = static_cast<double>(canvasSize.y) /
+                                           static_cast<double>(std::max(1U, selection->maxExclusive.y - selection->min.y));
+                state.zoom = std::clamp(std::min(widthZoom, heightZoom), minimumCanvasZoom, maximumCanvasZoom);
+            }
+            state.panX = (static_cast<double>(canvasSize.x) -
+                          (static_cast<double>(selection->maxExclusive.x + selection->min.x) * state.zoom)) /
+                         coordinateCenterDivisor;
+            state.panY = (static_cast<double>(canvasSize.y) -
+                          (static_cast<double>(selection->maxExclusive.y + selection->min.y) * state.zoom)) /
+                         coordinateCenterDivisor;
+        }
+    }
+    else if (request == MapCanvasViewRequest::none)
+    {
+        return;
+    }
+
+    if (state.navigationRequest.coordinate)
+    {
+        const auto coordinate = *state.navigationRequest.coordinate;
+        state.panX = (static_cast<double>(canvasSize.x) / coordinateCenterDivisor) -
+                     (static_cast<double>(coordinate.x) * state.zoom);
+        state.panY = (static_cast<double>(canvasSize.y) / coordinateCenterDivisor) -
+                     (static_cast<double>(coordinate.y) * state.zoom);
+        state.navigationRequest.coordinate.reset();
+    }
+    const auto clampPan = [](double pan, std::uint32_t tileCount, double zoom, float extent)
+    {
+        const double mapExtent = static_cast<double>(tileCount) * zoom;
+        const double minimum = std::min(0.0, static_cast<double>(extent) - mapExtent);
+        return std::clamp(pan, std::max(-maximumPanMagnitude, minimum), 0.0);
+    };
+    state.panX = clampPan(state.panX, workspace.dimensions().widthTiles, state.zoom, canvasSize.x);
+    state.panY = clampPan(state.panY, workspace.dimensions().heightTiles, state.zoom, canvasSize.y);
+    state.scrollResetPending = true;
+    state.lodCacheValid = false;
+    state.navigationRequest.request = MapCanvasViewRequest::none;
+}
+
+void drawCoordinatePopup(MapCanvasPanelState & state)
+{
+    if (state.coordinatePopupRequested)
+    {
+        state.coordinatePopupRequested = false;
+        state.coordinateDialogVisible = true;
+    }
+    if (!state.coordinateDialogVisible)
+    {
+        return;
+    }
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing,
+                            ImVec2(coordinateDialogPivot, coordinateDialogPivot));
+    constexpr auto coordinateDialogFlags = static_cast<ImGuiWindowFlags>(
+        static_cast<unsigned int>(ImGuiWindowFlags_AlwaysAutoResize) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoDocking) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings));
+    if (!ImGui::Begin("Go to Coordinate###map.coordinate-dialog",
+                      &state.coordinateDialogVisible,
+                      coordinateDialogFlags))
+    {
+        ImGui::End();
+        return;
+    }
+    ImGui::TextUnformatted("Enter x,y or block:x,y.");
+    const bool submitted = ImGui::InputText("Coordinate",
+                                            state.coordinateInput.data(),
+                                            state.coordinateInput.size(),
+                                            ImGuiInputTextFlags_EnterReturnsTrue);
+    const auto parsed = parseCoordinate(state.coordinateInput.data());
+    if (submitted || ImGui::Button("Go"))
+    {
+        if (parsed)
+        {
+            state.navigationRequest.coordinate = parsed->kind == CoordinateKind::block
+                                                     ? uomul::TileCoord{.x = parsed->value.x * uomul::mapBlockDimension,
+                                                                        .y = parsed->value.y * uomul::mapBlockDimension,}
+                                                     : parsed->value;
+            state.navigationRequest.request = MapCanvasViewRequest::centerSelection;
+            state.coordinateInput.fill('\0');
+            state.coordinateDialogVisible = false;
+        }
+    }
+    if (!parsed && state.coordinateInput.front() != '\0')
+    {
+        ImGui::TextColored(theme::imguiColor(theme::amber), "%s", parsed.error().c_str());
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        state.coordinateInput.fill('\0');
+        state.coordinateDialogVisible = false;
+    }
+    ImGui::End();
+}
+
 void updateHover(MapWorkspace & workspace, std::optional<uomul::TileCoord> tile)
 {
     if (!tile)
@@ -677,8 +833,23 @@ void updateNavigation(MapCanvasPanelState & state,
                       bool canvasHovered,
                       double minimumZoom)
 {
-    state.panX = -static_cast<double>(ImGui::GetScrollX());
-    state.panY = -static_cast<double>(ImGui::GetScrollY());
+    if (!state.scrollResetPending)
+    {
+        const double scrollX = static_cast<double>(ImGui::GetScrollX());
+        const double scrollY = static_cast<double>(ImGui::GetScrollY());
+        if (std::abs(scrollX - std::max(0.0, -state.panX)) > floatCacheTolerance)
+        {
+            state.panX = -scrollX;
+        }
+        if (std::abs(scrollY - std::max(0.0, -state.panY)) > floatCacheTolerance)
+        {
+            state.panY = -scrollY;
+        }
+    }
+    else
+    {
+        state.scrollResetPending = false;
+    }
 
     if (canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
     {
@@ -839,7 +1010,7 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
         return;
     }
 
-    drawLayerControls(workspace);
+    drawLayerControls(workspace, state);
     const bool canvasContentsVisible = ImGui::BeginChild("MapCanvasViewport",
                                                          ImVec2(0.0F, 0.0F),
                                                          ImGuiChildFlags_Borders,
@@ -850,6 +1021,11 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
     const double minimumZoom = hasDocument ? minimumZoomForCanvas(dimensions, canvasSize) : minimumCanvasZoom;
     state.zoom = std::clamp(state.zoom, minimumZoom, maximumCanvasZoom);
+    if (state.navigationRequest.request == MapCanvasViewRequest::none && !state.navigationRequest.coordinate)
+    {
+        state.panX = -static_cast<double>(ImGui::GetScrollX());
+        state.panY = -static_cast<double>(ImGui::GetScrollY());
+    }
     const ImVec2 canvasMaximum(canvasOrigin.x + canvasSize.x, canvasOrigin.y + canvasSize.y);
     const bool canvasHovered = canvasContentsVisible && ImGui::IsWindowHovered() &&
                                ImGui::IsMouseHoveringRect(canvasOrigin, canvasMaximum, false) &&
@@ -860,9 +1036,8 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
 
     if (state.scrollResetPending)
     {
-        ImGui::SetScrollX(0.0F);
-        ImGui::SetScrollY(0.0F);
-        state.scrollResetPending = false;
+        ImGui::SetScrollX(static_cast<float>(std::max(0.0, -state.panX)));
+        ImGui::SetScrollY(static_cast<float>(std::max(0.0, -state.panY)));
     }
 
     if (hasDocument && canvasContentsVisible)
@@ -876,7 +1051,7 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     {
         workspace.clearHover();
     }
-
+    applyNavigationRequest(state, workspace, canvasSize, minimumZoom);
     const ImVec2 contentSize(
         hasDocument ? canvasContentExtent(dimensions.widthTiles, state.zoom, canvasSize.x) : canvasSize.x,
         hasDocument ? canvasContentExtent(dimensions.heightTiles, state.zoom, canvasSize.y) : canvasSize.y);
@@ -906,6 +1081,8 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     }
 
     ImGui::EndChild();
+
+    drawCoordinatePopup(state);
 
     ImGui::End();
 }

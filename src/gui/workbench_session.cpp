@@ -2,8 +2,13 @@
 #include "gui/data_profile.h"
 #include "gui/data_validation.h"
 #include "gui/recent_maps.h"
+#include "gui/map_context.h"
+#include "gui/map_document.h"
+#include "gui/map_workspace.h"
 #include "uomul/map.h"
 #include <filesystem>
+#include <optional>
+#include <string>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -124,6 +129,26 @@ void WorkbenchSession::recordRecentMap(const std::filesystem::path & path, uomul
 void WorkbenchSession::refreshRecentMaps()
 {
     recentMaps_.refreshValidity();
+}
+
+void WorkbenchSession::syncDocument(const MapWorkspace & workspace)
+{
+    documents_.sync(workspace);
+}
+
+void WorkbenchSession::closeDocument() noexcept
+{
+    documents_.close();
+}
+
+const std::optional<MapDocument> & WorkbenchSession::activeDocument() const noexcept
+{
+    return documents_.active();
+}
+
+MapContextSnapshot WorkbenchSession::contextSnapshot(const MapWorkspace & workspace) const
+{
+    return makeMapContextSnapshot(workspace, documents_.active());
 }
 
 } // namespace uo_mule::gui

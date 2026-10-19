@@ -5,6 +5,7 @@
 #include "uomul/mul_common/mul_common.h"
 #include <cstddef>
 #include <cstdint>
+#include <array>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -16,6 +17,7 @@ namespace uo_mule::gui
 {
 
 inline constexpr double defaultMapCanvasZoom = 12.0;
+inline constexpr std::size_t coordinateInputBufferSize = 64;
 
 struct MapCanvasCachedBlock
 {
@@ -33,6 +35,21 @@ struct MapCanvasStatus
     bool hasDocument = false;
     std::optional<uomul::TileCoord> tile;
     double zoom = defaultMapCanvasZoom;
+};
+
+enum class MapCanvasViewRequest : std::uint8_t
+{
+    none,
+    fitMap,
+    fitSelection,
+    centerSelection,
+    resetView,
+};
+
+struct MapCanvasNavigationRequest
+{
+    MapCanvasViewRequest request = MapCanvasViewRequest::none;
+    std::optional<uomul::TileCoord> coordinate;
 };
 
 struct MapCanvasPanelState
@@ -77,6 +94,10 @@ struct MapCanvasPanelState
     bool hasDocument = false;
     bool panning = false;
     bool scrollResetPending = false;
+    MapCanvasNavigationRequest navigationRequest;
+    bool coordinatePopupRequested = false;
+    bool coordinateDialogVisible = false;
+    std::array<char, coordinateInputBufferSize> coordinateInput{};
 };
 
 void drawMapCanvasPanel(MapWorkspace & workspace,

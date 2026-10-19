@@ -3,6 +3,8 @@
 #include "gui/recent_maps.h"
 #include "gui/workbench_session.h"
 #include "gui/workbench_state.h"
+#include "gui/coordinate_parser.h"
+#include "gui/map_workspace.h"
 #include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
@@ -132,4 +134,47 @@ TEST_CASE("workbenchSession_Should_RecordKnownFacetForRecentMapDimensions")
 
     REQUIRE(session.recentMaps().size() == 1);
     REQUIRE(session.recentMaps().front().facet == "felucca");
+}
+
+TEST_CASE("parseCoordinate_Should_ParseTilesAndBlocks")
+{
+    const auto tile = uo_mule::gui::parseCoordinate("12, 34");
+    REQUIRE(tile.has_value());
+    REQUIRE(tile->kind == uo_mule::gui::CoordinateKind::tile);
+    REQUIRE(tile->value.x == 12);
+    REQUIRE(tile->value.y == 34);
+
+    const auto block = uo_mule::gui::parseCoordinate("block:2,3");
+    REQUIRE(block.has_value());
+    REQUIRE(block->kind == uo_mule::gui::CoordinateKind::block);
+    REQUIRE(block->value.x == 2);
+    REQUIRE(block->value.y == 3);
+
+    REQUIRE_FALSE(uo_mule::gui::parseCoordinate("invalid").has_value());
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+TEST_CASE("documentManager_Should_AssignStableIdsAndExposeContext")
+{
+    const TemporaryDirectory directory;
+    const auto mapPath = directory.path() / "map0.mul";
+    const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, dimensions));
+
+    uo_mule::gui::MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, dimensions));
+    uo_mule::gui::WorkbenchSession session(directory.path() / "recent.conf");
+    session.syncDocument(workspace);
+
+    REQUIRE(session.activeDocument().has_value());
+    if (session.activeDocument())
+    {
+        REQUIRE(session.activeDocument()->id != 0);
+        REQUIRE(session.activeDocument()->sourcePath == mapPath);
+    }
+    REQUIRE(session.contextSnapshot(workspace).hasDocument);
+
+    REQUIRE(workspace.closeMap());
+    session.syncDocument(workspace);
+    REQUIRE_FALSE(session.activeDocument().has_value());
 }

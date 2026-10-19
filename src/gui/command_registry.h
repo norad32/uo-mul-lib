@@ -36,6 +36,11 @@ enum class CommandId : std::uint8_t
     editToggle,
     dataPaths,
     resetLayout,
+    mapFit,
+    mapFitSelection,
+    mapCenterSelection,
+    mapResetView,
+    mapGoToCoordinate,
 };
 
 struct CommandAvailability

@@ -110,6 +110,20 @@ void drawEditMenu(WorkbenchState & state)
     ImGui::EndMenu();
 }
 
+void drawMapMenu(WorkbenchState & state)
+{
+    if (!ImGui::BeginMenu("Map"))
+    {
+        return;
+    }
+    drawCommandItem(state, CommandId::mapFit);
+    drawCommandItem(state, CommandId::mapFitSelection);
+    drawCommandItem(state, CommandId::mapCenterSelection);
+    drawCommandItem(state, CommandId::mapResetView);
+    drawCommandItem(state, CommandId::mapGoToCoordinate);
+    ImGui::EndMenu();
+}
+
 } // namespace
 
 bool drawMenuBar(WorkbenchState & state)
@@ -128,6 +142,7 @@ bool drawMenuBar(WorkbenchState & state)
         drawViewMenu(state);
         drawSelectionMenu(state);
         drawEditMenu(state);
+        drawMapMenu(state);
 
         if (ImGui::BeginMenu("Data"))
         {

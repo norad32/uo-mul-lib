@@ -76,6 +76,12 @@ constexpr float notificationTopMargin = 48.0F;
 constexpr float notificationMinimumWidth = 280.0F;
 constexpr float notificationMaximumWidth = 480.0F;
 constexpr float notificationMaximumHeightRatio = 0.5F;
+constexpr int feluccaFacetIndex = 1;
+constexpr int trammelFacetIndex = 2;
+constexpr int ilshenarFacetIndex = 3;
+constexpr int malasFacetIndex = 4;
+constexpr int tokunoFacetIndex = 5;
+constexpr int terMurFacetIndex = 6;
 constexpr char hexadecimalLowercaseStart = 'a';
 constexpr char hexadecimalUppercaseStart = 'A';
 constexpr char hexadecimalLastDigit = '9';
@@ -668,27 +674,27 @@ void drawMapWelcome(WorkbenchState & state)
                 state.menuBarState.fileDialog.openFacet = 0;
                 if (recent.facet == "felucca")
                 {
-                    state.menuBarState.fileDialog.openFacet = 1;
+                    state.menuBarState.fileDialog.openFacet = feluccaFacetIndex;
                 }
                 else if (recent.facet == "trammel")
                 {
-                    state.menuBarState.fileDialog.openFacet = 2;
+                    state.menuBarState.fileDialog.openFacet = trammelFacetIndex;
                 }
                 else if (recent.facet == "ilshenar")
                 {
-                    state.menuBarState.fileDialog.openFacet = 3;
+                    state.menuBarState.fileDialog.openFacet = ilshenarFacetIndex;
                 }
                 else if (recent.facet == "malas")
                 {
-                    state.menuBarState.fileDialog.openFacet = 4;
+                    state.menuBarState.fileDialog.openFacet = malasFacetIndex;
                 }
                 else if (recent.facet == "tokuno")
                 {
-                    state.menuBarState.fileDialog.openFacet = 5;
+                    state.menuBarState.fileDialog.openFacet = tokunoFacetIndex;
                 }
                 else if (recent.facet == "ter-mur")
                 {
-                    state.menuBarState.fileDialog.openFacet = 6;
+                    state.menuBarState.fileDialog.openFacet = terMurFacetIndex;
                 }
             }
         }
@@ -739,9 +745,14 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
         {
             static_cast<void>(state.commands.executeShortcut("Ctrl+Q", state));
         }
+        else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_G, false))
+        {
+            static_cast<void>(state.commands.executeShortcut("Ctrl+G", state));
+        }
     }
 
     const float bottomPanelHeight = drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
+    state.session.syncDocument(state.workspace);
     if (state.session.startupState() == StartupState::configureProfile)
     {
         drawStartupScreen(state);

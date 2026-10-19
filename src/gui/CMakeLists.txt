@@ -19,9 +19,12 @@ add_library(
     data_profile.cpp
     data_profile_store.cpp
     data_validation.cpp
+    coordinate_parser.cpp
     dialogs/data_paths_dialog.cpp
     log_panel.cpp
     layout_store.cpp
+    map_context.cpp
+    map_document.cpp
     map_workspace.cpp
     menu_bar.cpp
     new_map_dialog.cpp

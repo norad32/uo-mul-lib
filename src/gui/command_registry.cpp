@@ -7,6 +7,7 @@
 #include "gui/panel_registry.h"
 #include "gui/workbench_state.h"
 #include "gui/workbench_session.h"
+#include "gui/panels/map_canvas_panel.h"
 #include <functional>
 #include <string_view>
 #include <utility>
@@ -28,6 +29,15 @@ CommandAvailability requiresMapReadyProfile(const WorkbenchState & state)
     if (state.startupLoaded && !state.session.mapReady())
     {
         return {.enabled = false, .disabledReason = "Configure a valid radarcol.mul profile first"};
+    }
+    return enabled(state);
+}
+
+CommandAvailability requiresMapDocument(const WorkbenchState & state)
+{
+    if (state.workspace.reader() == nullptr)
+    {
+        return {.enabled = false, .disabledReason = "No map is open"};
     }
     return enabled(state);
 }
@@ -279,6 +289,44 @@ void registerDefaultCommands(CommandRegistry & registry)
             state.panelRegistry.resetToDefaults();
             state.layoutResetRequested = true;
         });
+    add(registry, CommandId::mapFit, "map.fit", "Fit Map", "Map", "Fit the complete map in the canvas", "", requiresMapDocument,
+        [](WorkbenchState & state) { state.mapCanvasState.navigationRequest.request = MapCanvasViewRequest::fitMap; });
+    add(registry,
+        CommandId::mapFitSelection,
+        "map.fit-selection",
+        "Fit Selection",
+        "Map",
+        "Fit the current selection in the canvas",
+        "",
+        requiresMapDocument,
+        [](WorkbenchState & state) { state.mapCanvasState.navigationRequest.request = MapCanvasViewRequest::fitSelection; });
+    add(registry,
+        CommandId::mapCenterSelection,
+        "map.center-selection",
+        "Center Selection",
+        "Map",
+        "Center the current selection in the canvas",
+        "",
+        requiresMapDocument,
+        [](WorkbenchState & state) { state.mapCanvasState.navigationRequest.request = MapCanvasViewRequest::centerSelection; });
+    add(registry,
+        CommandId::mapResetView,
+        "map.reset-view",
+        "Reset View",
+        "Map",
+        "Reset map pan and zoom",
+        "",
+        requiresMapDocument,
+        [](WorkbenchState & state) { state.mapCanvasState.navigationRequest.request = MapCanvasViewRequest::resetView; });
+    add(registry,
+        CommandId::mapGoToCoordinate,
+        "map.go-to-coordinate",
+        "Go to Coordinate...",
+        "Map",
+        "Center the map on a tile or block coordinate",
+        "Ctrl+G",
+        requiresMapDocument,
+        [](WorkbenchState & state) { state.mapCanvasState.coordinatePopupRequested = true; });
 }
 
 } // namespace uo_mule::gui
