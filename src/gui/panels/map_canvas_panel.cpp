@@ -1021,7 +1021,8 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
     const double minimumZoom = hasDocument ? minimumZoomForCanvas(dimensions, canvasSize) : minimumCanvasZoom;
     state.zoom = std::clamp(state.zoom, minimumZoom, maximumCanvasZoom);
-    if (state.navigationRequest.request == MapCanvasViewRequest::none && !state.navigationRequest.coordinate)
+    if (state.navigationRequest.request == MapCanvasViewRequest::none && !state.navigationRequest.coordinate &&
+        !state.scrollResetPending)
     {
         state.panX = -static_cast<double>(ImGui::GetScrollX());
         state.panY = -static_cast<double>(ImGui::GetScrollY());
