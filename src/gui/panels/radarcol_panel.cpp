@@ -474,7 +474,7 @@ void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile)
 
 void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible)
 {
-    if (!ImGui::Begin("Radarcol", &visible))
+    if (!ImGui::Begin("Radarcol###view.radarcol", &visible))
     {
         ImGui::End();
         return;

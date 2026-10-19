@@ -10,7 +10,7 @@ namespace uo_mule::gui
 
 void drawMapInfoPanel(const MapWorkspace & workspace, bool & visible)
 {
-    const bool contentsVisible = ImGui::Begin("Map Information", &visible);
+    const bool contentsVisible = ImGui::Begin("Map Information###view.map-information", &visible);
 
     if (contentsVisible)
     {

@@ -115,7 +115,7 @@ float drawLogPanel(core::GuiLogSink & logSink,
     ImGui::SetNextWindowCollapsed(preferences.logPanelCollapsed, ImGuiCond_Appearing);
     constexpr auto panelFlags = static_cast<ImGuiWindowFlags>(static_cast<unsigned int>(ImGuiWindowFlags_NoMove) |
                                                               static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings));
-    const bool windowContentsVisible = ImGui::Begin("Logs", &preferences.showLogPanel, panelFlags);
+    const bool windowContentsVisible = ImGui::Begin("Logs###view.logs", &preferences.showLogPanel, panelFlags);
     const bool isCollapsed = ImGui::IsWindowCollapsed();
 
     if (isCollapsed != preferences.logPanelCollapsed)

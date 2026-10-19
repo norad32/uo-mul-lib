@@ -7,10 +7,11 @@
 namespace uo_mule::gui
 {
 
-WorkbenchState::WorkbenchState(Preferences initialPreferences) : preferences(std::move(initialPreferences))
+WorkbenchState::WorkbenchState(Preferences initialPreferences) : preferences(std::move(initialPreferences)), views(panelRegistry)
 {
     mapCanvasState.zoom = defaultMapCanvasZoom;
     registerDefaultCommands(commands);
+    session.updateProfile(activeProfile);
 }
 
 } // namespace uo_mule::gui

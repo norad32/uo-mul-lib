@@ -4,9 +4,12 @@
 #include "gui/data_profile.h"
 #include "gui/data_profile_store.h"
 #include "gui/command_registry.h"
+#include "gui/dialogs/data_paths_dialog.h"
 #include "gui/log_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/menu_bar.h"
+#include "gui/new_map_dialog.h"
+#include "gui/notification_state.h"
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/panels/edit_tools_panel.h"
 #include "gui/panels/map_canvas_panel.h"
@@ -18,6 +21,7 @@
 #include "gui/preferences.h"
 #include "gui/theme.h"
 #include "gui/workbench_state.h"
+#include "gui/workbench_session.h"
 #include "gui/layout_store.h"
 #include "gui/panel_registry.h"
 #include "uomul/map.h"
@@ -66,8 +70,12 @@ constexpr int appIconHexAlphaOffset = 10;
 constexpr int appIconAlpha = 255;
 constexpr float dockLeftWidthRatio = 0.20F;
 constexpr float dockRightWidthRatio = 0.24F;
-constexpr float dockLeftPanelSplitRatio = 0.50F;
 constexpr float statusBarHeight = 24.0F;
+constexpr float notificationLeftMargin = 16.0F;
+constexpr float notificationTopMargin = 48.0F;
+constexpr float notificationMinimumWidth = 280.0F;
+constexpr float notificationMaximumWidth = 480.0F;
+constexpr float notificationMaximumHeightRatio = 0.5F;
 constexpr char hexadecimalLowercaseStart = 'a';
 constexpr char hexadecimalUppercaseStart = 'A';
 constexpr char hexadecimalLastDigit = '9';
@@ -360,7 +368,7 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         static_cast<unsigned int>(ImGuiWindowFlags_NoNavFocus) | static_cast<unsigned int>(ImGuiWindowFlags_NoBackground) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) | static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse));
-    ImGui::Begin("BackgroundDockSpace", nullptr, dockSpaceWindowFlags);
+    ImGui::Begin("BackgroundDockSpace###workbench.dock-space", nullptr, dockSpaceWindowFlags);
     constexpr ImGuiDockNodeFlags dockSpaceFlags = ImGuiDockNodeFlags_PassthruCentralNode;
     const ImGuiID dockSpaceId = ImGui::GetID("BackgroundDockSpace");
     if (state.layoutResetRequested || ImGui::DockBuilderGetNode(dockSpaceId) == nullptr)
@@ -372,20 +380,18 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         ImGuiID leftNode = 0;
         ImGuiID centerNode = 0;
         ImGuiID rightNode = 0;
-        ImGuiID tileInspectorNode = 0;
-        ImGuiID blockInspectorNode = 0;
         ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, dockLeftWidthRatio, &leftNode, &centerNode);
         ImGui::DockBuilderSplitNode(centerNode, ImGuiDir_Right, dockRightWidthRatio, &rightNode, &centerNode);
-        ImGui::DockBuilderSplitNode(
-            leftNode, ImGuiDir_Down, dockLeftPanelSplitRatio, &tileInspectorNode, &blockInspectorNode);
-        ImGui::DockBuilderDockWindow("Map Canvas", centerNode);
-        ImGui::DockBuilderDockWindow("Block Inspector", tileInspectorNode);
-        ImGui::DockBuilderDockWindow("Tile Inspector", blockInspectorNode);
-        ImGui::DockBuilderDockWindow("Radarcol", rightNode);
-        ImGui::DockBuilderDockWindow("Texmaps", rightNode);
-        ImGui::DockBuilderDockWindow("Selection Statistics", rightNode);
-        ImGui::DockBuilderDockWindow("Map Information", rightNode);
-        ImGui::DockBuilderDockWindow("Edit Tools", rightNode);
+        ImGui::DockBuilderDockWindow("Map Canvas###view.map-canvas", centerNode);
+
+        // Keep all inspectors together on the left and tools together on the right.
+        ImGui::DockBuilderDockWindow("Tile Inspector###view.tile-inspector", leftNode);
+        ImGui::DockBuilderDockWindow("Block Inspector###view.block-inspector", leftNode);
+        ImGui::DockBuilderDockWindow("Selection Statistics###view.selection-statistics", leftNode);
+        ImGui::DockBuilderDockWindow("Map Information###view.map-information", leftNode);
+        ImGui::DockBuilderDockWindow("Edit Tools###view.edit-tools", rightNode);
+        ImGui::DockBuilderDockWindow("Texmaps###view.texmaps", rightNode);
+        ImGui::DockBuilderDockWindow("Radarcol###view.radarcol", rightNode);
 
         ImGui::DockBuilderFinish(dockSpaceId);
     }
@@ -470,6 +476,8 @@ void drawMapPanels(WorkbenchState & state,
     }
 }
 
+[[nodiscard]] const char * readinessLabel(ProfileReadinessState state) noexcept;
+
 void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
 {
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
@@ -483,7 +491,7 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
         static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar));
-    ImGui::Begin("Workbench Status", nullptr, statusFlags);
+    ImGui::Begin("Workbench Status###workbench.status", nullptr, statusFlags);
     bool hasCanvasStatus = false;
     if (state.lastHoveredCanvasStatus)
     {
@@ -515,15 +523,183 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
     const std::string mapStatus =
         "Map: " + (state.workspace.reader() == nullptr ? std::string("None") : state.workspace.mapPath().string());
     const std::string stateStatus = "State: " + std::string(state.workspace.dirty() ? "Staged changes" : "Clean");
+    const std::string readinessStatus = "Data: " + std::string(readinessLabel(state.session.profileState()));
     const float rightContentWidth = ImGui::CalcTextSize(profileStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
                                     ImGui::CalcTextSize(mapStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
-                                    ImGui::CalcTextSize(stateStatus.c_str()).x;
+                                    ImGui::CalcTextSize(stateStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
+                                    ImGui::CalcTextSize(readinessStatus.c_str()).x;
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - rightContentWidth));
     ImGui::TextUnformatted(profileStatus.c_str());
     ImGui::SameLine();
     ImGui::TextUnformatted(mapStatus.c_str());
     ImGui::SameLine();
     ImGui::TextUnformatted(stateStatus.c_str());
+    ImGui::SameLine();
+    ImGui::TextUnformatted(readinessStatus.c_str());
+    ImGui::End();
+}
+
+[[nodiscard]] const char * readinessLabel(ProfileReadinessState state) noexcept
+{
+    switch (state)
+    {
+        case ProfileReadinessState::needsProfile :
+            return "No profile configured";
+        case ProfileReadinessState::profileInvalid :
+            return "Profile invalid";
+        case ProfileReadinessState::profileIncomplete :
+            return "Profile incomplete: radarcol.mul required";
+        case ProfileReadinessState::ready :
+            return "Ready";
+    }
+    return "Unknown";
+}
+
+void drawNotifications(const NotificationState & notifications)
+{
+    if (notifications.entries.empty())
+    {
+        return;
+    }
+
+    const ImGuiViewport * viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + notificationLeftMargin,
+                                  viewport->WorkPos.y + notificationTopMargin),
+                            ImGuiCond_Always);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(notificationMinimumWidth, 0.0F),
+                                        ImVec2(notificationMaximumWidth, viewport->WorkSize.y * notificationMaximumHeightRatio));
+    if (ImGui::Begin("Notifications###workbench.notifications", nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
+    {
+        for (const auto & notification : notifications.entries)
+        {
+            ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+            if (notification.severity == NotificationSeverity::error)
+            {
+                color = theme::imguiColor(theme::coral);
+            }
+            else if (notification.severity == NotificationSeverity::warning)
+            {
+                color = theme::imguiColor(theme::amber);
+            }
+            else if (notification.severity == NotificationSeverity::success)
+            {
+                color = theme::imguiColor(theme::sageGreen);
+            }
+            ImGui::TextColored(color, "%s", notification.message.c_str());
+        }
+    }
+    ImGui::End();
+}
+
+void drawStartupScreen(WorkbenchState & state)
+{
+    const ImGuiViewport * viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(viewport->WorkSize, ImGuiCond_Always);
+    if (!ImGui::Begin("Configure UO Data Paths###startup.configure-profile", nullptr,
+                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImGui::End();
+        return;
+    }
+    ImGui::TextUnformatted("Configure UO Data Paths");
+    ImGui::Separator();
+    ImGui::TextUnformatted("A validated radarcol.mul is required before map actions are enabled.");
+    ImGui::Text("Profile status: %s", readinessLabel(state.session.profileState()));
+    if (ImGui::Button("Open Profile Setup"))
+    {
+        requestDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile);
+    }
+    ImGui::End();
+}
+
+void drawMapWelcome(WorkbenchState & state)
+{
+    const ImGuiViewport * viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(viewport->WorkSize, ImGuiCond_Always);
+    if (!ImGui::Begin("Map Welcome###welcome.map", nullptr,
+                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImGui::End();
+        return;
+    }
+    ImGui::TextUnformatted("Map Workbench");
+    ImGui::Text("Profile: %s", state.activeProfile.name.empty() ? "Unnamed" : state.activeProfile.name.c_str());
+    ImGui::TextUnformatted("Source maps are read-only. Edits are staged and saved to an explicit output.");
+    ImGui::Separator();
+    if (ImGui::Button("Open Map"))
+    {
+        static_cast<void>(state.commands.execute(CommandId::fileOpen, state));
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Create Map"))
+    {
+        static_cast<void>(state.commands.execute(CommandId::fileNew, state));
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Configure UO Data Paths"))
+    {
+        static_cast<void>(state.commands.execute(CommandId::dataPaths, state));
+    }
+
+    ImGui::Spacing();
+    ImGui::TextUnformatted("Recent Maps");
+    state.session.refreshRecentMaps();
+    for (const auto & recent : state.session.recentMaps())
+    {
+        ImGui::PushID(recent.path.string().c_str());
+        const std::string label = recent.displayName + "##recent-map";
+        if (ImGui::Selectable(label.c_str()))
+        {
+            state.menuBarState.fileDialog.mode = MapFileDialogMode::openMap;
+            state.menuBarState.fileDialog.activePopup = MapFileDialogMode::none;
+            state.menuBarState.fileDialog.openPickerRequested = false;
+            std::ranges::fill(state.menuBarState.fileDialog.openPath, '\0');
+            const std::string path = recent.path.string();
+            std::copy_n(path.c_str(), std::min(path.size(), state.menuBarState.fileDialog.openPath.size() - 1U),
+                        state.menuBarState.fileDialog.openPath.data());
+            if (recent.dimensions)
+            {
+                state.menuBarState.fileDialog.openWidth = recent.dimensions->widthTiles;
+                state.menuBarState.fileDialog.openHeight = recent.dimensions->heightTiles;
+
+                state.menuBarState.fileDialog.openFacet = 0;
+                if (recent.facet == "felucca")
+                {
+                    state.menuBarState.fileDialog.openFacet = 1;
+                }
+                else if (recent.facet == "trammel")
+                {
+                    state.menuBarState.fileDialog.openFacet = 2;
+                }
+                else if (recent.facet == "ilshenar")
+                {
+                    state.menuBarState.fileDialog.openFacet = 3;
+                }
+                else if (recent.facet == "malas")
+                {
+                    state.menuBarState.fileDialog.openFacet = 4;
+                }
+                else if (recent.facet == "tokuno")
+                {
+                    state.menuBarState.fileDialog.openFacet = 5;
+                }
+                else if (recent.facet == "ter-mur")
+                {
+                    state.menuBarState.fileDialog.openFacet = 6;
+                }
+            }
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", recent.failure.empty() ? recent.path.string().c_str() : recent.failure.c_str());
+        ImGui::PopID();
+    }
+    if (state.session.recentMaps().empty())
+    {
+        ImGui::TextDisabled("No recent maps");
+    }
     ImGui::End();
 }
 
@@ -538,6 +714,7 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
     {
         state.preferences.activeDataProfile = state.activeProfile.name;
         savePreferences(state.preferences);
+        state.session.updateProfile(state.activeProfile);
     }
 
     if (!ImGui::GetIO().WantTextInput && !ImGui::GetIO().WantCaptureKeyboard)
@@ -565,16 +742,29 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
     }
 
     const float bottomPanelHeight = drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
-    drawDockSpace(state, bottomPanelHeight);
-    drawMapPanels(state,
-                  state.activeProfile,
-                  state.mapCanvasState,
-                  state.blockInspectorState,
-                  state.selectionStatsState,
-                  state.editToolsState,
-                  state.radarcolState,
-                  state.texmapsState);
+    if (state.session.startupState() == StartupState::configureProfile)
+    {
+        drawStartupScreen(state);
+    }
+    else if (state.workspace.reader() == nullptr)
+    {
+        drawMapWelcome(state);
+    }
+    else
+    {
+        drawDockSpace(state, bottomPanelHeight);
+        drawMapPanels(state,
+                      state.activeProfile,
+                      state.mapCanvasState,
+                      state.blockInspectorState,
+                      state.selectionStatsState,
+                      state.editToolsState,
+                      state.radarcolState,
+                      state.texmapsState);
+        state.session.recordRecentMap(state.workspace.mapPath(), state.workspace.dimensions());
+    }
     drawStatusBar(state, bottomPanelHeight);
+    drawNotifications(state.notifications);
     renderFrame(window);
 }
 
@@ -620,6 +810,7 @@ int Application::run()
     WorkbenchState state(loadPreferences());
     loadLayout(state.panelRegistry, state.dockingIni);
     state.activeProfile.name = state.preferences.activeDataProfile;
+    bool invalidProfileLoad = false;
     if (!state.activeProfile.name.empty())
     {
         const auto loaded = state.profileStore.load(state.activeProfile.name);
@@ -627,7 +818,17 @@ int Application::run()
         {
             state.activeProfile = loaded.profile;
         }
+        else
+        {
+            invalidProfileLoad = true;
+        }
     }
+    state.session.updateProfile(state.activeProfile);
+    if (invalidProfileLoad)
+    {
+        state.session.markProfileInvalid();
+    }
+    state.startupLoaded = true;
     glfwSetWindowUserPointer(window.get(), &state);
     glfwSetWindowCloseCallback(window.get(),
                                [](GLFWwindow * glfwWindow)

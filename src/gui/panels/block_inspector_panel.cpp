@@ -185,7 +185,7 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
         }
     }
 
-    const bool contentsVisible = ImGui::Begin("Block Inspector", &visible);
+    const bool contentsVisible = ImGui::Begin("Block Inspector###view.block-inspector", &visible);
     if (contentsVisible)
     {
         if (reader == nullptr)

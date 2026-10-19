@@ -17,6 +17,8 @@
 #include "gui/panels/texmaps_panel.h"
 #include "gui/panel_registry.h"
 #include "gui/preferences.h"
+#include "gui/workbench_session.h"
+#include "gui/view_registry.h"
 #include <vector>
 #include <string>
 #include <optional>
@@ -43,11 +45,13 @@ struct WorkbenchState
     Preferences preferences;
     DataProfileStore profileStore;
     DataProfile activeProfile;
+    WorkbenchSession session;
     MapWorkspace workspace;
     CommandRegistry commands;
     OperationController operationController;
     NotificationState notifications;
     PanelRegistry panelRegistry;
+    ViewRegistry views;
     std::string dockingIni;
     bool layoutResetRequested = false;
     MenuBarState menuBarState;
@@ -61,6 +65,7 @@ struct WorkbenchState
     std::vector<core::GuiLogEntry> logEntries;
     bool followLogScroll = true;
     bool shouldClose = false;
+    bool startupLoaded = false;
 };
 
 } // namespace uo_mule::gui

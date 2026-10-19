@@ -304,7 +304,7 @@ void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile)
 
 void drawTexmapsPanel(TexmapsPanelState & state, bool & visible)
 {
-    const bool contentsVisible = ImGui::Begin("Texmaps", &visible);
+    const bool contentsVisible = ImGui::Begin("Texmaps###view.texmaps", &visible);
 
     if (!contentsVisible)
     {

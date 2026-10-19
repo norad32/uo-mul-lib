@@ -4,6 +4,7 @@
 #include "gui/data_profile_store.h"
 #include "gui/theme.h"
 #include "gui/data_validation.h"
+#include "gui/workbench_session.h"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -540,7 +541,7 @@ bool drawDataPathsDialog(DataPathsDialogState & state, DataProfile & activeProfi
 
     bool profileChanged = false;
     ImGui::SetNextWindowSize(ImVec2(dialogWidth, dialogHeight), ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin("UO Data Paths", &state.visible))
+    if (!ImGui::Begin("UO Data Paths###dialog.data-paths", &state.visible))
     {
         ImGui::End();
         return false;
@@ -566,12 +567,20 @@ bool drawDataPathsDialog(DataPathsDialogState & state, DataProfile & activeProfi
 
     ImGui::SameLine();
 
+    const bool profileIsMapReady = mapReady(state.workingProfile);
+    ImGui::BeginDisabled(!profileIsMapReady);
     if (ImGui::Button("Apply and Use"))
     {
         scanWorkingProfile(state);
         activeProfile = state.workingProfile;
         profileChanged = true;
         state.visible = false;
+    }
+    ImGui::EndDisabled();
+    if (!profileIsMapReady)
+    {
+        ImGui::SameLine();
+        ImGui::TextColored(theme::imguiColor(theme::amber), "A validated radarcol.mul is required");
     }
 
     ImGui::SameLine();

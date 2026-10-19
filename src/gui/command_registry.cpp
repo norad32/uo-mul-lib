@@ -6,6 +6,7 @@
 #include "gui/preferences.h"
 #include "gui/panel_registry.h"
 #include "gui/workbench_state.h"
+#include "gui/workbench_session.h"
 #include <functional>
 #include <string_view>
 #include <utility>
@@ -20,6 +21,15 @@ CommandAvailability enabled(const WorkbenchState & state)
 {
     static_cast<void>(state);
     return {.enabled = true, .disabledReason = {}};
+}
+
+CommandAvailability requiresMapReadyProfile(const WorkbenchState & state)
+{
+    if (state.startupLoaded && !state.session.mapReady())
+    {
+        return {.enabled = false, .disabledReason = "Configure a valid radarcol.mul profile first"};
+    }
+    return enabled(state);
 }
 
 CommandAvailability requiresMap(const WorkbenchState & state)
@@ -163,9 +173,9 @@ const std::vector<Command> & CommandRegistry::commands() const noexcept
 
 void registerDefaultCommands(CommandRegistry & registry)
 {
-    add(registry, CommandId::fileOpen, "file.open", "Open...", "File", "Open a map", "Ctrl+O", enabled,
+    add(registry, CommandId::fileOpen, "file.open", "Open...", "File", "Open a map", "Ctrl+O", requiresMapReadyProfile,
         [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::openMap); });
-    add(registry, CommandId::fileNew, "file.new", "New Empty Map...", "File", "Create an empty map", "Ctrl+N", enabled,
+    add(registry, CommandId::fileNew, "file.new", "Create Map...", "File", "Create an empty map", "Ctrl+N", requiresMapReadyProfile,
         [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::newMap); });
     add(registry,
         CommandId::fileSaveAs,
@@ -258,7 +268,11 @@ void registerDefaultCommands(CommandRegistry & registry)
     add(registry, CommandId::editToggle, "edit.toggle", "Edit mode", "Edit", "Toggle map editing", "", requiresMap,
         [](WorkbenchState & state) { state.workspace.setEditMode(!state.workspace.editMode()); });
     add(registry, CommandId::dataPaths, "data.paths", "UO Data Paths...", "Data", "Configure the active UO data profile", "", enabled,
-        [](WorkbenchState & state) { requestDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile); });
+        [](WorkbenchState & state)
+        {
+            state.session.setStartupState(StartupState::configureProfile);
+            requestDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile);
+        });
     add(registry, CommandId::resetLayout, "view.reset-layout", "Reset Layout", "View", "Restore the default workbench layout", "", enabled,
         [](WorkbenchState & state)
         {

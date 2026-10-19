@@ -342,7 +342,7 @@ void drawEditToolsContents(MapWorkspace & workspace, EditToolsPanelState & state
 
 void drawEditToolsPanel(MapWorkspace & workspace, EditToolsPanelState & state, bool & visible)
 {
-    ImGui::Begin("Edit Tools", &visible);
+    ImGui::Begin("Edit Tools###view.edit-tools", &visible);
     drawEditToolsContents(workspace, state);
     ImGui::End();
 }

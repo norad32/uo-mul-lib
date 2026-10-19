@@ -830,7 +830,7 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     const bool hasDocument = workspace.reader() != nullptr;
     resetForDocument(workspace, state, dimensions);
 
-    const bool contentsVisible = ImGui::Begin("Map Canvas", &visible);
+    const bool contentsVisible = ImGui::Begin("Map Canvas###view.map-canvas", &visible);
 
     if (!visible || !contentsVisible)
     {

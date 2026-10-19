@@ -11,6 +11,7 @@ namespace uo_mule::gui
 enum class NotificationSeverity : std::uint8_t
 {
     info,
+    success,
     warning,
     error,
 };

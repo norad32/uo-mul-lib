@@ -154,7 +154,7 @@ void drawTileDetails(const MapWorkspace & workspace, RadarcolPanelState & radarc
 void drawTileInspectorPanel(const MapWorkspace & workspace, RadarcolPanelState & radarcolState,
                             TexmapsPanelState & texmapsState, bool & visible)
 {
-    const bool contentsVisible = ImGui::Begin("Tile Inspector", &visible);
+    const bool contentsVisible = ImGui::Begin("Tile Inspector###view.tile-inspector", &visible);
 
     if (contentsVisible)
     {

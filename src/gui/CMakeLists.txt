@@ -37,6 +37,9 @@ add_library(
     panels/tile_inspector_panel.cpp
     panel_registry.cpp
     preferences.cpp
+    recent_maps.cpp
+    view_registry.cpp
+    workbench_session.cpp
     workbench_state.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)

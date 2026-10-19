@@ -114,7 +114,7 @@ void drawSelectionStatsPanel(MapWorkspace & workspace, SelectionStatsPanelState 
         refreshStats(workspace, state);
     }
 
-    const bool contentsVisible = ImGui::Begin("Selection Statistics", &visible);
+    const bool contentsVisible = ImGui::Begin("Selection Statistics###view.selection-statistics", &visible);
     if (contentsVisible)
     {
         if (workspace.reader() == nullptr)
