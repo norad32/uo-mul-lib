@@ -1,7 +1,8 @@
 #include "gui/panels/block_inspector_panel.h"
+#include "gui/data_providers.h"
+#include "gui/map_context.h"
 #include "gui/map_workspace.h"
 #include "gui/panels/common.h"
-#include "gui/panels/radarcol_panel.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -24,9 +25,9 @@ constexpr float selectedBorderThickness = 2.0F;
 constexpr float gridLineThickness = 1.0F;
 
 void drawTileCell(const uomul::MapBlock & block,
-                  uomul::BlockCoord blockCoordinate,
-                  MapWorkspace & workspace,
-                  RadarcolPanelState & radarcolState,
+                   uomul::BlockCoord blockCoordinate,
+                   MapWorkspace & workspace,
+                   const RadarColorProvider & radarColors,
                   std::size_t row,
                   std::size_t column,
                   ImVec2 gridOrigin)
@@ -39,7 +40,7 @@ void drawTileCell(const uomul::MapBlock & block,
     };
     const bool selected = workspace.selectedTile() && workspace.selectedTile()->x == tileCoordinate.x &&
                           workspace.selectedTile()->y == tileCoordinate.y;
-    const MapColor mapColor = tileDisplayColor(workspace.displayMode(), tile, radarMapDisplayColor(radarcolState, tile.id));
+    const MapColor mapColor = tileDisplayColor(workspace.displayMode(), tile, radarColors.mapColor(tile.id));
     const ImVec2 cellMinimum(gridOrigin.x + coordinateColumnWidth + (static_cast<float>(column) * tileCellSize),
                              gridOrigin.y + ImGui::GetTextLineHeightWithSpacing() + (static_cast<float>(row) * tileCellSize));
     const ImVec2 cellMaximum(cellMinimum.x + tileCellSize, cellMinimum.y + tileCellSize);
@@ -89,7 +90,7 @@ void drawTileCell(const uomul::MapBlock & block,
 void drawBlock(const uomul::MapBlock & block,
                uomul::BlockCoord blockCoordinate,
                MapWorkspace & workspace,
-               RadarcolPanelState & radarcolState)
+               const RadarColorProvider & radarColors)
 {
     const ImVec2 gridOrigin = ImGui::GetCursorScreenPos();
     ImDrawList * drawList = ImGui::GetWindowDrawList();
@@ -118,7 +119,7 @@ void drawBlock(const uomul::MapBlock & block,
                           coordinate.c_str());
         for (std::size_t column = 0; column < uomul::mapBlockDimension; column++)
         {
-            drawTileCell(block, blockCoordinate, workspace, radarcolState, row, column, gridOrigin);
+            drawTileCell(block, blockCoordinate, workspace, radarColors, row, column, gridOrigin);
         }
     }
 
@@ -158,7 +159,8 @@ void drawBlockError(const uomul::Error & error)
 } // namespace
 
 void drawBlockInspectorPanel(MapWorkspace & workspace,
-                             RadarcolPanelState & radarcolState,
+                             const MapContextSnapshot & context,
+                             const DataProviders & providers,
                              BlockInspectorPanelState & state,
                              bool & visible)
 {
@@ -171,8 +173,7 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
         state.blockCoordinate.reset();
     }
 
-    const std::optional<uomul::TileCoord> inspectedTile =
-        workspace.hoveredTile() ? workspace.hoveredTile() : workspace.selectedTile();
+    const std::optional<uomul::TileCoord> inspectedTile = context.activeTile;
 
     if (reader != nullptr && inspectedTile)
     {
@@ -207,11 +208,11 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
                         (blockCoordinate.y * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U);
             if (state.block)
             {
-                drawBlock(*state.block, blockCoordinate, workspace, radarcolState);
-                if (workspace.selectedTile() && workspace.selectedValue())
+                drawBlock(*state.block, blockCoordinate, workspace, providers.radarColors());
+                if (context.selectedTile && context.selectedValue)
                 {
-                    const uomul::TileCoord tileCoordinate = *workspace.selectedTile();
-                    const uomul::MapTile tile = *workspace.selectedValue();
+                    const uomul::TileCoord tileCoordinate = *context.selectedTile;
+                    const uomul::MapTile tile = *context.selectedValue;
                     ImGui::Text("Selected tile (%u, %u): ID %u, Z %d",
                                 tileCoordinate.x,
                                 tileCoordinate.y,

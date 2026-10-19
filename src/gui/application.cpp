@@ -7,6 +7,7 @@
 #include "gui/dialogs/data_paths_dialog.h"
 #include "gui/log_panel.h"
 #include "gui/map_workspace.h"
+#include "gui/map_context.h"
 #include "gui/menu_bar.h"
 #include "gui/new_map_dialog.h"
 #include "gui/notification_state.h"
@@ -428,6 +429,7 @@ void drawMapPanels(WorkbenchState & state,
                    TexmapsPanelState & texmapsState)
 {
     MapWorkspace & workspace = state.workspace;
+    state.providers.sync(activeProfile);
     syncRadarcolPanel(radarcolState, activeProfile);
     syncTexmapsPanel(texmapsState, activeProfile);
 
@@ -445,20 +447,21 @@ void drawMapPanels(WorkbenchState & state,
     {
         workspace.clearHover();
     }
+    const MapContextSnapshot context = state.session.contextSnapshot(workspace);
 
     if (state.panelRegistry.find(PanelId::tileInspector)->visible)
     {
-        drawTileInspectorPanel(workspace, radarcolState, texmapsState, state.panelRegistry.find(PanelId::tileInspector)->visible);
+        drawTileInspectorPanel(workspace, context, state.providers, state.panelRegistry.find(PanelId::tileInspector)->visible);
     }
 
     if (state.panelRegistry.find(PanelId::blockInspector)->visible)
     {
-        drawBlockInspectorPanel(workspace, radarcolState, blockInspectorState, state.panelRegistry.find(PanelId::blockInspector)->visible);
+        drawBlockInspectorPanel(workspace, context, state.providers, blockInspectorState, state.panelRegistry.find(PanelId::blockInspector)->visible);
     }
 
     if (state.panelRegistry.find(PanelId::selectionStatistics)->visible)
     {
-        drawSelectionStatsPanel(workspace, selectionStatsState, state.panelRegistry.find(PanelId::selectionStatistics)->visible);
+        drawSelectionStatsPanel(workspace, context, selectionStatsState, state.panelRegistry.find(PanelId::selectionStatistics)->visible);
     }
 
     if (state.panelRegistry.find(PanelId::mapInformation)->visible)
@@ -715,6 +718,12 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     const bool profileChanged = drawMenuBar(state);
+
+    if (!state.pendingClipboardText.empty())
+    {
+        glfwSetClipboardString(window, state.pendingClipboardText.c_str());
+        state.pendingClipboardText.clear();
+    }
 
     if (profileChanged)
     {

@@ -1,0 +1,49 @@
+#include "gui/data_providers.h"
+#include "gui/data_profile.h"
+#include "gui/map_context.h"
+#include "gui/map_workspace.h"
+#include "gui/panels/selection_stats_panel.h"
+#include "gui/workbench_state.h"
+#include <catch2/catch_test_macros.hpp>
+
+TEST_CASE("mapContextSnapshot_Should_ExposeNoActiveLocationWithoutMap")
+{
+    const uo_mule::gui::WorkbenchState state;
+    const auto context = state.session.contextSnapshot(state.workspace);
+
+    REQUIRE_FALSE(context.hasDocument);
+    REQUIRE_FALSE(context.activeTile.has_value());
+    REQUIRE_FALSE(context.activeValue.has_value());
+    REQUIRE_FALSE(context.activeBlock.has_value());
+    REQUIRE(context.selectionMode == uo_mule::gui::MapSelectionMode::tiles);
+}
+
+TEST_CASE("dataProviders_Should_ReportUnavailableOptionalAssets_WhenProfileHasNoPaths")
+{
+    uo_mule::gui::DataProviders providers;
+    providers.sync(uo_mule::gui::DataProfile{});
+
+    REQUIRE(providers.radarColors().status().state == uo_mule::gui::ProviderAssetState::unavailable);
+    REQUIRE(providers.textures().status().state == uo_mule::gui::ProviderAssetState::unavailable);
+    REQUIRE(providers.tileData().status().state == uo_mule::gui::ProviderAssetState::unavailable);
+}
+
+TEST_CASE("dataProviders_Should_InvalidateAllProviders")
+{
+    uo_mule::gui::DataProviders providers;
+    providers.sync(uo_mule::gui::DataProfile{});
+    const auto firstRevision = providers.radarColors().status().revision;
+
+    providers.invalidate();
+
+    REQUIRE(providers.radarColors().status().revision > firstRevision);
+    REQUIRE(providers.textures().status().state == uo_mule::gui::ProviderAssetState::unavailable);
+    REQUIRE(providers.tileData().status().state == uo_mule::gui::ProviderAssetState::unavailable);
+}
+
+TEST_CASE("selectionStatsState_Should_StartIdle")
+{
+    const uo_mule::gui::SelectionStatsPanelState state;
+
+    REQUIRE(state.status == uo_mule::gui::SelectionStatsState::idle);
+}

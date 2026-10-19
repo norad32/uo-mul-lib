@@ -66,3 +66,11 @@ TEST_CASE("defaultCommands_Should_ExposeSeparateTileAndBlockNavigationCommands")
     REQUIRE(block->label == "Go to Block...");
     REQUIRE(block->defaultShortcut.empty());
 }
+
+TEST_CASE("copyLocationCommands_Should_RemainDisabledWithoutActiveLocation")
+{
+    const WorkbenchState state;
+
+    REQUIRE_FALSE(state.commands.availability(CommandId::mapCopyCoordinate, state).enabled);
+    REQUIRE_FALSE(state.commands.availability(CommandId::mapCopyTileData, state).enabled);
+}

@@ -18,6 +18,7 @@ add_library(
     data_discovery.cpp
     data_profile.cpp
     data_profile_store.cpp
+    data_providers.cpp
     data_validation.cpp
     coordinate_parser.cpp
     dialogs/data_paths_dialog.cpp

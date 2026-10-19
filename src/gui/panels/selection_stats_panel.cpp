@@ -1,4 +1,5 @@
 #include "gui/panels/selection_stats_panel.h"
+#include "gui/map_context.h"
 #include "gui/map_workspace.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
@@ -31,12 +32,13 @@ namespace
                       left->maxExclusive.x == right->maxExclusive.x && left->maxExclusive.y == right->maxExclusive.y));
 }
 
-[[nodiscard]] bool selectionChanged(const MapWorkspace & workspace, const SelectionStatsPanelState & state) noexcept
+[[nodiscard]] bool selectionChanged(const MapWorkspace & workspace,
+                                    const MapContextSnapshot & context,
+                                    const SelectionStatsPanelState & state) noexcept
 {
     return !state.cacheValid || state.mapPath != workspace.mapPath() || state.dimensions != workspace.dimensions() ||
-           state.selectionMode != workspace.selectionMode() ||
-           !sameTileRegion(state.tileSelection, workspace.tileSelection()) ||
-           !sameBlockRegion(state.blockSelection, workspace.blockSelection());
+           state.selectionMode != context.selectionMode || !sameTileRegion(state.tileSelection, context.tileSelection) ||
+           !sameBlockRegion(state.blockSelection, context.blockSelection);
 }
 
 void refreshStats(MapWorkspace & workspace, SelectionStatsPanelState & state)
@@ -48,10 +50,12 @@ void refreshStats(MapWorkspace & workspace, SelectionStatsPanelState & state)
     state.blockSelection = workspace.blockSelection();
     state.stats.reset();
     state.error.reset();
+    state.status = SelectionStatsState::loading;
     state.cacheValid = true;
     if (workspace.reader() == nullptr ||
         (state.selectionMode == MapSelectionMode::tiles ? !state.tileSelection : !state.blockSelection))
     {
+        state.status = SelectionStatsState::empty;
         return;
     }
 
@@ -60,10 +64,12 @@ void refreshStats(MapWorkspace & workspace, SelectionStatsPanelState & state)
     if (result)
     {
         state.stats = std::move(*result);
+        state.status = state.stats ? SelectionStatsState::ready : SelectionStatsState::empty;
     }
     else
     {
         state.error = result.error();
+        state.status = SelectionStatsState::error;
     }
 }
 
@@ -107,9 +113,12 @@ void drawStats(const uomul::MapStats & stats)
 
 } // namespace
 
-void drawSelectionStatsPanel(MapWorkspace & workspace, SelectionStatsPanelState & state, bool & visible)
+void drawSelectionStatsPanel(MapWorkspace & workspace,
+                             const MapContextSnapshot & context,
+                             SelectionStatsPanelState & state,
+                             bool & visible)
 {
-    if (selectionChanged(workspace, state))
+    if (selectionChanged(workspace, context, state))
     {
         refreshStats(workspace, state);
     }
@@ -121,11 +130,15 @@ void drawSelectionStatsPanel(MapWorkspace & workspace, SelectionStatsPanelState 
         {
             ImGui::TextUnformatted("No map open");
         }
-        else if (state.error)
+        else if (state.status == SelectionStatsState::error && state.error)
         {
             ImGui::TextColored(theme::imguiColor(theme::coral), "Statistics error: %s", state.error->message.c_str());
         }
-        else if (!state.stats)
+        else if (state.status == SelectionStatsState::loading)
+        {
+            ImGui::TextUnformatted("Calculating selection statistics...");
+        }
+        else if (state.status == SelectionStatsState::empty || !state.stats)
         {
             ImGui::TextUnformatted("No selection");
         }

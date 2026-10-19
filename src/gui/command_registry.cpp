@@ -1,5 +1,6 @@
 #include "gui/command_registry.h"
 #include "gui/coordinate_parser.h"
+#include "gui/map_context.h"
 #include "gui/dialogs/data_paths_dialog.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
@@ -11,6 +12,7 @@
 #include "gui/panels/map_canvas_panel.h"
 #include <functional>
 #include <string_view>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -48,6 +50,16 @@ CommandAvailability requiresMap(const WorkbenchState & state)
     if (state.workspace.reader() == nullptr)
     {
         return {.enabled = false, .disabledReason = "No map is open"};
+    }
+    return enabled(state);
+}
+
+CommandAvailability requiresActiveLocation(const WorkbenchState & state)
+{
+    const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
+    if (!context.activeTile || !context.activeValue)
+    {
+        return {.enabled = false, .disabledReason = "No map location is active"};
     }
     return enabled(state);
 }
@@ -345,6 +357,33 @@ void registerDefaultCommands(CommandRegistry & registry)
         "",
         requiresMapDocument,
         [](WorkbenchState & state) { requestCoordinateDialog(state, CoordinateKind::block); });
+    add(registry,
+        CommandId::mapCopyCoordinate,
+        "map.copy-coordinate",
+        "Copy Coordinate",
+        "Map",
+        "Copy the active tile coordinate",
+        "",
+        requiresActiveLocation,
+        [](WorkbenchState & state)
+        {
+            const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
+            state.pendingClipboardText = std::to_string(context.activeTile->x) + " " + std::to_string(context.activeTile->y);
+        });
+    add(registry,
+        CommandId::mapCopyTileData,
+        "map.copy-tile-data",
+        "Copy Tile Data",
+        "Map",
+        "Copy the active tile ID and elevation",
+        "",
+        requiresActiveLocation,
+        [](WorkbenchState & state)
+        {
+            const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
+            state.pendingClipboardText = "Tile ID: " + std::to_string(context.activeValue->id) +
+                                         "\nElevation: " + std::to_string(static_cast<int>(context.activeValue->z));
+        });
 }
 
 } // namespace uo_mule::gui

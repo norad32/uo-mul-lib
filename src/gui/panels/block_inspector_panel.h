@@ -1,6 +1,8 @@
 #pragma once
 
 #include "gui/map_workspace.h"
+#include "gui/map_context.h"
+#include "gui/data_providers.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <filesystem>
@@ -8,8 +10,6 @@
 
 namespace uo_mule::gui
 {
-
-struct RadarcolPanelState;
 
 struct BlockInspectorPanelState
 {
@@ -21,7 +21,8 @@ struct BlockInspectorPanelState
 };
 
 void drawBlockInspectorPanel(MapWorkspace & workspace,
-                             RadarcolPanelState & radarcolState,
+                             const MapContextSnapshot & context,
+                             const DataProviders & providers,
                              BlockInspectorPanelState & state,
                              bool & visible);
 
