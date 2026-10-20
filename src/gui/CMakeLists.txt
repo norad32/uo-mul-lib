@@ -43,6 +43,8 @@ add_library(
     preferences.cpp
     recent_maps.cpp
     view_registry.cpp
+    welcome_greetings.cpp
+    welcome_screen.cpp
     workbench_session.cpp
     workbench_state.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)

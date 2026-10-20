@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui/map_workspace.h"
+#include "gui/data_profile.h"
 #include "gui/notification_state.h"
 #include "gui/operation_controller.h"
 #include "uomul/map.h"
@@ -65,6 +66,7 @@ struct NewMapDialogState
     std::uint32_t newMapWidth = defaultMapDialogWidth;
     std::uint32_t newMapHeight = defaultMapDialogHeight;
     int openFacet = 1;
+    bool openWithoutReview = false;
     bool openPickerRequested = false;
     std::filesystem::path openPickerDirectory;
     std::filesystem::path openPickerSelection;
@@ -89,6 +91,8 @@ void drawNewMapDialog(MapWorkspace & workspace,
                       OutputCollisionPolicy collisionPolicy,
                       NotificationState & notifications,
                       bool & shouldClose);
+
+void cancelMapDialog(NewMapDialogState & state);
 
 void requestCloseOperation(MapWorkspace & workspace,
                            NewMapDialogState & state,

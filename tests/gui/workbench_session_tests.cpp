@@ -1,17 +1,22 @@
-#include "gui/data_profile.h"
 #include "gui/command_registry.h"
+#include "gui/coordinate_parser.h"
+#include "gui/data_profile.h"
+#include "gui/map_workspace.h"
 #include "gui/recent_maps.h"
+#include "gui/welcome_greetings.h"
 #include "gui/workbench_session.h"
 #include "gui/workbench_state.h"
-#include "gui/coordinate_parser.h"
-#include "gui/map_workspace.h"
 #include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <random>
+#include <string>
 
 namespace
 {
@@ -104,9 +109,7 @@ TEST_CASE("recentMapStore_Should_RoundTripAndMarkMissingEntries")
     const auto mapPath = directory.path() / "missing.map0.mul";
 
     uo_mule::gui::RecentMapStore store(recentPath);
-    store.record(mapPath,
-                 uomul::Dimensions{.widthTiles = testMapDimension, .heightTiles = testMapDimension},
-                 "Felucca");
+    store.record(mapPath, uomul::Dimensions{.widthTiles = testMapDimension, .heightTiles = testMapDimension}, "Felucca");
 
     const uo_mule::gui::RecentMapStore loaded(recentPath);
     REQUIRE(loaded.maps().size() == 1);
@@ -122,6 +125,24 @@ TEST_CASE("recentMapStore_Should_RoundTripAndMarkMissingEntries")
     REQUIRE_FALSE(loaded.maps().front().failure.empty());
 }
 
+TEST_CASE("recentMapStore_Should_PersistLastOpenedTimestamp")
+{
+    const TemporaryDirectory directory;
+    const auto recentPath = directory.path() / "recent.conf";
+    const auto mapPath = directory.path() / "map0.mul";
+    std::ofstream mapFile(mapPath);
+    mapFile << "fixture";
+    mapFile.close();
+
+    uo_mule::gui::RecentMapStore store(recentPath);
+    store.record(mapPath);
+
+    const uo_mule::gui::RecentMapStore loaded(recentPath);
+    REQUIRE(loaded.maps().size() == 1);
+    REQUIRE(loaded.maps().front().lastOpened > 0);
+    REQUIRE(loaded.maps().front().lastModified > 0);
+}
+
 TEST_CASE("workbenchSession_Should_RecordKnownFacetForRecentMapDimensions")
 {
     const TemporaryDirectory directory;
@@ -134,6 +155,36 @@ TEST_CASE("workbenchSession_Should_RecordKnownFacetForRecentMapDimensions")
 
     REQUIRE(session.recentMaps().size() == 1);
     REQUIRE(session.recentMaps().front().facet == "felucca");
+}
+
+TEST_CASE("recentMapStore_Should_KeepFiveMostRecentMapsInOrder")
+{
+    const TemporaryDirectory directory;
+    const auto recentPath = directory.path() / "recent.conf";
+    uo_mule::gui::RecentMapStore store(recentPath);
+
+    for (std::size_t index = 0; index < uo_mule::gui::recentFileLimit + 1U; ++index)
+    {
+        store.record(directory.path() / ("map" + std::to_string(index) + ".mul"));
+    }
+
+    REQUIRE(store.maps().size() == uo_mule::gui::recentFileLimit);
+    REQUIRE(store.maps().front().path.filename() == "map5.mul");
+    REQUIRE(store.maps().back().path.filename() == "map1.mul");
+
+    store.record(directory.path() / "map2.mul");
+    REQUIRE(store.maps().front().path.filename() == "map2.mul");
+    REQUIRE(store.maps().size() == uo_mule::gui::recentFileLimit);
+}
+
+TEST_CASE("welcomeGreeting_Should_SelectAConfiguredGreeting")
+{
+    std::mt19937 generator(std::random_device{}());
+    const std::string greeting = uo_mule::gui::chooseWelcomeGreeting(generator);
+
+    REQUIRE_FALSE(greeting.empty());
+    REQUIRE(std::find(uo_mule::gui::welcomeGreetings().begin(), uo_mule::gui::welcomeGreetings().end(), greeting) !=
+            uo_mule::gui::welcomeGreetings().end());
 }
 
 TEST_CASE("parseCoordinate_Should_ParseTilesAndBlocks")

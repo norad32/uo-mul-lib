@@ -77,6 +77,7 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
 {
     state.menuBarState.fileDialog.mode = mode;
     state.menuBarState.fileDialog.activePopup = MapFileDialogMode::none;
+    state.menuBarState.fileDialog.openWithoutReview = false;
     state.menuBarState.fileDialog.error.clear();
     state.menuBarState.fileDialog.openPickerRequested = mode == MapFileDialogMode::openMap;
     if (mode == MapFileDialogMode::openMap)

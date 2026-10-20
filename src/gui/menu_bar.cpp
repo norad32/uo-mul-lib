@@ -4,6 +4,7 @@
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
 #include "gui/workbench_state.h"
+#include "gui/workbench_session.h"
 #include "gui/panel_registry.h"
 #include <imgui.h>
 #include <string>
@@ -129,7 +130,7 @@ void drawMapMenu(WorkbenchState & state)
 
 } // namespace
 
-bool drawMenuBar(WorkbenchState & state)
+bool drawMenuBar(WorkbenchState & state, bool showMainMenu)
 {
     bool profileChanged = false;
 
@@ -139,7 +140,7 @@ bool drawMenuBar(WorkbenchState & state)
         static_cast<void>(state.commands.execute(CommandId::fileQuit, state));
     }
 
-    if (ImGui::BeginMainMenuBar())
+    if (showMainMenu && ImGui::BeginMainMenuBar())
     {
         drawFileMenu(state);
         drawViewMenu(state);
@@ -155,6 +156,23 @@ bool drawMenuBar(WorkbenchState & state)
         }
 
         ImGui::EndMainMenuBar();
+    }
+
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+        {
+            cancelMapDialog(state.menuBarState.fileDialog);
+        }
+        if (state.menuBarState.dataPathsDialog.visible)
+        {
+            state.menuBarState.dataPathsDialog.visible = false;
+            state.menuBarState.dataPathsDialog.picker = {};
+        }
+        else if (!showMainMenu && state.session.startupState() == StartupState::mapWelcome)
+        {
+            state.session.setStartupState(StartupState::workbench);
+        }
     }
 
     if (state.menuBarState.fileDialog.shouldClose)

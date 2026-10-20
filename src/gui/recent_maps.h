@@ -10,6 +10,8 @@
 namespace uo_mule::gui
 {
 
+inline constexpr std::size_t recentFileLimit = 5;
+
 struct RecentMap
 {
     std::filesystem::path path;
@@ -17,6 +19,8 @@ struct RecentMap
     std::optional<uomul::Dimensions> dimensions;
     std::string facet;
     std::string failure;
+    std::int64_t lastOpened = 0;
+    std::int64_t lastModified = 0;
 };
 
 [[nodiscard]] std::filesystem::path recentMapsPath();
@@ -29,9 +33,7 @@ public:
     explicit RecentMapStore(std::filesystem::path path = {});
 
     [[nodiscard]] const std::vector<RecentMap> & maps() const noexcept;
-    void record(std::filesystem::path path,
-                std::optional<uomul::Dimensions> dimensions = std::nullopt,
-                std::string facet = {});
+    void record(std::filesystem::path path, std::optional<uomul::Dimensions> dimensions = std::nullopt, std::string facet = {});
     void refreshValidity();
 
 private:

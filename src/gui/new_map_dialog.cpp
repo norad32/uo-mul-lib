@@ -89,6 +89,7 @@ void closeDialog(NewMapDialogState & state)
     state.saveForPendingOperation = false;
     state.mode = MapFileDialogMode::none;
     state.activePopup = MapFileDialogMode::none;
+    state.openWithoutReview = false;
     state.error.clear();
     state.openPickerRequested = false;
     state.openPickerDirectory.clear();
@@ -493,6 +494,17 @@ void drawOpenPicker(NewMapDialogState & state)
 
 void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
 {
+    if (state.openWithoutReview && state.openPath.front() != '\0')
+    {
+        state.operation = {
+            .kind = PendingMapOperationKind::openMap,
+            .path = state.openPath.data(),
+            .dimensions = uomul::Dimensions{.widthTiles = state.openWidth, .heightTiles = state.openHeight},
+        };
+        requestOperation(workspace, state);
+        return;
+    }
+
     if (state.openPickerRequested)
     {
         drawOpenPicker(state);
@@ -787,6 +799,21 @@ void drawOverwriteDialog(MapWorkspace & workspace, NewMapDialogState & state)
 }
 
 } // namespace
+
+void cancelMapDialog(NewMapDialogState & state)
+{
+    state.operation = {};
+    state.overwriteKind = MapOverwriteKind::none;
+    state.saveForPendingOperation = false;
+    state.mode = MapFileDialogMode::none;
+    state.activePopup = MapFileDialogMode::none;
+    state.openWithoutReview = false;
+    state.error.clear();
+    state.openPickerRequested = false;
+    state.openPickerDirectory.clear();
+    state.openPickerSelection.clear();
+    state.openPickerError.clear();
+}
 
 void drawNewMapDialog(MapWorkspace & workspace,
                       NewMapDialogState & state,

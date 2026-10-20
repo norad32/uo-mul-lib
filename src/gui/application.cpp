@@ -9,7 +9,6 @@
 #include "gui/map_workspace.h"
 #include "gui/map_context.h"
 #include "gui/menu_bar.h"
-#include "gui/new_map_dialog.h"
 #include "gui/notification_state.h"
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/panels/edit_tools_panel.h"
@@ -23,6 +22,7 @@
 #include "gui/theme.h"
 #include "gui/workbench_state.h"
 #include "gui/workbench_session.h"
+#include "gui/welcome_screen.h"
 #include "gui/layout_store.h"
 #include "gui/panel_registry.h"
 #include "uomul/map.h"
@@ -77,12 +77,6 @@ constexpr float notificationTopMargin = 48.0F;
 constexpr float notificationMinimumWidth = 280.0F;
 constexpr float notificationMaximumWidth = 480.0F;
 constexpr float notificationMaximumHeightRatio = 0.5F;
-constexpr int feluccaFacetIndex = 1;
-constexpr int trammelFacetIndex = 2;
-constexpr int ilshenarFacetIndex = 3;
-constexpr int malasFacetIndex = 4;
-constexpr int tokunoFacetIndex = 5;
-constexpr int terMurFacetIndex = 6;
 constexpr char hexadecimalLowercaseStart = 'a';
 constexpr char hexadecimalUppercaseStart = 'A';
 constexpr char hexadecimalLastDigit = '9';
@@ -623,101 +617,14 @@ void drawStartupScreen(WorkbenchState & state)
     ImGui::End();
 }
 
-void drawMapWelcome(WorkbenchState & state)
-{
-    const ImGuiViewport * viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(viewport->WorkSize, ImGuiCond_Always);
-    if (!ImGui::Begin("Map Welcome###welcome.map", nullptr,
-                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
-    {
-        ImGui::End();
-        return;
-    }
-    ImGui::TextUnformatted("Map Workbench");
-    ImGui::Text("Profile: %s", state.activeProfile.name.empty() ? "Unnamed" : state.activeProfile.name.c_str());
-    ImGui::TextUnformatted("Source maps are read-only. Edits are staged and saved to an explicit output.");
-    ImGui::Separator();
-    if (ImGui::Button("Open Map"))
-    {
-        static_cast<void>(state.commands.execute(CommandId::fileOpen, state));
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Create Map"))
-    {
-        static_cast<void>(state.commands.execute(CommandId::fileNew, state));
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Configure UO Data Paths"))
-    {
-        static_cast<void>(state.commands.execute(CommandId::dataPaths, state));
-    }
-
-    ImGui::Spacing();
-    ImGui::TextUnformatted("Recent Maps");
-    state.session.refreshRecentMaps();
-    for (const auto & recent : state.session.recentMaps())
-    {
-        ImGui::PushID(recent.path.string().c_str());
-        const std::string label = recent.displayName + "##recent-map";
-        if (ImGui::Selectable(label.c_str()))
-        {
-            state.menuBarState.fileDialog.mode = MapFileDialogMode::openMap;
-            state.menuBarState.fileDialog.activePopup = MapFileDialogMode::none;
-            state.menuBarState.fileDialog.openPickerRequested = false;
-            std::ranges::fill(state.menuBarState.fileDialog.openPath, '\0');
-            const std::string path = recent.path.string();
-            std::copy_n(path.c_str(), std::min(path.size(), state.menuBarState.fileDialog.openPath.size() - 1U),
-                        state.menuBarState.fileDialog.openPath.data());
-            if (recent.dimensions)
-            {
-                state.menuBarState.fileDialog.openWidth = recent.dimensions->widthTiles;
-                state.menuBarState.fileDialog.openHeight = recent.dimensions->heightTiles;
-
-                state.menuBarState.fileDialog.openFacet = 0;
-                if (recent.facet == "felucca")
-                {
-                    state.menuBarState.fileDialog.openFacet = feluccaFacetIndex;
-                }
-                else if (recent.facet == "trammel")
-                {
-                    state.menuBarState.fileDialog.openFacet = trammelFacetIndex;
-                }
-                else if (recent.facet == "ilshenar")
-                {
-                    state.menuBarState.fileDialog.openFacet = ilshenarFacetIndex;
-                }
-                else if (recent.facet == "malas")
-                {
-                    state.menuBarState.fileDialog.openFacet = malasFacetIndex;
-                }
-                else if (recent.facet == "tokuno")
-                {
-                    state.menuBarState.fileDialog.openFacet = tokunoFacetIndex;
-                }
-                else if (recent.facet == "ter-mur")
-                {
-                    state.menuBarState.fileDialog.openFacet = terMurFacetIndex;
-                }
-            }
-        }
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s", recent.failure.empty() ? recent.path.string().c_str() : recent.failure.c_str());
-        ImGui::PopID();
-    }
-    if (state.session.recentMaps().empty())
-    {
-        ImGui::TextDisabled("No recent maps");
-    }
-    ImGui::End();
-}
-
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    const bool profileChanged = drawMenuBar(state);
+    const bool welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr;
+    const bool profileChanged = drawMenuBar(state, !welcomeShell);
 
     if (!state.pendingClipboardText.empty())
     {
@@ -730,6 +637,11 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
         state.preferences.activeDataProfile = state.activeProfile.name;
         savePreferences(state.preferences);
         state.session.updateProfile(state.activeProfile);
+        if (state.workspace.reader() == nullptr)
+        {
+            state.welcomeGreetingSelected = false;
+            state.welcomeGreeting.clear();
+        }
     }
 
     if (!ImGui::GetIO().WantTextInput && !ImGui::GetIO().WantCaptureKeyboard)
@@ -760,18 +672,22 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
         }
     }
 
-    const float bottomPanelHeight = drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
+    const float bottomPanelHeight = welcomeShell ? 0.0F : drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
+    const bool noMapLoaded = state.workspace.reader() == nullptr;
     state.session.syncDocument(state.workspace);
     if (state.session.startupState() == StartupState::configureProfile)
     {
         drawStartupScreen(state);
     }
-    else if (state.workspace.reader() == nullptr)
+    else if (welcomeShell)
     {
-        drawMapWelcome(state);
+        state.recentMapRecordedPath.clear();
+        drawWelcomeScreen(state);
     }
     else
     {
+        state.welcomeGreetingSelected = false;
+        state.welcomeGreeting.clear();
         drawDockSpace(state, bottomPanelHeight);
         drawMapPanels(state,
                       state.activeProfile,
@@ -781,9 +697,16 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
                       state.editToolsState,
                       state.radarcolState,
                       state.texmapsState);
-        state.session.recordRecentMap(state.workspace.mapPath(), state.workspace.dimensions());
+        if (state.recentMapRecordedPath != state.workspace.mapPath())
+        {
+            state.session.recordRecentMap(state.workspace.mapPath(), state.workspace.dimensions());
+            state.recentMapRecordedPath = state.workspace.mapPath();
+        }
     }
-    drawStatusBar(state, bottomPanelHeight);
+    if (!noMapLoaded)
+    {
+        drawStatusBar(state, bottomPanelHeight);
+    }
     drawNotifications(state.notifications);
     renderFrame(window);
 }

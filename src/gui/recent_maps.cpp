@@ -2,16 +2,17 @@
 #include "core/app_info.h"
 #include "uomul/map.h"
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
-#include <ios>
 #include <fstream>
 #include <iomanip>
+#include <ios>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <utility>
-#include <optional>
 #include <vector>
 
 namespace uo_mule::gui
@@ -19,8 +20,27 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::uint32_t recentMapsSchemaVersion = 1;
-constexpr std::size_t maximumRecentMaps = 12;
+constexpr std::uint32_t recentMapsSchemaVersion = 3;
+constexpr std::uint32_t minimumSupportedSchemaVersion = 1;
+
+[[nodiscard]] std::int64_t currentTimestamp() noexcept
+{
+    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+[[nodiscard]] std::int64_t fileTimestamp(const std::filesystem::path & path) noexcept
+{
+    std::error_code error;
+    const auto fileTime = std::filesystem::last_write_time(path, error);
+    if (error)
+    {
+        return 0;
+    }
+
+    const auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+        fileTime - decltype(fileTime)::clock::now() + std::chrono::system_clock::now());
+    return std::chrono::duration_cast<std::chrono::seconds>(systemTime.time_since_epoch()).count();
+}
 
 [[nodiscard]] std::filesystem::path configDirectory()
 {
@@ -95,17 +115,30 @@ std::vector<RecentMap> loadRecentMaps(const std::filesystem::path & path)
             map.dimensions = uomul::Dimensions{.widthTiles = width, .heightTiles = height};
         }
         file >> std::quoted(map.facet) >> std::quoted(map.failure);
+        if (version >= recentMapsSchemaVersion)
+        {
+            file >> map.lastOpened;
+            file >> map.lastModified;
+        }
+        else if (version == 2)
+        {
+            file >> map.lastOpened;
+        }
         if (file && !map.path.empty())
         {
             if (map.displayName.empty())
             {
                 map.displayName = defaultDisplayName(map.path);
             }
+            if (map.lastModified == 0)
+            {
+                map.lastModified = fileTimestamp(map.path);
+            }
             result.push_back(std::move(map));
         }
     }
 
-    if (version != recentMapsSchemaVersion)
+    if (version < minimumSupportedSchemaVersion || version > recentMapsSchemaVersion)
     {
         result.clear();
     }
@@ -113,9 +146,9 @@ std::vector<RecentMap> loadRecentMaps(const std::filesystem::path & path)
     {
         refreshEntryValidity(map);
     }
-    if (result.size() > maximumRecentMaps)
+    if (result.size() > recentFileLimit)
     {
-        result.resize(maximumRecentMaps);
+        result.resize(recentFileLimit);
     }
     return result;
 }
@@ -138,7 +171,8 @@ void saveRecentMaps(const std::vector<RecentMap> & maps, const std::filesystem::
         {
             file << ' ' << map.dimensions->widthTiles << ' ' << map.dimensions->heightTiles;
         }
-        file << ' ' << std::quoted(map.facet) << ' ' << std::quoted(map.failure) << '\n';
+        file << ' ' << std::quoted(map.facet) << ' ' << std::quoted(map.failure) << ' ' << map.lastOpened << ' '
+             << map.lastModified << '\n';
     }
     file.close();
     std::filesystem::rename(temporary, path);
@@ -161,27 +195,25 @@ void RecentMapStore::record(std::filesystem::path path, std::optional<uomul::Dim
         return;
     }
     const auto existing = std::ranges::find(maps_, path, &RecentMap::path);
-    RecentMap entry{.path = std::move(path),
-                    .displayName = {},
-                    .dimensions = dimensions,
-                    .facet = std::move(facet),
-                    .failure = {},
-                   };
+    RecentMap entry{
+        .path = std::move(path),
+        .displayName = {},
+        .dimensions = dimensions,
+        .facet = std::move(facet),
+        .failure = {},
+        .lastOpened = currentTimestamp(),
+        .lastModified = fileTimestamp(entry.path),
+    };
     entry.displayName = defaultDisplayName(entry.path);
     if (existing != maps_.end())
     {
         entry.displayName = existing->displayName.empty() ? entry.displayName : existing->displayName;
-        if (existing == maps_.begin() && existing->path == entry.path && existing->dimensions == entry.dimensions &&
-            existing->facet == entry.facet && existing->failure.empty())
-        {
-            return;
-        }
         maps_.erase(existing);
     }
     maps_.insert(maps_.begin(), std::move(entry));
-    if (maps_.size() > maximumRecentMaps)
+    if (maps_.size() > recentFileLimit)
     {
-        maps_.resize(maximumRecentMaps);
+        maps_.resize(recentFileLimit);
     }
     saveRecentMaps(maps_, path_);
 }
