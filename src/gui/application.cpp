@@ -623,7 +623,7 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    const bool welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr;
+    bool welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr;
     const bool profileChanged = drawMenuBar(state, !welcomeShell);
 
     if (!state.pendingClipboardText.empty())
@@ -642,6 +642,14 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
             state.welcomeGreetingSelected = false;
             state.welcomeGreeting.clear();
         }
+    }
+
+    welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr;
+    if (state.nativeWelcomeWindowMode != welcomeShell)
+    {
+        glfwSetWindowAttrib(window, GLFW_DECORATED, welcomeShell ? GLFW_FALSE : GLFW_TRUE);
+        glfwSetWindowAttrib(window, GLFW_RESIZABLE, welcomeShell ? GLFW_FALSE : GLFW_TRUE);
+        state.nativeWelcomeWindowMode = welcomeShell;
     }
 
     if (!ImGui::GetIO().WantTextInput && !ImGui::GetIO().WantCaptureKeyboard)

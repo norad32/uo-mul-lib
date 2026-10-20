@@ -23,6 +23,7 @@
 #include <vector>
 #include <string>
 #include <optional>
+#include <filesystem>
 
 namespace uo_mule::gui
 {
@@ -69,6 +70,7 @@ struct WorkbenchState
     bool followLogScroll = true;
     bool shouldClose = false;
     bool startupLoaded = false;
+    bool nativeWelcomeWindowMode = false;
     std::filesystem::path recentMapRecordedPath;
     std::string welcomeGreeting;
     bool welcomeGreetingSelected = false;

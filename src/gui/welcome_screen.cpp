@@ -242,8 +242,7 @@ void drawRecentMap(WorkbenchState & state, const RecentMap & recent, std::size_t
         const ImVec2 rowMax = ImVec2(rowMin.x + ImGui::GetWindowSize().x, rowMin.y + ImGui::GetWindowSize().y);
         ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(theme::brassWash));
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-        ImGui::SetTooltip(recent.dimensions ? "Double-click to open with remembered dimensions and facet"
-                                            : "Double-click to review dimensions and facet");
+        ImGui::SetTooltip("%s", recent.path.string().c_str());
     }
 
     const bool unavailable = !recent.failure.empty();
@@ -252,7 +251,6 @@ void drawRecentMap(WorkbenchState & state, const RecentMap & recent, std::size_t
     ImGui::TextDisabled("%s", dimensionsLabel(recent).c_str());
     ImGui::SameLine();
     ImGui::TextDisabled("%s", facetLabel(recent).c_str());
-    ImGui::TextDisabled("%s", recent.path.string().c_str());
     const std::string modifiedLabel = timestampLabel("Modified", recent.lastModified);
     const std::string openedLabel = timestampLabel("Opened", recent.lastOpened);
     ImGui::TextDisabled("%s | %s", modifiedLabel.c_str(), openedLabel.c_str());
@@ -293,6 +291,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(viewport->WorkSize, ImGuiCond_Always);
     constexpr auto welcomeWindowFlags = static_cast<ImGuiWindowFlags>(
+        static_cast<unsigned int>(ImGuiWindowFlags_NoTitleBar) | static_cast<unsigned>(ImGuiWindowFlags_NoResize) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoDecoration) | static_cast<unsigned int>(ImGuiWindowFlags_NoBackground) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse) |
