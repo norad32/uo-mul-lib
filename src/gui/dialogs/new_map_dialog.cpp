@@ -448,7 +448,7 @@ void drawOpenDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "Dimensions must be positive multiples of 8 tiles.");
     }
-    beginDialogFooter();
+    beginDialogFooter({"Open", "Cancel"});
     if (dialogButton("Open", state.openPath.front() != '\0' && validDimensions))
     {
         const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
@@ -501,7 +501,7 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewMapDialogState & state)
         ImGui::TextColored(theme::imguiColor(theme::warning), "ID must be 0-65535 and Z must be -128 to 127.");
     }
 
-    beginDialogFooter();
+    beginDialogFooter({"Create", "Cancel"});
     if (dialogButton("Create", state.newMapPath.front() != '\0' && validDimensions && validTile))
     {
         const auto dimensions = resolveDimensions(state.newMapFacet, state.newMapWidth, state.newMapHeight);
@@ -550,7 +550,7 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewMapDialogState & state
                             .title = "Save Map",});
     }
 
-    beginDialogFooter();
+    beginDialogFooter({"Save / Commit", "Cancel"});
     if (dialogButton("Save / Commit", state.savePath.front() != '\0'))
     {
         const std::filesystem::path path(state.savePath.data());
@@ -621,7 +621,7 @@ void drawDirtyDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
     ImGui::TextWrapped("The current map has staged changes. Save, discard, or cancel this operation?");
 
-    beginDialogFooter();
+    beginDialogFooter({"Save As...", "Discard", "Cancel"});
     if (dialogButton("Save As..."))
     {
         if (state.controller != nullptr)
@@ -717,7 +717,7 @@ void drawOverwriteDialog(MapWorkspaceManager & workspace, NewMapDialogState & st
         state.overwriteKind == MapOverwriteKind::save ? std::filesystem::path(state.savePath.data()) : state.operation.path;
     ImGui::TextWrapped("The file already exists:\n%s\nReplace it?", path.string().c_str());
 
-    beginDialogFooter();
+    beginDialogFooter({"Overwrite", "Cancel"});
     if (dialogButton("Overwrite"))
     {
         if (state.controller != nullptr)
@@ -898,7 +898,7 @@ void drawNewMapDialog(MapWorkspaceManager & workspace,
             break;
         case MapFileDialogMode::error :
             ImGui::TextColored(theme::imguiColor(theme::error), "%s", state.error.c_str());
-            beginDialogFooter();
+            beginDialogFooter({"OK"});
             if (dialogButton("OK"))
             {
                 state.operation = {};

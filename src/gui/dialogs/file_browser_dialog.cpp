@@ -38,10 +38,13 @@ constexpr float dateColumnWidth = 150.0F;
 constexpr std::size_t dateBufferSize = 64;
 constexpr std::size_t maxRecentLocations = 12;
 constexpr int mapCandidateScore = 80;
+constexpr int mapFilenameScore = 110;
 constexpr int radarcolNamedScore = 100;
+constexpr int radarcolFilenameScore = 80;
 constexpr int radarcolClassicSizeScore = 60;
 constexpr int radarcolStructuralScore = 20;
 constexpr int texmapsPairScore = 90;
+constexpr int filenameHintScoreBonus = 10;
 constexpr std::uintmax_t classicRadarcolByteCount = static_cast<std::uintmax_t>(uomul::radarColorCount) * 2U;
 constexpr std::array<const char *, 7> standardPlaceNames{
     "Desktop",
@@ -310,27 +313,30 @@ void drawSummary(const FileBrowserState & state)
     }
 
     const auto & summary = state.summary;
-    ImGui::TextWrapped("%s", summary.path.filename().string().c_str());
-    ImGui::TextWrapped("%s", summary.path.string().c_str());
+    const std::string filename = summary.path.filename().string();
+    const std::string fullPath = summary.path.string();
+    ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", filename.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::subtext0), "%s", fullPath.c_str());
     if (summary.size)
     {
         const auto size = formatFileSize(*summary.size);
         ImGui::Text("Size: %s", size.c_str());
     }
     ImGui::Text("Modified: %s", summary.modified.c_str());
-    ImGui::Text("Readable: %s", summary.readable ? "yes" : "no");
-    if (!state.request.extension.empty())
-    {
-        ImGui::Text("Filter: %s", state.request.extension.c_str());
-    }
     if (!summary.error.empty())
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "%s", summary.error.c_str());
     }
 
+    bool firstMapCandidate = true;
     for (const auto & candidate : summary.mapCandidates)
     {
         ImGui::Separator();
+        if (firstMapCandidate)
+        {
+            dialogSubheading("Map");
+            firstMapCandidate = false;
+        }
         ImGui::Text("Facet: %s", candidate.facet.c_str());
         ImGui::Text("Dimensions: %u x %u", candidate.dimensions.widthTiles, candidate.dimensions.heightTiles);
         ImGui::Text("Blocks: %llu / %llu",
@@ -340,18 +346,63 @@ void drawSummary(const FileBrowserState & state)
         ImGui::Text("Trailing bytes: %llu", static_cast<unsigned long long>(candidate.trailingBytes));
         ImGui::TextColored(candidate.valid ? theme::imguiColor(theme::success) : theme::imguiColor(theme::error),
                            "%s",
-                           candidate.valid ? "Valid map candidate" : "Invalid map candidate");
+                           candidate.valid ? "Openable" : "Invalid map candidate");
     }
+    const bool hasValidMapCandidate = std::ranges::any_of(summary.mapCandidates, [](const FileBrowserMapCandidate & candidate) {
+        return candidate.valid;
+    });
     for (const auto & candidate : summary.assetCandidates)
     {
+        if (candidate.kind == MulAssetKind::map && hasValidMapCandidate)
+        {
+            continue;
+        }
         ImGui::Separator();
-        ImGui::Text("Type: %s", candidate.label.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", candidate.label.c_str());
         ImGui::TextWrapped("%s", candidate.reason.c_str());
+        if (!candidate.warning.empty())
+        {
+            ImGui::TextColored(theme::imguiColor(theme::warning), "%s", candidate.warning.c_str());
+        }
         ImGui::TextColored(candidate.openable ? theme::imguiColor(theme::success) : theme::imguiColor(theme::warning),
                            "%s",
                            candidate.openable ? "Openable" : "Requires selection");
     }
     ImGui::EndChild();
+}
+
+void sortAssetCandidates(std::vector<FileBrowserAssetCandidate> & candidates)
+{
+    std::ranges::stable_sort(candidates, [](const auto & left, const auto & right) {
+        const bool leftHasWarning = !left.warning.empty();
+        const bool rightHasWarning = !right.warning.empty();
+        if (leftHasWarning != rightHasWarning)
+        {
+            return !leftHasWarning;
+        }
+        if (left.score != right.score)
+        {
+            return left.score > right.score;
+        }
+        return left.openable > right.openable;
+    });
+}
+
+[[nodiscard]] bool filenameContains(std::string_view filename, std::string_view token)
+{
+    return filename.contains(token);
+}
+
+[[nodiscard]] std::filesystem::path texmapsCompanionPath(const std::filesystem::path & path,
+                                                         bool selectedIndex)
+{
+    const std::string stem = path.stem().string();
+    constexpr std::string_view indexPrefix = "texidx";
+    constexpr std::string_view dataPrefix = "texmaps";
+    const std::string_view selectedPrefix = selectedIndex ? indexPrefix : dataPrefix;
+    const std::string suffix = stem.starts_with(selectedPrefix) ? stem.substr(selectedPrefix.size()) : "";
+    const std::string companion = std::string(selectedIndex ? dataPrefix : indexPrefix) + suffix + path.extension().string();
+    return path.parent_path() / companion;
 }
 
 void appendMapCandidates(FileBrowserSummary & summary, const std::filesystem::path & path)
@@ -380,11 +431,13 @@ void appendMapCandidates(FileBrowserSummary & summary, const std::filesystem::pa
         summary.assetCandidates.push_back(FileBrowserAssetCandidate{
             .kind = MulAssetKind::map,
             .path = path,
-            .companionPath = {},
-            .label = "Map",
-            .reason = "Valid map layout for " + std::to_string(dimensions.widthTiles) + " x " +
-                      std::to_string(dimensions.heightTiles) + " tiles",
-            .score = mapCandidateScore,
+             .companionPath = {},
+             .label = "Map",
+             .facet = std::string(facet.mapLabel),
+             .reason = "Valid map layout for " + std::to_string(dimensions.widthTiles) + " x " +
+                       std::to_string(dimensions.heightTiles) + " tiles",
+             .warning = {},
+             .score = filenameContains(lowercase(path.filename().string()), "map") ? mapFilenameScore : mapCandidateScore,
             .dimensions = dimensions,
             .validated = true,
             .openable = true,
@@ -402,6 +455,7 @@ void appendRadarcolCandidate(FileBrowserSummary & summary,
     }
 
     const bool namedRadarcol = filename == "radarcol.mul";
+    const bool radarcolFilename = filenameContains(filename, "radarcol");
     const bool classicRadarcolSize = summary.size && *summary.size == classicRadarcolByteCount;
     const auto reader = uomul::RadarColReader::open(path);
     if (!reader)
@@ -409,11 +463,12 @@ void appendRadarcolCandidate(FileBrowserSummary & summary,
         return;
     }
 
-    std::string reason;
+    std::string reason = std::to_string(reader->colorCount()) + " entries";
+    std::string warning;
     int score = radarcolStructuralScore;
     if (namedRadarcol || classicRadarcolSize)
     {
-        reason = "Valid radar color table with " + std::to_string(reader->colorCount()) + " entries";
+        reason = std::to_string(reader->colorCount()) + " entries";
     }
     if (namedRadarcol)
     {
@@ -423,17 +478,23 @@ void appendRadarcolCandidate(FileBrowserSummary & summary,
     {
         score = radarcolClassicSizeScore;
     }
+    else if (radarcolFilename)
+    {
+        score = radarcolFilenameScore;
+    }
     else
     {
-        reason = "MUL structure is compatible with a radar color table; filename does not confirm the type";
+        warning = "Unexpected filename";
     }
 
     summary.assetCandidates.push_back(FileBrowserAssetCandidate{
         .kind = MulAssetKind::radarcol,
         .path = path,
-        .companionPath = {},
-        .label = "Radar colors",
-         .reason = std::move(reason),
+         .companionPath = {},
+         .label = "Radarcol",
+         .facet = {},
+          .reason = std::move(reason),
+          .warning = std::move(warning),
          .score = score,
          .itemCount = reader->colorCount(),
          .dimensions = std::nullopt,
@@ -446,14 +507,39 @@ void appendTexmapsCandidate(FileBrowserSummary & summary,
                             const std::filesystem::path & path,
                             std::string_view filename)
 {
-    if (filename != "texidx.mul" && filename != "texmaps.mul")
+    const bool selectedIsIndex = filename.starts_with("texidx") && filename.ends_with(".mul");
+    const bool selectedIsData = filename.starts_with("texmaps") && filename.ends_with(".mul");
+    const bool filenameHint = filenameContains(filename, "tex") || filenameContains(filename, "maps") || filenameContains(filename, "idx");
+    if (!selectedIsIndex && !selectedIsData && !filenameHint)
+    {
+        return;
+    }
+    const std::filesystem::path indexPath = selectedIsIndex ? path : texmapsCompanionPath(path, false);
+    const std::filesystem::path dataPath = selectedIsData ? path : texmapsCompanionPath(path, true);
+    auto pair = inspectTexmapsPair(indexPath, dataPath);
+    std::error_code indexError;
+    const bool hasIndex = std::filesystem::is_regular_file(indexPath, indexError);
+    indexError.clear();
+    const bool hasData = std::filesystem::is_regular_file(dataPath, indexError);
+    if (!selectedIsIndex && !selectedIsData && !hasIndex && !hasData)
     {
         return;
     }
 
-    const auto indexPath = filename == "texidx.mul" ? path : path.parent_path() / "texidx.mul";
-    const auto dataPath = filename == "texmaps.mul" ? path : path.parent_path() / "texmaps.mul";
-    const auto pair = inspectTexmapsPair(indexPath, dataPath);
+    pair.label = "Texmaps";
+    pair.reason = pair.openable ? std::to_string(pair.itemCount) + " entries" : pair.reason;
+    if (!selectedIsIndex && !selectedIsData)
+    {
+        pair.warning = "Unexpected filename";
+    }
+    else if (!hasIndex)
+    {
+        pair.warning = "Missing texidx.mul";
+    }
+    else if (!hasData)
+    {
+        pair.warning = "Missing texmaps.mul";
+    }
     if (pair.openable)
     {
         summary.assetCandidates.push_back(pair);
@@ -463,10 +549,12 @@ void appendTexmapsCandidate(FileBrowserSummary & summary,
     summary.assetCandidates.push_back(FileBrowserAssetCandidate{
         .kind = MulAssetKind::texmapsPair,
         .path = path,
-        .companionPath = {},
-        .label = "Texture pair",
-         .reason = "A matching texidx.mul and texmaps.mul pair must be selected",
-         .score = texmapsPairScore,
+         .companionPath = {},
+         .label = "Texmaps",
+          .facet = {},
+          .reason = "A matching texidx.mul and texmaps.mul pair must be selected",
+          .warning = std::move(pair.warning),
+          .score = filenameHint ? texmapsPairScore + filenameHintScoreBonus : texmapsPairScore,
          .dimensions = std::nullopt,
          .validated = false,
         .openable = false,
@@ -474,6 +562,11 @@ void appendTexmapsCandidate(FileBrowserSummary & summary,
 }
 
 } // namespace
+
+void sortFileBrowserCandidates(std::vector<FileBrowserAssetCandidate> & candidates)
+{
+    sortAssetCandidates(candidates);
+}
 
 bool fileBrowserMatchesFilter(const std::filesystem::path & path, std::string_view extension)
 {
@@ -515,6 +608,7 @@ FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & pat
     appendMapCandidates(summary, path);
     appendRadarcolCandidate(summary, path, filename);
     appendTexmapsCandidate(summary, path, filename);
+    sortAssetCandidates(summary.assetCandidates);
     if (summary.mapCandidates.empty() && summary.assetCandidates.empty())
     {
         summary.error = "No known facet dimensions match this MUL file; choose Custom dimensions";
@@ -529,7 +623,7 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
     std::string reason;
     if (reader)
     {
-        reason = "Valid texidx.mul and texmaps.mul pair with " + std::to_string(reader->textureCount()) + " entries";
+        reason = std::to_string(reader->textureCount()) + " entries";
     }
     else if (reader.error().message.empty())
     {
@@ -542,9 +636,11 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
     return FileBrowserAssetCandidate{
         .kind = MulAssetKind::texmapsPair,
         .path = indexPath,
-        .companionPath = dataPath,
-        .label = "Texture pair",
+         .companionPath = dataPath,
+         .label = "Texture pair",
+         .facet = {},
          .reason = std::move(reason),
+         .warning = {},
          .score = texmapsPairScore,
          .itemCount = reader ? reader->textureCount() : 0U,
          .dimensions = std::nullopt,
@@ -743,7 +839,7 @@ void drawFileBrowser(FileBrowserState & state)
         confirmLabel = "Save";
     }
 
-    beginDialogFooter();
+    beginDialogFooter({confirmLabel, "Cancel"});
     if (dialogButton(confirmLabel))
     {
         complete(state);

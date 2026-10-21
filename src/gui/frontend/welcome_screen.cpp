@@ -33,7 +33,7 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr float welcomeContentWidth = 720.0F;
+constexpr float welcomeContentWidth = 980.0F;
 constexpr float actionButtonSpacing = 8.0F;
 constexpr float bannerHeight = 180.0F;
 constexpr float bannerCenterFactor = 0.5F;
@@ -91,6 +91,19 @@ constexpr std::size_t timestampBufferSize = 32;
     std::string result = recent.facet;
     result.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(result.front())));
     return result;
+}
+
+[[nodiscard]] std::string recentDetails(const RecentFile & recent)
+{
+    if (recent.dimensions)
+    {
+        return mapLabel(recent) + " " + dimensionsLabel(recent);
+    }
+    if (recent.itemCount > 0U)
+    {
+        return std::to_string(recent.itemCount) + " entries";
+    }
+    return {};
 }
 
 void applyRecentMapToOpenDialog(NewMapDialogState & dialog, const RecentFile & recent)
@@ -242,8 +255,8 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
     const float rowHeight = unavailable ? unavailableRecentRowHeight : recentRowHeight;
     const std::size_t lineCount = unavailable ? 3U : 2U;
     const float lineHeight = ImGui::GetTextLineHeight();
-    const float contentHeight = (static_cast<float>(lineCount) * lineHeight) +
-                                (static_cast<float>(lineCount - 1U) * ImGui::GetStyle().ItemSpacing.y);
+    const float contentHeight =
+        (static_cast<float>(lineCount) * lineHeight) + (static_cast<float>(lineCount - 1U) * ImGui::GetStyle().ItemSpacing.y);
     ImGui::SetCursorPosY(std::max(0.0F, (rowHeight - contentHeight) * verticalCenterFactor));
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + recentRowTextPadding);
     const float textStartX = ImGui::GetCursorPosX();
@@ -270,25 +283,14 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
     }
 
     ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", recent.displayName.c_str());
-    if (recent.kind == DocumentKind::map)
+    ImGui::SameLine();
+    const std::string kindLabel(documentKindName(recent.kind));
+    ImGui::TextUnformatted(kindLabel.c_str());
+    const std::string details = recentDetails(recent);
+    if (!details.empty())
     {
         ImGui::SameLine();
-        ImGui::TextUnformatted("Map");
-        ImGui::SameLine();
-        ImGui::TextUnformatted(mapLabel(recent).c_str());
-        ImGui::SameLine();
-        ImGui::TextDisabled("%s", dimensionsLabel(recent).c_str());
-    }
-    else
-    {
-        ImGui::SameLine();
-        const std::string kindLabel(documentKindName(recent.kind));
-        ImGui::TextUnformatted(kindLabel.c_str());
-        if (recent.kind == DocumentKind::radarcol)
-        {
-            ImGui::SameLine();
-            ImGui::TextDisabled("%u entries", recent.itemCount);
-        }
+        ImGui::TextDisabled("%s", details.c_str());
     }
     ImGui::SetCursorPosX(textStartX);
     const std::string modifiedLabel = timestampLabel("Modified", recent.lastModified);

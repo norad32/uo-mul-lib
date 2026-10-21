@@ -70,11 +70,14 @@ struct FileBrowserMapCandidate
 
 struct FileBrowserAssetCandidate
 {
+    // Candidate presentation follows one scheme: label, compact detail, warning, likelihood score.
     MulAssetKind kind = MulAssetKind::unknown;
     std::filesystem::path path;
     std::filesystem::path companionPath;
     std::string label;
+    std::string facet;
     std::string reason;
+    std::string warning;
     int score = 0;
     std::uint32_t itemCount = 0;
     std::optional<uomul::Dimensions> dimensions;
@@ -124,7 +127,8 @@ struct FileBrowserState
 [[nodiscard]] bool fileBrowserMatchesFilter(const std::filesystem::path & path, std::string_view extension);
 [[nodiscard]] FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & path);
 [[nodiscard]] FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & indexPath,
-                                                            const std::filesystem::path & dataPath);
+                                                             const std::filesystem::path & dataPath);
+void sortFileBrowserCandidates(std::vector<FileBrowserAssetCandidate> & candidates);
 
 void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request);
 void cancelFileBrowser(FileBrowserState & state);

@@ -1,7 +1,9 @@
 #include "gui/dialogs/dialog_presentation.h"
 #include "gui/frontend/theme.h"
+#include <algorithm>
 #include <cfloat>
 #include <imgui.h>
+#include <initializer_list>
 
 namespace uo_mule::gui
 {
@@ -9,10 +11,14 @@ namespace uo_mule::gui
 namespace
 {
 
+constexpr float framePaddingMultiplier = 2.0F;
+
 constexpr float standardWidth = 520.0F;
 constexpr float standardHeight = 320.0F;
 constexpr float standardMinimumWidth = 360.0F;
 constexpr float standardMinimumHeight = 220.0F;
+constexpr float selectorWidth = 420.0F;
+constexpr float selectorHeight = 220.0F;
 constexpr float largeWidth = 860.0F;
 constexpr float largeHeight = 720.0F;
 constexpr float largeMinimumWidth = 640.0F;
@@ -29,6 +35,9 @@ constexpr float mapMinimumHeight = 260.0F;
 [[nodiscard]] ImGuiWindowFlags modalFlags(ImGuiWindowFlags extraFlags) noexcept
 {
     return static_cast<ImGuiWindowFlags>(static_cast<unsigned int>(ImGuiWindowFlags_NoCollapse) |
+                                         static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
+                                         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar) |
+                                         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse) |
                                          static_cast<unsigned int>(extraFlags));
 }
 
@@ -37,6 +46,11 @@ constexpr float mapMinimumHeight = 260.0F;
 DialogWindowSpec standardDialogSpec() noexcept
 {
     return {.initialSize = ImVec2(standardWidth, standardHeight), .minimumSize = ImVec2(standardMinimumWidth, standardMinimumHeight)};
+}
+
+DialogWindowSpec selectorDialogSpec() noexcept
+{
+    return {.initialSize = ImVec2(selectorWidth, selectorHeight), .minimumSize = ImVec2(selectorWidth, selectorHeight)};
 }
 
 DialogWindowSpec largeDialogSpec() noexcept
@@ -84,9 +98,18 @@ void dialogSeparatorText(const char * text)
     ImGui::PopStyleColor();
 }
 
-void beginDialogFooter()
+void beginDialogFooter(std::initializer_list<const char *> labels)
 {
-    ImGui::Separator();
+    float buttonWidth = 0.0F;
+    for (const char * label : labels)
+    {
+        buttonWidth += ImGui::CalcTextSize(label).x + (ImGui::GetStyle().FramePadding.x * framePaddingMultiplier);
+    }
+    if (labels.size() > 1U)
+    {
+        buttonWidth += static_cast<float>(labels.size() - 1U) * ImGui::GetStyle().ItemSpacing.x;
+    }
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0F, ImGui::GetContentRegionAvail().x - buttonWidth));
     ImGui::BeginGroup();
 }
 

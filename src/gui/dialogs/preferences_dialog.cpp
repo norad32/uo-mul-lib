@@ -453,7 +453,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         ImGui::SetTooltip("Show the welcome screen after a valid profile is loaded when the application starts.");
     }
 
-    beginDialogFooter();
+    beginDialogFooter({"Apply", "Apply and Use", "Cancel"});
     if (dialogButton("Apply"))
     {
         scanWorkingProfile(state);

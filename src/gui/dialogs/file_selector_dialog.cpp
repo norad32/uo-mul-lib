@@ -16,15 +16,46 @@ namespace uo_mule::gui
 namespace
 {
 
-void sortCandidates(FileSelectorState & state)
+FileSelectorAction drawCandidate(FileSelectorState & state, std::size_t index)
 {
-    std::ranges::sort(state.candidates, [](const auto & left, const auto & right) {
-        if (left.openable != right.openable)
-        {
-            return left.openable > right.openable;
-        }
-        return left.score > right.score;
-    });
+    const auto & candidate = state.candidates.at(index);
+    const bool selected = state.selectedCandidate == index;
+    const std::string selectableLabel = candidate.label + "##candidate-" + std::to_string(index);
+    ImGui::BeginDisabled(!candidate.openable);
+    if (ImGui::Selectable(selectableLabel.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
+    {
+        state.selectedCandidate = index;
+    }
+    ImGui::EndDisabled();
+    if (candidate.kind == MulAssetKind::map && candidate.dimensions)
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s %u x %u",
+                            candidate.facet.c_str(),
+                            candidate.dimensions->widthTiles,
+                            candidate.dimensions->heightTiles);
+    }
+    else if (candidate.kind == MulAssetKind::radarcol || candidate.kind == MulAssetKind::texmapsPair)
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%u entries", candidate.itemCount);
+    }
+    if (!candidate.warning.empty())
+    {
+        ImGui::Indent();
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", candidate.warning.c_str());
+        ImGui::Unindent();
+    }
+    ImGui::Indent();
+    ImGui::TextColored(candidate.openable ? theme::imguiColor(theme::success) : theme::imguiColor(theme::warning),
+                       "%s",
+                       candidate.openable ? "Openable" : "Requires selection");
+    ImGui::Unindent();
+    if (candidate.kind == MulAssetKind::texmapsPair && !candidate.openable && ImGui::SmallButton("Choose companion"))
+    {
+        return FileSelectorAction::chooseCompanion;
+    }
+    return FileSelectorAction::none;
 }
 
 } // namespace
@@ -48,7 +79,7 @@ void openFileSelector(FileSelectorState & state, FileBrowserResult result)
             return candidate.kind != MulAssetKind::texmapsPair;
         });
     }
-    sortCandidates(state);
+    sortFileBrowserCandidates(state.candidates);
     const auto firstOpenable = std::ranges::find_if(state.candidates, [](const auto & candidate) {
         return candidate.openable;
     });
@@ -106,42 +137,21 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
         return FileSelectorAction::none;
     }
 
-    if (!beginDialog("Choose File Type###dialog.file-selector", nullptr, standardDialogSpec()))
+    if (!beginDialog("Choose File Type###dialog.file-selector", nullptr, selectorDialogSpec()))
     {
         return FileSelectorAction::none;
     }
 
-    dialogHeading("Choose how to open this file");
-    dialogSubheading(state.browserResult.path.string().c_str());
-    ImGui::TextDisabled("The file matches more than one supported MUL format.");
-    ImGui::Separator();
     if (state.candidates.empty())
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "No supported MUL type was detected.");
     }
     for (std::size_t index = 0; index < state.candidates.size(); index++)
     {
-        const auto & candidate = state.candidates.at(index);
-        const bool selected = state.selectedCandidate == index;
-        const std::string selectableLabel = candidate.label + "##candidate-" + std::to_string(index);
-        ImGui::BeginDisabled(!candidate.openable);
-        if (ImGui::Selectable(selectableLabel.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
+        if (drawCandidate(state, index) == FileSelectorAction::chooseCompanion)
         {
-            state.selectedCandidate = index;
-        }
-        ImGui::EndDisabled();
-        ImGui::Indent();
-        ImGui::TextWrapped("%s", candidate.reason.c_str());
-        ImGui::TextDisabled("%s", candidate.openable ? "Ready to open" : "Needs another file");
-        ImGui::Unindent();
-        if (candidate.kind == MulAssetKind::texmapsPair && !candidate.openable)
-        {
-            ImGui::SameLine();
-            if (ImGui::SmallButton("Choose companion"))
-            {
-                ImGui::EndPopup();
-                return FileSelectorAction::chooseCompanion;
-            }
+            ImGui::EndPopup();
+            return FileSelectorAction::chooseCompanion;
         }
     }
 
@@ -151,7 +161,7 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
     }
     const bool canAccept = state.selectedCandidate < state.candidates.size() &&
                            state.candidates.at(state.selectedCandidate).openable;
-    beginDialogFooter();
+    beginDialogFooter({"Open", "Cancel"});
     if (dialogButton("Open", canAccept) || (canAccept && ImGui::IsKeyPressed(ImGuiKey_Enter)))
     {
         endDialogFooter();
@@ -159,18 +169,11 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
         return FileSelectorAction::accept;
     }
     ImGui::SameLine();
-    if (dialogButton("Back to Browser"))
-    {
-        endDialogFooter();
-        ImGui::EndPopup();
-        return FileSelectorAction::chooseDifferent;
-    }
-    ImGui::SameLine();
     if (dialogButton("Cancel"))
     {
         endDialogFooter();
         ImGui::EndPopup();
-        return FileSelectorAction::cancel;
+        return FileSelectorAction::chooseDifferent;
     }
     endDialogFooter();
     endDialog();

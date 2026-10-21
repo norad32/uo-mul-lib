@@ -97,7 +97,7 @@ MapFacetDialogResult drawMapFacetDialog(NewMapDialogState & state)
         ImGui::TextColored(theme::imguiColor(theme::warning), "Dimensions must be positive multiples of 8 tiles.");
     }
 
-    beginDialogFooter();
+    beginDialogFooter({"Select", "Cancel"});
     if ((dialogButton("Select", validDimensions) || ImGui::IsKeyPressed(ImGuiKey_Enter)) && validDimensions)
     {
         endDialogFooter();
