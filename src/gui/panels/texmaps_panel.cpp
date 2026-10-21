@@ -2,6 +2,7 @@
 #include "gui/data_profile.h"
 #include "gui/panels/texmaps_panel.h"
 #include "gui/theme.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "uomul/texmaps/texmaps.h"
 #include <algorithm>
 #include <array>
@@ -302,7 +303,7 @@ void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile)
     loadSource(state);
 }
 
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible)
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser)
 {
     const bool contentsVisible = ImGui::Begin("Texmaps###view.texmaps", &visible);
 
@@ -313,13 +314,27 @@ void drawTexmapsPanel(TexmapsPanelState & state, bool & visible)
     }
 
     // Source file selection
-    ImGui::TextUnformatted("Source Index File:");
-    ImGui::SetNextItemWidth(-1.0F);
-    ImGui::InputText("##TexmapsIndexPath", state.sourceIndexPath.data(), state.sourceIndexPath.size());
+    ImGui::Text("Source Index File: %s", state.sourceIndexPath.data());
+    if (ImGui::IsItemClicked())
+    {
+        requestFileBrowser(browser,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = FileBrowserTarget::texmapsIndex,
+                            .initialPath = state.sourceIndexPath.data(),
+                            .extension = ".mul",
+                            .title = "Open Texture Index",});
+    }
 
-    ImGui::TextUnformatted("Source Data File:");
-    ImGui::SetNextItemWidth(-1.0F);
-    ImGui::InputText("##TexmapsDataPath", state.sourceDataPath.data(), state.sourceDataPath.size());
+    ImGui::Text("Source Data File: %s", state.sourceDataPath.data());
+    if (ImGui::IsItemClicked())
+    {
+        requestFileBrowser(browser,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = FileBrowserTarget::texmapsData,
+                            .initialPath = state.sourceDataPath.data(),
+                            .extension = ".mul",
+                            .title = "Open Texture Data",});
+    }
 
     if (ImGui::Button("Load Textures"))
     {
@@ -386,6 +401,23 @@ void drawTexmapsPanel(TexmapsPanelState & state, bool & visible)
     }
 
     ImGui::End();
+}
+
+void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult & result)
+{
+    if (result.target == FileBrowserTarget::texmapsIndex)
+    {
+        const auto value = result.path.string();
+        std::ranges::fill(state.sourceIndexPath, '\0');
+        std::copy_n(value.begin(), std::min(value.size(), state.sourceIndexPath.size() - 1U), state.sourceIndexPath.begin());
+        return;
+    }
+    if (result.target == FileBrowserTarget::texmapsData)
+    {
+        const auto value = result.path.string();
+        std::ranges::fill(state.sourceDataPath, '\0');
+        std::copy_n(value.begin(), std::min(value.size(), state.sourceDataPath.size() - 1U), state.sourceDataPath.begin());
+    }
 }
 
 } // namespace uo_mule::gui

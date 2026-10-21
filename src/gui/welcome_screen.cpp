@@ -157,7 +157,6 @@ void applyRecentMapToOpenDialog(NewMapDialogState & dialog, const RecentMap & re
     dialog.mode = MapFileDialogMode::openMap;
     dialog.activePopup = MapFileDialogMode::none;
     dialog.openWithoutReview = recent.dimensions.has_value();
-    dialog.openPickerRequested = false;
     std::ranges::fill(dialog.openPath, '\0');
     const std::string path = recent.path.string();
     std::copy_n(path.c_str(), std::min(path.size(), dialog.openPath.size() - 1U), dialog.openPath.data());

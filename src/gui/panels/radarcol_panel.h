@@ -2,6 +2,7 @@
 
 #include "gui/map_workspace.h"
 #include "gui/data_profile.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
 #include <cstddef>
@@ -40,6 +41,7 @@ struct RadarcolPanelState
 
 [[nodiscard]] std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::uint16_t id);
 void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile);
-void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible);
+void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult & result);
+void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible, FileBrowserState & browser);
 
 } // namespace uo_mule::gui

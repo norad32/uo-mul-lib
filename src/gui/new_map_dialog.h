@@ -4,6 +4,7 @@
 #include "gui/data_profile.h"
 #include "gui/notification_state.h"
 #include "gui/operation_controller.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "uomul/map.h"
 #include <array>
 #include <cstddef>
@@ -67,11 +68,7 @@ struct NewMapDialogState
     std::uint32_t newMapHeight = defaultMapDialogHeight;
     int openFacet = 1;
     bool openWithoutReview = false;
-    bool openPickerRequested = false;
-    std::filesystem::path openPickerDirectory;
-    std::filesystem::path openPickerSelection;
-    std::array<char, mapDialogPathBufferSize> openPickerLocation{};
-    std::string openPickerError;
+    FileBrowserState * browser = nullptr;
     int newMapFacet = 1;
     int initialTileId = 0;
     int initialTileZ = 0;
@@ -90,9 +87,11 @@ void drawNewMapDialog(MapWorkspace & workspace,
                       OperationController & controller,
                       OutputCollisionPolicy collisionPolicy,
                       NotificationState & notifications,
+                      FileBrowserState & browser,
                       bool & shouldClose);
 
 void cancelMapDialog(NewMapDialogState & state);
+void applyFileBrowserResult(NewMapDialogState & state, const FileBrowserResult & result);
 
 void requestCloseOperation(MapWorkspace & workspace,
                            NewMapDialogState & state,

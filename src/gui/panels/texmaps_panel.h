@@ -2,6 +2,7 @@
 
 #include "gui/map_workspace.h"
 #include "gui/data_profile.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "uomul/texmaps/texmaps.h"
 #include <array>
 #include <cstddef>
@@ -42,6 +43,7 @@ struct TexmapsPanelState
 [[nodiscard]] std::optional<TexmapsTexturePreview> texmapsTexturePreview(
     TexmapsPanelState & state, std::uint32_t id);
 void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile);
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible);
+void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult & result);
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser);
 
 } // namespace uo_mule::gui

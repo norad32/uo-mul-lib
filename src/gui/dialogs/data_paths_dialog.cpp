@@ -4,6 +4,7 @@
 #include "gui/data_profile_store.h"
 #include "gui/theme.h"
 #include "gui/data_validation.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/workbench_session.h"
 #include <algorithm>
 #include <array>
@@ -24,7 +25,6 @@ namespace
 constexpr float dialogWidth = 760.0F;
 constexpr float dialogHeight = 700.0F;
 constexpr float pathInputWidth = 480.0F;
-constexpr float pickerLocationWidth = 520.0F;
 constexpr int dataFilesColumnCount = 5;
 constexpr int discoveryModeCount = 3;
 constexpr std::array<const char *, discoveryModeCount> discoveryModeNames{
@@ -116,194 +116,15 @@ void scanWorkingProfile(DataPathsDialogState & state)
     state.validation = validateDataProfile(state.workingProfile);
 }
 
-void applyPickerSelection(DataPathsDialogState & state)
-{
-    const bool folderMode = state.picker.mode == DataPathPickerMode::sourceFolder ||
-                            state.picker.mode == DataPathPickerMode::outputFolder;
-    const auto selectedPath = folderMode ? state.picker.directory : state.picker.selectedPath;
-    if (selectedPath.empty())
-    {
-        return;
-    }
-
-    switch (state.picker.mode)
-    {
-    case DataPathPickerMode::sourceFolder:
-        copyToBuffer(state.sourceRoot, selectedPath);
-        break;
-    case DataPathPickerMode::outputFolder:
-        copyToBuffer(state.outputRoot, selectedPath);
-        break;
-    case DataPathPickerMode::fileOverride:
-    {
-        auto & buffer = state.overrides[state.picker.role];
-        copyToBuffer(buffer, selectedPath);
-        break;
-    }
-    case DataPathPickerMode::none:
-        break;
-    }
-
-    state.picker = {};
-}
-
-void navigatePicker(DataPathsDialogState & state, const std::filesystem::path & path)
-{
-    std::error_code error;
-    const auto absolutePath = std::filesystem::absolute(path, error).lexically_normal();
-    if (error || !std::filesystem::is_directory(absolutePath, error))
-    {
-        state.picker.error = error ? error.message() : "Path is not a directory";
-        return;
-    }
-
-    state.picker.directory = absolutePath;
-    state.picker.selectedPath.clear();
-    state.picker.error.clear();
-    copyToBuffer(state.picker.location, absolutePath);
-}
-
-void drawPickerEntry(DataPathsDialogState & state, const std::filesystem::directory_entry & entry)
-{
-    std::error_code error;
-    const bool directory = entry.is_directory(error);
-    if (error)
-    {
-        return;
-    }
-
-    const auto label = entry.path().filename().string();
-    if (ImGui::Selectable(label.c_str(), state.picker.selectedPath == entry.path()))
-    {
-        state.picker.selectedPath = entry.path();
-    }
-
-    if (directory && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-    {
-        navigatePicker(state, entry.path());
-    }
-}
-
-void drawPicker(DataPathsDialogState & state)
-{
-    if (state.picker.mode == DataPathPickerMode::none)
-    {
-        return;
-    }
-
-    if (state.picker.openRequested)
-    {
-        ImGui::OpenPopup("Data Path Picker");
-        state.picker.openRequested = false;
-    }
-
-    if (!ImGui::BeginPopupModal("Data Path Picker", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-    {
-        state.picker.openRequested = true;
-        return;
-    }
-
-    ImGui::PushID("PickerNavigation");
-    ImGui::SetNextItemWidth(pickerLocationWidth);
-    const bool navigateFromInput = ImGui::InputText("Location",
-                                                    state.picker.location.data(),
-                                                    state.picker.location.size(),
-                                                    ImGuiInputTextFlags_EnterReturnsTrue);
-    ImGui::SameLine();
-
-    if (ImGui::Button("Go") || navigateFromInput)
-    {
-        navigatePicker(state, state.picker.location.data());
-    }
-
-    ImGui::SameLine();
-
-    if (ImGui::Button("Up"))
-    {
-        navigatePicker(state, state.picker.directory.parent_path());
-    }
-
-    ImGui::TextUnformatted(state.picker.directory.string().c_str());
-    ImGui::PopID();
-    ImGui::Separator();
-
-    std::error_code error;
-    for (const auto & entry : std::filesystem::directory_iterator(state.picker.directory, error))
-    {
-        if (state.picker.mode == DataPathPickerMode::fileOverride && !entry.is_regular_file(error) &&
-            !entry.is_directory(error))
-        {
-            continue;
-        }
-
-        drawPickerEntry(state, entry);
-    }
-
-    if (error)
-    {
-        state.picker.error = error.message();
-    }
-
-    if (!state.picker.error.empty())
-    {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "%s", state.picker.error.c_str());
-    }
-
-    const char * confirmLabel = state.picker.mode == DataPathPickerMode::fileOverride ? "Use Selected File"
-                                                                                        : "Use This Folder";
-    if (ImGui::Button(confirmLabel))
-    {
-        applyPickerSelection(state);
-        ImGui::CloseCurrentPopup();
-    }
-
-    ImGui::SameLine();
-
-    if (ImGui::Button("Cancel"))
-    {
-        state.picker = {};
-        ImGui::CloseCurrentPopup();
-    }
-
-    ImGui::EndPopup();
-}
-
-void requestPicker(DataPathsDialogState & state, DataPathPickerMode mode, DataFileRole role = DataFileRole::radarcol)
-{
-    std::filesystem::path initialDirectory = std::filesystem::current_path();
-    if (mode == DataPathPickerMode::sourceFolder && state.sourceRoot.front() != '\0')
-    {
-        initialDirectory = bufferPath(state.sourceRoot);
-    }
-    else if (mode == DataPathPickerMode::outputFolder && state.outputRoot.front() != '\0')
-    {
-        initialDirectory = bufferPath(state.outputRoot);
-    }
-
-    state.picker = {
-        .mode = mode,
-        .openRequested = true,
-        .role = role,
-        .directory = initialDirectory,
-        .selectedPath = {},
-        .location = {},
-        .error = {},
-    };
-    navigatePicker(state, initialDirectory);
-}
-
 void drawPathField(const char * label,
                    std::array<char, dataPathsDialogBufferSize> & buffer,
-                   const char * buttonLabel,
                    const std::function<void()> & picker)
 {
     ImGui::PushID(label);
     ImGui::TextUnformatted(label);
     ImGui::SetNextItemWidth(pathInputWidth);
-    ImGui::InputText("##Path", buffer.data(), buffer.size());
-    ImGui::SameLine();
-
-    if (ImGui::Button(buttonLabel))
+    ImGui::InputText("##Path", buffer.data(), buffer.size(), ImGuiInputTextFlags_ElideLeft | ImGuiInputTextFlags_ReadOnly);
+    if (ImGui::IsItemClicked())
     {
         picker();
     }
@@ -369,8 +190,18 @@ void drawSourceSection(DataPathsDialogState & state)
         return;
     }
 
-    drawPathField("Source folder", state.sourceRoot, "Choose Folder...", [&state]
-                  { requestPicker(state, DataPathPickerMode::sourceFolder); });
+    drawPathField("Source folder", state.sourceRoot, [&state]
+                  {
+                      if (state.browser != nullptr)
+                      {
+                          requestFileBrowser(*state.browser,
+                                             {.mode = FileBrowserMode::chooseDirectory,
+                                              .target = FileBrowserTarget::dataSourceRoot,
+                                              .initialPath = bufferPath(state.sourceRoot),
+                                              .extension = {},
+                                              .title = "Choose Source Folder",});
+                      }
+                  });
     ImGui::TextUnformatted("Folder scan checks the selected root and documented UO layout folders.");
 
     int discoveryModeIndex = 0;
@@ -410,7 +241,27 @@ void drawFileRow(DataPathsDialogState & state, DataFileRole role)
     ImGui::TableNextColumn();
     ImGui::TextUnformatted(std::string(dataFileRoleName(role)).c_str());
     ImGui::TableNextColumn();
-    ImGui::TextUnformatted(file == nullptr ? "" : file->path.string().c_str());
+    const auto overridePath = state.overrides.find(role);
+    std::filesystem::path path;
+    if (overridePath != state.overrides.end())
+    {
+        path = bufferPath(overridePath->second);
+    }
+    else if (file != nullptr)
+    {
+        path = file->path;
+    }
+    ImGui::Selectable(path.string().c_str(), false, ImGuiSelectableFlags_SpanAllColumns);
+    if (ImGui::IsItemClicked() && state.browser != nullptr)
+    {
+        requestFileBrowser(*state.browser,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = FileBrowserTarget::dataOverride,
+                            .role = role,
+                            .initialPath = path,
+                            .extension = ".mul",
+                            .title = "Override Data File",});
+    }
     ImGui::TableNextColumn();
     ImGui::TextUnformatted(file == nullptr ? "missing" : std::string(dataFileStatusName(file->status)).c_str());
     ImGui::TableNextColumn();
@@ -419,11 +270,6 @@ void drawFileRow(DataPathsDialogState & state, DataFileRole role)
         ImGui::Text("%llu", static_cast<unsigned long long>(*file->fileSize));
     }
     ImGui::TableNextColumn();
-    if (ImGui::SmallButton(("Override##" + std::string(dataFileRoleName(role))).c_str()))
-    {
-        requestPicker(state, DataPathPickerMode::fileOverride, role);
-    }
-    ImGui::SameLine();
     if (ImGui::SmallButton(("Clear##" + std::string(dataFileRoleName(role))).c_str()))
     {
         state.overrides.erase(role);
@@ -464,8 +310,18 @@ void drawOutputSection(DataPathsDialogState & state)
         return;
     }
 
-    drawPathField("Output folder", state.outputRoot, "Choose Folder...", [&state]
-                  { requestPicker(state, DataPathPickerMode::outputFolder); });
+    drawPathField("Output folder", state.outputRoot, [&state]
+                  {
+                      if (state.browser != nullptr)
+                      {
+                          requestFileBrowser(*state.browser,
+                                             {.mode = FileBrowserMode::chooseDirectory,
+                                              .target = FileBrowserTarget::dataOutputRoot,
+                                              .initialPath = bufferPath(state.outputRoot),
+                                              .extension = {},
+                                              .title = "Choose Output Folder",});
+                      }
+                  });
     ImGui::Checkbox("Create if missing", &state.workingProfile.createOutputIfMissing);
     ImGui::BeginDisabled();
     ImGui::Checkbox("Use source folder", &state.workingProfile.useSourceFolderForOutput);
@@ -527,12 +383,34 @@ void requestDataPathsDialog(DataPathsDialogState & state, const DataProfile & pr
     state.visible = true;
     state.initialized = true;
     state.message.clear();
-    state.picker = {};
+    state.browser = nullptr;
     initializeDialogFields(state);
     scanWorkingProfile(state);
 }
 
-bool drawDataPathsDialog(DataPathsDialogState & state, DataProfile & activeProfile)
+void applyFileBrowserResult(DataPathsDialogState & state, const FileBrowserResult & result)
+{
+    switch (result.target)
+    {
+    case FileBrowserTarget::dataSourceRoot:
+        copyToBuffer(state.sourceRoot, result.path);
+        break;
+    case FileBrowserTarget::dataOutputRoot:
+        copyToBuffer(state.outputRoot, result.path);
+        break;
+    case FileBrowserTarget::dataOverride:
+    {
+        auto & buffer = state.overrides[result.role];
+        copyToBuffer(buffer, result.path);
+        break;
+    }
+    default:
+        return;
+    }
+    scanWorkingProfile(state);
+}
+
+bool drawDataPathsDialog(DataPathsDialogState & state, DataProfile & activeProfile, FileBrowserState & browser)
 {
     if (!state.visible)
     {
@@ -540,6 +418,7 @@ bool drawDataPathsDialog(DataPathsDialogState & state, DataProfile & activeProfi
     }
 
     bool profileChanged = false;
+    state.browser = &browser;
     ImGui::SetNextWindowSize(ImVec2(dialogWidth, dialogHeight), ImGuiCond_FirstUseEver);
     if (!ImGui::Begin("UO Data Paths###dialog.data-paths", &state.visible))
     {
@@ -552,7 +431,6 @@ bool drawDataPathsDialog(DataPathsDialogState & state, DataProfile & activeProfi
     drawFileRows(state);
     drawOutputSection(state);
     drawSummary(state);
-    drawPicker(state);
 
     if (!state.message.empty())
     {

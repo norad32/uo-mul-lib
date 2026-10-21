@@ -6,6 +6,7 @@
 #include "gui/data_profile_store.h"
 #include "gui/data_providers.h"
 #include "gui/dialogs/data_paths_dialog.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
 #include "gui/notification_state.h"
@@ -58,6 +59,7 @@ struct WorkbenchState
     std::string dockingIni;
     bool layoutResetRequested = false;
     MenuBarState menuBarState;
+    FileBrowserState fileBrowser;
     MapCanvasPanelState mapCanvasState;
     std::optional<MapCanvasStatus> lastHoveredCanvasStatus;
     std::string pendingClipboardText;

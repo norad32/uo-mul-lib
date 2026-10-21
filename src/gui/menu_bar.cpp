@@ -1,5 +1,9 @@
 #include "gui/menu_bar.h"
 #include "gui/dialogs/data_paths_dialog.h"
+#include "gui/dialogs/file_browser_dialog.h"
+#include "gui/data_profile.h"
+#include "gui/panels/radarcol_panel.h"
+#include "gui/panels/texmaps_panel.h"
 #include "gui/command_registry.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
@@ -31,6 +35,40 @@ void drawCommandItem(WorkbenchState & state, CommandId id, bool selected = false
     {
         static_cast<void>(state.commands.execute(id, state));
     }
+}
+
+void cancelFileBrowserAndMapDialog(WorkbenchState & state)
+{
+    cancelFileBrowser(state.fileBrowser);
+    if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+    {
+        cancelMapDialog(state.menuBarState.fileDialog);
+    }
+}
+
+[[nodiscard]] bool applyFileBrowserResultToWorkbench(WorkbenchState & state, const FileBrowserResult & result)
+{
+    const bool profileChanged = result.target == FileBrowserTarget::radarcolSource ||
+                                result.target == FileBrowserTarget::texmapsIndex ||
+                                result.target == FileBrowserTarget::texmapsData;
+    if (result.target == FileBrowserTarget::radarcolSource)
+    {
+        state.activeProfile.files[DataFileRole::radarcol] = {.path = result.path, .userOverride = true};
+    }
+    else if (result.target == FileBrowserTarget::texmapsIndex)
+    {
+        state.activeProfile.files[DataFileRole::texidx] = {.path = result.path, .userOverride = true};
+    }
+    else if (result.target == FileBrowserTarget::texmapsData)
+    {
+        state.activeProfile.files[DataFileRole::texmaps] = {.path = result.path, .userOverride = true};
+    }
+
+    applyFileBrowserResult(state.menuBarState.fileDialog, result);
+    applyFileBrowserResult(state.menuBarState.dataPathsDialog, result);
+    applyFileBrowserResult(state.radarcolState, result);
+    applyFileBrowserResult(state.texmapsState, result);
+    return profileChanged;
 }
 
 void drawFileMenu(WorkbenchState & state)
@@ -130,7 +168,7 @@ void drawMapMenu(WorkbenchState & state)
 
 } // namespace
 
-bool drawMenuBar(WorkbenchState & state, bool showMainMenu)
+bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
 {
     bool profileChanged = false;
 
@@ -160,19 +198,27 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu)
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
     {
-        if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+        if (state.fileBrowser.visible)
+        {
+            cancelFileBrowserAndMapDialog(state);
+        }
+        else if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
         {
             cancelMapDialog(state.menuBarState.fileDialog);
         }
-        if (state.menuBarState.dataPathsDialog.visible)
+        else if (state.menuBarState.dataPathsDialog.visible)
         {
             state.menuBarState.dataPathsDialog.visible = false;
-            state.menuBarState.dataPathsDialog.picker = {};
         }
         else if (!showMainMenu && state.session.startupState() == StartupState::mapWelcome)
         {
             state.session.setStartupState(StartupState::workbench);
         }
+    }
+
+    if (!drawDialogs)
+    {
+        return profileChanged;
     }
 
     if (state.menuBarState.fileDialog.shouldClose)
@@ -181,13 +227,29 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu)
         state.menuBarState.fileDialog.shouldClose = false;
     }
 
-    drawNewMapDialog(state.workspace,
-                     state.menuBarState.fileDialog,
-                     state.operationController,
-                     state.activeProfile.outputCollisionPolicy,
-                     state.notifications,
-                     state.shouldClose);
-    profileChanged = drawDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile);
+    const bool browserWasVisible = state.fileBrowser.visible;
+    if (!browserWasVisible)
+    {
+        drawNewMapDialog(state.workspace,
+                         state.menuBarState.fileDialog,
+                         state.operationController,
+                         state.activeProfile.outputCollisionPolicy,
+                         state.notifications,
+                         state.fileBrowser,
+                         state.shouldClose);
+        profileChanged = drawDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile, state.fileBrowser);
+    }
+    drawFileBrowser(state.fileBrowser);
+    const auto result = consumeFileBrowserResult(state.fileBrowser);
+    if (!state.fileBrowser.visible && browserWasVisible && !result &&
+        state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+    {
+        cancelMapDialog(state.menuBarState.fileDialog);
+    }
+    if (result)
+    {
+        profileChanged = applyFileBrowserResultToWorkbench(state, *result) || profileChanged;
+    }
     return profileChanged;
 }
 

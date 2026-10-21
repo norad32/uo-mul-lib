@@ -2,6 +2,7 @@
 #include "gui/data_profile.h"
 #include "gui/map_workspace.h"
 #include "gui/panels/common.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <array>
@@ -162,10 +163,19 @@ void loadSource(RadarcolPanelState & state)
     state.error.clear();
 }
 
-void drawSourceControls(RadarcolPanelState & state)
+void drawSourceControls(RadarcolPanelState & state, FileBrowserState & browser)
 {
     ImGui::BeginDisabled(state.editor.has_value());
-    ImGui::InputText("Source", state.sourcePath.data(), state.sourcePath.size(), ImGuiInputTextFlags_ElideLeft);
+    ImGui::Text("Source: %s", state.sourcePath.data());
+    if (ImGui::IsItemClicked())
+    {
+        requestFileBrowser(browser,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = FileBrowserTarget::radarcolSource,
+                            .initialPath = state.sourcePath.data(),
+                            .extension = ".mul",
+                            .title = "Open Radarcol",});
+    }
     ImGui::SameLine();
     if (ImGui::Button("Load"))
     {
@@ -207,7 +217,7 @@ void drawCategoryAndPageControls(RadarcolPanelState & state)
     ImGui::Text("of %u", state.pageCount);
 }
 
-void drawEditControls(RadarcolPanelState & state, bool editMode)
+void drawEditControls(RadarcolPanelState & state, bool editMode, FileBrowserState & browser)
 {
     if (state.editor)
     {
@@ -216,7 +226,16 @@ void drawEditControls(RadarcolPanelState & state, bool editMode)
 
     if (state.reader && !state.editor && editMode)
     {
-        ImGui::InputText("Output", state.outputPath.data(), state.outputPath.size(), ImGuiInputTextFlags_ElideLeft);
+        ImGui::Text("Output: %s", state.outputPath.data());
+        if (ImGui::IsItemClicked())
+        {
+            requestFileBrowser(browser,
+                               {.mode = FileBrowserMode::saveFile,
+                                .target = FileBrowserTarget::radarcolOutput,
+                                .initialPath = state.outputPath.data(),
+                                .extension = ".mul",
+                                .title = "Save Radarcol",});
+        }
         ImGui::Checkbox("Overwrite output", &state.overwriteOutput);
         ImGui::SameLine();
         if (ImGui::Button("Begin editing"))
@@ -472,7 +491,20 @@ void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile)
     }
 }
 
-void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible)
+void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult & result)
+{
+    if (result.target != FileBrowserTarget::radarcolSource && result.target != FileBrowserTarget::radarcolOutput)
+    {
+        return;
+    }
+    setPath(result.target == FileBrowserTarget::radarcolSource ? state.sourcePath : state.outputPath, result.path);
+    if (result.target == FileBrowserTarget::radarcolSource)
+    {
+        loadSource(state);
+    }
+}
+
+void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible, FileBrowserState & browser)
 {
     if (!ImGui::Begin("Radarcol###view.radarcol", &visible))
     {
@@ -480,14 +512,14 @@ void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible
         return;
     }
 
-    drawSourceControls(state);
+    drawSourceControls(state, browser);
     updatePageCount(state);
     if (state.reader)
     {
         ImGui::Text("Colors: %u", state.reader->colorCount());
         drawCategoryAndPageControls(state);
     }
-    drawEditControls(state, editMode);
+    drawEditControls(state, editMode, browser);
 
     if (!state.error.empty())
     {

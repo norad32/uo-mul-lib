@@ -4,6 +4,7 @@
 #include "gui/operation_controller.h"
 #include "gui/theme.h"
 #include "gui/map_workspace.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/panels/common.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -50,8 +51,6 @@ constexpr int ilshenarFacetIndex = 3;
 constexpr int malasFacetIndex = 4;
 constexpr int tokunoFacetIndex = 5;
 constexpr int terMurFacetIndex = 6;
-constexpr float dialogInputWidth = 420.0F;
-constexpr float openMapFileListHeight = 180.0F;
 constexpr ImGuiWindowFlags modalFlags = ImGuiWindowFlags_AlwaysAutoResize;
 constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     static_cast<unsigned int>(ImGuiWindowFlags_NoDecoration) | static_cast<unsigned int>(ImGuiWindowFlags_NoBackground) |
@@ -91,10 +90,6 @@ void closeDialog(NewMapDialogState & state)
     state.activePopup = MapFileDialogMode::none;
     state.openWithoutReview = false;
     state.error.clear();
-    state.openPickerRequested = false;
-    state.openPickerDirectory.clear();
-    state.openPickerSelection.clear();
-    state.openPickerError.clear();
 }
 
 void showError(NewMapDialogState & state, const uomul::Error & error)
@@ -421,77 +416,6 @@ void copyPathToBuffer(std::array<char, mapDialogPathBufferSize> & buffer, const 
     buffer.at(length) = '\0';
 }
 
-void navigateOpenPicker(NewMapDialogState & state, const std::filesystem::path & path)
-{
-    std::error_code error;
-    const std::filesystem::path directory = std::filesystem::absolute(path, error).lexically_normal();
-    if (error || !std::filesystem::is_directory(directory, error))
-    {
-        state.openPickerError = error ? error.message() : "Path is not a directory";
-        return;
-    }
-    state.openPickerDirectory = directory;
-    state.openPickerSelection.clear();
-    state.openPickerError.clear();
-    copyPathToBuffer(state.openPickerLocation, directory);
-}
-
-void drawOpenPicker(NewMapDialogState & state)
-{
-    if (state.openPickerDirectory.empty())
-    {
-        navigateOpenPicker(state, std::filesystem::current_path());
-    }
-
-    ImGui::SetNextItemWidth(dialogInputWidth);
-    const bool navigateFromInput = ImGui::InputText("Location",
-                                                    state.openPickerLocation.data(),
-                                                    state.openPickerLocation.size(),
-                                                    ImGuiInputTextFlags_EnterReturnsTrue);
-    ImGui::SameLine();
-    if (ImGui::Button("Go") || navigateFromInput)
-    {
-        navigateOpenPicker(state, state.openPickerLocation.data());
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Up"))
-    {
-        navigateOpenPicker(state, state.openPickerDirectory.parent_path());
-    }
-
-    ImGui::TextUnformatted(state.openPickerDirectory.string().c_str());
-    ImGui::BeginChild("OpenMapFiles", ImVec2(0.0F, openMapFileListHeight), ImGuiChildFlags_Borders);
-    std::error_code error;
-    for (const auto & entry : std::filesystem::directory_iterator(state.openPickerDirectory, error))
-    {
-        if (!entry.is_regular_file(error))
-        {
-            continue;
-        }
-        const std::string label = entry.path().filename().string();
-        if (ImGui::Selectable(label.c_str(), state.openPickerSelection == entry.path()))
-        {
-            state.openPickerSelection = entry.path();
-        }
-    }
-    ImGui::EndChild();
-
-    if (error)
-    {
-        state.openPickerError = error.message();
-    }
-    if (!state.openPickerError.empty())
-    {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "%s", state.openPickerError.c_str());
-    }
-
-    if (ImGui::Button("Use Selected File") && !state.openPickerSelection.empty())
-    {
-        copyPathToBuffer(state.openPath, state.openPickerSelection);
-        state.openPickerRequested = false;
-    }
-}
-
 void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
 {
     if (state.openWithoutReview && state.openPath.front() != '\0')
@@ -505,35 +429,32 @@ void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
         return;
     }
 
-    if (state.openPickerRequested)
+    ImGui::Text("Map path: %s", state.openPath.data());
+    if (ImGui::IsItemClicked() && state.browser != nullptr)
     {
-        drawOpenPicker(state);
+        requestFileBrowser(*state.browser,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = FileBrowserTarget::mapOpen,
+                            .initialPath = state.openPath.data(),
+                            .extension = ".mul",
+                            .title = "Open File",});
     }
-    else
+    const bool validDimensions = drawDimensionsFields("OpenDimensions", state.openFacet, state.openWidth, state.openHeight);
+    if (!validDimensions)
     {
-        ImGui::Text("Map path: %s", state.openPath.data());
-        const bool validDimensions = drawDimensionsFields("OpenDimensions", state.openFacet, state.openWidth, state.openHeight);
-        if (!validDimensions)
+        ImGui::TextColored(theme::imguiColor(theme::amber), "Dimensions must be positive multiples of 8 tiles.");
+    }
+    if (ImGui::Button("Open") && state.openPath.front() != '\0' && validDimensions)
+    {
+        const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
+        if (dimensions)
         {
-            ImGui::TextColored(theme::imguiColor(theme::amber), "Dimensions must be positive multiples of 8 tiles.");
-        }
-        if (ImGui::Button("Open") && state.openPath.front() != '\0' && validDimensions)
-        {
-            const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
-            if (dimensions)
-            {
-                state.operation = {
-                    .kind = PendingMapOperationKind::openMap,
-                    .path = state.openPath.data(),
-                    .dimensions = *dimensions,
-                };
-                requestOperation(workspace, state);
-            }
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Choose Another File"))
-        {
-            state.openPickerRequested = true;
+            state.operation = {
+                .kind = PendingMapOperationKind::openMap,
+                .path = state.openPath.data(),
+                .dimensions = *dimensions,
+            };
+            requestOperation(workspace, state);
         }
     }
 
@@ -547,9 +468,16 @@ void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
 
 void drawNewMapForm(MapWorkspace & workspace, NewMapDialogState & state)
 {
-    ImGui::TextUnformatted("Output path");
-    ImGui::SetNextItemWidth(dialogInputWidth);
-    ImGui::InputText("##NewMapPath", state.newMapPath.data(), state.newMapPath.size());
+    ImGui::Text("Output path: %s", state.newMapPath.data());
+    if (ImGui::IsItemClicked() && state.browser != nullptr)
+    {
+        requestFileBrowser(*state.browser,
+                           {.mode = FileBrowserMode::saveFile,
+                            .target = FileBrowserTarget::newMapOutput,
+                            .initialPath = state.newMapPath.data(),
+                            .extension = ".mul",
+                            .title = "Create Map",});
+    }
     const bool validDimensions =
         drawDimensionsFields("NewDimensions", state.newMapFacet, state.newMapWidth, state.newMapHeight);
 
@@ -603,9 +531,16 @@ void drawNewMapForm(MapWorkspace & workspace, NewMapDialogState & state)
 
 void drawSaveAsDialog(MapWorkspace & workspace, NewMapDialogState & state)
 {
-    ImGui::TextUnformatted("Commit staged changes to");
-    ImGui::SetNextItemWidth(dialogInputWidth);
-    ImGui::InputText("##SaveMapPath", state.savePath.data(), state.savePath.size());
+    ImGui::Text("Commit staged changes to: %s", state.savePath.data());
+    if (ImGui::IsItemClicked() && state.browser != nullptr)
+    {
+        requestFileBrowser(*state.browser,
+                           {.mode = FileBrowserMode::saveFile,
+                            .target = FileBrowserTarget::mapSaveAs,
+                            .initialPath = state.savePath.data(),
+                            .extension = ".mul",
+                            .title = "Save Map",});
+    }
 
     if (ImGui::Button("Save / Commit") && state.savePath.front() != '\0')
     {
@@ -809,10 +744,24 @@ void cancelMapDialog(NewMapDialogState & state)
     state.activePopup = MapFileDialogMode::none;
     state.openWithoutReview = false;
     state.error.clear();
-    state.openPickerRequested = false;
-    state.openPickerDirectory.clear();
-    state.openPickerSelection.clear();
-    state.openPickerError.clear();
+}
+
+void applyFileBrowserResult(NewMapDialogState & state, const FileBrowserResult & result)
+{
+    switch (result.target)
+    {
+    case FileBrowserTarget::mapOpen:
+        copyPathToBuffer(state.openPath, result.path);
+        break;
+    case FileBrowserTarget::newMapOutput:
+        copyPathToBuffer(state.newMapPath, result.path);
+        break;
+    case FileBrowserTarget::mapSaveAs:
+        copyPathToBuffer(state.savePath, result.path);
+        break;
+    default:
+        return;
+    }
 }
 
 void drawNewMapDialog(MapWorkspace & workspace,
@@ -820,6 +769,7 @@ void drawNewMapDialog(MapWorkspace & workspace,
                       OperationController & controller,
                       OutputCollisionPolicy collisionPolicy,
                       NotificationState & notifications,
+                      FileBrowserState & browser,
                       bool & shouldClose)
 {
     static_cast<void>(controller);
@@ -829,6 +779,7 @@ void drawNewMapDialog(MapWorkspace & workspace,
     state.controller = &controller;
     state.collisionPolicy = collisionPolicy;
     state.notifications = &notifications;
+    state.browser = &browser;
     if (state.mode == MapFileDialogMode::none)
     {
         return;

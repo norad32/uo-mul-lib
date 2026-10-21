@@ -470,12 +470,12 @@ void drawMapPanels(WorkbenchState & state,
 
     if (state.panelRegistry.find(PanelId::radarcol)->visible)
     {
-        drawRadarcolPanel(radarcolState, workspace.editMode(), state.panelRegistry.find(PanelId::radarcol)->visible);
+    drawRadarcolPanel(radarcolState, workspace.editMode(), state.panelRegistry.find(PanelId::radarcol)->visible, state.fileBrowser);
     }
 
     if (state.panelRegistry.find(PanelId::texmaps)->visible)
     {
-        drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible);
+    drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible, state.fileBrowser);
     }
 }
 
@@ -624,7 +624,7 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     bool welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr;
-    const bool profileChanged = drawMenuBar(state, !welcomeShell);
+    bool profileChanged = welcomeShell ? false : drawMenuBar(state, true);
 
     if (!state.pendingClipboardText.empty())
     {
@@ -691,6 +691,7 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
     {
         state.recentMapRecordedPath.clear();
         drawWelcomeScreen(state);
+        profileChanged = drawMenuBar(state, false);
     }
     else
     {

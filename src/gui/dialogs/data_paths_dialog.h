@@ -3,6 +3,7 @@
 #include "gui/data_discovery.h"
 #include "gui/data_profile.h"
 #include "gui/data_validation.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include <array>
 #include <cstdint>
 #include <filesystem>
@@ -14,25 +15,6 @@ namespace uo_mule::gui
 {
 
 inline constexpr std::size_t dataPathsDialogBufferSize = 1024;
-
-enum class DataPathPickerMode : std::uint8_t
-{
-    none,
-    sourceFolder,
-    outputFolder,
-    fileOverride,
-};
-
-struct DataPathPickerState
-{
-    DataPathPickerMode mode = DataPathPickerMode::none;
-    bool openRequested = false;
-    DataFileRole role = DataFileRole::radarcol;
-    std::filesystem::path directory;
-    std::filesystem::path selectedPath;
-    std::array<char, dataPathsDialogBufferSize> location{};
-    std::string error;
-};
 
 struct DataPathsDialogState
 {
@@ -46,12 +28,13 @@ struct DataPathsDialogState
     DataProfile workingProfile;
     DataDiscoveryResult discovery;
     DataProfileValidation validation;
-    DataPathPickerState picker;
+    FileBrowserState * browser = nullptr;
     DiscoveryMode discoveryMode = DiscoveryMode::folder;
     std::string message;
 };
 
 void requestDataPathsDialog(DataPathsDialogState & state, const DataProfile & profile);
-[[nodiscard]] bool drawDataPathsDialog(DataPathsDialogState & state, DataProfile & activeProfile);
+[[nodiscard]] bool drawDataPathsDialog(DataPathsDialogState & state, DataProfile & activeProfile, FileBrowserState & browser);
+void applyFileBrowserResult(DataPathsDialogState & state, const FileBrowserResult & result);
 
 } // namespace uo_mule::gui

@@ -2,6 +2,7 @@
 #include "gui/coordinate_parser.h"
 #include "gui/map_context.h"
 #include "gui/dialogs/data_paths_dialog.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
 #include "gui/panels/common.h"
@@ -79,10 +80,15 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
     state.menuBarState.fileDialog.activePopup = MapFileDialogMode::none;
     state.menuBarState.fileDialog.openWithoutReview = false;
     state.menuBarState.fileDialog.error.clear();
-    state.menuBarState.fileDialog.openPickerRequested = mode == MapFileDialogMode::openMap;
     if (mode == MapFileDialogMode::openMap)
     {
         state.menuBarState.fileDialog.openPath.fill('\0');
+        requestFileBrowser(state.fileBrowser,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = FileBrowserTarget::mapOpen,
+                            .initialPath = {},
+                            .extension = ".mul",
+                            .title = "Open File",});
     }
 }
 

@@ -21,6 +21,8 @@ add_library(
     data_providers.cpp
     data_validation.cpp
     coordinate_parser.cpp
+    common/file_size.cpp
+    dialogs/file_browser_dialog.cpp
     dialogs/data_paths_dialog.cpp
     log_panel.cpp
     layout_store.cpp
