@@ -53,7 +53,7 @@
     {
       "label": "Build Debug GUI",
       "type": "shell",
-      "command": "cmake --preset debug-gui -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-gui --target uo-mule",
+      "command": "cmake --preset debug-gui && cmake --build --preset debug-gui --target uo-mule",
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": ["$gcc"]
     },
@@ -65,23 +65,30 @@
       "problemMatcher": ["$gcc"]
     },
     {
+      "label": "Analyze Debug GUI",
+      "type": "shell",
+      "command": "cmake --preset debug-gui-tidy && cmake --build --preset debug-gui-tidy --target uo-mule",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$gcc"]
+    },
+    {
       "label": "Build Debug CLI",
       "type": "shell",
-      "command": "cmake --preset debug-cli -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-cli --target uo-mule",
+      "command": "cmake --preset debug-cli && cmake --build --preset debug-cli --target uo-mule",
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": ["$gcc"]
     },
     {
       "label": "Build Debug uomul",
       "type": "shell",
-      "command": "cmake --preset debug-uomul -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-uomul --target uomul_tests",
+      "command": "cmake --preset debug-uomul && cmake --build --preset debug-uomul --target uomul_tests",
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": ["$gcc"]
     },
     {
       "label": "Build Debug Headless",
       "type": "shell",
-      "command": "cmake --preset debug-headless -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-headless --target uo-mule",
+      "command": "cmake --preset debug-headless && cmake --build --preset debug-headless --target uo-mule",
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": ["$gcc"]
     },

@@ -20,7 +20,7 @@
         "ENABLE_COVERAGE": "ON",
         "BUILD_TESTS": "ON",
         "BUILD_GUI": "ON",
-        "ENABLE_CLANG_TIDY": "ON",
+        "ENABLE_CLANG_TIDY": "OFF",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "1",
         "BUILD_GUI_RUNTIME": "OFF",
         "INSTALL_GUI": "ON"
@@ -51,6 +51,15 @@
         "BUILD_CLI_TESTS": "ON",
         "BUILD_GUI_TESTS": "OFF",
         "INSTALL_GUI": "OFF"
+      }
+    },
+    {
+      "name": "debug-gui-tidy",
+      "displayName": "Debug GUI with clang-tidy (Ninja)",
+      "inherits": "debug-gui",
+      "binaryDir": "${sourceDir}/build/debug-gui-tidy",
+      "cacheVariables": {
+        "ENABLE_CLANG_TIDY": "ON"
       }
     },
     {
@@ -175,6 +184,11 @@
     {
       "name": "debug-cli",
       "configurePreset": "debug-cli",
+      "targets": ["uo-mule"]
+    },
+    {
+      "name": "debug-gui-tidy",
+      "configurePreset": "debug-gui-tidy",
       "targets": ["uo-mule"]
     },
     {
