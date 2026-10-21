@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gui/documents/document_identity.h"
 #include "gui/documents/map_workspace.h"
 #include <cstdint>
 #include <filesystem>
@@ -8,15 +9,16 @@
 namespace uo_mule::gui
 {
 
-using DocumentId = std::uint64_t;
-
 struct MapDocument
 {
     DocumentId id = 0;
+    DocumentIdentity identity;
     std::filesystem::path sourcePath;
     std::filesystem::path workingPath;
     uomul::Dimensions dimensions{};
     bool dirty = false;
+
+    [[nodiscard]] DocumentSummary summary() const;
 };
 
 class DocumentManager

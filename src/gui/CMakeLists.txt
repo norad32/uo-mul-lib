@@ -31,6 +31,7 @@ add_library(
     dialogs/file_selector_dialog.cpp
     dialogs/map_facet_dialog.cpp
     dialogs/preferences_dialog.cpp
+    documents/document_identity.cpp
     documents/map_document.cpp
     documents/map_workspace.cpp
     persistence/layout_store.cpp
