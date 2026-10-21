@@ -26,6 +26,7 @@ add_library(
     profile/data_validation.cpp
     profile/workbench_session.cpp
     providers/data_providers.cpp
+    providers/embedded_radarcol.cpp
     dialogs/file_size.cpp
     dialogs/file_browser_dialog.cpp
     dialogs/file_selector_dialog.cpp
