@@ -1,6 +1,7 @@
 #include "gui/views/common.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/frontend/theme.h"
+#include "gui/strings/ui_strings.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <imgui.h>
@@ -18,7 +19,7 @@ constexpr float textOutlineOffset = 1.0F;
 
 std::string formatError(const uomul::Error & error)
 {
-    return error.path.empty() ? error.message : error.path.string() + ": " + error.message;
+    return strings::formatError(error);
 }
 
 std::string tileLabel(MapDisplayMode mode, uomul::MapTile tile)

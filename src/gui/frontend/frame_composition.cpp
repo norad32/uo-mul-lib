@@ -12,6 +12,7 @@
 #include "gui/documents/map_workspace.h"
 #include "gui/frontend/welcome_screen.h"
 #include "gui/frontend/theme.h"
+#include "gui/strings/ui_strings.h"
 #include "gui/profile/data_profile.h"
 #include "gui/commands/command_registry.h"
 #include "gui/persistence/preferences.h"
@@ -172,21 +173,6 @@ void drawMapPanels(WorkbenchState & state,
     }
 }
 
-[[nodiscard]] const char * readinessLabel(ProfileReadinessState state) noexcept
-{
-    switch (state)
-    {
-        case ProfileReadinessState::needsProfile:
-            return "No profile";
-        case ProfileReadinessState::profileInvalid:
-        case ProfileReadinessState::profileIncomplete:
-            return "Fallback active";
-        case ProfileReadinessState::ready:
-            return "Configured";
-    }
-    return "Unknown";
-}
-
 void notifyRadarcolFallback(WorkbenchState & state)
 {
     const ProviderStatus status = state.providers.radarColors().status();
@@ -232,11 +218,11 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
     {
         ImGui::SameLine();
     }
-    const std::string profileStatus = "Profile: " + (state.activeProfile.name.empty() ? std::string("None") : state.activeProfile.name);
-    const std::string mapStatus = "Map: " + (state.workspace.reader() == nullptr ? std::string("None") : state.workspace.mapPath().string());
-    const std::string stateStatus = "State: " + std::string(state.workspace.dirty() ? "Staged changes" : "Clean");
-    const std::string readinessStatus = "Data: " + std::string(readinessLabel(state.session.profileState()));
-    const std::string radarcolStatus = "Radarcol: " + std::string(providerSourceName(state.providers.radarColors().status().source));
+    const std::string profileStatus = strings::formatProfileStatus(state.activeProfile.name);
+    const std::string mapStatus = strings::formatMapStatus(state.workspace.reader() == nullptr ? std::filesystem::path{} : state.workspace.mapPath());
+    const std::string stateStatus = strings::formatStateStatus(state.workspace.dirty());
+    const std::string readinessStatus = strings::formatDataStatus(state.session.profileState());
+    const std::string radarcolStatus = strings::formatRadarcolStatus(state.providers.radarColors().status().source);
     const float rightContentWidth = ImGui::CalcTextSize(profileStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
                                     ImGui::CalcTextSize(mapStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
                                     ImGui::CalcTextSize(stateStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
@@ -303,8 +289,9 @@ void drawStartupScreen(WorkbenchState & state)
     ImGui::TextUnformatted("Configure Preferences");
     ImGui::Separator();
     ImGui::TextUnformatted("Maps are available without a profile. Embedded Radarcol is used until an external source is configured.");
-    ImGui::Text("Profile status: %s", readinessLabel(state.session.profileState()));
-    const std::string startupRadarcolSource(providerSourceName(state.providers.radarColors().status().source));
+    const std::string profileReadiness(strings::profileReadinessName(state.session.profileState()));
+    ImGui::Text("Profile status: %s", profileReadiness.c_str());
+    const std::string startupRadarcolSource(strings::providerSourceName(state.providers.radarColors().status().source));
     ImGui::Text("Radarcol source: %s", startupRadarcolSource.c_str());
     if (ImGui::Button("Open Preferences"))
     {

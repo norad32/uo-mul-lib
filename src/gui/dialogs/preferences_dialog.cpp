@@ -8,6 +8,7 @@
 #include "gui/persistence/preferences.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/profile/workbench_session.h"
+#include "gui/strings/ui_strings.h"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -35,38 +36,6 @@ constexpr std::array<const char *, discoveryModeCount> discoveryModeNames{
     "Installation scan",
     "Deep scan",
 };
-
-[[nodiscard]] std::string_view dataFilePurpose(DataFileRole role) noexcept
-{
-    switch (role)
-    {
-        case DataFileRole::radarcol :
-            return "Radar and minimap color data.";
-        case DataFileRole::texidx :
-            return "Texture index and offset data.";
-        case DataFileRole::texmaps :
-            return "Texture pixel data.";
-        case DataFileRole::tiledata :
-            return "Tile flags and tile metadata.";
-    }
-    return "UO metadata file.";
-}
-
-[[nodiscard]] std::string_view dataFileLabel(DataFileRole role) noexcept
-{
-    switch (role)
-    {
-        case DataFileRole::radarcol :
-            return "radarcol.mul";
-        case DataFileRole::texidx :
-            return "texidx.mul";
-        case DataFileRole::texmaps :
-            return "texmaps.mul";
-        case DataFileRole::tiledata :
-            return "tiledata.mul";
-    }
-    return "Unknown metadata file";
-}
 
 void copyToBuffer(std::array<char, preferencesDialogBufferSize> & buffer, const std::filesystem::path & value)
 {
@@ -274,7 +243,7 @@ void drawFileRow(PreferencesDialogState & state, DataFileRole role)
     const auto * file = state.validation.find(role);
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
-    const std::string label(dataFileLabel(role));
+    const std::string label(strings::dataFileName(role));
     ImGui::TextUnformatted(label.c_str());
     ImGui::TableNextColumn();
     std::filesystem::path path;
@@ -285,11 +254,11 @@ void drawFileRow(PreferencesDialogState & state, DataFileRole role)
     ImGui::TextUnformatted(path.empty() ? "Not found" : path.string().c_str());
     if (ImGui::IsItemHovered() && !path.empty())
     {
-        const std::string purpose(dataFilePurpose(role));
+        const std::string purpose(strings::dataFilePurpose(role));
         ImGui::SetTooltip("%s\n%s", path.string().c_str(), purpose.c_str());
     }
     ImGui::TableNextColumn();
-    ImGui::TextUnformatted(file == nullptr ? "missing" : std::string(dataFileStatusName(file->status)).c_str());
+    ImGui::TextUnformatted(file == nullptr ? "Missing" : std::string(strings::dataFileStatusLabel(file->status)).c_str());
     ImGui::TableNextColumn();
     if (file != nullptr && file->fileSize)
     {

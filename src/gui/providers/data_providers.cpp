@@ -1,6 +1,7 @@
 #include "gui/providers/data_providers.h"
 #include "gui/providers/embedded_radarcol.h"
 #include "gui/context/color_conversion.h"
+#include "gui/strings/ui_strings.h"
 #include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
 #include "uomul/radarcol/radarcol.h"
@@ -18,18 +19,7 @@ namespace uo_mule::gui
 
 std::string_view providerSourceName(ProviderSourceKind source) noexcept
 {
-    switch (source)
-    {
-        case ProviderSourceKind::none :
-            return "Radarcol unavailable";
-        case ProviderSourceKind::embeddedDefault :
-            return "Embedded Radarcol";
-        case ProviderSourceKind::externalConfigured :
-            return "Configured Radarcol";
-        case ProviderSourceKind::embeddedDefaultWithWarning :
-            return "Embedded Radarcol (fallback)";
-    }
-    return "Radarcol unavailable";
+    return strings::providerSourceName(source);
 }
 
 namespace

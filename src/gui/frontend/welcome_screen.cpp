@@ -10,6 +10,7 @@
 #include "gui/frontend/welcome_greetings.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/providers/data_providers.h"
+#include "gui/strings/ui_strings.h"
 #include "gui/application/workbench_state.h"
 #include <algorithm>
 #include <array>
@@ -56,61 +57,6 @@ constexpr std::size_t timestampBufferSize = 32;
         return std::string(prefix) + ": unknown";
     }
     return std::string(prefix) + ": " + std::string(formatted.data());
-}
-
-[[nodiscard]] const char * readinessLabel(ProfileReadinessState state) noexcept
-{
-    switch (state)
-    {
-        case ProfileReadinessState::needsProfile :
-            return "No profile";
-        case ProfileReadinessState::profileInvalid :
-        case ProfileReadinessState::profileIncomplete :
-            return "Fallback active";
-        case ProfileReadinessState::ready :
-            return "Configured";
-    }
-    return "Unknown";
-}
-
-[[nodiscard]] std::string_view roleLabel(DataFileRole role) noexcept
-{
-    switch (role)
-    {
-        case DataFileRole::radarcol :
-            return "Radar colors";
-        case DataFileRole::texidx :
-            return "Texture index";
-        case DataFileRole::texmaps :
-            return "Texture data";
-        case DataFileRole::tiledata :
-            return "Tile data";
-    }
-    return "Data";
-}
-
-[[nodiscard]] const char * statusLabel(DataFileStatus status) noexcept
-{
-    switch (status)
-    {
-        case DataFileStatus::found :
-            return "Found";
-        case DataFileStatus::foundAndValidated :
-            return "Ready";
-        case DataFileStatus::missing :
-            return "Missing";
-        case DataFileStatus::ambiguous :
-            return "Ambiguous";
-        case DataFileStatus::invalid :
-            return "Invalid";
-        case DataFileStatus::overridden :
-            return "Override";
-        case DataFileStatus::optional :
-            return "Optional";
-        case DataFileStatus::unsupported :
-            return "Unsupported";
-    }
-    return "Unknown";
 }
 
 [[nodiscard]] ImVec4 statusColor(DataFileStatus status)
@@ -213,7 +159,7 @@ void drawProfileSummary(const DataProfile & profile, const ProviderStatus & rada
         ImGui::TextDisabled("Output: %s", profile.outputRoot.string().c_str());
     }
 
-    const std::string_view sourceName = providerSourceName(radarcolStatus.source);
+    const std::string_view sourceName = strings::providerSourceName(radarcolStatus.source);
     ImGui::Text("Radarcol: %.*s", static_cast<int>(sourceName.size()), sourceName.data());
     if (radarcolStatus.source == ProviderSourceKind::embeddedDefaultWithWarning && !radarcolStatus.message.empty())
     {
@@ -227,12 +173,12 @@ void drawProfileSummary(const DataProfile & profile, const ProviderStatus & rada
         {
             continue;
         }
-        const std::string_view roleName = roleLabel(role);
+        const std::string_view roleName = strings::dataFileLabel(role);
         ImGui::TextColored(statusColor(file->status),
                            "%.*s: %s",
                            static_cast<int>(roleName.size()),
                            roleName.data(),
-                           statusLabel(file->status));
+                            std::string(strings::dataFileStatusLabel(file->status)).c_str());
     }
 }
 
@@ -374,8 +320,9 @@ void drawWelcomeScreen(WorkbenchState & state)
         ImGui::TextUnformatted("Safe by default");
         ImGui::TextWrapped("Source muls are read-only. Edits remain staged until you explicitly save them to an output path.");
         ImGui::Spacing();
-        ImGui::TextDisabled("Map readiness: %s", readinessLabel(state.session.profileState()));
-        const std::string_view sourceName = providerSourceName(radarcolStatus.source);
+        const std::string profileReadiness(strings::profileReadinessName(state.session.profileState()));
+        ImGui::TextDisabled("Map readiness: %s", profileReadiness.c_str());
+        const std::string_view sourceName = strings::providerSourceName(radarcolStatus.source);
         ImGui::TextDisabled("Maps remain editable and savable with %.*s.",
                             static_cast<int>(sourceName.size()),
                             sourceName.data());
