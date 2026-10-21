@@ -26,6 +26,10 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * noItemSelected() noexcept;
 [[nodiscard]] const char * itemDetailsUnavailable() noexcept;
 [[nodiscard]] const char * assetViewUnavailable() noexcept;
+[[nodiscard]] const char * grid() noexcept;
+[[nodiscard]] const char * table() noexcept;
+[[nodiscard]] const char * item() noexcept;
+[[nodiscard]] const char * details() noexcept;
 
 [[nodiscard]] const char * fileMenu() noexcept;
 [[nodiscard]] const char * viewMenu() noexcept;

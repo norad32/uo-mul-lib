@@ -34,6 +34,10 @@ const char * detailsCollapsed() noexcept { return "Details collapsed"; }
 const char * noItemSelected() noexcept { return "No item selected"; }
 const char * itemDetailsUnavailable() noexcept { return "Item details unavailable"; }
 const char * assetViewUnavailable() noexcept { return "This asset view is not available yet."; }
+const char * grid() noexcept { return "Grid"; }
+const char * table() noexcept { return "Table"; }
+const char * item() noexcept { return "Item"; }
+const char * details() noexcept { return "Details"; }
 
 const char * fileMenu() noexcept { return "File"; }
 const char * viewMenu() noexcept { return "View"; }

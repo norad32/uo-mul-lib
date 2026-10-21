@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -135,6 +136,8 @@ struct AssetDragPayload
 struct AssetWindowState
 {
     AssetPresentation presentation = AssetPresentation::grid;
+    std::string presentationContext;
+    std::map<std::string, AssetPresentation> presentations;
     AssetQuery query;
     AssetSelection selection;
     float scrollPosition = 0.0F;

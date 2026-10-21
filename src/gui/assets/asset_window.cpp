@@ -75,6 +75,89 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
     }
 }
 
+[[nodiscard]] std::string presentationContextKey(const AssetAdapterDescriptor & descriptor)
+{
+    std::string key = std::to_string(static_cast<int>(descriptor.source.kind));
+    key += "|" + descriptor.source.contextId;
+    for (const auto & path : descriptor.source.source.canonicalPaths)
+    {
+        key += "|" + path.generic_string();
+    }
+    return key;
+}
+
+[[nodiscard]] AssetPresentation defaultPresentation(const AssetCapabilitySet & capabilities) noexcept
+{
+    if (capabilities.supports(AssetPresentationCapability::grid))
+    {
+        return AssetPresentation::grid;
+    }
+    return AssetPresentation::table;
+}
+
+[[nodiscard]] bool supportsPresentation(const AssetAdapter & adapter, AssetPresentation presentation) noexcept
+{
+    return adapter.descriptor.capabilities.supports(presentation == AssetPresentation::grid
+                                                        ? AssetPresentationCapability::grid
+                                                        : AssetPresentationCapability::table);
+}
+
+void syncPresentation(const AssetAdapter & adapter, AssetWindowState & state)
+{
+    const std::string key = presentationContextKey(adapter.descriptor);
+    if (state.presentationContext != key)
+    {
+        state.presentationContext = key;
+        const auto stored = state.presentations.find(key);
+        state.presentation = stored == state.presentations.end() ? defaultPresentation(adapter.descriptor.capabilities) : stored->second;
+    }
+    if (!supportsPresentation(adapter, state.presentation))
+    {
+        state.presentation = defaultPresentation(adapter.descriptor.capabilities);
+    }
+    state.presentations[key] = state.presentation;
+}
+
+void setPresentation(const AssetAdapter & adapter, AssetWindowState & state, AssetPresentation presentation)
+{
+    if (supportsPresentation(adapter, presentation))
+    {
+        state.presentation = presentation;
+        state.presentations[state.presentationContext] = presentation;
+    }
+}
+
+void drawPresentationControls(const AssetAdapter & adapter, AssetWindowState & state)
+{
+    if (!adapter.descriptor.capabilities.supports(AssetPresentationCapability::grid) ||
+        !adapter.descriptor.capabilities.supports(AssetPresentationCapability::table))
+    {
+        return;
+    }
+    ImGui::TextUnformatted(strings::grid());
+    ImGui::SameLine();
+    if (ImGui::RadioButton("##AssetGridPresentation", state.presentation == AssetPresentation::grid))
+    {
+        setPresentation(adapter, state, AssetPresentation::grid);
+    }
+    ImGui::SameLine();
+    ImGui::TextUnformatted(strings::table());
+    ImGui::SameLine();
+    if (ImGui::RadioButton("##AssetTablePresentation", state.presentation == AssetPresentation::table))
+    {
+        setPresentation(adapter, state, AssetPresentation::table);
+    }
+}
+
+void drawItemDetails(const AssetDetails & details)
+{
+    ImGui::TextUnformatted(details.title.c_str());
+    for (const auto & field : details.fields)
+    {
+        ImGui::TextWrapped("%s", field.c_str());
+    }
+}
+
 void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state, float height)
 {
     ImGui::BeginChild("AssetDetails", ImVec2(0.0F, height), ImGuiChildFlags_Borders);
@@ -100,11 +183,7 @@ void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state, f
         return;
     }
 
-    ImGui::TextUnformatted(details->title.c_str());
-    for (const auto & field : details->fields)
-    {
-        ImGui::TextWrapped("%s", field.c_str());
-    }
+    drawItemDetails(*details);
     ImGui::EndChild();
 }
 
@@ -189,6 +268,88 @@ void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
     }
 }
 
+void drawTableRow(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item)
+{
+    ImGui::PushID(item.id.value.c_str());
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    const bool selected = contains(state.selection, item.id);
+    ImGui::BeginDisabled(item.state != AssetItemState::available);
+    if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
+    {
+        selectSingle(state.selection, item.id);
+    }
+    ImGui::EndDisabled();
+    ImGui::TableNextColumn();
+    if (item.state != AssetItemState::available)
+    {
+        ImGui::TextUnformatted(item.stateMessage.empty() ? strings::loading() : item.stateMessage.c_str());
+    }
+    else if (!adapter.loadDetails)
+    {
+        ImGui::TextUnformatted(strings::itemDetailsUnavailable());
+    }
+    else
+    {
+        const auto details = adapter.loadDetails(item.id);
+        if (details)
+        {
+            drawItemDetails(*details);
+        }
+        else
+        {
+            ImGui::TextUnformatted(strings::itemDetailsUnavailable());
+        }
+    }
+    ImGui::PopID();
+}
+
+void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
+{
+    const float rowHeight = ImGui::GetTextLineHeightWithSpacing() * 2.0F;
+    const float tableHeight = ImGui::GetContentRegionAvail().y;
+    if (adapter.descriptor.itemCount == 0U)
+    {
+        ImGui::TextUnformatted(strings::noItems());
+        return;
+    }
+
+    const ImGuiTableFlags flags = ImGuiTableFlags_Borders + ImGuiTableFlags_RowBg + ImGuiTableFlags_ScrollY;
+    if (!ImGui::BeginTable("AssetTable", 2, flags, ImVec2(0.0F, tableHeight)))
+    {
+        return;
+    }
+    ImGui::TableSetupColumn(strings::item(), ImGuiTableColumnFlags_WidthFixed, 100.0F);
+    ImGui::TableSetupColumn(strings::details(), ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableHeadersRow();
+
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(adapter.descriptor.itemCount), rowHeight);
+    while (clipper.Step())
+    {
+        const std::size_t first = static_cast<std::size_t>(clipper.DisplayStart);
+        const std::size_t count = static_cast<std::size_t>(clipper.DisplayEnd - clipper.DisplayStart);
+        const AssetRangeRequest request{.first = first, .count = count, .presentation = AssetPresentation::table};
+        const std::vector<AssetItem> items = adapter.loadRange ? adapter.loadRange(request, state.query) : std::vector<AssetItem>{};
+        for (std::size_t index = 0; index < count; index++)
+        {
+            if (index < items.size())
+            {
+                drawTableRow(adapter, state, items.at(index));
+            }
+            else
+            {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(strings::loading());
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(strings::loading());
+            }
+        }
+    }
+    ImGui::EndTable();
+}
+
 } // namespace
 
 AssetGridLayout gridLayout(std::size_t itemCount, float availableWidth, float cellWidth, float spacing) noexcept
@@ -212,6 +373,7 @@ void drawAssetWindow(const AssetAdapter & adapter, AssetWindowState & state, boo
         return;
     }
 
+    syncPresentation(adapter, state);
     const float availableHeight = std::max(0.0F, ImGui::GetContentRegionAvail().y);
     const float actualHeaderHeight = std::min(headerHeight, availableHeight);
     ImGui::BeginChild("AssetHeader", ImVec2(0.0F, actualHeaderHeight), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
@@ -219,6 +381,7 @@ void drawAssetWindow(const AssetAdapter & adapter, AssetWindowState & state, boo
     drawActions(adapter.descriptor.actions);
     drawExtensions(adapter.descriptor.extensionSlots);
     drawQueryControls(adapter, state);
+    drawPresentationControls(adapter, state);
     ImGui::EndChild();
 
     const float separatorHeight = ImGui::GetStyle().ItemSpacing.y;
@@ -230,6 +393,10 @@ void drawAssetWindow(const AssetAdapter & adapter, AssetWindowState & state, boo
         adapter.descriptor.fixedCellWidth > 0U)
     {
         drawGrid(adapter, state);
+    }
+    else if (state.presentation == AssetPresentation::table && adapter.descriptor.capabilities.supports(AssetPresentationCapability::table))
+    {
+        drawTable(adapter, state);
     }
     else
     {

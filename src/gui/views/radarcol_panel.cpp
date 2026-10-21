@@ -188,7 +188,8 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
     adapter.descriptor.source = {.kind = DocumentKind::radarcol,
                                  .source = makeDocumentSourceIdentity({std::filesystem::path(state.sourcePath.data())}),
                                  .contextId = adapter.descriptor.viewId,};
-    adapter.descriptor.capabilities = {.presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid),
+    adapter.descriptor.capabilities = {.presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
+                                                       static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
                                        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
                                        .selection = assets::AssetSelectionMode::single,};
     adapter.descriptor.itemCount = state.reader ? state.reader->colorCount() : 0U;

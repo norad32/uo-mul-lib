@@ -25,6 +25,29 @@ TEST_CASE("assetCapabilities_Should_ReportDeclaredPresentationAndQuerySupport")
     REQUIRE(capabilities.supports(sort));
 }
 
+TEST_CASE("assetRangeRequest_Should_DeclareTablePresentation")
+{
+    const uo_mule::gui::assets::AssetRangeRequest request{
+        .first = 4U,
+        .count = 8U,
+        .presentation = uo_mule::gui::assets::AssetPresentation::table,
+    };
+
+    REQUIRE(request.presentation == uo_mule::gui::assets::AssetPresentation::table);
+    REQUIRE(request.first == 4U);
+    REQUIRE(request.count == 8U);
+}
+
+TEST_CASE("assetWindowState_Should_RetainPresentationPerContext")
+{
+    uo_mule::gui::assets::AssetWindowState state;
+    state.presentations["radarcol|source-a"] = uo_mule::gui::assets::AssetPresentation::table;
+    state.presentations["radarcol|source-b"] = uo_mule::gui::assets::AssetPresentation::grid;
+
+    REQUIRE(state.presentations.at("radarcol|source-a") == uo_mule::gui::assets::AssetPresentation::table);
+    REQUIRE(state.presentations.at("radarcol|source-b") == uo_mule::gui::assets::AssetPresentation::grid);
+}
+
 TEST_CASE("assetSelection_Should_ReplaceSingleSelectionAndTrackAnchor")
 {
     uo_mule::gui::assets::AssetSelection selection;
