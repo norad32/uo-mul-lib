@@ -4,6 +4,7 @@
 #include "gui/data_profile.h"
 #include "gui/data_validation.h"
 #include "gui/new_map_dialog.h"
+#include "gui/preferences.h"
 #include "gui/recent_maps.h"
 #include "gui/theme.h"
 #include "gui/welcome_greetings.h"
@@ -356,6 +357,15 @@ void drawWelcomeScreen(WorkbenchState & state)
         ImGui::EndTable();
     }
 
+    if (ImGui::Button("Preferences..."))
+    {
+        static_cast<void>(state.commands.execute(CommandId::dataPaths, state));
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Configure the active data profile and application preferences.");
+    }
+
     const float footerHeight = actionButtonHeight + ImGui::GetStyle().ItemSpacing.y;
     const float availableHeight = ImGui::GetContentRegionAvail().y;
     if (availableHeight > footerHeight)
@@ -365,15 +375,23 @@ void drawWelcomeScreen(WorkbenchState & state)
     ImGui::Separator();
     ImGui::Spacing();
     const float actionRowWidth = (actionButtonWidth * 2.0F) + actionButtonSpacing;
-    const bool stackActions = ImGui::GetContentRegionAvail().x < actionRowWidth + actionButtonWidth;
-    const float actionWidth = stackActions ? ImGui::GetContentRegionAvail().x : actionButtonWidth;
-    if (ImGui::Button("Setup", ImVec2(actionWidth, actionButtonHeight)))
+    const bool showWelcomeOnStartup = state.preferences.showWelcomeOnStartup;
+    if (ImGui::Checkbox("Show on startup", &state.preferences.showWelcomeOnStartup) &&
+        state.preferences.showWelcomeOnStartup != showWelcomeOnStartup)
     {
-        static_cast<void>(state.commands.execute(CommandId::dataPaths, state));
+        savePreferences(state.preferences);
     }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Show the welcome screen after a valid profile is loaded when the application starts.");
+    }
+
+    const float startupOptionWidth = ImGui::CalcTextSize("Show on startup").x + (ImGui::GetStyle().FramePadding.x * 2.0F);
+    const bool stackActions = ImGui::GetContentRegionAvail().x < actionRowWidth + startupOptionWidth;
+    const float actionWidth = stackActions ? ImGui::GetContentRegionAvail().x : actionButtonWidth;
     if (!stackActions)
     {
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - actionRowWidth + actionButtonSpacing);
+        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - actionRowWidth);
     }
     if (ImGui::Button("Open Map", ImVec2(actionWidth, actionButtonHeight)))
     {

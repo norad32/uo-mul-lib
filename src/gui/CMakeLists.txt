@@ -24,7 +24,7 @@ add_library(
     common/file_size.cpp
     dialogs/file_browser_dialog.cpp
     dialogs/map_facet_dialog.cpp
-    dialogs/data_paths_dialog.cpp
+    dialogs/preferences_dialog.cpp
     log_panel.cpp
     layout_store.cpp
     map_context.cpp

@@ -5,7 +5,7 @@
 #include "gui/data_profile.h"
 #include "gui/data_profile_store.h"
 #include "gui/data_providers.h"
-#include "gui/dialogs/data_paths_dialog.h"
+#include "gui/dialogs/preferences_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
@@ -32,7 +32,7 @@ namespace uo_mule::gui
 struct MenuBarState
 {
     NewMapDialogState fileDialog;
-    DataPathsDialogState dataPathsDialog;
+    PreferencesDialogState preferencesDialog;
     bool windowCloseRequested = false;
 };
 

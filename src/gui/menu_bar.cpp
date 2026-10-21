@@ -1,5 +1,5 @@
 #include "gui/menu_bar.h"
-#include "gui/dialogs/data_paths_dialog.h"
+#include "gui/dialogs/preferences_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/data_profile.h"
 #include "gui/panels/radarcol_panel.h"
@@ -65,7 +65,7 @@ void cancelFileBrowserAndMapDialog(WorkbenchState & state)
     }
 
     applyFileBrowserResult(state.menuBarState.fileDialog, result);
-    applyFileBrowserResult(state.menuBarState.dataPathsDialog, result);
+    applyFileBrowserResult(state.menuBarState.preferencesDialog, result);
     applyFileBrowserResult(state.radarcolState, result);
     applyFileBrowserResult(state.texmapsState, result);
     return profileChanged;
@@ -206,9 +206,10 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
         {
             cancelMapDialog(state.menuBarState.fileDialog);
         }
-        else if (state.menuBarState.dataPathsDialog.visible)
+        else if (state.menuBarState.preferencesDialog.visible)
         {
-            state.menuBarState.dataPathsDialog.visible = false;
+            state.menuBarState.preferencesDialog.visible = false;
+            state.menuBarState.preferencesDialog.closeRequested = true;
         }
         else if (!showMainMenu && state.session.startupState() == StartupState::mapWelcome)
         {
@@ -237,7 +238,8 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
                          state.notifications,
                          state.fileBrowser,
                          state.shouldClose);
-        profileChanged = drawDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile, state.fileBrowser);
+        profileChanged = drawPreferencesDialog(
+            state.menuBarState.preferencesDialog, state.activeProfile, state.preferences, state.fileBrowser);
     }
     drawFileBrowser(state.fileBrowser);
     const auto result = consumeFileBrowserResult(state.fileBrowser);

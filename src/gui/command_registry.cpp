@@ -1,7 +1,7 @@
 #include "gui/command_registry.h"
 #include "gui/coordinate_parser.h"
 #include "gui/map_context.h"
-#include "gui/dialogs/data_paths_dialog.h"
+#include "gui/dialogs/preferences_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/map_workspace.h"
 #include "gui/new_map_dialog.h"
@@ -305,11 +305,10 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::blocks); });
     add(registry, CommandId::editToggle, "edit.toggle", "Edit mode", "Edit", "Toggle map editing", "", requiresMap,
         [](WorkbenchState & state) { state.workspace.setEditMode(!state.workspace.editMode()); });
-    add(registry, CommandId::dataPaths, "data.paths", "UO Data Paths...", "Data", "Configure the active UO data profile", "", enabled,
+    add(registry, CommandId::dataPaths, "data.paths", "Preferences...", "Data", "Configure the active UO data profile", "", enabled,
         [](WorkbenchState & state)
         {
-            state.session.setStartupState(StartupState::configureProfile);
-            requestDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile);
+            requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
         });
     add(registry, CommandId::resetLayout, "view.reset-layout", "Reset Layout", "View", "Restore the default workbench layout", "", enabled,
         [](WorkbenchState & state)

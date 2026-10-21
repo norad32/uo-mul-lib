@@ -27,6 +27,7 @@ TEST_CASE("loadPreferences_Should_UseDefaultsWhenFileIsMissing")
     REQUIRE(preferences.autoScroll);
     REQUIRE_FALSE(preferences.logPanelCollapsed);
     REQUIRE(std::abs(preferences.logPanelHeight) < heightTolerance);
+    REQUIRE(preferences.showWelcomeOnStartup);
     std::filesystem::remove_all(preferencesFile.parent_path());
 }
 
@@ -41,6 +42,7 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
         .logPanelCollapsed = true,
         .logPanelHeight = expectedLogPanelHeight,
         .activeDataProfile = {},
+        .showWelcomeOnStartup = false,
     };
 
     uo_mule::gui::savePreferences(expected, preferencesFile);
@@ -52,6 +54,7 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
     REQUIRE_FALSE(actual.autoScroll);
     REQUIRE(actual.logPanelCollapsed);
     REQUIRE(std::abs(actual.logPanelHeight - expectedLogPanelHeight) < heightTolerance);
+    REQUIRE_FALSE(actual.showWelcomeOnStartup);
     std::filesystem::remove_all(configDirectory);
 }
 

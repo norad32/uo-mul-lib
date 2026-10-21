@@ -12,6 +12,7 @@ struct Preferences
     bool logPanelCollapsed = false;
     float logPanelHeight = 0.0F;
     std::string activeDataProfile;
+    bool showWelcomeOnStartup = true;
 };
 
 [[nodiscard]] Preferences loadPreferences();

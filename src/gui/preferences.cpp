@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -149,8 +150,19 @@ Preferences loadPreferences(const std::filesystem::path & path)
     std::ifstream file(path);
     std::string key;
     std::string value;
-    while (file >> key >> value)
+    while (file >> key)
     {
+        if (key == "active_data_profile")
+        {
+            file >> std::quoted(preferences.activeDataProfile);
+            continue;
+        }
+
+        if (!(file >> value))
+        {
+            break;
+        }
+
         if (key == "logs_panel_visible")
         {
             preferences.showLogPanel = value == "1";
@@ -171,9 +183,9 @@ Preferences loadPreferences(const std::filesystem::path & path)
         {
             preferences.logPanelCollapsed = value == "1";
         }
-        else if (key == "active_data_profile")
+        else if (key == "show_welcome_on_startup")
         {
-            preferences.activeDataProfile = value;
+            preferences.showWelcomeOnStartup = value == "1";
         }
     }
     return preferences;
@@ -196,7 +208,8 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
     contents << "logs_autoscroll " << static_cast<int>(preferences.autoScroll) << '\n';
     contents << "logs_panel_height " << preferences.logPanelHeight << '\n';
     contents << "logs_panel_collapsed " << static_cast<int>(preferences.logPanelCollapsed) << '\n';
-    contents << "active_data_profile " << preferences.activeDataProfile << '\n';
+    contents << "active_data_profile " << std::quoted(preferences.activeDataProfile) << '\n';
+    contents << "show_welcome_on_startup " << static_cast<int>(preferences.showWelcomeOnStartup) << '\n';
     TemporaryPreferencesFile temporaryFile(path);
     temporaryFile.write(contents.str());
     temporaryFile.commit(path);

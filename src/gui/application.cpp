@@ -4,7 +4,7 @@
 #include "gui/data_profile.h"
 #include "gui/data_profile_store.h"
 #include "gui/command_registry.h"
-#include "gui/dialogs/data_paths_dialog.h"
+#include "gui/dialogs/preferences_dialog.h"
 #include "gui/log_panel.h"
 #include "gui/map_workspace.h"
 #include "gui/map_context.h"
@@ -600,19 +600,19 @@ void drawStartupScreen(WorkbenchState & state)
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(viewport->WorkSize, ImGuiCond_Always);
-    if (!ImGui::Begin("Configure UO Data Paths###startup.configure-profile", nullptr,
+    if (!ImGui::Begin("Configure Preferences###startup.configure-profile", nullptr,
                       ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
     {
         ImGui::End();
         return;
     }
-    ImGui::TextUnformatted("Configure UO Data Paths");
+    ImGui::TextUnformatted("Configure Preferences");
     ImGui::Separator();
     ImGui::TextUnformatted("A validated radarcol.mul is required before map actions are enabled.");
     ImGui::Text("Profile status: %s", readinessLabel(state.session.profileState()));
-    if (ImGui::Button("Open Profile Setup"))
+    if (ImGui::Button("Open Preferences"))
     {
-        requestDataPathsDialog(state.menuBarState.dataPathsDialog, state.activeProfile);
+        requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
     }
     ImGui::End();
 }
@@ -637,6 +637,10 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
         state.preferences.activeDataProfile = state.activeProfile.name;
         savePreferences(state.preferences);
         state.session.updateProfile(state.activeProfile);
+        if (state.session.mapReady() && !state.preferences.showWelcomeOnStartup)
+        {
+            state.session.setStartupState(StartupState::workbench);
+        }
         if (state.workspace.reader() == nullptr)
         {
             state.welcomeGreetingSelected = false;
@@ -776,6 +780,10 @@ int Application::run()
         }
     }
     state.session.updateProfile(state.activeProfile);
+    if (state.session.mapReady() && !state.preferences.showWelcomeOnStartup)
+    {
+        state.session.setStartupState(StartupState::workbench);
+    }
     if (invalidProfileLoad)
     {
         state.session.markProfileInvalid();
