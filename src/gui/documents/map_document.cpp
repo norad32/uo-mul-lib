@@ -228,19 +228,6 @@ const std::optional<MapDocument> & DocumentManager::active() const noexcept
     return record->map;
 }
 
-bool DocumentManager::hasActiveDocument() const noexcept
-{
-    return activeId_.has_value() && activeRecord() != nullptr;
-}
-
-DocumentRecord * DocumentManager::findMutable(DocumentId id) noexcept
-{
-    const auto record = std::ranges::find_if(documents_, [id](const DocumentRecord & candidate) {
-        return candidate.summary.identity.id == id;
-    });
-    return record == documents_.end() ? nullptr : &*record;
-}
-
 DocumentRecord * DocumentManager::findByIdentity(const DocumentIdentity & identity) noexcept
 {
     const auto record = std::ranges::find_if(documents_, [&identity](const DocumentRecord & candidate) {

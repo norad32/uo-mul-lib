@@ -38,7 +38,6 @@
 #include <utility>
 #include <string>
 #include <string_view>
-#include <span>
 #include <optional>
 #include <uomul/map.h>
 
@@ -56,14 +55,6 @@ constexpr float notificationTopMargin = 48.0F;
 constexpr float notificationMinimumWidth = 280.0F;
 constexpr float notificationMaximumWidth = 480.0F;
 constexpr float notificationMaximumHeightRatio = 0.5F;
-constexpr std::size_t mapCanvasDockIndex = 0;
-constexpr std::size_t tileInspectorDockIndex = 1;
-constexpr std::size_t blockInspectorDockIndex = 2;
-constexpr std::size_t selectionStatisticsDockIndex = 3;
-constexpr std::size_t mapInformationDockIndex = 4;
-constexpr std::size_t editToolsDockIndex = 5;
-constexpr std::size_t texmapsDockIndex = 6;
-constexpr std::size_t radarcolDockIndex = 7;
 constexpr std::size_t shortcutCount = 6;
 constexpr std::size_t graveShortcutIndex = 0;
 constexpr std::size_t saveAsShortcutIndex = 1;
@@ -71,17 +62,6 @@ constexpr std::size_t openShortcutIndex = 2;
 constexpr std::size_t newShortcutIndex = 3;
 constexpr std::size_t quitShortcutIndex = 4;
 constexpr std::size_t goToShortcutIndex = 5;
-
-constexpr std::array<DockWindowDescriptor, 8> dockWindows{
-    DockWindowDescriptor{.panel = PanelId::mapCanvas, .windowName = documentSurfaceWindowName()},
-    DockWindowDescriptor{.panel = PanelId::tileInspector, .windowName = "Tile Inspector###view.tile-inspector"},
-    DockWindowDescriptor{.panel = PanelId::blockInspector, .windowName = "Block Inspector###view.block-inspector"},
-    DockWindowDescriptor{.panel = PanelId::selectionStatistics, .windowName = "Selection Statistics###view.selection-statistics"},
-    DockWindowDescriptor{.panel = PanelId::mapInformation, .windowName = "Map Information###view.map-information"},
-    DockWindowDescriptor{.panel = PanelId::editTools, .windowName = "Edit Tools###view.edit-tools"},
-    DockWindowDescriptor{.panel = PanelId::texmaps, .windowName = "Texmaps###view.texmaps"},
-    DockWindowDescriptor{.panel = PanelId::radarcol, .windowName = "Radarcol###view.radarcol"},
-};
 
 void drawDocumentTabs(WorkbenchState & state);
 
@@ -119,14 +99,14 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         ImGuiID rightNode = 0;
         ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, dockLeftWidthRatio, &leftNode, &centerNode);
         ImGui::DockBuilderSplitNode(centerNode, ImGuiDir_Right, dockRightWidthRatio, &rightNode, &centerNode);
-        ImGui::DockBuilderDockWindow(dockWindows.at(mapCanvasDockIndex).windowName, centerNode);
-        ImGui::DockBuilderDockWindow(dockWindows.at(tileInspectorDockIndex).windowName, leftNode);
-        ImGui::DockBuilderDockWindow(dockWindows.at(blockInspectorDockIndex).windowName, leftNode);
-        ImGui::DockBuilderDockWindow(dockWindows.at(selectionStatisticsDockIndex).windowName, leftNode);
-        ImGui::DockBuilderDockWindow(dockWindows.at(mapInformationDockIndex).windowName, leftNode);
-        ImGui::DockBuilderDockWindow(dockWindows.at(editToolsDockIndex).windowName, rightNode);
-        ImGui::DockBuilderDockWindow(dockWindows.at(texmapsDockIndex).windowName, rightNode);
-        ImGui::DockBuilderDockWindow(dockWindows.at(radarcolDockIndex).windowName, rightNode);
+        ImGui::DockBuilderDockWindow(documentSurfaceWindowName(), centerNode);
+        ImGui::DockBuilderDockWindow("Tile Inspector###view.tile-inspector", leftNode);
+        ImGui::DockBuilderDockWindow("Block Inspector###view.block-inspector", leftNode);
+        ImGui::DockBuilderDockWindow("Selection Statistics###view.selection-statistics", leftNode);
+        ImGui::DockBuilderDockWindow("Map Information###view.map-information", leftNode);
+        ImGui::DockBuilderDockWindow("Edit Tools###view.edit-tools", rightNode);
+        ImGui::DockBuilderDockWindow("Texmaps###view.texmaps", rightNode);
+        ImGui::DockBuilderDockWindow("Radarcol###view.radarcol", rightNode);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
     ImGui::DockSpace(dockSpaceId, ImVec2(viewport->WorkSize.x, availableDockHeight), dockSpaceFlags);
@@ -507,11 +487,6 @@ void dispatchShortcuts(WorkbenchState & state)
 }
 
 } // namespace
-
-std::span<const DockWindowDescriptor> defaultDockWindows() noexcept
-{
-    return dockWindows;
-}
 
 std::string documentTabLabel(const DocumentSummary & summary)
 {

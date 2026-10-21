@@ -156,11 +156,6 @@ void WorkbenchSession::syncDocument(const MapWorkspace & workspace)
     documents_.sync(workspace);
 }
 
-void WorkbenchSession::closeDocument() noexcept
-{
-    documents_.close();
-}
-
 std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId id, MapWorkspace & workspace)
 {
     const DocumentRecord * record = documents_.find(id);

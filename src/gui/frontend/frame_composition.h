@@ -2,7 +2,6 @@
 
 #include "gui/documents/document_identity.h"
 #include "gui/views/panel_registry.h"
-#include <span>
 #include <string>
 #include <string_view>
 
@@ -18,13 +17,6 @@ namespace uo_mule::gui
 
 struct WorkbenchState;
 
-struct DockWindowDescriptor
-{
-    PanelId panel;
-    const char * windowName;
-};
-
-[[nodiscard]] std::span<const DockWindowDescriptor> defaultDockWindows() noexcept;
 [[nodiscard]] std::string documentTabLabel(const DocumentSummary & summary);
 void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state);
 

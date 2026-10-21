@@ -48,10 +48,7 @@ public:
     [[nodiscard]] std::optional<DocumentIdentity> activeIdentity() const;
 
     [[nodiscard]] const std::optional<MapDocument> & active() const noexcept;
-    [[nodiscard]] bool hasActiveDocument() const noexcept;
-
 private:
-    [[nodiscard]] DocumentRecord * findMutable(DocumentId id) noexcept;
     [[nodiscard]] DocumentRecord * findByIdentity(const DocumentIdentity & identity) noexcept;
     [[nodiscard]] const DocumentRecord * activeRecord() const noexcept;
 

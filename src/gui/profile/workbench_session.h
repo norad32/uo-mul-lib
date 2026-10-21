@@ -47,7 +47,6 @@ public:
     void recordRecentMap(const std::filesystem::path & path, uomul::Dimensions dimensions);
     void refreshRecentMaps();
     void syncDocument(const MapWorkspace & workspace);
-    void closeDocument() noexcept;
     [[nodiscard]] std::expected<void, uomul::Error> activateDocument(DocumentId id, MapWorkspace & workspace);
     [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id, MapWorkspace & workspace);
     [[nodiscard]] const std::vector<DocumentRecord> & documents() const noexcept;

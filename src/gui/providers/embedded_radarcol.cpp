@@ -1,5 +1,6 @@
 #include "gui/providers/embedded_radarcol.h"
 #include "gui/providers/data_providers.h"
+#include "gui/context/color_conversion.h"
 #include "gui/documents/map_workspace.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
@@ -19,21 +20,6 @@ namespace
 constexpr std::array<uomul::RadarColor, uomul::radarColorCount> colors{
 #include "gui/providers/embedded_radarcol_values.inc"
 };
-
-MapColor radarColorToMapColor(uomul::RadarColor color) noexcept
-{
-    constexpr std::uint32_t channelMask = 0x1FU;
-    constexpr std::uint32_t channelMaximum = 255U;
-    constexpr std::uint32_t redShift = 10U;
-    constexpr std::uint32_t greenShift = 5U;
-    const auto expand = [](std::uint32_t channel) {
-        return static_cast<std::uint8_t>(((channel * channelMaximum) + (channelMask / 2U)) / channelMask);
-    };
-    const std::uint32_t packed = static_cast<std::uint32_t>(color);
-    return {.red = expand((packed >> redShift) & channelMask),
-            .green = expand((packed >> greenShift) & channelMask),
-            .blue = expand(packed & channelMask),};
-}
 
 class EmbeddedRadarColorProvider final : public RadarColorProvider
 {

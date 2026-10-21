@@ -5,6 +5,7 @@
 #include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/views/common.h"
+#include "gui/context/color_conversion.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
@@ -64,7 +65,6 @@ constexpr float radarcolSwatchSize = 24.0F;
 constexpr float radarcolChannelScale = 1.0F / 31.0F;
 constexpr float radarcolByteScale = 255.0F;
 constexpr std::uint32_t radarcolChannelMask = 0x1FU;
-constexpr std::uint32_t radarcolChannelMaximum = 255U;
 constexpr int radarcolPageStep = 1;
 constexpr int radarcolPageFastStep = 8;
 constexpr std::size_t radarcolRedChannelIndex = 0;
@@ -80,23 +80,6 @@ constexpr std::size_t radarcolBlueChannelIndex = 2;
             static_cast<float>((packed >> greenShift) & radarcolChannelMask) * radarcolChannelScale,
             static_cast<float>(packed & radarcolChannelMask) * radarcolChannelScale,
             1.0F};
-}
-
-[[nodiscard]] MapColor radarColorToMapColor(uomul::RadarColor color) noexcept
-{
-    constexpr std::uint32_t redShift = 10;
-    constexpr std::uint32_t greenShift = 5;
-    const std::uint32_t packed = static_cast<std::uint32_t>(color);
-    const auto expandChannel = [](std::uint32_t channel)
-    {
-        const std::uint32_t scaledChannel = channel * radarcolChannelMaximum;
-        return static_cast<std::uint8_t>((scaledChannel + (radarcolChannelMask / 2U)) / radarcolChannelMask);
-    };
-    return {
-        .red = expandChannel((packed >> redShift) & radarcolChannelMask),
-        .green = expandChannel((packed >> greenShift) & radarcolChannelMask),
-        .blue = expandChannel(packed & radarcolChannelMask),
-    };
 }
 
 [[nodiscard]] uomul::RadarColor colorFromPicker(const std::array<float, 3> & color) noexcept
@@ -518,18 +501,14 @@ void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult 
     }
 }
 
-void drawRadarcolPanel(RadarcolPanelState & state,
-                       bool editMode,
-                       bool & visible,
-                       FileBrowserState & browser,
-                       bool readOnly)
+namespace
 {
-    if (!ImGui::Begin("Radarcol###view.radarcol", &visible))
-    {
-        ImGui::End();
-        return;
-    }
 
+void drawRadarcolContents(RadarcolPanelState & state,
+                          bool editMode,
+                          FileBrowserState & browser,
+                          bool readOnly)
+{
     drawSourceControls(state, browser, readOnly);
     updatePageCount(state);
     if (state.reader)
@@ -546,6 +525,22 @@ void drawRadarcolPanel(RadarcolPanelState & state,
 
     ImGui::Separator();
     drawColorGrid(state, editMode && !readOnly && state.editor.has_value());
+}
+
+} // namespace
+
+void drawRadarcolPanel(RadarcolPanelState & state,
+                       bool editMode,
+                       bool & visible,
+                       FileBrowserState & browser,
+                       bool readOnly)
+{
+    if (!ImGui::Begin("Radarcol###view.radarcol", &visible))
+    {
+        ImGui::End();
+        return;
+    }
+    drawRadarcolContents(state, editMode, browser, readOnly);
     ImGui::End();
 }
 
@@ -581,20 +576,7 @@ void drawRadarcolDocumentPanel(RadarcolPanelState & state,
         ImGui::End();
         return;
     }
-    drawSourceControls(state, browser, readOnly);
-    updatePageCount(state);
-    if (state.reader)
-    {
-        ImGui::Text("Colors: %u", state.reader->colorCount());
-        drawCategoryAndPageControls(state);
-    }
-    drawEditControls(state, !readOnly, browser, readOnly);
-    if (!state.error.empty())
-    {
-        ImGui::TextWrapped("%s", state.error.c_str());
-    }
-    ImGui::Separator();
-    drawColorGrid(state, !readOnly && state.editor.has_value());
+    drawRadarcolContents(state, !readOnly, browser, readOnly);
     ImGui::End();
 }
 

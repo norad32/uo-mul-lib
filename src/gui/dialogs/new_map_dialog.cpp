@@ -807,9 +807,6 @@ void drawNewMapDialog(MapWorkspace & workspace,
                       FileBrowserState & browser,
                       bool & shouldClose)
 {
-    static_cast<void>(controller);
-    static_cast<void>(collisionPolicy);
-    static_cast<void>(notifications);
     state.shouldClose = false;
     state.controller = &controller;
     state.collisionPolicy = collisionPolicy;

@@ -18,8 +18,9 @@ add_library(
     commands/command_registry.cpp
     commands/menu_bar.cpp
     commands/operation_controller.cpp
-    context/coordinate_parser.cpp
-    context/map_context.cpp
+     context/coordinate_parser.cpp
+     context/color_conversion.cpp
+     context/map_context.cpp
     profile/data_discovery.cpp
     profile/data_profile.cpp
     profile/data_profile_store.cpp
@@ -50,7 +51,6 @@ add_library(
     views/selection_stats_panel.cpp
     views/texmaps_panel.cpp
     views/tile_inspector_panel.cpp
-    views/view_registry.cpp
     dialogs/new_map_dialog.cpp
     frontend/frame_composition.cpp
     frontend/welcome_greetings.cpp

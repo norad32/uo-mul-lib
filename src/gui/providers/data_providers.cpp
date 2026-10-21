@@ -1,5 +1,6 @@
 #include "gui/providers/data_providers.h"
 #include "gui/providers/embedded_radarcol.h"
+#include "gui/context/color_conversion.h"
 #include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
 #include "uomul/radarcol/radarcol.h"
@@ -33,28 +34,6 @@ std::string_view providerSourceName(ProviderSourceKind source) noexcept
 
 namespace
 {
-
-constexpr std::uint32_t textureChannelMask = 0x1FU;
-constexpr std::uint32_t textureRedShift = 10U;
-constexpr std::uint32_t textureGreenShift = 5U;
-constexpr std::uint32_t textureMaxByteValue = 255U;
-constexpr std::uint32_t textureMaxFiveBitValue = 31U;
-constexpr std::uint32_t textureRoundingValue = 15U;
-
-MapColor radarColorToMapColor(uomul::RadarColor color) noexcept
-{
-    constexpr std::uint32_t channelMask = 0x1FU;
-    constexpr std::uint32_t channelMaximum = 255U;
-    constexpr std::uint32_t redShift = 10U;
-    constexpr std::uint32_t greenShift = 5U;
-    const auto expand = [](std::uint32_t channel) {
-        return static_cast<std::uint8_t>(((channel * channelMaximum) + (channelMask / 2U)) / channelMask);
-    };
-    const std::uint32_t packed = static_cast<std::uint32_t>(color);
-    return {.red = expand((packed >> redShift) & channelMask),
-            .green = expand((packed >> greenShift) & channelMask),
-            .blue = expand(packed & channelMask),};
-}
 
 ProviderStatus unavailableStatus(std::uint64_t revision, std::string message)
 {
@@ -223,14 +202,7 @@ public:
         texture.pixels.reserve(result->pixels.size());
         for (const std::uint16_t pixel : result->pixels)
         {
-            const std::uint32_t value = pixel;
-            const auto channel = [](std::uint32_t component) {
-                return static_cast<std::uint8_t>(((component * textureMaxByteValue) + textureRoundingValue) /
-                                                 textureMaxFiveBitValue);
-            };
-            texture.pixels.push_back({.red = channel((value >> textureRedShift) & textureChannelMask),
-                                     .green = channel((value >> textureGreenShift) & textureChannelMask),
-                                     .blue = channel(value & textureChannelMask),});
+            texture.pixels.push_back(texturePixelToMapColor(pixel));
         }
         return texture;
     }

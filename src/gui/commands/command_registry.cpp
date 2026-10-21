@@ -43,15 +43,6 @@ CommandAvailability requiresMapDocument(const WorkbenchState & state)
     return enabled(state);
 }
 
-CommandAvailability requiresMap(const WorkbenchState & state)
-{
-    if (state.workspace.reader() == nullptr)
-    {
-        return {.enabled = false, .disabledReason = "No map is open"};
-    }
-    return enabled(state);
-}
-
 CommandAvailability requiresActiveLocation(const WorkbenchState & state)
 {
     const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
@@ -300,7 +291,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::tiles); });
     add(registry, CommandId::selectionBlocks, "selection.blocks", "Block selection", "Selection", "Select map blocks", "", enabled,
         [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::blocks); });
-    add(registry, CommandId::editToggle, "edit.toggle", "Edit mode", "Edit", "Toggle map editing", "", requiresMap,
+    add(registry, CommandId::editToggle, "edit.toggle", "Edit mode", "Edit", "Toggle map editing", "", requiresMapDocument,
         [](WorkbenchState & state) { state.workspace.setEditMode(!state.workspace.editMode()); });
     add(registry, CommandId::dataPaths, "data.paths", "Preferences...", "Data", "Configure the active UO data profile", "", enabled,
         [](WorkbenchState & state)

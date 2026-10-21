@@ -21,7 +21,6 @@
 #include "gui/views/panel_registry.h"
 #include "gui/persistence/preferences.h"
 #include "gui/profile/workbench_session.h"
-#include "gui/views/view_registry.h"
 #include <vector>
 #include <string>
 #include <optional>
@@ -56,7 +55,6 @@ struct WorkbenchState
     OperationController operationController;
     NotificationState notifications;
     PanelRegistry panelRegistry;
-    ViewRegistry views;
     std::string dockingIni;
     bool layoutResetRequested = false;
     std::optional<DocumentId> pendingDocumentActivation;

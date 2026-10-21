@@ -40,8 +40,6 @@ struct TexmapsPanelState
     bool previewVisible = false;
 };
 
-[[nodiscard]] std::optional<TexmapsTexturePreview> texmapsTexturePreview(
-    TexmapsPanelState & state, std::uint32_t id);
 void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile);
 void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult & result);
 void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser);
