@@ -1,9 +1,9 @@
 #include "map_common.h"
+#include "core/facet_sizes.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -67,11 +67,6 @@ constexpr std::uint32_t mapBlockIdByteCount = 4;
 [[nodiscard]] inline bool isRepresentableDiffBlockId(std::uint64_t id)
 {
     return id <= std::numeric_limits<std::uint32_t>::max();
-}
-
-[[nodiscard]] inline bool isFacetAlias(const std::string & name, const std::string & first, const std::string & second)
-{
-    return name == first || name == second;
 }
 
 std::uint64_t countChangedTiles(std::span<const std::byte> left, std::span<const std::byte> right)
@@ -215,15 +210,6 @@ bool writeLe32(std::ostream & stream, std::uint32_t value)
     stream.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
     return stream.good();
 }
-
-constexpr std::uint32_t feluccaWidth = 6144;
-constexpr std::uint32_t feluccaHeight = 4096;
-constexpr std::uint32_t ilshenarWidth = 2304;
-constexpr std::uint32_t ilshenarHeight = 1600;
-constexpr std::uint32_t malasWidth = 2560;
-constexpr std::uint32_t malasHeight = 2048;
-constexpr std::uint32_t tokunoSize = 1448;
-constexpr std::uint32_t termurWidth = 1280;
 
 struct DiffOutputPaths
 {
@@ -1139,32 +1125,10 @@ std::expected<DiffReport, Error> MapDiff::report(const std::filesystem::path & s
 
 std::expected<Dimensions, Error> facetDimensions(const std::string & name)
 {
-    std::string normalized = name;
-    std::ranges::transform(
-        normalized, normalized.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-    if (isFacetAlias(normalized, "felucca", "trammel"))
+    const auto facet = uo_mule::core::facetSize(name);
+    if (facet)
     {
-        return Dimensions{.widthTiles = feluccaWidth, .heightTiles = feluccaHeight};
-    }
-
-    if (normalized == "ilshenar")
-    {
-        return Dimensions{.widthTiles = ilshenarWidth, .heightTiles = ilshenarHeight};
-    }
-
-    if (normalized == "malas")
-    {
-        return Dimensions{.widthTiles = malasWidth, .heightTiles = malasHeight};
-    }
-
-    if (normalized == "tokuno")
-    {
-        return Dimensions{.widthTiles = tokunoSize, .heightTiles = tokunoSize};
-    }
-
-    if (isFacetAlias(normalized, "ter-mur", "termur"))
-    {
-        return Dimensions{.widthTiles = termurWidth, .heightTiles = feluccaHeight};
+        return Dimensions{.widthTiles = facet->widthTiles, .heightTiles = facet->heightTiles};
     }
 
     return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidDimensions, {}, 0, "unknown facet preset"));

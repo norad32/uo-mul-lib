@@ -1,4 +1,5 @@
 #include "gui/workbench_session.h"
+#include "core/facet_sizes.h"
 #include "gui/data_profile.h"
 #include "gui/data_validation.h"
 #include "gui/recent_maps.h"
@@ -18,12 +19,11 @@ namespace
 
 [[nodiscard]] std::string facetForDimensions(uomul::Dimensions dimensions)
 {
-    for (const char * facet : {"felucca", "trammel", "ilshenar", "malas", "tokuno", "ter-mur"})
+    for (const auto & facet : uo_mule::core::knownFacetSizes())
     {
-        const auto knownDimensions = uomul::facetDimensions(facet);
-        if (knownDimensions && *knownDimensions == dimensions)
+        if (uomul::Dimensions{.widthTiles = facet.widthTiles, .heightTiles = facet.heightTiles} == dimensions)
         {
-            return facet;
+            return std::string(facet.name);
         }
     }
     return {};

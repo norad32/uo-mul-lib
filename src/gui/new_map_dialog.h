@@ -5,24 +5,26 @@
 #include "gui/notification_state.h"
 #include "gui/operation_controller.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "core/facet_sizes.h"
 #include "uomul/map.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace uo_mule::gui
 {
 
 inline constexpr std::size_t mapDialogPathBufferSize = 1024;
-inline constexpr std::uint32_t defaultMapDialogWidth = 6144;
-inline constexpr std::uint32_t defaultMapDialogHeight = 4096;
+inline const auto defaultMapDialogSize = uo_mule::core::knownFacetSizes().front();
 
 enum class MapFileDialogMode : std::uint8_t
 {
     none,
     openMap,
+    selectMapFacet,
     newMap,
     saveAs,
     dirtyChanges,
@@ -62,12 +64,13 @@ struct NewMapDialogState
     std::array<char, mapDialogPathBufferSize> openPath{};
     std::array<char, mapDialogPathBufferSize> newMapPath{};
     std::array<char, mapDialogPathBufferSize> savePath{};
-    std::uint32_t openWidth = defaultMapDialogWidth;
-    std::uint32_t openHeight = defaultMapDialogHeight;
-    std::uint32_t newMapWidth = defaultMapDialogWidth;
-    std::uint32_t newMapHeight = defaultMapDialogHeight;
+    std::uint32_t openWidth = defaultMapDialogSize.widthTiles;
+    std::uint32_t openHeight = defaultMapDialogSize.heightTiles;
+    std::uint32_t newMapWidth = defaultMapDialogSize.widthTiles;
+    std::uint32_t newMapHeight = defaultMapDialogSize.heightTiles;
     int openFacet = 1;
     bool openWithoutReview = false;
+    std::vector<FileBrowserMapCandidate> openCandidates;
     FileBrowserState * browser = nullptr;
     int newMapFacet = 1;
     int initialTileId = 0;

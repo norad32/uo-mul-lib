@@ -1,4 +1,5 @@
 #include "gui/welcome_screen.h"
+#include "core/facet_sizes.h"
 #include "gui/command_registry.h"
 #include "gui/data_profile.h"
 #include "gui/data_validation.h"
@@ -24,12 +25,6 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr int feluccaFacetIndex = 1;
-constexpr int trammelFacetIndex = 2;
-constexpr int ilshenarFacetIndex = 3;
-constexpr int malasFacetIndex = 4;
-constexpr int tokunoFacetIndex = 5;
-constexpr int terMurFacetIndex = 6;
 constexpr float welcomeContentWidth = 920.0F;
 constexpr float actionButtonWidth = 180.0F;
 constexpr float actionButtonHeight = 44.0F;
@@ -169,29 +164,19 @@ void applyRecentMapToOpenDialog(NewMapDialogState & dialog, const RecentMap & re
     dialog.openWidth = recent.dimensions->widthTiles;
     dialog.openHeight = recent.dimensions->heightTiles;
     dialog.openFacet = 0;
-    if (recent.facet == "felucca")
+    const auto facet = uo_mule::core::facetSize(recent.facet);
+    if (facet)
     {
-        dialog.openFacet = feluccaFacetIndex;
-    }
-    else if (recent.facet == "trammel")
-    {
-        dialog.openFacet = trammelFacetIndex;
-    }
-    else if (recent.facet == "ilshenar")
-    {
-        dialog.openFacet = ilshenarFacetIndex;
-    }
-    else if (recent.facet == "malas")
-    {
-        dialog.openFacet = malasFacetIndex;
-    }
-    else if (recent.facet == "tokuno")
-    {
-        dialog.openFacet = tokunoFacetIndex;
-    }
-    else if (recent.facet == "ter-mur")
-    {
-        dialog.openFacet = terMurFacetIndex;
+        int index = 1;
+        for (const auto & knownFacet : uo_mule::core::knownFacetSizes())
+        {
+            if (knownFacet.name == facet->name)
+            {
+                dialog.openFacet = index;
+                break;
+            }
+            ++index;
+        }
     }
 }
 

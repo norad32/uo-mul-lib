@@ -710,6 +710,9 @@ TEST_CASE("facetDimensions_Should_ReturnKnownPresets_If_NameUsesAnySupportedAlia
 {
     REQUIRE(uomul::facetDimensions("felucca") == uomul::Dimensions{.widthTiles = 6144, .heightTiles = 4096});
     REQUIRE(uomul::facetDimensions("TRAMMEL") == uomul::Dimensions{.widthTiles = 6144, .heightTiles = 4096});
+    REQUIRE(uomul::facetDimensions("ML") == uomul::Dimensions{.widthTiles = 7168, .heightTiles = 4096});
+    REQUIRE(uomul::facetDimensions("Mondain's Legacy") == uomul::Dimensions{.widthTiles = 7168, .heightTiles = 4096});
+    REQUIRE(uomul::facetDimensions("Legacy") == uomul::Dimensions{.widthTiles = 6144, .heightTiles = 4096});
     REQUIRE(uomul::facetDimensions("IlShEnAr") == uomul::Dimensions{.widthTiles = 2304, .heightTiles = 1600});
     REQUIRE(uomul::facetDimensions("malas") == uomul::Dimensions{.widthTiles = 2560, .heightTiles = 2048});
     REQUIRE(uomul::facetDimensions("Tokuno") == uomul::Dimensions{.widthTiles = 1448, .heightTiles = 1448});

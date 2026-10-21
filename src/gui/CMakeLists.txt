@@ -23,6 +23,7 @@ add_library(
     coordinate_parser.cpp
     common/file_size.cpp
     dialogs/file_browser_dialog.cpp
+    dialogs/map_facet_dialog.cpp
     dialogs/data_paths_dialog.cpp
     log_panel.cpp
     layout_store.cpp

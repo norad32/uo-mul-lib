@@ -154,7 +154,7 @@ TEST_CASE("workbenchSession_Should_RecordKnownFacetForRecentMapDimensions")
     session.recordRecentMap(directory.path() / "map0.mul", *dimensions);
 
     REQUIRE(session.recentMaps().size() == 1);
-    REQUIRE(session.recentMaps().front().facet == "felucca");
+    REQUIRE(session.recentMaps().front().facet == "legacy");
 }
 
 TEST_CASE("recentMapStore_Should_KeepFiveMostRecentMapsInOrder")

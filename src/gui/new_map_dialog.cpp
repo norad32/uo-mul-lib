@@ -5,7 +5,9 @@
 #include "gui/theme.h"
 #include "gui/map_workspace.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/map_facet_dialog.h"
 #include "gui/panels/common.h"
+#include "core/facet_sizes.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <algorithm>
@@ -27,30 +29,12 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::size_t facetCount = 7;
 constexpr int customFacetIndex = 0;
-constexpr std::size_t customFacetArrayIndex = 0;
-constexpr std::size_t facetNameBufferSize = 32;
-constexpr std::array<std::array<char, facetNameBufferSize>, facetCount> facetNames{
-    std::array<char, facetNameBufferSize>{"Custom dimensions"},
-    std::array<char, facetNameBufferSize>{"Felucca"},
-    std::array<char, facetNameBufferSize>{"Trammel"},
-    std::array<char, facetNameBufferSize>{"Ilshenar"},
-    std::array<char, facetNameBufferSize>{"Malas"},
-    std::array<char, facetNameBufferSize>{"Tokuno"},
-    std::array<char, facetNameBufferSize>{"Ter-Mur"},
-};
 constexpr std::uint32_t minimumDimension = uomul::mapBlockDimension;
 constexpr std::uint32_t dimensionMultiple = uomul::mapBlockDimension;
 constexpr int maximumTileId = std::numeric_limits<std::uint16_t>::max();
 constexpr int minimumTileZ = -std::numeric_limits<std::int8_t>::max() - 1;
 constexpr int maximumTileZ = std::numeric_limits<std::int8_t>::max();
-constexpr int feluccaFacetIndex = 1;
-constexpr int trammelFacetIndex = 2;
-constexpr int ilshenarFacetIndex = 3;
-constexpr int malasFacetIndex = 4;
-constexpr int tokunoFacetIndex = 5;
-constexpr int terMurFacetIndex = 6;
 constexpr ImGuiWindowFlags modalFlags = ImGuiWindowFlags_AlwaysAutoResize;
 constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     static_cast<unsigned int>(ImGuiWindowFlags_NoDecoration) | static_cast<unsigned int>(ImGuiWindowFlags_NoBackground) |
@@ -64,6 +48,8 @@ constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     {
         case MapFileDialogMode::openMap :
             return "Open Map###OpenMapDialog";
+        case MapFileDialogMode::selectMapFacet :
+            return "Select Map Facet###SelectMapFacetDialog";
         case MapFileDialogMode::newMap :
             return "New Empty Map###NewMapDialog";
         case MapFileDialogMode::saveAs :
@@ -80,6 +66,20 @@ constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     return "###NoMapDialog";
 }
 
+[[nodiscard]] const uo_mule::core::FacetSize * facetAt(std::size_t index) noexcept
+{
+    std::size_t current = 0;
+    for (const auto & facet : uo_mule::core::knownFacetSizes())
+    {
+        if (current == index)
+        {
+            return &facet;
+        }
+        ++current;
+    }
+    return nullptr;
+}
+
 void closeDialog(NewMapDialogState & state)
 {
     ImGui::CloseCurrentPopup();
@@ -89,6 +89,7 @@ void closeDialog(NewMapDialogState & state)
     state.mode = MapFileDialogMode::none;
     state.activePopup = MapFileDialogMode::none;
     state.openWithoutReview = false;
+    state.openCandidates.clear();
     state.error.clear();
 }
 
@@ -116,41 +117,15 @@ resolveDimensions(int preset, std::uint32_t width, std::uint32_t height)
         return uomul::Dimensions{.widthTiles = width, .heightTiles = height};
     }
 
-    std::string presetName;
-
-    switch (preset)
+    const auto facetIndex = static_cast<std::size_t>(preset - 1);
+    if (facetIndex < uo_mule::core::knownFacetSizes().size())
     {
-        case feluccaFacetIndex :
-            presetName = "felucca";
-            break;
-        case trammelFacetIndex :
-            presetName = "trammel";
-            break;
-        case ilshenarFacetIndex :
-            presetName = "ilshenar";
-            break;
-        case malasFacetIndex :
-            presetName = "malas";
-            break;
-        case tokunoFacetIndex :
-            presetName = "tokuno";
-            break;
-        case terMurFacetIndex :
-            presetName = "ter-mur";
-            break;
-        default :
-            break;
-    }
-
-    if (!presetName.empty())
-    {
-        const auto dimensions = uomul::facetDimensions(presetName);
-        if (!dimensions)
+        const auto * facet = facetAt(facetIndex);
+        if (facet == nullptr)
         {
-            return std::unexpected(dimensions.error().message);
+            return std::unexpected("Select a supported facet preset or custom dimensions");
         }
-
-        return *dimensions;
+        return uomul::Dimensions{.widthTiles = facet->widthTiles, .heightTiles = facet->heightTiles};
     }
 
     return std::unexpected("Select a supported facet preset or custom dimensions");
@@ -356,22 +331,29 @@ void requestOperation(MapWorkspace & workspace, NewMapDialogState & state)
 
 void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
 {
-    const std::size_t selectedIndex = preset >= 0 && static_cast<std::size_t>(preset) < facetNames.size()
-                                          ? static_cast<std::size_t>(preset)
-                                          : customFacetArrayIndex;
-    if (!ImGui::BeginCombo("Facet", facetNames.at(selectedIndex).data()))
+    const auto facetLabel = [](std::size_t index) -> const char * {
+        if (index == 0U)
+        {
+            return "Custom dimensions";
+        }
+        return facetAt(index - 1U)->label;
+    };
+    const std::size_t facetCount = uo_mule::core::knownFacetSizes().size() + 1U;
+    const std::size_t requestedIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
+    const std::size_t selectedIndex = requestedIndex < facetCount ? requestedIndex : 0U;
+    if (!ImGui::BeginCombo("Facet", facetLabel(selectedIndex)))
     {
         return;
     }
 
-    for (std::size_t index = 0; index < facetNames.size(); index++)
+    for (std::size_t index = 0; index < facetCount; index++)
     {
-        const std::size_t activeIndex = preset >= 0 ? static_cast<std::size_t>(preset) : customFacetArrayIndex;
+        const std::size_t activeIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
         const bool selected = activeIndex == index;
-        if (ImGui::Selectable(facetNames.at(index).data(), selected))
+        if (ImGui::Selectable(facetLabel(index), selected))
         {
             preset = static_cast<int>(index);
-            if (index != customFacetArrayIndex)
+            if (index != 0U)
             {
                 const auto dimensions = resolveDimensions(preset, width, height);
                 if (dimensions)
@@ -743,6 +725,7 @@ void cancelMapDialog(NewMapDialogState & state)
     state.mode = MapFileDialogMode::none;
     state.activePopup = MapFileDialogMode::none;
     state.openWithoutReview = false;
+    state.openCandidates.clear();
     state.error.clear();
 }
 
@@ -752,6 +735,33 @@ void applyFileBrowserResult(NewMapDialogState & state, const FileBrowserResult &
     {
     case FileBrowserTarget::mapOpen:
         copyPathToBuffer(state.openPath, result.path);
+        state.openCandidates = result.mapCandidates;
+        state.openFacet = 0;
+        for (const auto & candidate : state.openCandidates)
+        {
+            if (!candidate.valid)
+            {
+                continue;
+            }
+            std::size_t index = 0;
+            for (const auto & facet : uo_mule::core::knownFacetSizes())
+            {
+                if (facet.name == candidate.presetName)
+                {
+                    state.openFacet = static_cast<int>(index + 1U);
+                    state.openWidth = candidate.dimensions.widthTiles;
+                    state.openHeight = candidate.dimensions.heightTiles;
+                    break;
+                }
+                ++index;
+            }
+            if (state.openFacet != 0)
+            {
+                break;
+            }
+        }
+        state.mode = MapFileDialogMode::selectMapFacet;
+        state.activePopup = MapFileDialogMode::none;
         break;
     case FileBrowserTarget::newMapOutput:
         copyPathToBuffer(state.newMapPath, result.path);
@@ -811,6 +821,28 @@ void drawNewMapDialog(MapWorkspace & workspace,
 
     switch (currentMode)
     {
+        case MapFileDialogMode::selectMapFacet :
+        {
+            const auto result = drawMapFacetDialog(state);
+            if (result == MapFacetDialogResult::accept)
+            {
+                const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
+                if (dimensions)
+                {
+                    state.operation = {
+                        .kind = PendingMapOperationKind::openMap,
+                        .path = state.openPath.data(),
+                        .dimensions = *dimensions,
+                    };
+                    requestOperation(workspace, state);
+                }
+            }
+            else if (result == MapFacetDialogResult::cancel)
+            {
+                closeDialog(state);
+            }
+            break;
+        }
         case MapFileDialogMode::openMap :
             drawOpenDialog(workspace, state);
             break;

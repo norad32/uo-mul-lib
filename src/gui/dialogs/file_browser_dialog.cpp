@@ -1,4 +1,5 @@
 #include "gui/dialogs/file_browser_dialog.h"
+#include "core/facet_sizes.h"
 #include "gui/common/file_size.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
@@ -101,11 +102,6 @@ void copyBuffer(std::array<char, fileBrowserBufferSize> & buffer, const std::fil
         return "Unknown";
     }
     return buffer.data();
-}
-
-[[nodiscard]] std::vector<std::string> knownFacets()
-{
-    return {"felucca", "trammel", "ilshenar", "malas", "tokuno", "ter-mur"};
 }
 
 void updateSummary(FileBrowserState & state)
@@ -221,7 +217,12 @@ void complete(FileBrowserState & state)
         return;
     }
 
-    state.result = FileBrowserResult{.target = state.request.target, .role = state.request.role, .path = path};
+    state.result = FileBrowserResult{
+        .target = state.request.target,
+        .role = state.request.role,
+        .path = path,
+        .mapCandidates = state.summary.mapCandidates,
+    };
     state.visible = false;
 }
 
@@ -371,30 +372,29 @@ FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & pat
         return summary;
     }
 
-    for (const auto & facet : knownFacets())
+    const auto exactFacets =
+        summary.size ? uo_mule::core::facetSizesForMapFileBytes(*summary.size) : std::vector<uo_mule::core::FacetSize>{};
+    for (const auto & facet : exactFacets)
     {
-        const auto dimensions = uomul::facetDimensions(facet);
-        if (!dimensions)
-        {
-            continue;
-        }
-        auto reader = uomul::MapReader::open(path, *dimensions, {.recoverTruncatedMap = true});
+        const auto dimensions = uomul::Dimensions{.widthTiles = facet.widthTiles, .heightTiles = facet.heightTiles};
+        auto reader = uomul::MapReader::open(path, dimensions);
         if (reader)
         {
             summary.mapCandidates.push_back(FileBrowserMapCandidate{
-                .facet = facet,
-                .dimensions = *dimensions,
-                .expectedBlocks = reader->completeBlocks() + reader->missingBlocks(),
+                .presetName = std::string(facet.name),
+                .facet = std::string(facet.mapLabel),
+                .dimensions = dimensions,
+                .expectedBlocks = reader->completeBlocks(),
                 .completeBlocks = reader->completeBlocks(),
                 .missingBlocks = reader->missingBlocks(),
                 .trailingBytes = reader->ignoredTrailingBytes(),
-                .valid = reader->missingBlocks() == 0U && reader->ignoredTrailingBytes() == 0U,
+                .valid = true,
             });
         }
     }
     if (summary.mapCandidates.empty())
     {
-        summary.error = "No known facet dimensions match this MUL file";
+        summary.error = "No known facet dimensions match this MUL file; choose Custom dimensions";
     }
     return summary;
 }
@@ -490,7 +490,6 @@ void drawFileBrowser(FileBrowserState & state)
         navigate(state, state.location.data(), true);
     }
 
-    ImGui::Separator();
     if (ImGui::BeginTable("BrowserBody", 3, ImGuiTableFlags_SizingStretchProp, ImVec2(0.0F, listingHeight)))
     {
         ImGui::TableSetupColumn("Places", ImGuiTableColumnFlags_WidthFixed, placesWidth);

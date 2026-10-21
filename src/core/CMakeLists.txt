@@ -1,4 +1,4 @@
-add_library(core gui_log_sink.cpp log_level.cpp logger.cpp)
+add_library(core facet_sizes.cpp gui_log_sink.cpp log_level.cpp logger.cpp)
 set_target_properties(core PROPERTIES EXPORT_NAME core)
 target_link_libraries(
     core PUBLIC application_options "$<BUILD_INTERFACE:spdlog::spdlog>"

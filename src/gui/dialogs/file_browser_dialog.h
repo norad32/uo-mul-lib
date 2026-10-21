@@ -45,15 +45,9 @@ struct FileBrowserRequest
     std::string title;
 };
 
-struct FileBrowserResult
-{
-    FileBrowserTarget target = FileBrowserTarget::mapOpen;
-    DataFileRole role = DataFileRole::radarcol;
-    std::filesystem::path path;
-};
-
 struct FileBrowserMapCandidate
 {
+    std::string presetName;
     std::string facet;
     uomul::Dimensions dimensions{};
     std::uint64_t expectedBlocks = 0;
@@ -61,6 +55,14 @@ struct FileBrowserMapCandidate
     std::uint64_t missingBlocks = 0;
     std::uint64_t trailingBytes = 0;
     bool valid = false;
+};
+
+struct FileBrowserResult
+{
+    FileBrowserTarget target = FileBrowserTarget::mapOpen;
+    DataFileRole role = DataFileRole::radarcol;
+    std::filesystem::path path;
+    std::vector<FileBrowserMapCandidate> mapCandidates;
 };
 
 struct FileBrowserSummary
