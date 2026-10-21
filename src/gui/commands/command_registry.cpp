@@ -82,7 +82,7 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
 
 void requestClose(WorkbenchState & state, PendingMapOperationKind kind)
 {
-    requestCloseOperation(state.workspace.active(),
+    requestCloseOperation(state.workspace,
                           state.menuBarState.fileDialog,
                           state.operationController,
                           kind,
@@ -270,8 +270,6 @@ void registerDefaultCommands(CommandRegistry & registry)
             savePreferences(state.preferences);
         });
 
-    add(registry, CommandId::panelMapCanvas, "view.panel.map-canvas", "Map Canvas", "View", "Show or hide the map canvas", "",
-        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::mapCanvas)); });
     add(registry, CommandId::panelTileInspector, "view.panel.tile-inspector", "Tile Inspector", "View", "Show or hide the tile inspector", "",
         enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tileInspector)); });
     add(registry, CommandId::panelBlockInspector, "view.panel.block-inspector", "Block Inspector", "View", "Show or hide the block inspector", "",

@@ -23,7 +23,6 @@ enum class CommandId : std::uint8_t
     viewZ,
     viewCombined,
     viewToggleLogPanel,
-    panelMapCanvas,
     panelTileInspector,
     panelBlockInspector,
     panelSelectionStatistics,

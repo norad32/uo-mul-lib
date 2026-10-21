@@ -160,7 +160,17 @@ std::expected<void, uomul::Error> MapWorkspaceManager::discard()
 
 std::expected<void, uomul::Error> MapWorkspaceManager::closeMap()
 {
-    return active_->closeMap();
+    auto closed = active_->closeMap();
+    if (closed)
+    {
+        activeId_.reset();
+    }
+    return closed;
+}
+
+void MapWorkspaceManager::deactivateMap() noexcept
+{
+    stashActive();
 }
 
 std::expected<void, uomul::Error> MapWorkspaceManager::activateMap(DocumentId id,

@@ -226,11 +226,12 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
 }
 
 void drawRadarcolDocumentView(RadarcolDocument & document,
-                              RadarcolPanelState & state,
+                              assets::AssetWindowState & assetView,
                               bool & visible,
                               const std::function<void()> & drawSource,
                               const std::function<void()> & drawEditing,
-                              std::string viewId)
+                              std::string viewId,
+                              const std::function<void()> & becameVisible)
 {
     assets::AssetAdapter adapter;
     adapter.descriptor.viewId = std::move(viewId);
@@ -290,7 +291,7 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
         ImGui::ColorButton("##RadarcolColor", colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(swatchSize, swatchSize));
         static_cast<void>(selected);
     };
-    assets::drawAssetWindow(adapter, state.assetView, visible);
+    assets::drawAssetWindow(adapter, assetView, visible, becameVisible);
 }
 
 } // namespace
@@ -361,10 +362,11 @@ void drawRadarcolPanel(RadarcolPanelState & state,
 void drawRadarcolDocumentPanel(RadarcolPanelState & state,
                                RadarcolDocument & document,
                                bool & visible,
-                               FileBrowserState & browser)
+                               FileBrowserState & browser,
+                               const std::function<void()> & becameVisible)
 {
     drawRadarcolDocumentView(document,
-                             state,
+                             state.documentAssetViews[document.id()],
                              visible,
                              [&document] {
                                  ImGui::Text("Source: %s", document.sourcePath().string().c_str());
@@ -374,7 +376,8 @@ void drawRadarcolDocumentPanel(RadarcolPanelState & state,
                                  }
                              },
                              [&document, &browser] { drawEditControls(document, browser); },
-                             "document.radarcol");
+                              "document.radarcol." + std::to_string(document.id()),
+                              becameVisible);
 }
 
 } // namespace uo_mule::gui

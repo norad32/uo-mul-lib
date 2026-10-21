@@ -17,7 +17,6 @@ namespace uo_mule::gui
 
 struct WorkbenchState;
 
-[[nodiscard]] std::string documentTabLabel(const DocumentSummary & summary);
 void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state);
 
 } // namespace uo_mule::gui

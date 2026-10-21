@@ -21,6 +21,7 @@ add_library(
      context/coordinate_parser.cpp
      context/color_conversion.cpp
      context/map_context.cpp
+     frontend/document_surface.cpp
      assets/asset_window_contracts.cpp
      assets/asset_window.cpp
      strings/ui_strings.cpp

@@ -2,6 +2,7 @@
 
 #include "gui/assets/asset_window_contracts.h"
 #include <cstddef>
+#include <functional>
 
 namespace uo_mule::gui::assets
 {
@@ -17,6 +18,9 @@ struct AssetGridLayout
                                           float cellWidth,
                                           float spacing) noexcept;
 
-void drawAssetWindow(const AssetAdapter & adapter, AssetWindowState & state, bool & visible);
+void drawAssetWindow(const AssetAdapter & adapter,
+                     AssetWindowState & state,
+                     bool & visible,
+                     const std::function<void()> & becameVisible = {});
 
 } // namespace uo_mule::gui::assets

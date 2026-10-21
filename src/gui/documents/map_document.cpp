@@ -199,6 +199,11 @@ const std::vector<DocumentRecord> & DocumentManager::documents() const noexcept
     return documents_;
 }
 
+std::vector<DocumentRecord> & DocumentManager::documentsMutable() noexcept
+{
+    return documents_;
+}
+
 DocumentRecord * DocumentManager::findMutable(DocumentId id) noexcept
 {
     const auto record = std::ranges::find_if(documents_, [id](const DocumentRecord & candidate) {

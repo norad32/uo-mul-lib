@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <functional>
 #include <imgui.h>
 #include <string>
 #include <vector>
@@ -364,13 +365,21 @@ AssetGridLayout gridLayout(std::size_t itemCount, float availableWidth, float ce
     return {.columns = columns, .rows = (itemCount + columns - 1U) / columns};
 }
 
-void drawAssetWindow(const AssetAdapter & adapter, AssetWindowState & state, bool & visible)
+void drawAssetWindow(const AssetAdapter & adapter,
+                     AssetWindowState & state,
+                     bool & visible,
+                     const std::function<void()> & becameVisible)
 {
     const std::string title = windowName(adapter.descriptor);
     if (!ImGui::Begin(title.c_str(), &visible))
     {
         ImGui::End();
         return;
+    }
+
+    if (becameVisible)
+    {
+        becameVisible();
     }
 
     syncPresentation(adapter, state);

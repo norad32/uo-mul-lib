@@ -3,29 +3,20 @@
 #include "gui/documents/document_identity.h"
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("documentSurface_Should_UseThePersistedCentralWindowIdentity")
-{
-    REQUIRE(std::string_view(uo_mule::gui::documentSurfaceWindowName()) == "Map Canvas###view.map-canvas");
-}
-
-TEST_CASE("documentTabLabel_Should_ShowKindDirtyAndReadOnlyState")
+TEST_CASE("documentWindow_Should_UseStableDocumentIdentity")
 {
     const uo_mule::gui::DocumentSummary summary{
-        .identity = {.kind = uo_mule::gui::DocumentKind::radarcol, .source = {}},
+        .identity = {.id = 42, .kind = uo_mule::gui::DocumentKind::map, .source = {}},
+        .displayName = "first.mul",
+    };
+    REQUIRE(uo_mule::gui::documentWindowName(summary) == "Map: first.mul###document.42");
+}
+
+TEST_CASE("documentWindow_Should_UseRadarcolAssetWindowIdentity")
+{
+    const uo_mule::gui::DocumentSummary summary{
+        .identity = {.id = 9, .kind = uo_mule::gui::DocumentKind::radarcol, .source = {}},
         .displayName = "radarcol.mul",
-        .access = uo_mule::gui::DocumentAccess::readOnly,
-        .dirty = true,
     };
-
-    REQUIRE(uo_mule::gui::documentTabLabel(summary) == "Radarcol: radarcol.mul * [Read-only]");
-}
-
-TEST_CASE("documentTabLabel_Should_UseUntitledForEmptyDisplayName")
-{
-    const uo_mule::gui::DocumentSummary summary{
-        .identity = {.kind = uo_mule::gui::DocumentKind::texmapPair, .source = {}},
-        .displayName = {},
-    };
-
-    REQUIRE(uo_mule::gui::documentTabLabel(summary) == "Texmap Pair: Untitled");
+    REQUIRE(uo_mule::gui::documentWindowName(summary) == "Radarcol: radarcol.mul###document.9");
 }

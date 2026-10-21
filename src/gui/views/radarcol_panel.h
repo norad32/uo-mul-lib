@@ -9,8 +9,10 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 namespace uo_mule::gui
 {
@@ -25,6 +27,7 @@ struct RadarcolPanelState
     std::uint64_t colorRevision = 0;
     std::string error;
     assets::AssetWindowState assetView;
+    std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
 };
 
 [[nodiscard]] std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::uint16_t id);
@@ -37,6 +40,7 @@ void drawRadarcolPanel(RadarcolPanelState & state,
 void drawRadarcolDocumentPanel(RadarcolPanelState & state,
                                RadarcolDocument & document,
                                bool & visible,
-                               FileBrowserState & browser);
+                               FileBrowserState & browser,
+                               const std::function<void()> & becameVisible = {});
 
 } // namespace uo_mule::gui

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "gui/context/coordinate_parser.h"
-#include "gui/documents/map_workspace.h"
 #include "gui/providers/data_providers.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -17,6 +16,8 @@
 
 namespace uo_mule::gui
 {
+
+class MapWorkspaceManager;
 
 inline constexpr double defaultMapCanvasZoom = 12.0;
 inline constexpr std::size_t coordinateInputBufferSize = 64;
@@ -106,9 +107,10 @@ struct MapCanvasPanelState
                                           uomul::MapTile tile,
                                           const RadarColorProvider & radarColors) noexcept;
 
-void drawMapCanvasPanel(MapWorkspace & workspace,
+void drawMapCanvasPanel(MapWorkspaceManager & workspace,
                         const RadarColorProvider & radarColors,
-                        MapCanvasPanelState & state,
+                        const std::string & windowName,
+                        const std::function<void()> & activateDocument,
                         const std::function<void()> & openMap,
                         const std::function<void()> & createMap,
                         const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,

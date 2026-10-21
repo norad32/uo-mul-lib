@@ -1,6 +1,6 @@
 #include "gui/views/map_canvas_panel.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/frontend/document_surface.h"
+#include "gui/documents/map_workspace_manager.h"
 #include "gui/providers/data_providers.h"
 #include "gui/context/coordinate_parser.h"
 #include "gui/frontend/theme.h"
@@ -1001,33 +1001,35 @@ MapCanvasPanelState::~MapCanvasPanelState()
     }
 }
 
-void drawMapCanvasPanel(MapWorkspace & workspace,
+void drawMapCanvasPanel(MapWorkspaceManager & workspaceManager,
                         const RadarColorProvider & radarColors,
-                        MapCanvasPanelState & state,
+                        const std::string & windowName,
+                        const std::function<void()> & activateDocument,
                         const std::function<void()> & openMap,
                         const std::function<void()> & createMap,
                         const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
                         bool & visible)
 {
+    const bool contentsVisible = ImGui::Begin(windowName.c_str(), &visible);
+
+    if (!visible || !contentsVisible)
+    {
+        ImGui::End();
+        return;
+    }
+
+    activateDocument();
+    MapWorkspace & workspace = workspaceManager.active();
+    MapCanvasPanelState & state = workspaceManager.canvasState();
     state.panX = std::isfinite(state.panX) ? state.panX : 0.0;
     state.panY = std::isfinite(state.panY) ? state.panY : 0.0;
     state.zoom = std::isfinite(state.zoom) ? state.zoom : defaultMapCanvasZoom;
     state.panX = std::clamp(state.panX, -maximumPanMagnitude, maximumPanMagnitude);
     state.panY = std::clamp(state.panY, -maximumPanMagnitude, maximumPanMagnitude);
     state.zoom = std::clamp(state.zoom, minimumCanvasZoom, maximumCanvasZoom);
-
+    resetForDocument(workspace, state, workspace.dimensions());
     const uomul::Dimensions dimensions = workspace.dimensions();
     const bool hasDocument = workspace.reader() != nullptr;
-    resetForDocument(workspace, state, dimensions);
-
-    const bool contentsVisible = ImGui::Begin(documentSurfaceWindowName(), &visible);
-
-    if (!visible || !contentsVisible)
-    {
-        workspace.clearHover();
-        ImGui::End();
-        return;
-    }
 
     drawLayerControls(workspace, state);
     const bool canvasContentsVisible = ImGui::BeginChild("MapCanvasViewport",
@@ -1096,7 +1098,7 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
         }
         else
         {
-            drawCanvasContents(workspace, radarColors, state, canvasOrigin, canvasSize, currentTile, visibleReadError);
+        drawCanvasContents(workspace, radarColors, state, canvasOrigin, canvasSize, currentTile, visibleReadError);
         }
     }
 

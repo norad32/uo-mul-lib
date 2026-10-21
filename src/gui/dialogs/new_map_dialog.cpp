@@ -4,6 +4,7 @@
 #include "gui/commands/operation_controller.h"
 #include "gui/frontend/theme.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/documents/map_workspace_manager.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_facet_dialog.h"
 #include "gui/dialogs/dialog_presentation.h"
@@ -160,7 +161,7 @@ void showOverwrite(NewMapDialogState & state, MapOverwriteKind kind)
     state.mode = MapFileDialogMode::overwrite;
 }
 
-void executeOperation(MapWorkspace & workspace,
+void executeOperation(MapWorkspaceManager & workspace,
                       NewMapDialogState & state,
                       PendingChangesAction action,
                       const std::optional<std::filesystem::path> & savePath,
@@ -214,7 +215,7 @@ void executeOperation(MapWorkspace & workspace,
     state.activePopup = MapFileDialogMode::none;
 }
 
-void continueOperation(MapWorkspace & workspace, NewMapDialogState & state, bool overwrite)
+void continueOperation(MapWorkspaceManager & workspace, NewMapDialogState & state, bool overwrite)
 {
     state.operationOverwriteOutput = overwrite;
 
@@ -228,7 +229,7 @@ void continueOperation(MapWorkspace & workspace, NewMapDialogState & state, bool
     executeOperation(workspace, state, PendingChangesAction::cancel, std::nullopt, overwrite);
 }
 
-[[nodiscard]] bool beginControlledOperation(NewMapDialogState & state, const MapWorkspace & workspace)
+[[nodiscard]] bool beginControlledOperation(NewMapDialogState & state, const MapWorkspaceManager & workspace)
 {
     if (state.controller == nullptr)
     {
@@ -271,7 +272,7 @@ void continueOperation(MapWorkspace & workspace, NewMapDialogState & state, bool
     return true;
 }
 
-void requestOperation(MapWorkspace & workspace, NewMapDialogState & state)
+void requestOperation(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
     if (!beginControlledOperation(state, workspace))
     {
@@ -419,7 +420,7 @@ void applyMapCandidateDimensions(NewMapDialogState & state, const FileBrowserAss
     }
 }
 
-void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
+void drawOpenDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
     if (state.openWithoutReview && state.openPath.front() != '\0')
     {
@@ -471,7 +472,7 @@ void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
     endDialogFooter();
 }
 
-void drawNewMapForm(MapWorkspace & workspace, NewMapDialogState & state)
+void drawNewMapForm(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
     ImGui::Text("Output path: %s", state.newMapPath.data());
     if (ImGui::IsItemClicked() && state.browser != nullptr)
@@ -536,7 +537,7 @@ void drawNewMapForm(MapWorkspace & workspace, NewMapDialogState & state)
     endDialogFooter();
 }
 
-void drawSaveAsDialog(MapWorkspace & workspace, NewMapDialogState & state)
+void drawSaveAsDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
     ImGui::Text("Commit staged changes to: %s", state.savePath.data());
     if (ImGui::IsItemClicked() && state.browser != nullptr)
@@ -616,7 +617,7 @@ void drawSaveAsDialog(MapWorkspace & workspace, NewMapDialogState & state)
     endDialogFooter();
 }
 
-void drawDirtyDialog(MapWorkspace & workspace, NewMapDialogState & state)
+void drawDirtyDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
     ImGui::TextWrapped("The current map has staged changes. Save, discard, or cancel this operation?");
 
@@ -660,7 +661,7 @@ void drawDirtyDialog(MapWorkspace & workspace, NewMapDialogState & state)
     endDialogFooter();
 }
 
-void finishPendingCloseAfterSave(MapWorkspace & workspace, NewMapDialogState & state)
+void finishPendingCloseAfterSave(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
     const bool quit = state.operation.kind == PendingMapOperationKind::quit;
     const auto closed = workspace.closeMap();
@@ -676,7 +677,7 @@ void finishPendingCloseAfterSave(MapWorkspace & workspace, NewMapDialogState & s
     state.activePopup = MapFileDialogMode::none;
 }
 
-void handleOverwriteSave(MapWorkspace & workspace, NewMapDialogState & state, const std::filesystem::path & path)
+void handleOverwriteSave(MapWorkspaceManager & workspace, NewMapDialogState & state, const std::filesystem::path & path)
 {
     const auto saved = workspace.save(path, true);
     if (!saved)
@@ -699,7 +700,7 @@ void handleOverwriteSave(MapWorkspace & workspace, NewMapDialogState & state, co
     continueOperation(workspace, state, overwriteOperation);
 }
 
-void handleOverwriteNewMap(MapWorkspace & workspace, NewMapDialogState & state)
+void handleOverwriteNewMap(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
     if (workspace.dirty())
     {
@@ -710,7 +711,7 @@ void handleOverwriteNewMap(MapWorkspace & workspace, NewMapDialogState & state)
     executeOperation(workspace, state, PendingChangesAction::cancel, std::nullopt, true);
 }
 
-void drawOverwriteDialog(MapWorkspace & workspace, NewMapDialogState & state)
+void drawOverwriteDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
     const std::filesystem::path path =
         state.overwriteKind == MapOverwriteKind::save ? std::filesystem::path(state.savePath.data()) : state.operation.path;
@@ -814,7 +815,7 @@ void applyFileBrowserResult(NewMapDialogState & state, const FileBrowserResult &
     }
 }
 
-void drawNewMapDialog(MapWorkspace & workspace,
+void drawNewMapDialog(MapWorkspaceManager & workspace,
                       NewMapDialogState & state,
                       OperationController & controller,
                       OutputCollisionPolicy collisionPolicy,
@@ -922,7 +923,7 @@ void drawNewMapDialog(MapWorkspace & workspace,
     }
 }
 
-void requestCloseOperation(MapWorkspace & workspace,
+void requestCloseOperation(MapWorkspaceManager & workspace,
                            NewMapDialogState & state,
                            OperationController & controller,
                            PendingMapOperationKind kind,

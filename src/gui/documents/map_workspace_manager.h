@@ -77,6 +77,7 @@ public:
     [[nodiscard]] std::expected<void, uomul::Error> save(const std::filesystem::path & path, bool overwrite = false);
     [[nodiscard]] std::expected<void, uomul::Error> discard();
     [[nodiscard]] std::expected<void, uomul::Error> closeMap();
+    void deactivateMap() noexcept;
 
     [[nodiscard]] std::expected<void, uomul::Error> activateMap(DocumentId id,
                                                                  const std::filesystem::path & path,

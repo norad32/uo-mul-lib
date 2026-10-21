@@ -5,7 +5,6 @@ namespace uo_mule::gui
 {
 
 PanelRegistry::PanelRegistry() : panels_({
-                                       {.id = PanelId::mapCanvas, .stableId = "panel.map-canvas", .title = "Map Canvas", .defaultVisible = true, .visible = true},
                                        {.id = PanelId::tileInspector, .stableId = "panel.tile-inspector", .title = "Tile Inspector", .defaultVisible = true, .visible = true},
                                         {.id = PanelId::blockInspector, .stableId = "panel.block-inspector", .title = "Block Inspector", .defaultVisible = true, .visible = true},
                                         {.id = PanelId::selectionStatistics, .stableId = "panel.selection-statistics", .title = "Selection Statistics", .defaultVisible = true, .visible = true},

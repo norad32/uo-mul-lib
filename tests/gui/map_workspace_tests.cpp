@@ -359,3 +359,27 @@ TEST_CASE("mapWorkspaceManager_Should_InvalidateAllResidentCanvasCaches")
 
     REQUIRE_FALSE(manager.canvasState().lodCacheValid);
 }
+
+TEST_CASE("mapWorkspaceManager_Should_DeactivateMapWithoutDiscardingResidentState")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "resident.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+
+    MapWorkspaceManager manager;
+    REQUIRE(manager.openMap(mapPath, testDimensions));
+    manager.bindActiveDocument(7U);
+    manager.canvasState().panX = 24.0;
+    REQUIRE(manager.updateSelectedTile({.x = 2, .y = 3}));
+
+    manager.deactivateMap();
+
+    REQUIRE_FALSE(manager.activeDocumentId());
+    REQUIRE(manager.reader() == nullptr);
+    REQUIRE(manager.activateMap(7U, mapPath, testDimensions));
+    REQUIRE(manager.activeDocumentId() == 7U);
+    REQUIRE(manager.selectedTile().has_value());
+    REQUIRE(manager.selectedTile()->x == 2);
+    REQUIRE(manager.selectedTile()->y == 3);
+    REQUIRE(std::abs(manager.canvasState().panX - 24.0) < 0.001);
+}

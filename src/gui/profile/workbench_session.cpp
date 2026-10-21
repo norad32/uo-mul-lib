@@ -155,9 +155,13 @@ void WorkbenchSession::refreshRecentMaps()
 void WorkbenchSession::syncDocument(MapWorkspaceManager & workspace)
 {
     documents_.sync(workspace.active());
-    if (const auto id = documents_.activeId())
+    if (workspace.reader() != nullptr)
     {
-        workspace.bindActiveDocument(*id);
+        documents_.sync(workspace.active());
+        if (const auto id = documents_.activeId())
+        {
+            workspace.bindActiveDocument(*id);
+        }
     }
 }
 
@@ -187,10 +191,7 @@ std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId 
 
     if (workspace.reader() != nullptr)
     {
-        if (auto closed = workspace.closeMap(); !closed)
-        {
-            return std::unexpected(closed.error());
-        }
+        workspace.deactivateMap();
     }
     static_cast<void>(documents_.activate(id));
     return {};
@@ -260,6 +261,11 @@ std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id,
 const std::vector<DocumentRecord> & WorkbenchSession::documents() const noexcept
 {
     return documents_.documents();
+}
+
+std::vector<DocumentRecord> & WorkbenchSession::documentsMutable() noexcept
+{
+    return documents_.documentsMutable();
 }
 
 void WorkbenchSession::syncAssetDocuments() noexcept

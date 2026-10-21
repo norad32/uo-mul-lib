@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/documents/map_workspace.h"
+#include "gui/documents/map_workspace_manager.h"
 #include "gui/profile/data_profile.h"
 #include "gui/context/notification_state.h"
 #include "gui/commands/operation_controller.h"
@@ -85,7 +85,7 @@ struct NewMapDialogState
     std::string error;
 };
 
-void drawNewMapDialog(MapWorkspace & workspace,
+void drawNewMapDialog(MapWorkspaceManager & workspace,
                       NewMapDialogState & state,
                       OperationController & controller,
                       OutputCollisionPolicy collisionPolicy,
@@ -96,7 +96,7 @@ void drawNewMapDialog(MapWorkspace & workspace,
 void cancelMapDialog(NewMapDialogState & state);
 void applyFileBrowserResult(NewMapDialogState & state, const FileBrowserResult & result);
 
-void requestCloseOperation(MapWorkspace & workspace,
+void requestCloseOperation(MapWorkspaceManager & workspace,
                            NewMapDialogState & state,
                            OperationController & controller,
                            PendingMapOperationKind kind,

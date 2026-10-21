@@ -1,11 +1,11 @@
 #pragma once
 
+#include "gui/documents/document_identity.h"
+#include <string>
+
 namespace uo_mule::gui
 {
 
-[[nodiscard]] constexpr const char * documentSurfaceWindowName() noexcept
-{
-    return "Map Canvas###view.map-canvas";
-}
+[[nodiscard]] std::string documentWindowName(const DocumentSummary & summary);
 
 } // namespace uo_mule::gui
