@@ -3,11 +3,14 @@
 #include "gui/common/file_size.h"
 #include "gui/theme.h"
 #include "uomul/map.h"
+#include "uomul/radarcol/radarcol.h"
+#include "uomul/texmaps/texmaps.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -35,6 +38,12 @@ constexpr float listingHeight = 480.0F;
 constexpr float dateColumnWidth = 150.0F;
 constexpr std::size_t dateBufferSize = 64;
 constexpr std::size_t maxRecentLocations = 12;
+constexpr int mapCandidateScore = 80;
+constexpr int radarcolNamedScore = 100;
+constexpr int radarcolClassicSizeScore = 60;
+constexpr int radarcolStructuralScore = 20;
+constexpr int texmapsPairScore = 90;
+constexpr std::uintmax_t classicRadarcolByteCount = static_cast<std::uintmax_t>(uomul::radarColorCount) * 2U;
 constexpr ImGuiWindowFlags fileBrowserWindowFlags = static_cast<ImGuiWindowFlags>(
     static_cast<unsigned int>(ImGuiWindowFlags_NoCollapse) | static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
     static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar) | static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse));
@@ -222,6 +231,8 @@ void complete(FileBrowserState & state)
         .role = state.request.role,
         .path = path,
         .mapCandidates = state.summary.mapCandidates,
+        .assetCandidates = state.summary.assetCandidates,
+        .assetCandidate = std::nullopt,
     };
     state.visible = false;
 }
@@ -312,6 +323,10 @@ void drawSummary(const FileBrowserState & state)
     }
     ImGui::Text("Modified: %s", summary.modified.c_str());
     ImGui::Text("Readable: %s", summary.readable ? "yes" : "no");
+    if (!state.request.extension.empty())
+    {
+        ImGui::Text("Filter: %s", state.request.extension.c_str());
+    }
     if (!summary.error.empty())
     {
         ImGui::TextColored(theme::imguiColor(theme::amber), "%s", summary.error.c_str());
@@ -331,7 +346,131 @@ void drawSummary(const FileBrowserState & state)
                            "%s",
                            candidate.valid ? "Valid map candidate" : "Invalid map candidate");
     }
+    for (const auto & candidate : summary.assetCandidates)
+    {
+        ImGui::Separator();
+        ImGui::Text("Type: %s", candidate.label.c_str());
+        ImGui::TextWrapped("%s", candidate.reason.c_str());
+        ImGui::TextColored(candidate.openable ? theme::imguiColor(theme::leafGreen) : theme::imguiColor(theme::amber),
+                           "%s",
+                           candidate.openable ? "Openable" : "Requires selection");
+    }
     ImGui::EndChild();
+}
+
+void appendMapCandidates(FileBrowserSummary & summary, const std::filesystem::path & path)
+{
+    const auto exactFacets = summary.size ? uo_mule::core::facetSizesForMapFileBytes(*summary.size)
+                                          : std::vector<uo_mule::core::FacetSize>{};
+    for (const auto & facet : exactFacets)
+    {
+        const auto dimensions = uomul::Dimensions{.widthTiles = facet.widthTiles, .heightTiles = facet.heightTiles};
+        auto reader = uomul::MapReader::open(path, dimensions);
+        if (!reader)
+        {
+            continue;
+        }
+
+        summary.mapCandidates.push_back(FileBrowserMapCandidate{
+            .presetName = std::string(facet.name),
+            .facet = std::string(facet.mapLabel),
+            .dimensions = dimensions,
+            .expectedBlocks = reader->completeBlocks(),
+            .completeBlocks = reader->completeBlocks(),
+            .missingBlocks = reader->missingBlocks(),
+            .trailingBytes = reader->ignoredTrailingBytes(),
+            .valid = true,
+        });
+        summary.assetCandidates.push_back(FileBrowserAssetCandidate{
+            .kind = MulAssetKind::map,
+            .path = path,
+            .companionPath = {},
+            .label = "Map",
+            .reason = "Valid map layout for " + std::to_string(dimensions.widthTiles) + " x " +
+                      std::to_string(dimensions.heightTiles) + " tiles",
+            .score = mapCandidateScore,
+            .validated = true,
+            .openable = true,
+        });
+    }
+}
+
+void appendRadarcolCandidate(FileBrowserSummary & summary,
+                             const std::filesystem::path & path,
+                             std::string_view filename)
+{
+    if (!summary.readable)
+    {
+        return;
+    }
+
+    const bool namedRadarcol = filename == "radarcol.mul";
+    const bool classicRadarcolSize = summary.size && *summary.size == classicRadarcolByteCount;
+    const auto reader = uomul::RadarColReader::open(path);
+    if (!reader)
+    {
+        return;
+    }
+
+    std::string reason;
+    int score = radarcolStructuralScore;
+    if (namedRadarcol || classicRadarcolSize)
+    {
+        reason = "Valid radar color table with " + std::to_string(reader->colorCount()) + " entries";
+    }
+    if (namedRadarcol)
+    {
+        score = radarcolNamedScore;
+    }
+    else if (classicRadarcolSize)
+    {
+        score = radarcolClassicSizeScore;
+    }
+    else
+    {
+        reason = "MUL structure is compatible with a radar color table; filename does not confirm the type";
+    }
+
+    summary.assetCandidates.push_back(FileBrowserAssetCandidate{
+        .kind = MulAssetKind::radarcol,
+        .path = path,
+        .companionPath = {},
+        .label = "Radar colors",
+        .reason = std::move(reason),
+        .score = score,
+        .validated = true,
+        .openable = true,
+    });
+}
+
+void appendTexmapsCandidate(FileBrowserSummary & summary,
+                            const std::filesystem::path & path,
+                            std::string_view filename)
+{
+    if (filename != "texidx.mul" && filename != "texmaps.mul")
+    {
+        return;
+    }
+
+    const auto indexPath = filename == "texidx.mul" ? path : path.parent_path() / "texidx.mul";
+    const auto dataPath = filename == "texmaps.mul" ? path : path.parent_path() / "texmaps.mul";
+    const auto pair = inspectTexmapsPair(indexPath, dataPath);
+    if (pair.openable)
+    {
+        summary.assetCandidates.push_back(pair);
+        return;
+    }
+
+    summary.assetCandidates.push_back(FileBrowserAssetCandidate{
+        .kind = MulAssetKind::texmapsPair,
+        .path = path,
+        .companionPath = {},
+        .label = "Texture pair",
+        .reason = "A matching texidx.mul and texmaps.mul pair must be selected",
+        .score = texmapsPairScore,
+        .validated = false,
+        .openable = false,
+    });
 }
 
 } // namespace
@@ -372,31 +511,44 @@ FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & pat
         return summary;
     }
 
-    const auto exactFacets =
-        summary.size ? uo_mule::core::facetSizesForMapFileBytes(*summary.size) : std::vector<uo_mule::core::FacetSize>{};
-    for (const auto & facet : exactFacets)
-    {
-        const auto dimensions = uomul::Dimensions{.widthTiles = facet.widthTiles, .heightTiles = facet.heightTiles};
-        auto reader = uomul::MapReader::open(path, dimensions);
-        if (reader)
-        {
-            summary.mapCandidates.push_back(FileBrowserMapCandidate{
-                .presetName = std::string(facet.name),
-                .facet = std::string(facet.mapLabel),
-                .dimensions = dimensions,
-                .expectedBlocks = reader->completeBlocks(),
-                .completeBlocks = reader->completeBlocks(),
-                .missingBlocks = reader->missingBlocks(),
-                .trailingBytes = reader->ignoredTrailingBytes(),
-                .valid = true,
-            });
-        }
-    }
-    if (summary.mapCandidates.empty())
+    const auto filename = lowercase(path.filename().string());
+    appendMapCandidates(summary, path);
+    appendRadarcolCandidate(summary, path, filename);
+    appendTexmapsCandidate(summary, path, filename);
+    if (summary.mapCandidates.empty() && summary.assetCandidates.empty())
     {
         summary.error = "No known facet dimensions match this MUL file; choose Custom dimensions";
     }
     return summary;
+}
+
+FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & indexPath,
+                                             const std::filesystem::path & dataPath)
+{
+    const auto reader = uomul::TexMapsReader::open(indexPath, dataPath);
+    std::string reason;
+    if (reader)
+    {
+        reason = "Valid texidx.mul and texmaps.mul pair with " + std::to_string(reader->textureCount()) + " entries";
+    }
+    else if (reader.error().message.empty())
+    {
+        reason = "Invalid texture pair";
+    }
+    else
+    {
+        reason = reader.error().message;
+    }
+    return FileBrowserAssetCandidate{
+        .kind = MulAssetKind::texmapsPair,
+        .path = indexPath,
+        .companionPath = dataPath,
+        .label = "Texture pair",
+        .reason = std::move(reason),
+        .score = texmapsPairScore,
+        .validated = reader.has_value(),
+        .openable = reader.has_value(),
+    };
 }
 
 void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)

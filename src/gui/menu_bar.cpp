@@ -1,6 +1,7 @@
 #include "gui/menu_bar.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/file_selector_dialog.h"
 #include "gui/data_profile.h"
 #include "gui/panels/radarcol_panel.h"
 #include "gui/panels/texmaps_panel.h"
@@ -48,6 +49,39 @@ void cancelFileBrowserAndMapDialog(WorkbenchState & state)
 
 [[nodiscard]] bool applyFileBrowserResultToWorkbench(WorkbenchState & state, const FileBrowserResult & result)
 {
+    if (result.target == FileBrowserTarget::texmapsCompanion)
+    {
+        static_cast<void>(applyFileSelectorCompanion(state.fileSelector, result.path));
+        return false;
+    }
+
+    if (!result.assetCandidate && (result.target == FileBrowserTarget::radarcolSource ||
+                                   result.target == FileBrowserTarget::texmapsIndex ||
+                                   result.target == FileBrowserTarget::texmapsData))
+    {
+        openFileSelector(state.fileSelector, result);
+        return false;
+    }
+
+    if (result.assetCandidate && result.assetCandidate->kind == MulAssetKind::texmapsPair)
+    {
+        const auto & pair = *result.assetCandidate;
+        state.activeProfile.files[DataFileRole::texidx] = {.path = pair.path, .userOverride = true};
+        state.activeProfile.files[DataFileRole::texmaps] = {.path = pair.companionPath, .userOverride = true};
+
+        auto indexResult = result;
+        indexResult.target = FileBrowserTarget::texmapsIndex;
+        indexResult.path = pair.path;
+        auto dataResult = result;
+        dataResult.target = FileBrowserTarget::texmapsData;
+        dataResult.path = pair.companionPath;
+        applyFileBrowserResult(state.texmapsState, indexResult);
+        applyFileBrowserResult(state.texmapsState, dataResult);
+        applyFileBrowserResult(state.menuBarState.preferencesDialog, indexResult);
+        applyFileBrowserResult(state.menuBarState.preferencesDialog, dataResult);
+        return true;
+    }
+
     const bool profileChanged = result.target == FileBrowserTarget::radarcolSource ||
                                 result.target == FileBrowserTarget::texmapsIndex ||
                                 result.target == FileBrowserTarget::texmapsData;
@@ -166,12 +200,119 @@ void drawMapMenu(WorkbenchState & state)
     ImGui::EndMenu();
 }
 
+void handleEscape(WorkbenchState & state, bool showMainMenu)
+{
+    if (!ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        return;
+    }
+    if (state.fileBrowser.visible)
+    {
+        cancelFileBrowserAndMapDialog(state);
+    }
+    else if (state.fileSelector.visible)
+    {
+        cancelFileSelector(state.fileSelector);
+    }
+    else if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+    {
+        cancelMapDialog(state.menuBarState.fileDialog);
+    }
+    else if (state.menuBarState.preferencesDialog.visible)
+    {
+        state.menuBarState.preferencesDialog.visible = false;
+        state.menuBarState.preferencesDialog.closeRequested = true;
+    }
+    else if (!showMainMenu && state.session.startupState() == StartupState::mapWelcome)
+    {
+        state.session.setStartupState(StartupState::workbench);
+    }
+}
+
+bool handleFileSelector(WorkbenchState & state)
+{
+    if (state.fileBrowser.visible || !state.fileSelector.visible)
+    {
+        return false;
+    }
+
+    const auto action = drawFileSelector(state.fileSelector);
+    if (action == FileSelectorAction::accept)
+    {
+        const auto selected = selectedFileSelectorResult(state.fileSelector);
+        cancelFileSelector(state.fileSelector);
+        return applyFileBrowserResultToWorkbench(state, selected);
+    }
+    if (action == FileSelectorAction::cancel)
+    {
+        cancelFileSelector(state.fileSelector);
+        return false;
+    }
+    if (action == FileSelectorAction::chooseDifferent)
+    {
+        const auto original = state.fileSelector.browserResult;
+        cancelFileSelector(state.fileSelector);
+        requestFileBrowser(state.fileBrowser,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = original.target,
+                            .initialPath = original.path,
+                            .extension = ".mul",
+                            .title = "Open Texture Pair Component",});
+        return false;
+    }
+    if (action == FileSelectorAction::chooseCompanion)
+    {
+        const auto original = state.fileSelector.browserResult;
+        requestFileBrowser(state.fileBrowser,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = FileBrowserTarget::texmapsCompanion,
+                            .initialPath = original.path.parent_path(),
+                            .extension = ".mul",
+                            .title = "Choose Texture Pair Companion",});
+    }
+    return false;
+}
+
+bool drawFileDialogs(WorkbenchState & state)
+{
+    bool profileChanged = false;
+    if (state.menuBarState.fileDialog.shouldClose)
+    {
+        state.shouldClose = true;
+        state.menuBarState.fileDialog.shouldClose = false;
+    }
+
+    const bool browserWasVisible = state.fileBrowser.visible;
+    if (!browserWasVisible && !state.fileSelector.visible)
+    {
+        drawNewMapDialog(state.workspace,
+                         state.menuBarState.fileDialog,
+                         state.operationController,
+                         state.activeProfile.outputCollisionPolicy,
+                         state.notifications,
+                         state.fileBrowser,
+                         state.shouldClose);
+        profileChanged = drawPreferencesDialog(
+            state.menuBarState.preferencesDialog, state.activeProfile, state.preferences, state.fileBrowser);
+    }
+    drawFileBrowser(state.fileBrowser);
+    const auto result = consumeFileBrowserResult(state.fileBrowser);
+    if (!state.fileBrowser.visible && browserWasVisible && !result &&
+        state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+    {
+        cancelMapDialog(state.menuBarState.fileDialog);
+    }
+    if (result)
+    {
+        profileChanged = applyFileBrowserResultToWorkbench(state, *result) || profileChanged;
+    }
+    return handleFileSelector(state) || profileChanged;
+}
+
 } // namespace
 
 bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
 {
-    bool profileChanged = false;
-
     if (state.menuBarState.windowCloseRequested && state.menuBarState.fileDialog.mode == MapFileDialogMode::none)
     {
         state.menuBarState.windowCloseRequested = false;
@@ -196,63 +337,14 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
         ImGui::EndMainMenuBar();
     }
 
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
-    {
-        if (state.fileBrowser.visible)
-        {
-            cancelFileBrowserAndMapDialog(state);
-        }
-        else if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
-        {
-            cancelMapDialog(state.menuBarState.fileDialog);
-        }
-        else if (state.menuBarState.preferencesDialog.visible)
-        {
-            state.menuBarState.preferencesDialog.visible = false;
-            state.menuBarState.preferencesDialog.closeRequested = true;
-        }
-        else if (!showMainMenu && state.session.startupState() == StartupState::mapWelcome)
-        {
-            state.session.setStartupState(StartupState::workbench);
-        }
-    }
+    handleEscape(state, showMainMenu);
 
     if (!drawDialogs)
     {
-        return profileChanged;
+        return false;
     }
 
-    if (state.menuBarState.fileDialog.shouldClose)
-    {
-        state.shouldClose = true;
-        state.menuBarState.fileDialog.shouldClose = false;
-    }
-
-    const bool browserWasVisible = state.fileBrowser.visible;
-    if (!browserWasVisible)
-    {
-        drawNewMapDialog(state.workspace,
-                         state.menuBarState.fileDialog,
-                         state.operationController,
-                         state.activeProfile.outputCollisionPolicy,
-                         state.notifications,
-                         state.fileBrowser,
-                         state.shouldClose);
-        profileChanged = drawPreferencesDialog(
-            state.menuBarState.preferencesDialog, state.activeProfile, state.preferences, state.fileBrowser);
-    }
-    drawFileBrowser(state.fileBrowser);
-    const auto result = consumeFileBrowserResult(state.fileBrowser);
-    if (!state.fileBrowser.visible && browserWasVisible && !result &&
-        state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
-    {
-        cancelMapDialog(state.menuBarState.fileDialog);
-    }
-    if (result)
-    {
-        profileChanged = applyFileBrowserResultToWorkbench(state, *result) || profileChanged;
-    }
-    return profileChanged;
+    return drawFileDialogs(state);
 }
 
 void requestWindowClose(WorkbenchState & state)

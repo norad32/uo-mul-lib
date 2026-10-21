@@ -33,6 +33,16 @@ enum class FileBrowserTarget : std::uint8_t
     radarcolOutput,
     texmapsIndex,
     texmapsData,
+    texmapsCompanion,
+};
+
+enum class MulAssetKind : std::uint8_t
+{
+    unknown,
+    map,
+    radarcol,
+    texmapsPair,
+    tiledata,
 };
 
 struct FileBrowserRequest
@@ -57,12 +67,26 @@ struct FileBrowserMapCandidate
     bool valid = false;
 };
 
+struct FileBrowserAssetCandidate
+{
+    MulAssetKind kind = MulAssetKind::unknown;
+    std::filesystem::path path;
+    std::filesystem::path companionPath;
+    std::string label;
+    std::string reason;
+    int score = 0;
+    bool validated = false;
+    bool openable = false;
+};
+
 struct FileBrowserResult
 {
     FileBrowserTarget target = FileBrowserTarget::mapOpen;
     DataFileRole role = DataFileRole::radarcol;
     std::filesystem::path path;
     std::vector<FileBrowserMapCandidate> mapCandidates;
+    std::vector<FileBrowserAssetCandidate> assetCandidates;
+    std::optional<FileBrowserAssetCandidate> assetCandidate;
 };
 
 struct FileBrowserSummary
@@ -75,6 +99,7 @@ struct FileBrowserSummary
     std::string modified;
     std::string error;
     std::vector<FileBrowserMapCandidate> mapCandidates;
+    std::vector<FileBrowserAssetCandidate> assetCandidates;
 };
 
 struct FileBrowserState
@@ -95,6 +120,8 @@ struct FileBrowserState
 
 [[nodiscard]] bool fileBrowserMatchesFilter(const std::filesystem::path & path, std::string_view extension);
 [[nodiscard]] FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & path);
+[[nodiscard]] FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & indexPath,
+                                                            const std::filesystem::path & dataPath);
 
 void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request);
 void cancelFileBrowser(FileBrowserState & state);
