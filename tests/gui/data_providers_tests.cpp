@@ -67,6 +67,14 @@ TEST_CASE("DataProviders_Should_UseEmbeddedRadarcolWithoutAProfile")
     REQUIRE(providers.radarColors().mapColor(0U) == uo_mule::gui::makeEmbeddedRadarColorProvider()->mapColor(0U));
 }
 
+TEST_CASE("providerSourceName_Should_DescribeEffectiveRadarcolSources")
+{
+    REQUIRE(uo_mule::gui::providerSourceName(uo_mule::gui::ProviderSourceKind::embeddedDefault) == "Embedded Radarcol");
+    REQUIRE(uo_mule::gui::providerSourceName(uo_mule::gui::ProviderSourceKind::externalConfigured) == "Configured Radarcol");
+    REQUIRE(uo_mule::gui::providerSourceName(uo_mule::gui::ProviderSourceKind::embeddedDefaultWithWarning) ==
+            "Embedded Radarcol (fallback)");
+}
+
 TEST_CASE("DataProviders_Should_UseValidExternalRadarcol")
 {
     const TemporaryDirectory directory;

@@ -103,6 +103,17 @@ TEST_CASE("workbenchSession_Should_AllowMapCommandsWithEmbeddedRadarcolFallback"
     REQUIRE(availability.enabled);
 }
 
+TEST_CASE("workbenchSession_Should_ShowWelcomeAfterInvalidProfileWithoutBlockingMaps")
+{
+    uo_mule::gui::WorkbenchSession session;
+
+    session.markProfileInvalid();
+
+    REQUIRE(session.profileState() == uo_mule::gui::ProfileReadinessState::profileInvalid);
+    REQUIRE(session.mapReady());
+    REQUIRE(session.startupState() == uo_mule::gui::StartupState::mapWelcome);
+}
+
 TEST_CASE("recentMapStore_Should_RoundTripAndMarkMissingEntries")
 {
     const TemporaryDirectory directory;

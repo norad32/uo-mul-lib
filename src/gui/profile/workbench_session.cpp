@@ -104,7 +104,8 @@ DocumentId WorkbenchSession::openDocument(DocumentSummary summary)
 void WorkbenchSession::markProfileInvalid() noexcept
 {
     profileState_ = ProfileReadinessState::profileInvalid;
-    startupState_ = StartupState::configureProfile;
+    // A broken profile must not prevent map use; providers will use embedded Radarcol data.
+    startupState_ = StartupState::mapWelcome;
 }
 
 ProfileReadinessState WorkbenchSession::profileState() const noexcept

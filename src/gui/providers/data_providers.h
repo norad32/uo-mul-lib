@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace uo_mule::gui
@@ -28,6 +29,8 @@ enum class ProviderSourceKind : std::uint8_t
     externalConfigured,
     embeddedDefaultWithWarning,
 };
+
+[[nodiscard]] std::string_view providerSourceName(ProviderSourceKind source) noexcept;
 
 struct ProviderStatus
 {

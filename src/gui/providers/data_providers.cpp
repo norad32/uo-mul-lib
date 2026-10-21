@@ -9,10 +9,28 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace uo_mule::gui
 {
+
+std::string_view providerSourceName(ProviderSourceKind source) noexcept
+{
+    switch (source)
+    {
+        case ProviderSourceKind::none :
+            return "Radarcol unavailable";
+        case ProviderSourceKind::embeddedDefault :
+            return "Embedded Radarcol";
+        case ProviderSourceKind::externalConfigured :
+            return "Configured Radarcol";
+        case ProviderSourceKind::embeddedDefaultWithWarning :
+            return "Embedded Radarcol (fallback)";
+    }
+    return "Radarcol unavailable";
+}
+
 namespace
 {
 

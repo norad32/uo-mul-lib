@@ -78,6 +78,7 @@ struct WorkbenchState
     std::filesystem::path recentMapRecordedPath;
     std::string welcomeGreeting;
     bool welcomeGreetingSelected = false;
+    std::uint64_t radarcolNotificationRevision = 0;
 };
 
 } // namespace uo_mule::gui

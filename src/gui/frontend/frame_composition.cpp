@@ -15,6 +15,7 @@
 #include "gui/commands/command_registry.h"
 #include "gui/persistence/preferences.h"
 #include "gui/profile/workbench_session.h"
+#include "gui/providers/data_providers.h"
 #include "gui/tools/edit_tools_panel.h"
 #include "gui/views/block_inspector_panel.h"
 #include "gui/views/log_panel.h"
@@ -201,15 +202,28 @@ void drawMapPanels(WorkbenchState & state,
     switch (state)
     {
         case ProfileReadinessState::needsProfile:
-            return "No profile configured";
+            return "No profile";
         case ProfileReadinessState::profileInvalid:
-            return "Profile invalid";
         case ProfileReadinessState::profileIncomplete:
-            return "Profile incomplete: radarcol.mul required";
+            return "Fallback active";
         case ProfileReadinessState::ready:
-            return "Ready";
+            return "Configured";
     }
     return "Unknown";
+}
+
+void notifyRadarcolFallback(WorkbenchState & state)
+{
+    const ProviderStatus status = state.providers.radarColors().status();
+    if (status.source != ProviderSourceKind::embeddedDefaultWithWarning || status.revision == state.radarcolNotificationRevision)
+    {
+        state.radarcolNotificationRevision = status.revision;
+        return;
+    }
+
+    state.radarcolNotificationRevision = status.revision;
+    state.notifications.add(NotificationSeverity::warning,
+                            "Configured Radarcol is unavailable; using Embedded Radarcol fallback. " + status.message);
 }
 
 void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
@@ -247,10 +261,12 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
     const std::string mapStatus = "Map: " + (state.workspace.reader() == nullptr ? std::string("None") : state.workspace.mapPath().string());
     const std::string stateStatus = "State: " + std::string(state.workspace.dirty() ? "Staged changes" : "Clean");
     const std::string readinessStatus = "Data: " + std::string(readinessLabel(state.session.profileState()));
+    const std::string radarcolStatus = "Radarcol: " + std::string(providerSourceName(state.providers.radarColors().status().source));
     const float rightContentWidth = ImGui::CalcTextSize(profileStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
                                     ImGui::CalcTextSize(mapStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
                                     ImGui::CalcTextSize(stateStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
-                                    ImGui::CalcTextSize(readinessStatus.c_str()).x;
+                                    ImGui::CalcTextSize(readinessStatus.c_str()).x + ImGui::GetStyle().ItemSpacing.x +
+                                    ImGui::CalcTextSize(radarcolStatus.c_str()).x;
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - rightContentWidth));
     ImGui::TextUnformatted(profileStatus.c_str());
     ImGui::SameLine();
@@ -259,6 +275,8 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
     ImGui::TextUnformatted(stateStatus.c_str());
     ImGui::SameLine();
     ImGui::TextUnformatted(readinessStatus.c_str());
+    ImGui::SameLine();
+    ImGui::TextUnformatted(radarcolStatus.c_str());
     ImGui::End();
 }
 
@@ -309,8 +327,10 @@ void drawStartupScreen(WorkbenchState & state)
     }
     ImGui::TextUnformatted("Configure Preferences");
     ImGui::Separator();
-    ImGui::TextUnformatted("A validated radarcol.mul is required before map actions are enabled.");
+    ImGui::TextUnformatted("Maps are available without a profile. Embedded Radarcol is used until an external source is configured.");
     ImGui::Text("Profile status: %s", readinessLabel(state.session.profileState()));
+    const std::string startupRadarcolSource(providerSourceName(state.providers.radarColors().status().source));
+    ImGui::Text("Radarcol source: %s", startupRadarcolSource.c_str());
     if (ImGui::Button("Open Preferences"))
     {
         requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
@@ -500,6 +520,7 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
     }
 
     welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr;
+    state.providers.sync(state.activeProfile);
     if (state.nativeWelcomeWindowMode != welcomeShell)
     {
         glfwSetWindowAttrib(window, GLFW_DECORATED, welcomeShell ? GLFW_FALSE : GLFW_TRUE);
@@ -519,6 +540,7 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
     {
         state.recentMapRecordedPath.clear();
         drawWelcomeScreen(state);
+        notifyRadarcolFallback(state);
         profileChanged = drawMenuBar(state, false);
         static_cast<void>(profileChanged);
     }
@@ -537,6 +559,7 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
                           state.editToolsState,
                           state.radarcolState,
                           state.texmapsState);
+            notifyRadarcolFallback(state);
         }
         else
         {

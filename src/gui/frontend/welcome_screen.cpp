@@ -9,6 +9,7 @@
 #include "gui/frontend/theme.h"
 #include "gui/frontend/welcome_greetings.h"
 #include "gui/profile/workbench_session.h"
+#include "gui/providers/data_providers.h"
 #include "gui/application/workbench_state.h"
 #include <algorithm>
 #include <array>
@@ -62,13 +63,12 @@ constexpr std::size_t timestampBufferSize = 32;
     switch (state)
     {
         case ProfileReadinessState::needsProfile :
-            return "No profile configured";
+            return "No profile";
         case ProfileReadinessState::profileInvalid :
-            return "Profile invalid";
         case ProfileReadinessState::profileIncomplete :
-            return "Profile incomplete";
+            return "Fallback active";
         case ProfileReadinessState::ready :
-            return "Ready";
+            return "Configured";
     }
     return "Unknown";
 }
@@ -186,11 +186,23 @@ void applyRecentMapToOpenDialog(NewMapDialogState & dialog, const RecentMap & re
     }
 }
 
-void drawProfileSummary(const DataProfile & profile)
+void drawProfileSummary(const DataProfile & profile, const ProviderStatus & radarcolStatus)
 {
     const DataProfileValidation validation = validateDataProfile(profile);
     ImGui::TextUnformatted("Data profile");
-    ImGui::TextDisabled("%s", profile.name.empty() ? "Unnamed profile" : profile.name.c_str());
+    const bool noProfile = profile.name.empty() && profile.files.empty() && profile.sourceRoot.empty();
+    if (noProfile)
+    {
+        ImGui::TextDisabled("No profile");
+    }
+    else if (profile.name.empty())
+    {
+        ImGui::TextDisabled("Unnamed profile");
+    }
+    else
+    {
+        ImGui::TextDisabled("%s", profile.name.c_str());
+    }
 
     if (!profile.sourceRoot.empty())
     {
@@ -199,6 +211,13 @@ void drawProfileSummary(const DataProfile & profile)
     if (!profile.outputRoot.empty())
     {
         ImGui::TextDisabled("Output: %s", profile.outputRoot.string().c_str());
+    }
+
+    const std::string_view sourceName = providerSourceName(radarcolStatus.source);
+    ImGui::Text("Radarcol: %.*s", static_cast<int>(sourceName.size()), sourceName.data());
+    if (radarcolStatus.source == ProviderSourceKind::embeddedDefaultWithWarning && !radarcolStatus.message.empty())
+    {
+        ImGui::TextColored(theme::imguiColor(theme::amber), "Warning: %s", radarcolStatus.message.c_str());
     }
 
     for (const auto role : {DataFileRole::radarcol, DataFileRole::texidx, DataFileRole::texmaps, DataFileRole::tiledata})
@@ -276,6 +295,8 @@ void drawWelcomeScreen(WorkbenchState & state)
 {
     selectGreetingIfNeeded(state);
     state.session.refreshRecentMaps();
+    state.providers.sync(state.activeProfile);
+    const ProviderStatus radarcolStatus = state.providers.radarColors().status();
 
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
@@ -348,12 +369,16 @@ void drawWelcomeScreen(WorkbenchState & state)
     if (ImGui::BeginTable("###welcome.details", 2, ImGuiTableFlags_SizingStretchProp))
     {
         ImGui::TableNextColumn();
-        drawProfileSummary(state.activeProfile);
+        drawProfileSummary(state.activeProfile, radarcolStatus);
         ImGui::TableNextColumn();
         ImGui::TextUnformatted("Safe by default");
         ImGui::TextWrapped("Source muls are read-only. Edits remain staged until you explicitly save them to an output path.");
         ImGui::Spacing();
         ImGui::TextDisabled("Map readiness: %s", readinessLabel(state.session.profileState()));
+        const std::string_view sourceName = providerSourceName(radarcolStatus.source);
+        ImGui::TextDisabled("Maps remain editable and savable with %.*s.",
+                            static_cast<int>(sourceName.size()),
+                            sourceName.data());
         ImGui::EndTable();
     }
 
