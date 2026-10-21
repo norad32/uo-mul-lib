@@ -18,12 +18,13 @@ TEST_CASE("mapContextSnapshot_Should_ExposeNoActiveLocationWithoutMap")
     REQUIRE(context.selectionMode == uo_mule::gui::MapSelectionMode::tiles);
 }
 
-TEST_CASE("dataProviders_Should_ReportUnavailableOptionalAssets_WhenProfileHasNoPaths")
+TEST_CASE("dataProviders_Should_ReportEmbeddedRadarcolAndUnavailableOptionalAssets_WhenProfileHasNoPaths")
 {
     uo_mule::gui::DataProviders providers;
     providers.sync(uo_mule::gui::DataProfile{});
 
-    REQUIRE(providers.radarColors().status().state == uo_mule::gui::ProviderAssetState::unavailable);
+    REQUIRE(providers.radarColors().status().state == uo_mule::gui::ProviderAssetState::available);
+    REQUIRE(providers.radarColors().status().source == uo_mule::gui::ProviderSourceKind::embeddedDefault);
     REQUIRE(providers.textures().status().state == uo_mule::gui::ProviderAssetState::unavailable);
     REQUIRE(providers.tileData().status().state == uo_mule::gui::ProviderAssetState::unavailable);
 }

@@ -63,17 +63,19 @@ uo_mule::gui::DataProfile validProfile(const std::filesystem::path & root)
 
 constexpr std::uint32_t testMapDimension = 64;
 
-TEST_CASE("profileReadiness_Should_RequireValidatedRadarcol")
+TEST_CASE("profileReadiness_Should_ReportRadarcolConfigurationWithoutBlockingFallback")
 {
     const TemporaryDirectory directory;
     createValidRadarcol(directory.path() / "radarcol.mul");
 
     const uo_mule::gui::DataProfile empty;
     REQUIRE(uo_mule::gui::profileReadiness(empty) == uo_mule::gui::ProfileReadinessState::needsProfile);
+    REQUIRE(uo_mule::gui::mapReady(empty));
 
     const auto incomplete = validProfile(directory.path());
     std::filesystem::remove(directory.path() / "radarcol.mul");
     REQUIRE(uo_mule::gui::profileReadiness(incomplete) == uo_mule::gui::ProfileReadinessState::profileIncomplete);
+    REQUIRE(uo_mule::gui::mapReady(incomplete));
 
     createValidRadarcol(directory.path() / "radarcol.mul");
     REQUIRE(uo_mule::gui::profileReadiness(incomplete) == uo_mule::gui::ProfileReadinessState::ready);
@@ -91,15 +93,14 @@ TEST_CASE("workbenchSession_Should_TransitionFromProfileSetupToWelcome")
     REQUIRE(session.startupState() == uo_mule::gui::StartupState::mapWelcome);
 }
 
-TEST_CASE("workbenchSession_Should_BlockMapCommandsAfterStartupWhenProfileIsNotReady")
+TEST_CASE("workbenchSession_Should_AllowMapCommandsWithEmbeddedRadarcolFallback")
 {
     uo_mule::gui::WorkbenchState state;
     state.startupLoaded = true;
 
     const auto availability = state.commands.availability(uo_mule::gui::CommandId::fileOpen, state);
 
-    REQUIRE_FALSE(availability.enabled);
-    REQUIRE(availability.disabledReason == "Configure a valid radarcol.mul profile first");
+    REQUIRE(availability.enabled);
 }
 
 TEST_CASE("recentMapStore_Should_RoundTripAndMarkMissingEntries")

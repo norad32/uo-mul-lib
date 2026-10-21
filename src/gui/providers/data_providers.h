@@ -21,9 +21,18 @@ enum class ProviderAssetState : std::uint8_t
     unsupported,
 };
 
+enum class ProviderSourceKind : std::uint8_t
+{
+    none,
+    embeddedDefault,
+    externalConfigured,
+    embeddedDefaultWithWarning,
+};
+
 struct ProviderStatus
 {
     ProviderAssetState state = ProviderAssetState::unavailable;
+    ProviderSourceKind source = ProviderSourceKind::none;
     std::string message;
     std::uint64_t revision = 0;
 };

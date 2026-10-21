@@ -1,4 +1,5 @@
 #include "gui/providers/data_providers.h"
+#include "gui/providers/embedded_radarcol.h"
 #include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
 #include "uomul/radarcol/radarcol.h"
@@ -45,37 +46,47 @@ ProviderStatus unavailableStatus(std::uint64_t revision, std::string message)
 class ProfileRadarColorProvider final : public RadarColorProvider
 {
 public:
+    ProfileRadarColorProvider() : embedded_(makeEmbeddedRadarColorProvider())
+    {
+    }
+
     void sync(const DataProfile & profile)
     {
         const auto path = resolvedDataFilePath(profile, DataFileRole::radarcol);
-        if (path == path_)
+        if (synchronized_ && path == path_)
         {
             return;
         }
+        synchronized_ = true;
         path_ = path;
         reader_.reset();
         ++revision_;
         if (path_.empty())
         {
-            status_ = unavailableStatus(revision_, "Radar colors are not configured");
+            status_ = embeddedStatus(ProviderSourceKind::embeddedDefault, "Embedded Radarcol");
             return;
         }
         auto result = uomul::RadarColReader::open(path_);
         if (!result)
         {
-            status_ = {.state = ProviderAssetState::invalid, .message = result.error().message, .revision = revision_};
+            status_ = embeddedStatus(ProviderSourceKind::embeddedDefaultWithWarning,
+                                     "Configured Radarcol unavailable: " + result.error().message);
             return;
         }
         reader_ = std::move(*result);
-        status_ = {.state = ProviderAssetState::available, .message = {}, .revision = revision_};
+        status_ = {.state = ProviderAssetState::available,
+                   .source = ProviderSourceKind::externalConfigured,
+                   .message = {},
+                   .revision = revision_,};
     }
 
     void invalidate() noexcept
     {
         path_.clear();
         reader_.reset();
+        synchronized_ = true;
         ++revision_;
-        status_ = unavailableStatus(revision_, "Radar colors are not loaded");
+        status_ = embeddedStatus(ProviderSourceKind::embeddedDefault, "Embedded Radarcol");
     }
 
     [[nodiscard]] ProviderStatus status() const override { return status_; }
@@ -83,11 +94,18 @@ public:
     {
         if (!reader_)
         {
-            return status_;
+            ProviderStatus result = embedded_->status(id);
+            result.source = status_.source;
+            result.message = status_.message;
+            result.revision = revision_;
+            return result;
         }
         if (!reader_->readMapColor(id))
         {
-            return {.state = ProviderAssetState::empty, .message = "No radar color entry", .revision = revision_};
+            return {.state = ProviderAssetState::empty,
+                    .source = status_.source,
+                    .message = "No radar color entry",
+                    .revision = revision_,};
         }
         return status_;
     }
@@ -95,17 +113,24 @@ public:
     {
         if (!reader_)
         {
-            return std::nullopt;
+            return embedded_->mapColor(id);
         }
         const auto color = reader_->readMapColor(id);
         return color ? std::optional<MapColor>(radarColorToMapColor(*color)) : std::nullopt;
     }
 
 private:
+    [[nodiscard]] ProviderStatus embeddedStatus(ProviderSourceKind source, std::string message) const
+    {
+        return {.state = ProviderAssetState::available, .source = source, .message = std::move(message), .revision = revision_};
+    }
+
     std::filesystem::path path_;
     std::optional<uomul::RadarColReader> reader_;
+    std::unique_ptr<RadarColorProvider> embedded_;
     ProviderStatus status_;
     std::uint64_t revision_ = 0;
+    bool synchronized_ = false;
 };
 
 class ProfileTextureProvider final : public TextureProvider

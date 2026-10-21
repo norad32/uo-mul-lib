@@ -30,10 +30,7 @@ CommandAvailability enabled(const WorkbenchState & state)
 
 CommandAvailability requiresMapReadyProfile(const WorkbenchState & state)
 {
-    if (state.startupLoaded && !state.session.mapReady())
-    {
-        return {.enabled = false, .disabledReason = "Configure a valid radarcol.mul profile first"};
-    }
+    static_cast<void>(state);
     return enabled(state);
 }
 

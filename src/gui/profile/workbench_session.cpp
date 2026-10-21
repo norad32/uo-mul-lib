@@ -76,7 +76,8 @@ ProfileReadinessState profileReadiness(const DataProfile & profile)
 
 bool mapReady(const DataProfile & profile)
 {
-    return profileReadiness(profile) == ProfileReadinessState::ready;
+    static_cast<void>(profile);
+    return true;
 }
 
 WorkbenchSession::WorkbenchSession() = default;
@@ -89,11 +90,7 @@ void WorkbenchSession::updateProfile(const DataProfile & profile)
 {
     documents_.updateMetadataSources(profile);
     profileState_ = profileReadiness(profile);
-    if (profileState_ != ProfileReadinessState::ready)
-    {
-        startupState_ = StartupState::configureProfile;
-    }
-    else if (startupState_ == StartupState::configureProfile)
+    if (startupState_ == StartupState::configureProfile && ::uo_mule::gui::mapReady(profile))
     {
         startupState_ = StartupState::mapWelcome;
     }
@@ -117,7 +114,15 @@ ProfileReadinessState WorkbenchSession::profileState() const noexcept
 
 bool WorkbenchSession::mapReady() const noexcept
 {
-    return profileState_ == ProfileReadinessState::ready;
+    switch (profileState_)
+    {
+        case ProfileReadinessState::needsProfile :
+        case ProfileReadinessState::profileInvalid :
+        case ProfileReadinessState::profileIncomplete :
+        case ProfileReadinessState::ready :
+            return true;
+    }
+    return false;
 }
 
 void WorkbenchSession::setStartupState(StartupState state) noexcept
