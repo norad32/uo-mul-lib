@@ -122,8 +122,6 @@ public:
     [[nodiscard]] const std::optional<uomul::MapTile> & hoveredValue() const noexcept;
     [[nodiscard]] const std::optional<uomul::TileCoord> & selectedTile() const noexcept;
     [[nodiscard]] const std::optional<uomul::MapTile> & selectedValue() const noexcept;
-    [[nodiscard]] bool editMode() const noexcept;
-    void setEditMode(bool enabled) noexcept;
     [[nodiscard]] const std::optional<uomul::Error> & error() const noexcept;
     void clearError() noexcept;
 
@@ -154,7 +152,6 @@ private:
     std::optional<uomul::MapTile> hoveredValue_;
     std::optional<uomul::TileCoord> selectedTile_;
     std::optional<uomul::MapTile> selectedValue_;
-    bool editMode_ = false;
     std::optional<uomul::Error> error_;
 };
 

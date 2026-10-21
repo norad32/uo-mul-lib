@@ -48,7 +48,6 @@ struct RadarcolPanelState
 void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile);
 void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult & result);
 void drawRadarcolPanel(RadarcolPanelState & state,
-                       bool editMode,
                        bool & visible,
                        FileBrowserState & browser,
                        bool readOnly = false);

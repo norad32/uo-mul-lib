@@ -37,9 +37,8 @@ void drawMapInfoPanel(const MapWorkspace & workspace, bool & visible)
             ImGui::Text("Missing blocks: %llu", static_cast<unsigned long long>(reader->missingBlocks()));
             ImGui::Text("Trailing bytes: %llu", static_cast<unsigned long long>(reader->ignoredTrailingBytes()));
             ImGui::TextColored(workspace.dirty() ? theme::imguiColor(theme::amber) : ImGui::GetStyleColorVec4(ImGuiCol_Text),
-                               "Edit state: %s",
+                               "Changes: %s",
                                workspace.dirty() ? "Unsaved staged changes" : "Clean");
-            ImGui::Text("Edit mode: %s", workspace.editMode() ? "Enabled" : "Disabled");
         }
 
         if (workspace.error())

@@ -162,7 +162,6 @@ void drawMapPanels(WorkbenchState & state,
     if (state.panelRegistry.find(PanelId::radarcol)->visible)
     {
         drawRadarcolPanel(radarcolState,
-                          workspace.editMode(),
                           state.panelRegistry.find(PanelId::radarcol)->visible,
                           state.fileBrowser,
                           true);

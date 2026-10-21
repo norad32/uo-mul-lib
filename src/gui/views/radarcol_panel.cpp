@@ -136,13 +136,13 @@ void drawSourceControls(RadarcolPanelState & state, FileBrowserState & browser, 
     ImGui::EndDisabled();
 }
 
-void drawEditControls(RadarcolPanelState & state, bool editMode, bool readOnly)
+void drawEditControls(RadarcolPanelState & state, bool readOnly)
 {
     if (readOnly)
     {
         return;
     }
-    if (!state.editor && state.reader && editMode)
+    if (!state.editor && state.reader)
     {
         ImGui::Text("Output: %s", state.outputPath.data());
         if (ImGui::Button("Begin editing"))
@@ -177,10 +177,9 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 [[nodiscard]] assets::AssetAdapter makeAdapter(RadarcolPanelState & state,
-                                                FileBrowserState & browser,
-                                                bool editMode,
-                                                bool readOnly,
-                                                std::string viewId)
+                                                 FileBrowserState & browser,
+                                                 bool readOnly,
+                                                 std::string viewId)
 {
     assets::AssetAdapter adapter;
     adapter.descriptor.viewId = std::move(viewId);
@@ -201,8 +200,8 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
         },
     });
     adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
-        .id = "editing", .label = "Editing", .draw = [&state, editMode, readOnly] {
-            drawEditControls(state, editMode, readOnly);
+        .id = "editing", .label = "Editing", .draw = [&state, readOnly] {
+            drawEditControls(state, readOnly);
         },
     });
     adapter.loadRange = [&state](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
@@ -245,11 +244,10 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
 void drawRadarcolView(RadarcolPanelState & state,
                       bool & visible,
                       FileBrowserState & browser,
-                      bool editMode,
                       bool readOnly,
                       std::string viewId)
 {
-    const auto adapter = makeAdapter(state, browser, editMode, readOnly, std::move(viewId));
+    const auto adapter = makeAdapter(state, browser, readOnly, std::move(viewId));
     assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 
@@ -314,12 +312,11 @@ void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult 
 }
 
 void drawRadarcolPanel(RadarcolPanelState & state,
-                       bool editMode,
                        bool & visible,
                        FileBrowserState & browser,
                        bool readOnly)
 {
-    drawRadarcolView(state, visible, browser, editMode, readOnly, "view.radarcol");
+    drawRadarcolView(state, visible, browser, readOnly, "view.radarcol");
 }
 
 void drawRadarcolDocumentPanel(RadarcolPanelState & state,
@@ -347,7 +344,7 @@ void drawRadarcolDocumentPanel(RadarcolPanelState & state,
             loadSource(state);
         }
     }
-    drawRadarcolView(state, visible, browser, !readOnly, readOnly, "document.radarcol");
+    drawRadarcolView(state, visible, browser, readOnly, "document.radarcol");
 }
 
 } // namespace uo_mule::gui

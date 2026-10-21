@@ -291,8 +291,6 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::tiles); });
     add(registry, CommandId::selectionBlocks, "selection.blocks", "Block selection", "Selection", "Select map blocks", "", enabled,
         [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::blocks); });
-    add(registry, CommandId::editToggle, "edit.toggle", "Edit mode", "Edit", "Toggle map editing", "", requiresMapDocument,
-        [](WorkbenchState & state) { state.workspace.setEditMode(!state.workspace.editMode()); });
     add(registry, CommandId::dataPaths, "data.paths", "Preferences...", "Data", "Configure the active UO data profile", "", enabled,
         [](WorkbenchState & state)
         {

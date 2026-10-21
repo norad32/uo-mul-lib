@@ -258,25 +258,6 @@ void drawSelectionMenu(WorkbenchState & state)
     ImGui::EndMenu();
 }
 
-void drawEditMenu(WorkbenchState & state)
-{
-    if (!ImGui::BeginMenu("Edit"))
-    {
-        return;
-    }
-
-    const bool editMode = state.workspace.editMode();
-    const Command * command = state.commands.find(CommandId::editToggle);
-    const CommandAvailability commandState = state.commands.availability(CommandId::editToggle, state);
-    const std::string label = editMode ? "Edit mode (ON)" : "Edit mode (OFF)";
-    if (command != nullptr && ImGui::MenuItem(label.c_str(), nullptr, editMode, commandState.enabled))
-    {
-        static_cast<void>(state.commands.execute(CommandId::editToggle, state));
-    }
-
-    ImGui::EndMenu();
-}
-
 void drawMapMenu(WorkbenchState & state)
 {
     if (!ImGui::BeginMenu("Map"))
@@ -428,7 +409,6 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
         drawFileMenu(state);
         drawViewMenu(state);
         drawSelectionMenu(state);
-        drawEditMenu(state);
         drawMapMenu(state);
 
         if (ImGui::BeginMenu("Data"))

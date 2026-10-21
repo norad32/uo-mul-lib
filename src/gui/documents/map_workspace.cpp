@@ -375,13 +375,11 @@ std::expected<void, uomul::Error> MapWorkspace::save(const std::filesystem::path
     const MapSelectionMode selectionMode = selectionMode_;
     const auto tileSelection = tileSelection_;
     const auto blockSelection = blockSelection_;
-    const bool editMode = editMode_;
     removeWorkingFile();
     replaceDocument(std::move(*opened), outputPath, outputPath);
     selectionMode_ = selectionMode;
     tileSelection_ = tileSelection;
     blockSelection_ = blockSelection;
-    editMode_ = editMode;
 
     return {};
 }
@@ -420,7 +418,6 @@ std::expected<void, uomul::Error> MapWorkspace::closeMap()
     blockSelection_.reset();
     clearHover();
     clearSelectedTile();
-    editMode_ = false;
     error_.reset();
 
     return {};
@@ -689,16 +686,6 @@ const std::optional<uomul::MapTile> & MapWorkspace::selectedValue() const noexce
     return selectedValue_;
 }
 
-bool MapWorkspace::editMode() const noexcept
-{
-    return editMode_;
-}
-
-void MapWorkspace::setEditMode(bool enabled) noexcept
-{
-    editMode_ = enabled;
-}
-
 const std::optional<uomul::Error> & MapWorkspace::error() const noexcept
 {
     return error_;
@@ -743,11 +730,6 @@ std::expected<void, uomul::Error> MapWorkspace::applyEdit(const EditOperation & 
         return fail(makeWorkspaceError(mapPath_, "no map is open"));
     }
 
-    if (!editMode_)
-    {
-        return fail(makeWorkspaceError(mapPath_, "edit mode is disabled"));
-    }
-
     const auto sourcePath = mapPath_;
     auto outputPath = createWorkingPath(sourcePath);
 
@@ -783,13 +765,11 @@ std::expected<void, uomul::Error> MapWorkspace::applyEdit(const EditOperation & 
     const auto selectionMode = selectionMode_;
     const auto tileSelection = tileSelection_;
     const auto blockSelection = blockSelection_;
-    const bool editMode = editMode_;
     removeWorkingFile();
     replaceDocument(std::move(*opened), *outputPath, originalPath_, *outputPath);
     selectionMode_ = selectionMode;
     tileSelection_ = tileSelection;
     blockSelection_ = blockSelection;
-    editMode_ = editMode;
     error_.reset();
 
     return {};
@@ -815,7 +795,6 @@ void MapWorkspace::replaceDocument(uomul::MapReader reader,
     blockSelection_.reset();
     clearHover();
     clearSelectedTile();
-    editMode_ = false;
     error_.reset();
 }
 

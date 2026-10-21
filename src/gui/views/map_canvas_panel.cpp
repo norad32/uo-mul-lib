@@ -631,11 +631,6 @@ void drawLayerControls(MapWorkspace & workspace, MapCanvasPanelState & state)
     ImGui::SameLine();
     drawLayerButton(workspace, MapDisplayMode::combined, "Combined");
 
-    if (workspace.editMode())
-    {
-        ImGui::SameLine();
-        ImGui::TextColored(theme::imguiColor(theme::sageGreen), "EDIT MODE");
-    }
     ImGui::SameLine();
     if (ImGui::Button("Go to Coordinate..."))
     {

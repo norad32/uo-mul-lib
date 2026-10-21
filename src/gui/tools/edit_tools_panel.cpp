@@ -267,7 +267,7 @@ void drawWarnings(const EditToolsPanelState & state, bool canApply, bool hasSele
 
     if (!canApply)
     {
-        ImGui::TextColored(statusColor(true), "Editing requires an open map and Edit mode ON.");
+        ImGui::TextColored(statusColor(true), "Editing requires an open map.");
     }
 
     if (state.scope == MapEditScope::selection && !hasSelection)
@@ -284,16 +284,14 @@ void drawWarnings(const EditToolsPanelState & state, bool canApply, bool hasSele
 void drawEditToolsContents(MapWorkspace & workspace, EditToolsPanelState & state)
 {
     const bool mapOpen = workspace.reader() != nullptr;
-    const bool editEnabled = workspace.editMode();
     const bool hasSelection = selectionAvailable(workspace);
-    const bool canApply = mapOpen && editEnabled;
+    const bool canApply = mapOpen;
 
     if (state.confirmationOperation != EditToolsOperation::none && !canApply)
     {
         state.confirmationOperation = EditToolsOperation::none;
     }
 
-    ImGui::Text("Edit mode: %s", editEnabled ? "ON" : "OFF");
     ImGui::Text("Map: %s", mapOpen ? workspace.mapPath().string().c_str() : "No map open");
     drawSelectionDetails(workspace);
 

@@ -45,8 +45,6 @@ public:
     [[nodiscard]] const std::optional<uomul::MapTile> & hoveredValue() const noexcept { return active_->hoveredValue(); }
     [[nodiscard]] const std::optional<uomul::TileCoord> & selectedTile() const noexcept { return active_->selectedTile(); }
     [[nodiscard]] const std::optional<uomul::MapTile> & selectedValue() const noexcept { return active_->selectedValue(); }
-    [[nodiscard]] bool editMode() const noexcept { return active_->editMode(); }
-    void setEditMode(bool enabled) noexcept { active_->setEditMode(enabled); }
     [[nodiscard]] const std::optional<uomul::Error> & error() const noexcept { return active_->error(); }
     [[nodiscard]] std::expected<std::optional<uomul::MapStats>, uomul::Error> selectionStats() { return active_->selectionStats(); }
     [[nodiscard]] std::expected<void, uomul::Error> updateHover(uomul::TileCoord tile) { return active_->updateHover(tile); }

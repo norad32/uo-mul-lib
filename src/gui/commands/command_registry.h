@@ -33,7 +33,6 @@ enum class CommandId : std::uint8_t
     panelTexmaps,
     selectionTiles,
     selectionBlocks,
-    editToggle,
     dataPaths,
     resetLayout,
     mapFit,

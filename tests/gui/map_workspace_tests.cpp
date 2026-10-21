@@ -258,11 +258,10 @@ TEST_CASE("mapWorkspace_Should_StageEditsAndRequireExplicitDirtyResolution")
 
     MapWorkspace workspace;
     REQUIRE(workspace.openMap(originalPath, testDimensions));
-    REQUIRE_FALSE(workspace.fill({.id = selectionReplacementTileId, .z = filledElevation}, MapEditScope::wholeMap));
-    REQUIRE_FALSE(workspace.dirty());
-    workspace.setEditMode(true);
     workspace.setTileSelection({.min = {.x = 1, .y = 2}, .maxExclusive = {.x = 3, .y = 4}});
     REQUIRE(workspace.fill({.id = selectionReplacementTileId, .z = filledElevation}, MapEditScope::selection));
+    REQUIRE(workspace.dirty());
+    REQUIRE_FALSE(workspace.openMap(otherPath, testDimensions));
     REQUIRE(workspace.dirty());
     REQUIRE(workspace.workingPath().has_value());
     const auto & stagedPath = workspace.workingPath();
@@ -271,17 +270,12 @@ TEST_CASE("mapWorkspace_Should_StageEditsAndRequireExplicitDirtyResolution")
             uomul::MapTile{.id = selectionReplacementTileId, .z = filledElevation});
     REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == initialTile);
 
-    REQUIRE_FALSE(workspace.openMap(otherPath, testDimensions));
-    REQUIRE(workspace.workingPath().has_value());
-    const auto & retainedStagedPath = workspace.workingPath();
-    REQUIRE(workspace.mapPath() == retainedStagedPath.value_or(std::filesystem::path{}));
     REQUIRE_FALSE(workspace.openMap(otherPath, testDimensions, PendingChangesAction::cancel));
     REQUIRE(workspace.openMap(otherPath, testDimensions, PendingChangesAction::discard));
     REQUIRE_FALSE(workspace.dirty());
     REQUIRE(workspace.mapPath() == otherPath);
 
     REQUIRE(workspace.openMap(originalPath, testDimensions));
-    workspace.setEditMode(true);
     REQUIRE(workspace.replaceTileId(initialTile.id, 23, MapEditScope::wholeMap));
     REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) ==
             uomul::MapTile{.id = selectedReplacementTileId, .z = initialTile.z});
@@ -303,7 +297,6 @@ TEST_CASE("mapWorkspace_Should_RejectSelectionEditsWithoutSelectionAndDiscardBac
     REQUIRE(uomul::MapEditor::createEmpty(sourcePath, testDimensions, initialTile));
     MapWorkspace workspace;
     REQUIRE(workspace.openMap(sourcePath, testDimensions));
-    workspace.setEditMode(true);
     REQUIRE_FALSE(workspace.replaceTileId(initialTile.id, rejectedReplacementTileId, MapEditScope::selection));
     REQUIRE_FALSE(workspace.dirty());
     workspace.setBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}});
@@ -332,7 +325,6 @@ TEST_CASE("mapWorkspaceManager_Should_PreserveIndependentMapAndCanvasState")
     MapWorkspaceManager manager;
     REQUIRE(manager.openMap(firstPath, testDimensions));
     manager.bindActiveDocument(1U);
-    manager.setEditMode(true);
     manager.setDisplayMode(uo_mule::gui::MapDisplayMode::combined);
     manager.setTileSelection({.min = {.x = 1, .y = 2}, .maxExclusive = {.x = 3, .y = 4}});
     manager.canvasState().panX = 12.0;

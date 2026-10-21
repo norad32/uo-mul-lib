@@ -27,10 +27,6 @@ TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")
 {
     WorkbenchState state;
 
-    const auto editAvailability = state.commands.availability(CommandId::editToggle, state);
-    REQUIRE_FALSE(editAvailability.enabled);
-    REQUIRE(editAvailability.disabledReason == "No map is open");
-
     REQUIRE(state.commands.execute(CommandId::fileOpen, state));
     REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::openMap);
 
