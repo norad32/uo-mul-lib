@@ -11,6 +11,7 @@
 #include "gui/commands/command_registry.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/dialogs/new_map_dialog.h"
+#include "gui/dialogs/dialog_contracts.h"
 #include "gui/application/workbench_state.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/views/panel_registry.h"
@@ -22,6 +23,61 @@ namespace uo_mule::gui
 {
 namespace
 {
+
+void syncDialogHost(WorkbenchState & state)
+{
+    const auto mapWorkflow = [](MapFileDialogMode mode) noexcept {
+        switch (mode)
+        {
+            case MapFileDialogMode::openMap:
+                return MapDialogWorkflow::open;
+            case MapFileDialogMode::newMap:
+                return MapDialogWorkflow::create;
+            case MapFileDialogMode::saveAs:
+                return MapDialogWorkflow::saveAs;
+            case MapFileDialogMode::dirtyChanges:
+                return MapDialogWorkflow::dirtyChanges;
+            case MapFileDialogMode::overwrite:
+                return MapDialogWorkflow::overwrite;
+            case MapFileDialogMode::error:
+                return MapDialogWorkflow::error;
+            case MapFileDialogMode::selectMapFacet:
+                return MapDialogWorkflow::create;
+            case MapFileDialogMode::none:
+                break;
+        }
+        return MapDialogWorkflow::error;
+    };
+    const bool browserVisible = state.fileBrowser.visible;
+    const bool selectorVisible = state.fileSelector.visible;
+    const bool mapDialogVisible = state.menuBarState.fileDialog.mode != MapFileDialogMode::none;
+    const bool preferencesVisible = state.menuBarState.preferencesDialog.visible;
+    if (browserVisible)
+    {
+        auto request = makeDialogRequest(DialogId::fileBrowser,
+                                         FileBrowserDialogRequest{.request = state.fileBrowser.request});
+        request.replaceActive = true;
+        state.dialogHost.activate(std::move(request));
+    }
+    else if (selectorVisible)
+    {
+        state.dialogHost.activate(makeDialogRequest(DialogId::fileSelector,
+                                                     FileSelectorDialogRequest{.sourcePath = state.fileSelector.browserResult.path}));
+    }
+    else if (mapDialogVisible)
+    {
+        state.dialogHost.activate(makeDialogRequest(DialogId::mapWorkflow,
+                                                     MapDialogRequest{.workflow = mapWorkflow(state.menuBarState.fileDialog.mode)}));
+    }
+    else if (preferencesVisible)
+    {
+        state.dialogHost.activate(makeDialogRequest(DialogId::preferences));
+    }
+    else if (state.dialogHost.active)
+    {
+        state.dialogHost.cancel();
+    }
+}
 
 void drawCommandItem(WorkbenchState & state, CommandId id, bool selected = false)
 {
@@ -269,7 +325,7 @@ void handleEscape(WorkbenchState & state, bool showMainMenu)
 
 bool handleFileSelector(WorkbenchState & state)
 {
-    if (state.fileBrowser.visible || !state.fileSelector.visible)
+    if (!state.dialogHost.owns(DialogId::fileSelector) || state.fileBrowser.visible || !state.fileSelector.visible)
     {
         return false;
     }
@@ -314,6 +370,7 @@ bool handleFileSelector(WorkbenchState & state)
 bool drawFileDialogs(WorkbenchState & state)
 {
     bool profileChanged = false;
+    syncDialogHost(state);
     if (state.menuBarState.fileDialog.shouldClose)
     {
         state.shouldClose = true;
@@ -321,7 +378,7 @@ bool drawFileDialogs(WorkbenchState & state)
     }
 
     const bool browserWasVisible = state.fileBrowser.visible;
-    if (!browserWasVisible && !state.fileSelector.visible)
+    if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::mapWorkflow))
     {
         drawNewMapDialog(state.workspace,
                          state.menuBarState.fileDialog,
@@ -330,10 +387,16 @@ bool drawFileDialogs(WorkbenchState & state)
                          state.notifications,
                          state.fileBrowser,
                          state.shouldClose);
+    }
+    if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::preferences))
+    {
         profileChanged = drawPreferencesDialog(
             state.menuBarState.preferencesDialog, state.activeProfile, state.preferences, state.fileBrowser);
     }
-    drawFileBrowser(state.fileBrowser);
+    if (state.dialogHost.owns(DialogId::fileBrowser))
+    {
+        drawFileBrowser(state.fileBrowser);
+    }
     const auto result = consumeFileBrowserResult(state.fileBrowser);
     if (!state.fileBrowser.visible && browserWasVisible && !result &&
         state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
@@ -342,6 +405,9 @@ bool drawFileDialogs(WorkbenchState & state)
     }
     if (result)
     {
+        state.dialogHost.complete({.id = DialogId::fileBrowser,
+                                   .action = DialogAction::accept,
+                                   .payload = *result,});
         profileChanged = applyFileBrowserResultToWorkbench(state, *result) || profileChanged;
     }
     return handleFileSelector(state) || profileChanged;

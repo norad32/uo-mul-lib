@@ -10,6 +10,7 @@
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/dialogs/new_map_dialog.h"
+#include "gui/dialogs/dialog_host.h"
 #include "gui/context/notification_state.h"
 #include "gui/commands/operation_controller.h"
 #include "gui/views/block_inspector_panel.h"
@@ -61,6 +62,7 @@ struct WorkbenchState
     std::optional<DocumentId> pendingDocumentClose;
     bool pendingDocumentCloseDirty = false;
     MenuBarState menuBarState;
+    DialogHostState dialogHost;
     FileBrowserState fileBrowser;
     FileSelectorState fileSelector;
     MapCanvasPanelState mapCanvasState;

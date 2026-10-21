@@ -35,7 +35,9 @@ add_library(
     dialogs/file_browser_dialog.cpp
     dialogs/file_selector_dialog.cpp
     dialogs/map_facet_dialog.cpp
-    dialogs/preferences_dialog.cpp
+     dialogs/preferences_dialog.cpp
+     dialogs/dialog_contracts.cpp
+     dialogs/dialog_host.cpp
     documents/document_identity.cpp
     documents/map_document.cpp
     documents/radarcol_document.cpp
