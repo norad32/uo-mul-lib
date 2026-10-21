@@ -30,7 +30,43 @@
       "name": "debug-gui",
       "displayName": "Debug GUI (Ninja)",
       "inherits": "debug",
-      "binaryDir": "${sourceDir}/build/debug-gui"
+      "binaryDir": "${sourceDir}/build/debug-gui",
+      "cacheVariables": {
+        "BUILD_CLI": "ON",
+        "BUILD_GUI": "ON",
+        "BUILD_CORE_TESTS": "OFF",
+        "BUILD_CLI_TESTS": "OFF",
+        "BUILD_GUI_TESTS": "ON"
+      }
+    },
+    {
+      "name": "debug-cli",
+      "displayName": "Debug CLI (Ninja)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/debug-cli",
+      "cacheVariables": {
+        "BUILD_GUI": "OFF",
+        "BUILD_CLI": "ON",
+        "BUILD_CORE_TESTS": "OFF",
+        "BUILD_CLI_TESTS": "ON",
+        "BUILD_GUI_TESTS": "OFF",
+        "INSTALL_GUI": "OFF"
+      }
+    },
+    {
+      "name": "debug-uomul",
+      "displayName": "Debug uomul (Ninja)",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build/debug-uomul",
+      "cacheVariables": {
+        "BUILD_CLI": "OFF",
+        "BUILD_GUI": "OFF",
+        "BUILD_TESTS": "ON",
+        "BUILD_CORE_TESTS": "ON",
+        "BUILD_CLI_TESTS": "OFF",
+        "BUILD_GUI_TESTS": "OFF",
+        "INSTALL_GUI": "OFF"
+      }
     },
     {
       "name": "debug-headless",
@@ -39,6 +75,9 @@
       "binaryDir": "${sourceDir}/build/debug-headless",
       "cacheVariables": {
         "BUILD_GUI": "OFF",
+        "BUILD_CORE_TESTS": "ON",
+        "BUILD_CLI_TESTS": "ON",
+        "BUILD_GUI_TESTS": "OFF",
         "INSTALL_GUI": "OFF"
       }
     },
@@ -62,7 +101,38 @@
       "cacheVariables": {
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/install/release-gui",
         "BUILD_GUI_RUNTIME": "ON",
-        "BUILD_GUI": "ON"
+        "BUILD_GUI": "ON",
+        "BUILD_CORE_TESTS": "ON",
+        "BUILD_CLI_TESTS": "ON",
+        "BUILD_GUI_TESTS": "ON"
+      }
+    },
+    {
+      "name": "release-cli",
+      "displayName": "Release CLI (Ninja)",
+      "inherits": "release-base",
+      "binaryDir": "${sourceDir}/build/release-cli",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/install/release-cli",
+        "BUILD_CLI": "ON",
+        "BUILD_GUI": "OFF",
+        "BUILD_CORE_TESTS": "OFF",
+        "BUILD_CLI_TESTS": "ON",
+        "BUILD_GUI_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "release-uomul",
+      "displayName": "Release uomul (Ninja)",
+      "inherits": "release-base",
+      "binaryDir": "${sourceDir}/build/release-uomul",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/install/release-uomul",
+        "BUILD_CLI": "OFF",
+        "BUILD_GUI": "OFF",
+        "BUILD_CORE_TESTS": "ON",
+        "BUILD_CLI_TESTS": "OFF",
+        "BUILD_GUI_TESTS": "OFF"
       }
     },
     {
@@ -73,7 +143,10 @@
       "cacheVariables": {
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/install/release-headless",
         "BUILD_GUI": "OFF",
-        "BUILD_GUI_RUNTIME": "OFF"
+        "BUILD_GUI_RUNTIME": "OFF",
+        "BUILD_CORE_TESTS": "ON",
+        "BUILD_CLI_TESTS": "ON",
+        "BUILD_GUI_TESTS": "OFF"
       }
     },
     {
@@ -91,23 +164,48 @@
   "buildPresets": [
     {
       "name": "debug",
-      "configurePreset": "debug"
+      "configurePreset": "debug",
+      "targets": ["uo-mule"]
     },
     {
       "name": "debug-gui",
-      "configurePreset": "debug-gui"
+      "configurePreset": "debug-gui",
+      "targets": ["uo-mule"]
+    },
+    {
+      "name": "debug-cli",
+      "configurePreset": "debug-cli",
+      "targets": ["uo-mule"]
+    },
+    {
+      "name": "debug-uomul",
+      "configurePreset": "debug-uomul",
+      "targets": ["uomul_tests"]
     },
     {
       "name": "debug-headless",
-      "configurePreset": "debug-headless"
+      "configurePreset": "debug-headless",
+      "targets": ["uo-mule"]
     },
     {
       "name": "release-gui",
-      "configurePreset": "release-gui"
+      "configurePreset": "release-gui",
+      "targets": ["all"]
+    },
+    {
+      "name": "release-cli",
+      "configurePreset": "release-cli",
+      "targets": ["uo-mule"]
+    },
+    {
+      "name": "release-uomul",
+      "configurePreset": "release-uomul",
+      "targets": ["uomul_tests"]
     },
     {
       "name": "release-headless",
-      "configurePreset": "release-headless"
+      "configurePreset": "release-headless",
+      "targets": ["all"]
     },
     {
       "name": "release-map-benchmarks",
@@ -133,6 +231,16 @@
       "configurePreset": "debug-gui"
     },
     {
+      "name": "debug-cli",
+      "inherits": "test-base",
+      "configurePreset": "debug-cli"
+    },
+    {
+      "name": "debug-uomul",
+      "inherits": "test-base",
+      "configurePreset": "debug-uomul"
+    },
+    {
       "name": "debug-headless",
       "inherits": "test-base",
       "configurePreset": "debug-headless"
@@ -141,6 +249,16 @@
       "name": "release-gui",
       "inherits": "test-base",
       "configurePreset": "release-gui"
+    },
+    {
+      "name": "release-cli",
+      "inherits": "test-base",
+      "configurePreset": "release-cli"
+    },
+    {
+      "name": "release-uomul",
+      "inherits": "test-base",
+      "configurePreset": "release-uomul"
     },
     {
       "name": "release-headless",

@@ -3,10 +3,12 @@
 set(_PACKAGE_NAME "@CMAKE_PACKAGE_NAME@")
 
 include(CMakeFindDependencyMacro)
-set(${_PACKAGE_NAME}_app_FOUND TRUE)
 set(${_PACKAGE_NAME}_uomul_FOUND TRUE)
 set(${_PACKAGE_NAME}_development_FOUND TRUE)
 set(${_PACKAGE_NAME}_uomul_FOUND TRUE)
+if(@BUILD_CLI@ OR @BUILD_GUI@)
+    set(${_PACKAGE_NAME}_app_FOUND TRUE)
+endif()
 if(@BUILD_GUI@)
     set(${_PACKAGE_NAME}_gui_FOUND TRUE)
     list(LENGTH ${_PACKAGE_NAME}_FIND_COMPONENTS _component_count)

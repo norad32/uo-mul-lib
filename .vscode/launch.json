@@ -5,7 +5,7 @@
       "name": "Debug GUI",
       "type": "cppdbg",
       "request": "launch",
-      "preLaunchTask": "Build Debug GUI",
+      "preLaunchTask": "Build Debug GUI Run",
       "program": "${workspaceFolder}/build/debug-gui/uo-mule",
       "args": ["gui", "-l", "TRACE"],
       "stopAtEntry": false,

@@ -12,8 +12,8 @@
       "id": "buildTarget",
       "type": "pickString",
       "description": "Select build target",
-      "options": ["gui", "headless", "all"],
-      "default": "all"
+      "options": ["cli", "uomul", "gui", "all"],
+      "default": "gui"
     },
     {
       "id": "benchmarkTarget",
@@ -39,7 +39,7 @@
     {
       "label": "Build",
       "type": "shell",
-      "command": "compiler=\"$(command -v g++-14 || command -v g++)\"; build_type=\"${input:buildType}\"; build_target=\"${input:buildTarget}\"; build_types=(debug release); build_targets=(gui headless); if [[ \"$build_type\" != all ]]; then build_types=(\"$build_type\"); fi; if [[ \"$build_target\" != all ]]; then build_targets=(\"$build_target\"); fi; for type in \"${build_types[@]}\"; do for target in \"${build_targets[@]}\"; do preset=\"${type}-${target}\"; cmake --preset \"$preset\" -DCMAKE_CXX_COMPILER=\"$compiler\" && cmake --build --preset \"$preset\" || exit $?; done; done",
+      "command": "compiler=\"$(command -v g++-14 || command -v g++)\"; build_type=\"${input:buildType}\"; build_target=\"${input:buildTarget}\"; build_types=(debug release); build_targets=(cli uomul gui); if [[ \"$build_type\" != all ]]; then build_types=(\"$build_type\"); fi; if [[ \"$build_target\" != all ]]; then build_targets=(\"$build_target\"); fi; for type in \"${build_types[@]}\"; do for target in \"${build_targets[@]}\"; do preset=\"${type}-${target}\"; cmake --preset \"$preset\" -DCMAKE_CXX_COMPILER=\"$compiler\" && cmake --build --preset \"$preset\" || exit $?; done; done",
       "options": {
         "cwd": "${workspaceFolder}",
         "shell": {
@@ -53,14 +53,35 @@
     {
       "label": "Build Debug GUI",
       "type": "shell",
-      "command": "cmake --preset debug-gui -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-gui",
+      "command": "cmake --preset debug-gui -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-gui --target uo-mule",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build Debug GUI Run",
+      "type": "shell",
+      "command": "cmake --preset debug-gui && cmake --build --preset debug-gui --target uo-mule",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build Debug CLI",
+      "type": "shell",
+      "command": "cmake --preset debug-cli -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-cli --target uo-mule",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Build Debug uomul",
+      "type": "shell",
+      "command": "cmake --preset debug-uomul -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-uomul --target uomul_tests",
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": ["$gcc"]
     },
     {
       "label": "Build Debug Headless",
       "type": "shell",
-      "command": "cmake --preset debug-headless -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-headless",
+      "command": "cmake --preset debug-headless -DENABLE_CLANG_TIDY=ON && cmake --build --preset debug-headless --target uo-mule",
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": ["$gcc"]
     },
@@ -80,7 +101,7 @@
     {
       "label": "Clean",
       "type": "shell",
-      "command": "build_type=\"${input:buildType}\"; build_target=\"${input:buildTarget}\"; build_types=(debug release); build_targets=(gui headless); if [[ \"$build_type\" != all ]]; then build_types=(\"$build_type\"); fi; if [[ \"$build_target\" != all ]]; then build_targets=(\"$build_target\"); fi; for type in \"${build_types[@]}\"; do for target in \"${build_targets[@]}\"; do build_dir=\"build/${type}-${target}\"; if [[ -d \"$build_dir\" ]]; then cmake -E rm -rf \"$build_dir\" || exit $?; fi; done; done",
+      "command": "build_type=\"${input:buildType}\"; build_target=\"${input:buildTarget}\"; build_types=(debug release); build_targets=(cli uomul gui); if [[ \"$build_type\" != all ]]; then build_types=(\"$build_type\"); fi; if [[ \"$build_target\" != all ]]; then build_targets=(\"$build_target\"); fi; for type in \"${build_types[@]}\"; do for target in \"${build_targets[@]}\"; do build_dir=\"build/${type}-${target}\"; if [[ -d \"$build_dir\" ]]; then cmake -E rm -rf \"$build_dir\" || exit $?; fi; done; done",
       "options": {
         "cwd": "${workspaceFolder}",
         "shell": {
@@ -93,10 +114,24 @@
     {
       "label": "Test Debug GUI",
       "type": "shell",
-      "command": "cmake --preset debug-gui && cmake --build --preset debug-gui && ctest --preset debug-gui",
+      "command": "cmake --preset debug-gui && cmake --build --preset debug-gui --target gui_tests uo-mule && ctest --preset debug-gui",
       "options": {
         "cwd": "${workspaceFolder}"
       },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test Debug CLI",
+      "type": "shell",
+      "command": "cmake --preset debug-cli && cmake --build --preset debug-cli --target cli_tests uo-mule && ctest --preset debug-cli",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test Debug uomul",
+      "type": "shell",
+      "command": "cmake --preset debug-uomul && cmake --build --preset debug-uomul --target uomul_tests && ctest --preset debug-uomul",
+      "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": []
     },
     {
