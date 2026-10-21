@@ -59,6 +59,9 @@ struct WorkbenchState
     ViewRegistry views;
     std::string dockingIni;
     bool layoutResetRequested = false;
+    std::optional<DocumentId> pendingDocumentActivation;
+    std::optional<DocumentId> pendingDocumentClose;
+    bool pendingDocumentCloseDirty = false;
     MenuBarState menuBarState;
     FileBrowserState fileBrowser;
     FileSelectorState fileSelector;

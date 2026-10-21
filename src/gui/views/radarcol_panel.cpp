@@ -1,4 +1,5 @@
 #include "gui/views/radarcol_panel.h"
+#include "gui/frontend/document_surface.h"
 #include "gui/documents/radarcol_document.h"
 #include "gui/metadata/document_contracts.h"
 #include "gui/profile/data_profile.h"
@@ -575,7 +576,7 @@ void drawRadarcolDocumentPanel(RadarcolPanelState & state,
         }
     }
 
-    if (!ImGui::Begin("Radarcol Document###document.radarcol", &visible))
+    if (!ImGui::Begin(documentSurfaceWindowName(), &visible))
     {
         ImGui::End();
         return;

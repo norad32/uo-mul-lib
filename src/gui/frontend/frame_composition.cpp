@@ -1,4 +1,5 @@
 #include "gui/frontend/frame_composition.h"
+#include "gui/frontend/document_surface.h"
 #include "core/gui_log_sink.h"
 #include "gui/application/workbench_state.h"
 #include "gui/commands/menu_bar.h"
@@ -30,7 +31,6 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cmath>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -73,7 +73,7 @@ constexpr std::size_t quitShortcutIndex = 4;
 constexpr std::size_t goToShortcutIndex = 5;
 
 constexpr std::array<DockWindowDescriptor, 8> dockWindows{
-        DockWindowDescriptor{.panel = PanelId::mapCanvas, .windowName = "Map Canvas###view.map-canvas"},
+    DockWindowDescriptor{.panel = PanelId::mapCanvas, .windowName = documentSurfaceWindowName()},
     DockWindowDescriptor{.panel = PanelId::tileInspector, .windowName = "Tile Inspector###view.tile-inspector"},
     DockWindowDescriptor{.panel = PanelId::blockInspector, .windowName = "Block Inspector###view.block-inspector"},
     DockWindowDescriptor{.panel = PanelId::selectionStatistics, .windowName = "Selection Statistics###view.selection-statistics"},
@@ -106,17 +106,13 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
                                                         (dockPosition.y - viewport->WorkPos.y));
     constexpr ImGuiDockNodeFlags dockSpaceFlags = ImGuiDockNodeFlags_PassthruCentralNode;
     const ImGuiID dockSpaceId = ImGui::GetID("BackgroundDockSpace");
-    const ImVec2 expectedDockPosition = dockPosition;
     const ImGuiDockNode * existingDockNode = ImGui::DockBuilderGetNode(dockSpaceId);
-    const bool dockPositionChanged = existingDockNode != nullptr &&
-                                     (std::abs(existingDockNode->Pos.x - expectedDockPosition.x) > 0.5F ||
-                                      std::abs(existingDockNode->Pos.y - expectedDockPosition.y) > 0.5F);
-    if (state.layoutResetRequested || existingDockNode == nullptr || dockPositionChanged)
+    if (state.layoutResetRequested || existingDockNode == nullptr)
     {
         state.layoutResetRequested = false;
         ImGui::DockBuilderRemoveNode(dockSpaceId);
         ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
-        ImGui::DockBuilderSetNodePos(dockSpaceId, expectedDockPosition);
+        ImGui::DockBuilderSetNodePos(dockSpaceId, dockPosition);
         ImGui::DockBuilderSetNodeSize(dockSpaceId, ImVec2(viewport->WorkSize.x, availableDockHeight));
         ImGuiID leftNode = 0;
         ImGuiID centerNode = 0;
@@ -151,20 +147,15 @@ void drawMapPanels(WorkbenchState & state,
     syncRadarcolPanel(radarcolState, activeProfile);
     syncTexmapsPanel(texmapsState, activeProfile);
 
-    if (state.panelRegistry.find(PanelId::mapCanvas)->visible)
-    {
-        drawMapCanvasPanel(workspace,
-                           state.providers.radarColors(),
-                           canvasState,
-                           [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
-                           [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
-                           [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
-                           state.panelRegistry.find(PanelId::mapCanvas)->visible);
-    }
-    else
-    {
-        workspace.clearHover();
-    }
+    // The active map owns the central document surface; it is not an optional palette.
+    bool documentVisible = true;
+    drawMapCanvasPanel(workspace,
+                       state.providers.radarColors(),
+                       canvasState,
+                       [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
+                       [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
+                       [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
+                       documentVisible);
     const MapContextSnapshot context = state.session.contextSnapshot(workspace);
 
     if (state.panelRegistry.find(PanelId::tileInspector)->visible)
@@ -189,7 +180,11 @@ void drawMapPanels(WorkbenchState & state,
     }
     if (state.panelRegistry.find(PanelId::radarcol)->visible)
     {
-        drawRadarcolPanel(radarcolState, workspace.editMode(), state.panelRegistry.find(PanelId::radarcol)->visible, state.fileBrowser);
+        drawRadarcolPanel(radarcolState,
+                          workspace.editMode(),
+                          state.panelRegistry.find(PanelId::radarcol)->visible,
+                          state.fileBrowser,
+                          true);
     }
     if (state.panelRegistry.find(PanelId::texmaps)->visible)
     {
@@ -338,7 +333,7 @@ void drawStartupScreen(WorkbenchState & state)
     ImGui::End();
 }
 
-void drawEmptyDocumentState(WorkbenchState & state)
+void drawDocumentSurface(WorkbenchState & state)
 {
     if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
     {
@@ -351,10 +346,7 @@ void drawEmptyDocumentState(WorkbenchState & state)
         return;
     }
 
-    const ImGuiViewport * viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + documentTabBarHeight), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - documentTabBarHeight), ImGuiCond_Always);
-    if (!ImGui::Begin("Document###workbench.empty-document", nullptr,
+    if (!ImGui::Begin(documentSurfaceWindowName(), nullptr,
                       ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
     {
         ImGui::End();
@@ -375,6 +367,60 @@ void drawEmptyDocumentState(WorkbenchState & state)
     ImGui::End();
 }
 
+void requestDocumentActivation(WorkbenchState & state, DocumentId id)
+{
+    state.pendingDocumentActivation = id;
+}
+
+void requestDocumentClose(WorkbenchState & state, DocumentId id, bool dirty)
+{
+    state.pendingDocumentClose = id;
+    state.pendingDocumentCloseDirty = dirty;
+}
+
+void applyPendingDocumentAction(WorkbenchState & state)
+{
+    if (state.pendingDocumentActivation)
+    {
+        const DocumentId id = *state.pendingDocumentActivation;
+        state.pendingDocumentActivation.reset();
+        const auto activated = state.session.activateDocument(id, state.workspace);
+        if (!activated)
+        {
+            state.notifications.add(NotificationSeverity::error, activated.error().message);
+        }
+        return;
+    }
+
+    if (!state.pendingDocumentClose)
+    {
+        return;
+    }
+
+    const DocumentId id = *state.pendingDocumentClose;
+    const bool dirty = state.pendingDocumentCloseDirty;
+    state.pendingDocumentClose.reset();
+    state.pendingDocumentCloseDirty = false;
+
+    if (dirty)
+    {
+        const auto activated = state.session.activateDocument(id, state.workspace);
+        if (!activated)
+        {
+            state.notifications.add(NotificationSeverity::error, activated.error().message);
+            return;
+        }
+        static_cast<void>(state.commands.execute(CommandId::fileClose, state));
+        return;
+    }
+
+    const auto closed = state.session.closeDocument(id, state.workspace);
+    if (!closed)
+    {
+        state.notifications.add(NotificationSeverity::error, closed.error().message);
+    }
+}
+
 bool drawDocumentTab(WorkbenchState & state, const DocumentRecord & document, std::optional<DocumentId> activeId)
 {
     bool open = true;
@@ -385,11 +431,7 @@ bool drawDocumentTab(WorkbenchState & state, const DocumentRecord & document, st
     {
         if (!selected)
         {
-            const auto activated = state.session.activateDocument(document.summary.identity.id, state.workspace);
-            if (!activated)
-            {
-                state.notifications.add(NotificationSeverity::error, activated.error().message);
-            }
+            requestDocumentActivation(state, document.summary.identity.id);
         }
         ImGui::EndTabItem();
     }
@@ -400,24 +442,11 @@ bool drawDocumentTab(WorkbenchState & state, const DocumentRecord & document, st
 
     if (document.summary.dirty)
     {
-        if (!selected)
-        {
-            const auto activated = state.session.activateDocument(document.summary.identity.id, state.workspace);
-            if (!activated)
-            {
-                state.notifications.add(NotificationSeverity::error, activated.error().message);
-                return true;
-            }
-        }
-        static_cast<void>(state.commands.execute(CommandId::fileClose, state));
+        requestDocumentClose(state, document.summary.identity.id, true);
         return true;
     }
 
-    const auto closed = state.session.closeDocument(document.summary.identity.id, state.workspace);
-    if (!closed)
-    {
-        state.notifications.add(NotificationSeverity::error, closed.error().message);
-    }
+    requestDocumentClose(state, document.summary.identity.id, false);
     return true;
 }
 
@@ -500,6 +529,7 @@ std::string documentTabLabel(const DocumentSummary & summary)
     return label;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
 {
     ImGui_ImplOpenGL3_NewFrame();
@@ -542,7 +572,6 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
     dispatchShortcuts(state);
 
     const float bottomPanelHeight = welcomeShell ? 0.0F : drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
-    const bool noMapLoaded = state.workspace.reader() == nullptr;
     state.session.syncDocument(state.workspace);
     if (state.session.startupState() == StartupState::configureProfile)
     {
@@ -561,6 +590,7 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         state.welcomeGreetingSelected = false;
         state.welcomeGreeting.clear();
         drawDockSpace(state, bottomPanelHeight);
+        applyPendingDocumentAction(state);
         if (state.workspace.reader() != nullptr)
         {
             drawMapPanels(state,
@@ -575,15 +605,15 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         }
         else
         {
-            drawEmptyDocumentState(state);
+            drawDocumentSurface(state);
         }
-        if (state.recentMapRecordedPath != state.workspace.mapPath())
+        if (state.workspace.reader() != nullptr && state.recentMapRecordedPath != state.workspace.mapPath())
         {
             state.session.recordRecentMap(state.workspace.mapPath(), state.workspace.dimensions());
             state.recentMapRecordedPath = state.workspace.mapPath();
         }
     }
-    if (!noMapLoaded)
+    if (state.workspace.reader() != nullptr)
     {
         drawStatusBar(state, bottomPanelHeight);
     }

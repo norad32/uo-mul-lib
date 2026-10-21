@@ -1,5 +1,6 @@
 #include "gui/views/map_canvas_panel.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/frontend/document_surface.h"
 #include "gui/providers/data_providers.h"
 #include "gui/context/coordinate_parser.h"
 #include "gui/frontend/theme.h"
@@ -1024,7 +1025,7 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
     const bool hasDocument = workspace.reader() != nullptr;
     resetForDocument(workspace, state, dimensions);
 
-    const bool contentsVisible = ImGui::Begin("Map Canvas###view.map-canvas", &visible);
+    const bool contentsVisible = ImGui::Begin(documentSurfaceWindowName(), &visible);
 
     if (!visible || !contentsVisible)
     {

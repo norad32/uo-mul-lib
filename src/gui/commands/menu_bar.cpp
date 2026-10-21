@@ -176,7 +176,6 @@ void drawViewMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::viewCombined, displayMode == MapDisplayMode::combined);
 
     ImGui::Separator();
-    drawCommandItem(state, CommandId::panelMapCanvas, state.panelRegistry.find(PanelId::mapCanvas)->visible);
     drawCommandItem(state, CommandId::panelTileInspector, state.panelRegistry.find(PanelId::tileInspector)->visible);
     drawCommandItem(state, CommandId::panelBlockInspector, state.panelRegistry.find(PanelId::blockInspector)->visible);
     drawCommandItem(state, CommandId::panelSelectionStatistics, state.panelRegistry.find(PanelId::selectionStatistics)->visible);

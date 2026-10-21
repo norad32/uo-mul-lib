@@ -1,4 +1,5 @@
 #include "gui/frontend/frame_composition.h"
+#include "gui/frontend/document_surface.h"
 #include "gui/documents/document_identity.h"
 #include <catch2/catch_test_macros.hpp>
 #include <string_view>
@@ -16,6 +17,11 @@ TEST_CASE("defaultDockWindows_Should_PreserveStableViewWindowNames")
     REQUIRE(std::string_view(windows[5].windowName) == "Edit Tools###view.edit-tools");
     REQUIRE(std::string_view(windows[6].windowName) == "Texmaps###view.texmaps");
     REQUIRE(std::string_view(windows[7].windowName) == "Radarcol###view.radarcol");
+}
+
+TEST_CASE("documentSurface_Should_UseThePersistedCentralWindowIdentity")
+{
+    REQUIRE(std::string_view(uo_mule::gui::documentSurfaceWindowName()) == "Map Canvas###view.map-canvas");
 }
 
 TEST_CASE("documentTabLabel_Should_ShowKindDirtyAndReadOnlyState")
