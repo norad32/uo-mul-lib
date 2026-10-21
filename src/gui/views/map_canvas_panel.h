@@ -2,6 +2,7 @@
 
 #include "gui/context/coordinate_parser.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/providers/data_providers.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <cstddef>
@@ -27,8 +28,6 @@ struct MapCanvasCachedBlock
     std::optional<uomul::Error> error;
     std::uint64_t lastUsed = 0;
 };
-
-struct RadarcolPanelState;
 
 struct MapCanvasStatus
 {
@@ -103,12 +102,16 @@ struct MapCanvasPanelState
     std::array<char, coordinateInputBufferSize> coordinateInput{};
 };
 
+[[nodiscard]] MapColor mapCanvasTileColor(MapDisplayMode mode,
+                                          uomul::MapTile tile,
+                                          const RadarColorProvider & radarColors) noexcept;
+
 void drawMapCanvasPanel(MapWorkspace & workspace,
-                        RadarcolPanelState & radarcolState,
-                         MapCanvasPanelState & state,
-                         const std::function<void()> & openMap,
-                         const std::function<void()> & createMap,
-                         const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
-                         bool & visible);
+                        const RadarColorProvider & radarColors,
+                        MapCanvasPanelState & state,
+                        const std::function<void()> & openMap,
+                        const std::function<void()> & createMap,
+                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
+                        bool & visible);
 
 } // namespace uo_mule::gui

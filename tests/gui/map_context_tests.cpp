@@ -3,6 +3,7 @@
 #include "gui/context/map_context.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/views/selection_stats_panel.h"
+#include "gui/views/map_canvas_panel.h"
 #include "gui/application/workbench_state.h"
 #include <catch2/catch_test_macros.hpp>
 
@@ -40,6 +41,18 @@ TEST_CASE("dataProviders_Should_InvalidateAllProviders")
     REQUIRE(providers.radarColors().status().revision > firstRevision);
     REQUIRE(providers.textures().status().state == uo_mule::gui::ProviderAssetState::unavailable);
     REQUIRE(providers.tileData().status().state == uo_mule::gui::ProviderAssetState::unavailable);
+}
+
+TEST_CASE("MapCanvas_Should_UseTheEffectiveRadarColorProvider")
+{
+    uo_mule::gui::DataProviders providers;
+    providers.sync(uo_mule::gui::DataProfile{});
+    const uomul::MapTile tile{.id = 0, .z = 0};
+
+    REQUIRE(uo_mule::gui::mapCanvasTileColor(uo_mule::gui::MapDisplayMode::tileIds, tile, providers.radarColors()) ==
+            uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::tileIds,
+                                            tile,
+                                            providers.radarColors().mapColor(tile.id)));
 }
 
 TEST_CASE("selectionStatsState_Should_StartIdle")

@@ -415,7 +415,7 @@ void drawMapPanels(WorkbenchState & state,
     if (state.panelRegistry.find(PanelId::mapCanvas)->visible)
     {
         drawMapCanvasPanel(workspace,
-                           radarcolState,
+                           state.providers.radarColors(),
                            canvasState,
                            [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
                            [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },

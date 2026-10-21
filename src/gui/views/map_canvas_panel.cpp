@@ -1,6 +1,6 @@
 #include "gui/views/map_canvas_panel.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/views/radarcol_panel.h"
+#include "gui/providers/data_providers.h"
 #include "gui/context/coordinate_parser.h"
 #include "gui/frontend/theme.h"
 #include "uomul/map.h"
@@ -67,9 +67,9 @@ constexpr double noMapButtonOffset = 28.0;
     return std::clamp(std::min(widthZoom, heightZoom), minimumCanvasZoom, maximumCanvasZoom);
 }
 
-[[nodiscard]] ImU32 colorForTile(MapDisplayMode mode, uomul::MapTile tile, RadarcolPanelState & radarcolState)
+[[nodiscard]] ImU32 colorForTile(MapDisplayMode mode, uomul::MapTile tile, const RadarColorProvider & radarColors)
 {
-    const MapColor color = tileDisplayColor(mode, tile, radarMapDisplayColor(radarcolState, tile.id));
+    const MapColor color = mapCanvasTileColor(mode, tile, radarColors);
     return IM_COL32(color.red, color.green, color.blue, std::numeric_limits<std::uint8_t>::max());
 }
 
@@ -247,7 +247,7 @@ void writeLodPixel(std::vector<std::uint8_t> & pixels, std::size_t pixelIndex, I
 }
 
 void rasterizeLodRow(const MapWorkspace & workspace,
-                     RadarcolPanelState & radarcolState,
+                     const RadarColorProvider & radarColors,
                      MapCanvasPanelState & state,
                      std::vector<std::uint8_t> & pixels,
                      std::uint32_t rasterWidth,
@@ -295,7 +295,7 @@ void rasterizeLodRow(const MapWorkspace & workspace,
         if (loadedBlock->block)
         {
             const std::uint32_t localIndex = (localY * uomul::mapBlockDimension) + (tileX % uomul::mapBlockDimension);
-            color = colorForTile(mode, loadedBlock->block->at(static_cast<std::size_t>(localIndex)), radarcolState);
+            color = colorForTile(mode, loadedBlock->block->at(static_cast<std::size_t>(localIndex)), radarColors);
         }
         else if (loadedBlock->error && !state.lodReadError)
         {
@@ -307,7 +307,7 @@ void rasterizeLodRow(const MapWorkspace & workspace,
 }
 
 void rasterizeLod(const MapWorkspace & workspace,
-                  RadarcolPanelState & radarcolState,
+                  const RadarColorProvider & radarColors,
                   MapCanvasPanelState & state,
                   std::uint32_t rasterWidth,
                   std::uint32_t rasterHeight,
@@ -328,7 +328,7 @@ void rasterizeLod(const MapWorkspace & workspace,
 
     for (std::uint32_t pixelY = 0; pixelY < rasterHeight; pixelY++)
     {
-        rasterizeLodRow(workspace, radarcolState, state, state.lodPixels, rasterWidth, pixelY, scaleX, scaleY, mode);
+        rasterizeLodRow(workspace, radarColors, state, state.lodPixels, rasterWidth, pixelY, scaleX, scaleY, mode);
     }
 }
 
@@ -390,7 +390,7 @@ void uploadLodTexture(MapCanvasPanelState & state, std::uint32_t rasterWidth, st
 }
 
 [[nodiscard]] bool lodCacheMatches(const MapCanvasPanelState & state,
-                                   const RadarcolPanelState & radarcolState,
+                                    const RadarColorProvider & radarColors,
                                    std::uint32_t rasterWidth,
                                    std::uint32_t rasterHeight,
                                    ImVec2 canvasSize,
@@ -404,11 +404,11 @@ void uploadLodTexture(MapCanvasPanelState & state, std::uint32_t rasterWidth, st
            std::abs(state.lodPanX - state.panX) < floatCacheTolerance &&
            std::abs(state.lodPanY - state.panY) < floatCacheTolerance &&
            std::abs(state.lodZoom - state.zoom) < floatCacheTolerance && state.lodDisplayMode == mode &&
-           state.lodRadarColorRevision == radarcolState.colorRevision;
+           state.lodRadarColorRevision == radarColors.status().revision;
 }
 
 void saveLodCacheKey(MapCanvasPanelState & state,
-                     const RadarcolPanelState & radarcolState,
+                     const RadarColorProvider & radarColors,
                      std::uint32_t rasterWidth,
                      std::uint32_t rasterHeight,
                      ImVec2 canvasSize,
@@ -423,12 +423,12 @@ void saveLodCacheKey(MapCanvasPanelState & state,
     state.lodPanX = state.panX;
     state.lodPanY = state.panY;
     state.lodZoom = state.zoom;
-    state.lodRadarColorRevision = radarcolState.colorRevision;
+    state.lodRadarColorRevision = radarColors.status().revision;
     state.lodCacheValid = true;
 }
 
 [[nodiscard]] bool drawScreenSpaceLod(const MapWorkspace & workspace,
-                                      RadarcolPanelState & radarcolState,
+                                      const RadarColorProvider & radarColors,
                                       MapCanvasPanelState & state,
                                       ImDrawList & drawList,
                                       ImVec2 canvasOrigin,
@@ -457,9 +457,9 @@ void saveLodCacheKey(MapCanvasPanelState & state,
     }
 
     const MapDisplayMode mode = workspace.displayMode();
-    if (!lodCacheMatches(state, radarcolState, rasterWidth, rasterHeight, canvasSize, framebufferScale, mode))
+    if (!lodCacheMatches(state, radarColors, rasterWidth, rasterHeight, canvasSize, framebufferScale, mode))
     {
-        rasterizeLod(workspace, radarcolState, state, rasterWidth, rasterHeight, scaleX, scaleY, mode);
+        rasterizeLod(workspace, radarColors, state, rasterWidth, rasterHeight, scaleX, scaleY, mode);
         uploadLodTexture(state, rasterWidth, rasterHeight);
 
         if (state.lodTexture == 0U)
@@ -467,7 +467,7 @@ void saveLodCacheKey(MapCanvasPanelState & state,
             return false;
         }
 
-        saveLodCacheKey(state, radarcolState, rasterWidth, rasterHeight, canvasSize, framebufferScale);
+        saveLodCacheKey(state, radarColors, rasterWidth, rasterHeight, canvasSize, framebufferScale);
         state.lodDisplayMode = mode;
     }
 
@@ -482,7 +482,7 @@ void saveLodCacheKey(MapCanvasPanelState & state,
 }
 
 void drawCanvasContents(const MapWorkspace & workspace,
-                        RadarcolPanelState & radarcolState,
+                        const RadarColorProvider & radarColors,
                         MapCanvasPanelState & state,
                         ImVec2 canvasOrigin,
                         ImVec2 canvasSize,
@@ -506,7 +506,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
         lodZoomThreshold;
 
     if (!useScreenSpaceLod ||
-        !drawScreenSpaceLod(workspace, radarcolState, state, *drawList, canvasOrigin, canvasSize, visibleReadError))
+        !drawScreenSpaceLod(workspace, radarColors, state, *drawList, canvasOrigin, canvasSize, visibleReadError))
     {
         state.lodCacheValid = false;
         state.lodReadError.reset();
@@ -536,7 +536,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
                 {
                     const std::uint32_t localIndex =
                         (localY * uomul::mapBlockDimension) + (tileColumn % uomul::mapBlockDimension);
-                    color = colorForTile(mode, cached->block->at(static_cast<std::size_t>(localIndex)), radarcolState);
+                    color = colorForTile(mode, cached->block->at(static_cast<std::size_t>(localIndex)), radarColors);
                 }
                 else if (cached->error && !visibleReadError)
                 {
@@ -991,6 +991,11 @@ void drawEmptyCanvas(ImVec2 canvasOrigin,
 
 } // namespace
 
+MapColor mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const RadarColorProvider & radarColors) noexcept
+{
+    return tileDisplayColor(mode, tile, radarColors.mapColor(tile.id));
+}
+
 MapCanvasPanelState::~MapCanvasPanelState()
 {
     if (lodTexture != 0U)
@@ -1001,7 +1006,7 @@ MapCanvasPanelState::~MapCanvasPanelState()
 }
 
 void drawMapCanvasPanel(MapWorkspace & workspace,
-                        RadarcolPanelState & radarcolState,
+                        const RadarColorProvider & radarColors,
                         MapCanvasPanelState & state,
                         const std::function<void()> & openMap,
                         const std::function<void()> & createMap,
@@ -1095,7 +1100,7 @@ void drawMapCanvasPanel(MapWorkspace & workspace,
         }
         else
         {
-            drawCanvasContents(workspace, radarcolState, state, canvasOrigin, canvasSize, currentTile, visibleReadError);
+            drawCanvasContents(workspace, radarColors, state, canvasOrigin, canvasSize, currentTile, visibleReadError);
         }
     }
 
