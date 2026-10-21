@@ -229,3 +229,30 @@ TEST_CASE("documentManager_Should_AssignStableIdsAndExposeContext")
     session.syncDocument(workspace);
     REQUIRE_FALSE(session.activeDocument().has_value());
 }
+
+TEST_CASE("workbenchSession_Should_ActivateMapDocumentsThroughTheCollection")
+{
+    const TemporaryDirectory directory;
+    const auto firstPath = directory.path() / "first.mul";
+    const auto secondPath = directory.path() / "second.mul";
+    const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
+    REQUIRE(uomul::MapEditor::createEmpty(firstPath, dimensions));
+    REQUIRE(uomul::MapEditor::createEmpty(secondPath, dimensions));
+
+    uo_mule::gui::MapWorkspace workspace;
+    uo_mule::gui::WorkbenchSession session(directory.path() / "recent.conf");
+    REQUIRE(workspace.openMap(firstPath, dimensions));
+    session.syncDocument(workspace);
+    const auto firstId = session.activeDocumentId();
+    REQUIRE(firstId.has_value());
+    REQUIRE(workspace.openMap(secondPath, dimensions));
+    session.syncDocument(workspace);
+    const auto secondId = session.activeDocumentId();
+    REQUIRE(secondId.has_value());
+    REQUIRE(firstId != secondId);
+
+    REQUIRE(session.activateDocument(*firstId, workspace));
+    REQUIRE(session.activeDocumentId() == firstId);
+    REQUIRE(workspace.originalPath() == firstPath);
+    REQUIRE(session.documents().size() == 2);
+}

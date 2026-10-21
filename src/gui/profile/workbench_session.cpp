@@ -5,8 +5,11 @@
 #include "gui/persistence/recent_maps.h"
 #include "gui/context/map_context.h"
 #include "gui/documents/map_document.h"
+#include "gui/documents/document_identity.h"
 #include "gui/documents/map_workspace.h"
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
+#include <expected>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -16,6 +19,11 @@
 
 namespace
 {
+
+[[nodiscard]] uomul::Error makeDocumentSessionError(const std::filesystem::path & path, std::string message)
+{
+    return {.code = uomul::ErrorCode::io, .path = path, .message = std::move(message)};
+}
 
 [[nodiscard]] std::string facetForDimensions(uomul::Dimensions dimensions)
 {
@@ -139,6 +147,80 @@ void WorkbenchSession::syncDocument(const MapWorkspace & workspace)
 void WorkbenchSession::closeDocument() noexcept
 {
     documents_.close();
+}
+
+std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId id, MapWorkspace & workspace)
+{
+    const DocumentRecord * record = documents_.find(id);
+    if (record == nullptr)
+    {
+        return std::unexpected(makeDocumentSessionError({}, "document is not open"));
+    }
+
+    if (record->map)
+    {
+        if (documents_.activeId() != id)
+        {
+            if (auto opened = workspace.openMap(record->map->sourcePath, record->map->dimensions); !opened)
+            {
+                return std::unexpected(opened.error());
+            }
+        }
+        documents_.sync(workspace);
+        return {};
+    }
+
+    if (workspace.reader() != nullptr)
+    {
+        if (auto closed = workspace.closeMap(); !closed)
+        {
+            return std::unexpected(closed.error());
+        }
+    }
+    static_cast<void>(documents_.activate(id));
+    return {};
+}
+
+std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id, MapWorkspace & workspace)
+{
+    const DocumentRecord * record = documents_.find(id);
+    if (record == nullptr)
+    {
+        return std::unexpected(makeDocumentSessionError({}, "document is not open"));
+    }
+
+    if (record->map && documents_.activeId() == id && workspace.reader() != nullptr)
+    {
+        if (auto closed = workspace.closeMap(); !closed)
+        {
+            return std::unexpected(closed.error());
+        }
+    }
+    if (!documents_.close(id))
+    {
+        return std::unexpected(makeDocumentSessionError({}, "document could not be closed"));
+    }
+    return {};
+}
+
+const std::vector<DocumentRecord> & WorkbenchSession::documents() const noexcept
+{
+    return documents_.documents();
+}
+
+std::optional<DocumentId> WorkbenchSession::activeDocumentId() const noexcept
+{
+    return documents_.activeId();
+}
+
+std::optional<DocumentIdentity> WorkbenchSession::activeDocumentIdentity() const
+{
+    return documents_.activeIdentity();
+}
+
+bool WorkbenchSession::hasDocuments() const noexcept
+{
+    return !documents_.documents().empty();
 }
 
 const std::optional<MapDocument> & WorkbenchSession::activeDocument() const noexcept

@@ -39,6 +39,7 @@ public:
 
     [[nodiscard]] const std::vector<DocumentRecord> & documents() const noexcept;
     [[nodiscard]] const DocumentRecord * find(DocumentId id) const noexcept;
+    [[nodiscard]] std::optional<DocumentId> activeId() const noexcept;
     [[nodiscard]] std::optional<DocumentIdentity> activeIdentity() const;
 
     [[nodiscard]] const std::optional<MapDocument> & active() const noexcept;

@@ -125,6 +125,11 @@ const DocumentRecord * DocumentManager::find(DocumentId id) const noexcept
     return record == documents_.end() ? nullptr : &*record;
 }
 
+std::optional<DocumentId> DocumentManager::activeId() const noexcept
+{
+    return activeId_;
+}
+
 std::optional<DocumentIdentity> DocumentManager::activeIdentity() const
 {
     const DocumentRecord * record = activeRecord();

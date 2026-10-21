@@ -4,6 +4,9 @@
 #include "gui/commands/menu_bar.h"
 #include "gui/context/map_context.h"
 #include "gui/context/notification_state.h"
+#include "gui/documents/map_document.h"
+#include "gui/documents/document_identity.h"
+#include "gui/metadata/document_contracts.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/frontend/welcome_screen.h"
@@ -26,6 +29,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cmath>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -34,6 +38,7 @@
 #include <string>
 #include <string_view>
 #include <span>
+#include <optional>
 #include <uomul/map.h>
 
 namespace uo_mule::gui
@@ -44,6 +49,7 @@ namespace
 constexpr float dockLeftWidthRatio = 0.20F;
 constexpr float dockRightWidthRatio = 0.24F;
 constexpr float statusBarHeight = 24.0F;
+constexpr float documentTabBarHeight = 32.0F;
 constexpr float notificationLeftMargin = 16.0F;
 constexpr float notificationTopMargin = 48.0F;
 constexpr float notificationMinimumWidth = 280.0F;
@@ -76,6 +82,8 @@ constexpr std::array<DockWindowDescriptor, 8> dockWindows{
     DockWindowDescriptor{.panel = PanelId::radarcol, .windowName = "Radarcol###view.radarcol"},
 };
 
+void drawDocumentTabs(WorkbenchState & state);
+
 void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
 {
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
@@ -88,16 +96,27 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         static_cast<unsigned int>(ImGuiWindowFlags_NoMove) | static_cast<unsigned int>(ImGuiWindowFlags_NoBringToFrontOnFocus) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoNavFocus) | static_cast<unsigned int>(ImGuiWindowFlags_NoBackground) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) | static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar) |
-        static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse));
+    static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse));
     ImGui::Begin("BackgroundDockSpace###workbench.dock-space", nullptr, dockSpaceWindowFlags);
+    drawDocumentTabs(state);
+    ImGui::SetCursorPosY(documentTabBarHeight);
+    const ImVec2 dockPosition = ImGui::GetCursorScreenPos();
+    const float availableDockHeight = std::max(0.0F, viewport->WorkSize.y - bottomPanelHeight - statusBarHeight -
+                                                        (dockPosition.y - viewport->WorkPos.y));
     constexpr ImGuiDockNodeFlags dockSpaceFlags = ImGuiDockNodeFlags_PassthruCentralNode;
     const ImGuiID dockSpaceId = ImGui::GetID("BackgroundDockSpace");
-    if (state.layoutResetRequested || ImGui::DockBuilderGetNode(dockSpaceId) == nullptr)
+    const ImVec2 expectedDockPosition = dockPosition;
+    const ImGuiDockNode * existingDockNode = ImGui::DockBuilderGetNode(dockSpaceId);
+    const bool dockPositionChanged = existingDockNode != nullptr &&
+                                     (std::abs(existingDockNode->Pos.x - expectedDockPosition.x) > 0.5F ||
+                                      std::abs(existingDockNode->Pos.y - expectedDockPosition.y) > 0.5F);
+    if (state.layoutResetRequested || existingDockNode == nullptr || dockPositionChanged)
     {
         state.layoutResetRequested = false;
         ImGui::DockBuilderRemoveNode(dockSpaceId);
         ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
-        ImGui::DockBuilderSetNodeSize(dockSpaceId, ImVec2(viewport->WorkSize.x, dockSpaceHeight));
+        ImGui::DockBuilderSetNodePos(dockSpaceId, expectedDockPosition);
+        ImGui::DockBuilderSetNodeSize(dockSpaceId, ImVec2(viewport->WorkSize.x, availableDockHeight));
         ImGuiID leftNode = 0;
         ImGuiID centerNode = 0;
         ImGuiID rightNode = 0;
@@ -113,7 +132,7 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         ImGui::DockBuilderDockWindow(dockWindows.at(radarcolDockIndex).windowName, rightNode);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
-    ImGui::DockSpace(dockSpaceId, ImVec2(0.0F, 0.0F), dockSpaceFlags);
+    ImGui::DockSpace(dockSpaceId, ImVec2(viewport->WorkSize.x, availableDockHeight), dockSpaceFlags);
     ImGui::End();
 }
 
@@ -299,6 +318,94 @@ void drawStartupScreen(WorkbenchState & state)
     ImGui::End();
 }
 
+void drawEmptyDocumentState(const WorkbenchState & state)
+{
+    const ImGuiViewport * viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + documentTabBarHeight), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - documentTabBarHeight), ImGuiCond_Always);
+    if (!ImGui::Begin("Document###workbench.empty-document", nullptr,
+                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImGui::End();
+        return;
+    }
+
+    if (!state.session.hasDocuments())
+    {
+        ImGui::TextUnformatted("No document is open");
+        ImGui::TextUnformatted("Use File > Open... or File > Create Map... to begin.");
+    }
+    else if (const auto active = state.session.activeDocumentIdentity())
+    {
+        const std::string kindName(documentKindName(active->kind));
+        ImGui::Text("%s is active, but has no map view yet.", kindName.c_str());
+        ImGui::TextUnformatted("This document type is represented as a placeholder until its view is implemented.");
+    }
+    ImGui::End();
+}
+
+bool drawDocumentTab(WorkbenchState & state, const DocumentRecord & document, std::optional<DocumentId> activeId)
+{
+    bool open = true;
+    const std::string label = documentTabLabel(document.summary);
+    const bool selected = activeId && *activeId == document.summary.identity.id;
+    const bool visible = ImGui::BeginTabItem(label.c_str(), &open, selected ? ImGuiTabItemFlags_SetSelected : 0);
+    if (visible)
+    {
+        if (!selected)
+        {
+            const auto activated = state.session.activateDocument(document.summary.identity.id, state.workspace);
+            if (!activated)
+            {
+                state.notifications.add(NotificationSeverity::error, activated.error().message);
+            }
+        }
+        ImGui::EndTabItem();
+    }
+    if (open)
+    {
+        return false;
+    }
+
+    if (document.summary.dirty)
+    {
+        if (!selected)
+        {
+            const auto activated = state.session.activateDocument(document.summary.identity.id, state.workspace);
+            if (!activated)
+            {
+                state.notifications.add(NotificationSeverity::error, activated.error().message);
+                return true;
+            }
+        }
+        static_cast<void>(state.commands.execute(CommandId::fileClose, state));
+        return true;
+    }
+
+    const auto closed = state.session.closeDocument(document.summary.identity.id, state.workspace);
+    if (!closed)
+    {
+        state.notifications.add(NotificationSeverity::error, closed.error().message);
+    }
+    return true;
+}
+
+void drawDocumentTabs(WorkbenchState & state)
+{
+    if (ImGui::BeginTabBar("###workbench.document-tab-bar", ImGuiTabBarFlags_Reorderable))
+    {
+        const auto activeId = state.session.activeDocumentId();
+        for (const auto & document : state.session.documents())
+        {
+            if (drawDocumentTab(state, document, activeId))
+            {
+                break;
+            }
+        }
+        ImGui::EndTabBar();
+    }
+}
+
 void dispatchShortcuts(WorkbenchState & state)
 {
     if (ImGui::GetIO().WantTextInput || ImGui::GetIO().WantCaptureKeyboard)
@@ -346,12 +453,29 @@ std::span<const DockWindowDescriptor> defaultDockWindows() noexcept
     return dockWindows;
 }
 
+std::string documentTabLabel(const DocumentSummary & summary)
+{
+    std::string label(documentKindName(summary.identity.kind));
+    label += ": ";
+    label += summary.displayName.empty() ? "Untitled" : summary.displayName;
+    if (summary.dirty)
+    {
+        label += " *";
+    }
+    if (summary.access == DocumentAccess::readOnly)
+    {
+        label += " [Read-only]";
+    }
+    return label;
+}
+
 void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    bool welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr;
+    bool welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr &&
+                        !state.session.hasDocuments();
     bool profileChanged = welcomeShell ? false : drawMenuBar(state, true);
 
     if (!state.pendingClipboardText.empty())
@@ -403,14 +527,21 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         state.welcomeGreetingSelected = false;
         state.welcomeGreeting.clear();
         drawDockSpace(state, bottomPanelHeight);
-        drawMapPanels(state,
-                      state.activeProfile,
-                      state.mapCanvasState,
-                      state.blockInspectorState,
-                      state.selectionStatsState,
-                      state.editToolsState,
-                      state.radarcolState,
-                      state.texmapsState);
+        if (state.workspace.reader() != nullptr)
+        {
+            drawMapPanels(state,
+                          state.activeProfile,
+                          state.mapCanvasState,
+                          state.blockInspectorState,
+                          state.selectionStatsState,
+                          state.editToolsState,
+                          state.radarcolState,
+                          state.texmapsState);
+        }
+        else
+        {
+            drawEmptyDocumentState(state);
+        }
         if (state.recentMapRecordedPath != state.workspace.mapPath())
         {
             state.session.recordRecentMap(state.workspace.mapPath(), state.workspace.dimensions());
