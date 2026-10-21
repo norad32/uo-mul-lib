@@ -4,6 +4,7 @@
 #include "gui/documents/radarcol_document.h"
 #include "gui/profile/data_profile.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/assets/asset_window_contracts.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
 #include <cstddef>
@@ -40,6 +41,7 @@ struct RadarcolPanelState
     bool overwriteOutput = false;
     DocumentId documentId = 0;
     bool documentReadOnly = false;
+    assets::AssetWindowState assetView;
 };
 
 [[nodiscard]] std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::uint16_t id);

@@ -3,6 +3,7 @@
 #include "gui/documents/map_workspace.h"
 #include "gui/profile/data_profile.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/assets/asset_window_contracts.h"
 #include "uomul/texmaps/texmaps.h"
 #include <array>
 #include <cstddef>
@@ -38,6 +39,7 @@ struct TexmapsPanelState
     std::uint32_t pageCount = 0;
     std::uint32_t loadedPageIndex = unloadedTexmapsPage;
     bool previewVisible = false;
+    assets::AssetWindowState assetView;
 };
 
 void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile);

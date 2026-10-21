@@ -1,9 +1,12 @@
-#include "gui/documents/map_workspace.h"
-#include "gui/profile/data_profile.h"
 #include "gui/views/texmaps_panel.h"
-#include "gui/frontend/theme.h"
+#include "gui/assets/asset_window.h"
+#include "gui/assets/asset_window_contracts.h"
 #include "gui/context/color_conversion.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/documents/document_identity.h"
+#include "gui/frontend/theme.h"
+#include "gui/metadata/document_contracts.h"
+#include "gui/profile/data_profile.h"
 #include "uomul/texmaps/texmaps.h"
 #include <algorithm>
 #include <array>
@@ -19,367 +22,203 @@
 
 namespace uo_mule::gui
 {
-
 namespace
 {
 
-constexpr std::uint32_t texmapsTexturesPerPage = static_cast<std::uint32_t>(texmapsPageTextureCount);
-constexpr float texmapsThumbnailSize = 64.0F;
-constexpr float texmapsBorderThickness = 2.0F;
-constexpr int texmapsPageStep = 1;
-constexpr float previousButtonWidth = 100.0F;
-constexpr float nextButtonWidth = 100.0F;
-constexpr float firstLastButtonWidth = 50.0F;
+constexpr float thumbnailSize = 64.0F;
+constexpr float borderThickness = 2.0F;
+constexpr std::size_t assetCellWidth = 120U;
+constexpr std::size_t assetCellHeight = 72U;
 
-[[nodiscard]] std::uint32_t pageTextureBase(const TexmapsPanelState & state) noexcept
+void setPath(std::array<char, texmapsPathBufferSize> & buffer, const std::filesystem::path & path)
 {
-    return state.page * texmapsTexturesPerPage;
-}
-
-void updatePageCount(TexmapsPanelState & state) noexcept
-{
-    if (state.reader)
-    {
-        const std::uint32_t textureCount = state.reader->textureCount();
-        state.pageCount = (textureCount + texmapsTexturesPerPage - 1U) / texmapsTexturesPerPage;
-        const int maximumPage = state.pageCount == 0U ? 0 : static_cast<int>(state.pageCount - 1U);
-        state.page = static_cast<std::uint32_t>(std::clamp(static_cast<int>(state.page), 0, maximumPage));
-    }
-    else
-    {
-        state.pageCount = 0;
-    }
-}
-
-[[nodiscard]] TexmapsTexturePreview convertTextureToPreview(const uomul::TextureImage & texture) noexcept
-{
-    TexmapsTexturePreview preview;
-    preview.width = texture.dimension;
-    preview.height = texture.dimension;
-    preview.pixels.reserve(texture.pixels.size());
-
-    for (const auto pixel : texture.pixels)
-    {
-        preview.pixels.push_back(texturePixelToMapColor(pixel));
-    }
-
-    return preview;
-}
-
-void loadPage(TexmapsPanelState & state)
-{
-    if (!state.reader)
-    {
-        return;
-    }
-
-    const std::uint32_t pageIndex = state.page;
-    if (state.loadedPageIndex == pageIndex)
-    {
-        return;
-    }
-
-    state.pageTextures.clear();
-    state.error.clear();
-
-    const std::uint32_t baseId = pageTextureBase(state);
-    const std::uint32_t endId = std::min(baseId + texmapsTexturesPerPage, state.reader->textureCount());
-
-    for (std::uint32_t id = baseId; id < endId; id++)
-    {
-        const auto textureResult = state.reader->readTexture(id);
-        if (textureResult)
-        {
-            state.pageTextures.push_back(convertTextureToPreview(*textureResult));
-        }
-        else
-        {
-            // Empty texture - create a placeholder
-            TexmapsTexturePreview emptyPreview;
-            emptyPreview.width = uomul::textureSmallDimension;
-            emptyPreview.height = uomul::textureSmallDimension;
-            state.pageTextures.push_back(emptyPreview);
-        }
-    }
-
-    state.loadedPageIndex = pageIndex;
+    const std::string value = path.string();
+    const std::size_t length = std::min(value.size(), buffer.size() - 1U);
+    std::memcpy(buffer.data(), value.data(), length);
+    buffer.at(length) = '\0';
 }
 
 void loadSource(TexmapsPanelState & state)
 {
-    state.error.clear();
     state.reader.reset();
-    state.pageTextures.clear();
-    state.loadedPageIndex = unloadedTexmapsPage;
-
+    state.error.clear();
     const std::string indexPath(state.sourceIndexPath.data());
     const std::string dataPath(state.sourceDataPath.data());
-
     if (indexPath.empty() || dataPath.empty())
     {
         return;
     }
-
-    auto readerResult = uomul::TexMapsReader::open(indexPath, dataPath);
-    if (!readerResult)
+    auto result = uomul::TexMapsReader::open(indexPath, dataPath);
+    if (!result)
     {
-        state.error = readerResult.error().message;
+        state.error = result.error().message;
         return;
     }
-
-    state.reader = std::move(readerResult.value());
-    updatePageCount(state);
-    loadPage(state);
+    state.reader.emplace(std::move(*result));
 }
 
-void drawTextureThumbnail(const TexmapsTexturePreview & texture, std::uint32_t textureId, bool selected)
+void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id, bool selected)
 {
-    const ImVec2 cursorPos = ImGui::GetCursorScreenPos();
-    const ImVec2 cellMin = cursorPos;
-    const ImVec2 cellMax(cellMin.x + texmapsThumbnailSize, cellMin.y + texmapsThumbnailSize);
-
+    const ImVec2 min = ImGui::GetCursorScreenPos();
+    const ImVec2 max(min.x + thumbnailSize, min.y + thumbnailSize);
     ImDrawList * drawList = ImGui::GetWindowDrawList();
-
-    // Draw checkerboard background
     constexpr float checkerSize = 4.0F;
-    constexpr ImU32 checkerColor1 = IM_COL32(64, 64, 64, 255);
-    constexpr ImU32 checkerColor2 = IM_COL32(128, 128, 128, 255);
-
-    for (int checkerY = 0; (static_cast<float>(checkerY) * checkerSize) < texmapsThumbnailSize; checkerY++)
+    constexpr ImU32 checkerA = IM_COL32(64, 64, 64, 255);
+    constexpr ImU32 checkerB = IM_COL32(128, 128, 128, 255);
+    for (int y = 0; static_cast<float>(y) * checkerSize < thumbnailSize; y++)
     {
-        for (int checkerX = 0; (static_cast<float>(checkerX) * checkerSize) < texmapsThumbnailSize; checkerX++)
+        for (int x = 0; static_cast<float>(x) * checkerSize < thumbnailSize; x++)
         {
-            const bool oddX = checkerX % 2 == 1;
-            const bool oddY = checkerY % 2 == 1;
-            const ImU32 color = (oddX != oddY) ? checkerColor1 : checkerColor2;
-
-            const ImVec2 checkerMin(cellMin.x + (static_cast<float>(checkerX) * checkerSize),
-                                     cellMin.y + (static_cast<float>(checkerY) * checkerSize));
-            const ImVec2 checkerMax(checkerMin.x + checkerSize, checkerMin.y + checkerSize);
-            drawList->AddRectFilled(checkerMin, checkerMax, color);
+            const ImU32 color = ((x % 2) != (y % 2)) ? checkerA : checkerB;
+            const ImVec2 cellMin(min.x + (static_cast<float>(x) * checkerSize), min.y + (static_cast<float>(y) * checkerSize));
+            drawList->AddRectFilled(cellMin, ImVec2(cellMin.x + checkerSize, cellMin.y + checkerSize), color);
         }
     }
-
-    // Draw texture
-    if (!texture.pixels.empty() && texture.width > 0 && texture.height > 0)
+    if (!texture.pixels.empty() && texture.width > 0U && texture.height > 0U)
     {
-        const float scaleX = texmapsThumbnailSize / static_cast<float>(texture.width);
-        const float scaleY = texmapsThumbnailSize / static_cast<float>(texture.height);
-
-        for (std::uint32_t ty = 0; ty < texture.height; ty++)
+        const float scaleX = thumbnailSize / static_cast<float>(texture.width);
+        const float scaleY = thumbnailSize / static_cast<float>(texture.height);
+        for (std::uint32_t y = 0; y < texture.height; y++)
         {
-            for (std::uint32_t tx = 0; tx < texture.width; tx++)
+            for (std::uint32_t x = 0; x < texture.width; x++)
             {
-                const std::size_t pixelIndex = (ty * texture.width) + tx;
-                if (pixelIndex < texture.pixels.size())
+                const std::size_t index = (y * texture.width) + x;
+                if (index < texture.pixels.size())
                 {
-                    const MapColor & color = texture.pixels.at(pixelIndex);
-                    const ImU32 imColor = IM_COL32(color.red, color.green, color.blue, 255);
-
-                    const ImVec2 pixelMin(cellMin.x + (static_cast<float>(tx) * scaleX),
-                                           cellMin.y + (static_cast<float>(ty) * scaleY));
-                    const ImVec2 pixelMax(cellMin.x + (static_cast<float>(tx + 1) * scaleX),
-                                           cellMin.y + (static_cast<float>(ty + 1) * scaleY));
-
-                    drawList->AddRectFilled(pixelMin, pixelMax, imColor);
+                    const MapColor color = texture.pixels.at(index);
+                    drawList->AddRectFilled(ImVec2(min.x + (static_cast<float>(x) * scaleX),
+                                                    min.y + (static_cast<float>(y) * scaleY)),
+                                                  ImVec2(min.x + (static_cast<float>(x + 1U) * scaleX),
+                                                         min.y + (static_cast<float>(y + 1U) * scaleY)),
+                                                  IM_COL32(color.red, color.green, color.blue, 255));
                 }
             }
         }
     }
-
-    // Draw border
-    const ImU32 borderColor =
-        selected ? theme::packedColor(theme::brightBrass) : theme::packedColor(theme::stoneBorder);
-    drawList->AddRect(cellMin, cellMax, borderColor, 0.0F, ImDrawFlags_None, texmapsBorderThickness);
-
-    // Add text label with texture ID
-    const std::string label = std::to_string(textureId);
-    const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
-    const ImVec2 textPos(cellMin.x + ((texmapsThumbnailSize - textSize.x) * 0.5F),
-                         cellMin.y + ((texmapsThumbnailSize - textSize.y) * 0.5F));
-    drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), label.c_str());
-
-    ImGui::Dummy(ImVec2(texmapsThumbnailSize, texmapsThumbnailSize));
+    drawList->AddRect(min, max, selected ? theme::packedColor(theme::brightBrass) : theme::packedColor(theme::stoneBorder), 0.0F,
+                      ImDrawFlags_None, borderThickness);
+    ImGui::Dummy(ImVec2(thumbnailSize, thumbnailSize));
+    ImGui::SameLine();
+    ImGui::Text("Texture %u", id);
 }
 
-void drawTextureGrid(TexmapsPanelState & state)
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+[[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state, FileBrowserState & browser)
 {
-    if (state.pageTextures.empty())
-    {
-        ImGui::TextUnformatted("No textures to display");
-        return;
-    }
-
-    const ImVec2 availableSize = ImGui::GetContentRegionAvail();
-    const float itemSpacing = ImGui::GetStyle().ItemSpacing.x;
-    const int columnsCount = static_cast<int>((availableSize.x / (texmapsThumbnailSize + itemSpacing)));
-
-    if (ImGui::BeginTable("TextureGrid", std::max(1, columnsCount), ImGuiTableFlags_PadOuterX))
-    {
-        const std::uint32_t baseId = pageTextureBase(state);
-
-        for (std::size_t i = 0; i < state.pageTextures.size(); i++)
-        {
-            ImGui::TableNextColumn();
-
-            const std::uint32_t textureId = baseId + static_cast<std::uint32_t>(i);
-            const bool selected = (textureId == state.selectedTextureId);
-
-            drawTextureThumbnail(state.pageTextures.at(i), textureId, selected);
-
-            if (ImGui::IsItemClicked())
+    assets::AssetAdapter adapter;
+    adapter.descriptor.viewId = "view.texmaps";
+    adapter.descriptor.title = "Texmaps";
+    adapter.descriptor.source = {.kind = DocumentKind::texmapPair,
+                                 .source = makeDocumentSourceIdentity({std::filesystem::path(state.sourceIndexPath.data()),
+                                                                        std::filesystem::path(state.sourceDataPath.data()),}),
+                                 .contextId = "view.texmaps",};
+    adapter.descriptor.capabilities = {.presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid),
+                                       .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
+                                       .selection = assets::AssetSelectionMode::single,};
+    adapter.descriptor.itemCount = state.reader ? state.reader->textureCount() : 0U;
+    adapter.descriptor.fixedCellWidth = assetCellWidth;
+    adapter.descriptor.fixedCellHeight = assetCellHeight;
+    adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
+        .id = "source", .label = "Source", .draw = [&state, &browser] {
+            ImGui::Text("Index: %s", state.sourceIndexPath.data());
+            ImGui::Text("Data: %s", state.sourceDataPath.data());
+            if (ImGui::Button("Load Textures"))
             {
-                state.selectedTextureId = textureId;
-                state.previewVisible = true;
+                loadSource(state);
             }
-
-            if (ImGui::IsItemHovered())
+            if (!state.error.empty())
             {
-                ImGui::SetTooltip("Texture ID: %u", textureId);
+                ImGui::TextColored(theme::imguiColor(theme::coral), "Error: %s", state.error.c_str());
+            }
+            static_cast<void>(browser);
+        },
+    });
+    adapter.loadRange = [&state](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
+        std::vector<assets::AssetItem> items;
+        if (!state.reader)
+        {
+            return items;
+        }
+        const std::size_t end = std::min(request.first + request.count, static_cast<std::size_t>(state.reader->textureCount()));
+        for (std::size_t id = request.first; id < end; id++)
+        {
+            const auto present = state.reader->hasTexture(static_cast<std::uint32_t>(id));
+            items.push_back({.id = {.value = std::to_string(id)},
+                             .label = "Texture " + std::to_string(id),
+                             .state = present && *present ? assets::AssetItemState::available : assets::AssetItemState::empty,
+                             .stateMessage = {},});
+        }
+        return items;
+    };
+    adapter.loadDetails = [&state](const assets::AssetItemId & item) -> std::optional<assets::AssetDetails> {
+        if (!state.reader)
+        {
+            return std::nullopt;
+        }
+        const auto id = static_cast<std::uint32_t>(std::stoul(item.value));
+        const auto texture = state.reader->readTexture(id);
+        if (!texture)
+        {
+            return std::nullopt;
+        }
+        return assets::AssetDetails{.item = item,
+                                    .title = "Texture " + item.value,
+                                    .fields = {"Dimensions: " + std::to_string(texture->dimension) + " x " +
+                                                std::to_string(texture->dimension),},};
+    };
+    adapter.renderItem = [&state](const assets::AssetItem & item, bool selected) {
+        const auto id = static_cast<std::uint32_t>(std::stoul(item.id.value));
+        TexmapsTexturePreview preview;
+        if (state.reader)
+        {
+            const auto texture = state.reader->readTexture(id);
+            if (texture)
+            {
+                preview.width = texture->dimension;
+                preview.height = texture->dimension;
+                preview.pixels.reserve(texture->pixels.size());
+                for (const auto pixel : texture->pixels)
+                {
+                    preview.pixels.push_back(texturePixelToMapColor(pixel));
+                }
             }
         }
-
-        ImGui::EndTable();
-    }
+        drawTexturePreview(preview, id, selected);
+    };
+    return adapter;
 }
 
 } // namespace
 
 void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile)
 {
-    const auto configuredIndex = resolvedDataFilePath(profile, DataFileRole::texidx);
-    const auto configuredData = resolvedDataFilePath(profile, DataFileRole::texmaps);
-    const std::string indexValue = configuredIndex.string();
-    const std::string dataValue = configuredData.string();
-    if (indexValue == state.sourceIndexPath.data() && dataValue == state.sourceDataPath.data())
+    const auto index = resolvedDataFilePath(profile, DataFileRole::texidx);
+    const auto data = resolvedDataFilePath(profile, DataFileRole::texmaps);
+    if (index.string() == state.sourceIndexPath.data() && data.string() == state.sourceDataPath.data())
     {
         return;
     }
-
-    std::ranges::fill(state.sourceIndexPath, '\0');
-    std::ranges::fill(state.sourceDataPath, '\0');
-    const auto indexLength = std::min(indexValue.size(), state.sourceIndexPath.size() - 1U);
-    const auto dataLength = std::min(dataValue.size(), state.sourceDataPath.size() - 1U);
-    std::copy_n(indexValue.begin(), indexLength, state.sourceIndexPath.begin());
-    std::copy_n(dataValue.begin(), dataLength, state.sourceDataPath.begin());
+    setPath(state.sourceIndexPath, index);
+    setPath(state.sourceDataPath, data);
     loadSource(state);
-}
-
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser)
-{
-    const bool contentsVisible = ImGui::Begin("Texmaps###view.texmaps", &visible);
-
-    if (!contentsVisible)
-    {
-        ImGui::End();
-        return;
-    }
-
-    // Source file selection
-    ImGui::Text("Source Index File: %s", state.sourceIndexPath.data());
-    if (ImGui::IsItemClicked())
-    {
-        requestFileBrowser(browser,
-                           {.mode = FileBrowserMode::openFile,
-                            .target = FileBrowserTarget::texmapsIndex,
-                            .initialPath = state.sourceIndexPath.data(),
-                            .extension = ".mul",
-                            .title = "Open Texture Index",});
-    }
-
-    ImGui::Text("Source Data File: %s", state.sourceDataPath.data());
-    if (ImGui::IsItemClicked())
-    {
-        requestFileBrowser(browser,
-                           {.mode = FileBrowserMode::openFile,
-                            .target = FileBrowserTarget::texmapsData,
-                            .initialPath = state.sourceDataPath.data(),
-                            .extension = ".mul",
-                            .title = "Open Texture Data",});
-    }
-
-    if (ImGui::Button("Load Textures"))
-    {
-        loadSource(state);
-    }
-
-    if (!state.error.empty())
-    {
-        ImGui::TextColored(ImVec4(1.0F, 0.0F, 0.0F, 1.0F), "Error: %s", state.error.c_str());
-    }
-
-    ImGui::Separator();
-
-    if (state.reader)
-    {
-        ImGui::Text("Total Textures: %u", state.reader->textureCount());
-
-        // Pagination controls
-        if (ImGui::Button("< Previous", ImVec2(previousButtonWidth, 0)))
-        {
-            const int newPage = static_cast<int>(state.page) - texmapsPageStep;
-            state.page = static_cast<std::uint32_t>(std::max(0, newPage));
-            state.loadedPageIndex = unloadedTexmapsPage;
-        }
-
-        ImGui::SameLine();
-
-        ImGui::Text("Page %u/%u", state.page + 1, state.pageCount);
-
-        ImGui::SameLine();
-
-        if (ImGui::Button("Next >", ImVec2(nextButtonWidth, 0)))
-        {
-            const int newPage = static_cast<int>(state.page) + texmapsPageStep;
-            state.page = static_cast<std::uint32_t>(
-                std::min(newPage, static_cast<int>(state.pageCount) - 1));
-            state.loadedPageIndex = unloadedTexmapsPage;
-        }
-
-        ImGui::SameLine();
-
-        if (ImGui::Button("First", ImVec2(firstLastButtonWidth, 0)))
-        {
-            state.page = 0;
-            state.loadedPageIndex = unloadedTexmapsPage;
-        }
-
-        ImGui::SameLine();
-
-        if (ImGui::Button("Last", ImVec2(firstLastButtonWidth, 0)))
-        {
-            state.page = state.pageCount > 0 ? state.pageCount - 1 : 0;
-            state.loadedPageIndex = unloadedTexmapsPage;
-        }
-
-        ImGui::Separator();
-
-        loadPage(state);
-        drawTextureGrid(state);
-    }
-    else
-    {
-        ImGui::TextUnformatted("Load a texture pair to begin");
-    }
-
-    ImGui::End();
 }
 
 void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult & result)
 {
     if (result.target == FileBrowserTarget::texmapsIndex)
     {
-        const auto value = result.path.string();
-        std::ranges::fill(state.sourceIndexPath, '\0');
-        std::copy_n(value.begin(), std::min(value.size(), state.sourceIndexPath.size() - 1U), state.sourceIndexPath.begin());
-        return;
+        setPath(state.sourceIndexPath, result.path);
     }
-    if (result.target == FileBrowserTarget::texmapsData)
+    else if (result.target == FileBrowserTarget::texmapsData)
     {
-        const auto value = result.path.string();
-        std::ranges::fill(state.sourceDataPath, '\0');
-        std::copy_n(value.begin(), std::min(value.size(), state.sourceDataPath.size() - 1U), state.sourceDataPath.begin());
+        setPath(state.sourceDataPath, result.path);
     }
+}
+
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser)
+{
+    const auto adapter = makeAdapter(state, browser);
+    assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 
 } // namespace uo_mule::gui

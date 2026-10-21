@@ -157,6 +157,7 @@ struct AssetAdapterDescriptor
 using AssetRangeLoader = std::function<std::vector<AssetItem>(const AssetRangeRequest &, const AssetQuery &)>;
 using AssetDetailsLoader = std::function<std::optional<AssetDetails>(const AssetItemId &)>;
 using AssetDragPayloadBuilder = std::function<std::optional<AssetDragPayload>(const AssetSelection &)>;
+using AssetItemRenderer = std::function<void(const AssetItem &, bool)>;
 
 struct AssetAdapter
 {
@@ -164,6 +165,7 @@ struct AssetAdapter
     AssetRangeLoader loadRange;
     AssetDetailsLoader loadDetails;
     AssetDragPayloadBuilder makeDragPayload;
+    AssetItemRenderer renderItem;
 };
 
 [[nodiscard]] bool contains(const AssetSelection & selection, const AssetItemId & item);

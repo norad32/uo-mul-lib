@@ -45,6 +45,17 @@ void drawActions(const std::vector<AssetAction> & actions)
     }
 }
 
+void drawExtensions(const std::vector<AssetExtensionSlot> & slots)
+{
+    for (const auto & slot : slots)
+    {
+        if (slot.draw)
+        {
+            slot.draw();
+        }
+    }
+}
+
 void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
 {
     if (adapter.descriptor.capabilities.supports(AssetQueryCapability::filter))
@@ -97,12 +108,20 @@ void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state)
     ImGui::EndChild();
 }
 
-void drawItem(AssetWindowState & state, const AssetItem & item)
+void drawItem(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item)
 {
     ImGui::PushID(item.id.value.c_str());
     const bool selected = contains(state.selection, item.id);
     ImGui::BeginDisabled(item.state != AssetItemState::available);
-    if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F)))
+    if (adapter.renderItem)
+    {
+        adapter.renderItem(item, selected);
+        if (ImGui::IsItemClicked())
+        {
+            selectSingle(state.selection, item.id);
+        }
+    }
+    else if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F)))
     {
         selectSingle(state.selection, item.id);
     }
@@ -142,7 +161,7 @@ void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
             const std::size_t itemIndex = (static_cast<std::size_t>(clipper.DisplayStart) * layout.columns) + column;
             if (itemIndex < first + items.size())
             {
-                drawItem(state, items.at(itemIndex - first));
+                drawItem(adapter, state, items.at(itemIndex - first));
             }
             else if (itemIndex < adapter.descriptor.itemCount)
             {
@@ -176,6 +195,7 @@ void drawAssetWindow(const AssetAdapter & adapter, AssetWindowState & state, boo
 
     ImGui::TextUnformatted(adapter.descriptor.title.c_str());
     drawActions(adapter.descriptor.actions);
+    drawExtensions(adapter.descriptor.extensionSlots);
     drawQueryControls(adapter, state);
     ImGui::Separator();
 
