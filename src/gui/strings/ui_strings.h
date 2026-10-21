@@ -18,6 +18,14 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * applyAndUse() noexcept;
 [[nodiscard]] const char * close() noexcept;
 [[nodiscard]] const char * load() noexcept;
+[[nodiscard]] const char * filter() noexcept;
+[[nodiscard]] const char * ascending() noexcept;
+[[nodiscard]] const char * loading() noexcept;
+[[nodiscard]] const char * noItems() noexcept;
+[[nodiscard]] const char * detailsCollapsed() noexcept;
+[[nodiscard]] const char * noItemSelected() noexcept;
+[[nodiscard]] const char * itemDetailsUnavailable() noexcept;
+[[nodiscard]] const char * assetViewUnavailable() noexcept;
 
 [[nodiscard]] const char * fileMenu() noexcept;
 [[nodiscard]] const char * viewMenu() noexcept;

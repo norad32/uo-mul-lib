@@ -26,6 +26,14 @@ const char * apply() noexcept { return "Apply"; }
 const char * applyAndUse() noexcept { return "Apply and Use"; }
 const char * close() noexcept { return "Close"; }
 const char * load() noexcept { return "Load"; }
+const char * filter() noexcept { return "Filter"; }
+const char * ascending() noexcept { return "Ascending"; }
+const char * loading() noexcept { return "Loading..."; }
+const char * noItems() noexcept { return "No items to display"; }
+const char * detailsCollapsed() noexcept { return "Details collapsed"; }
+const char * noItemSelected() noexcept { return "No item selected"; }
+const char * itemDetailsUnavailable() noexcept { return "Item details unavailable"; }
+const char * assetViewUnavailable() noexcept { return "This asset view is not available yet."; }
 
 const char * fileMenu() noexcept { return "File"; }
 const char * viewMenu() noexcept { return "View"; }
