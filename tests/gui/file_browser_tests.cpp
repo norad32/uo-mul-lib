@@ -1,6 +1,6 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
-#include "gui/common/file_size.h"
+#include "gui/dialogs/file_size.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>

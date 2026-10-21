@@ -6,7 +6,7 @@
 #include <span>
 #if HAS_GUI
 #include "core/gui_log_sink.h"
-#include "gui/application.h"
+#include "gui/application/application.h"
 #include <memory>
 #include <spdlog/logger.h>
 #include <utility>

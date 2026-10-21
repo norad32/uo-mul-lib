@@ -1,6 +1,6 @@
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
-#include "gui/theme.h"
+#include "gui/frontend/theme.h"
 #include <algorithm>
 #include <cctype>
 #include <cstddef>

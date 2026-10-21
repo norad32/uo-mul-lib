@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/data_profile.h"
+#include "gui/profile/data_profile.h"
 #include "uomul/map.h"
 #include <array>
 #include <cstdint>

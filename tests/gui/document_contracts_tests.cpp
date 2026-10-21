@@ -1,4 +1,4 @@
-#include "gui/document_contracts.h"
+#include "gui/metadata/document_contracts.h"
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("DocumentContracts_Should_ExposeInitialDocumentKinds")

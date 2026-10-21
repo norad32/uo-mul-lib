@@ -1,9 +1,9 @@
-#include "gui/data_providers.h"
-#include "gui/data_profile.h"
-#include "gui/map_context.h"
-#include "gui/map_workspace.h"
-#include "gui/panels/selection_stats_panel.h"
-#include "gui/workbench_state.h"
+#include "gui/providers/data_providers.h"
+#include "gui/profile/data_profile.h"
+#include "gui/context/map_context.h"
+#include "gui/documents/map_workspace.h"
+#include "gui/views/selection_stats_panel.h"
+#include "gui/application/workbench_state.h"
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("mapContextSnapshot_Should_ExposeNoActiveLocationWithoutMap")

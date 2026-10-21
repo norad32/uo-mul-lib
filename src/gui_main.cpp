@@ -2,7 +2,7 @@
 #include "app/cli_arguments.h"
 #include "core/gui_log_sink.h"
 #include "core/logger.h"
-#include "gui/application.h"
+#include "gui/application/application.h"
 #include <cstddef>
 #include <iostream>
 #include <memory>

@@ -1,7 +1,7 @@
-#include "gui/data_profile.h"
-#include "gui/data_discovery.h"
-#include "gui/data_profile_store.h"
-#include "gui/data_validation.h"
+#include "gui/profile/data_profile.h"
+#include "gui/profile/data_discovery.h"
+#include "gui/profile/data_profile_store.h"
+#include "gui/profile/data_validation.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>

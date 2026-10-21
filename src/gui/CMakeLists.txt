@@ -13,44 +13,44 @@ include(GuiDependencies)
 
 add_library(
     gui
-    application.cpp
-    command_registry.cpp
-    data_discovery.cpp
-    data_profile.cpp
-    data_profile_store.cpp
-    data_providers.cpp
-    data_validation.cpp
-    coordinate_parser.cpp
-    common/file_size.cpp
+    application/application.cpp
+    application/workbench_state.cpp
+    commands/command_registry.cpp
+    commands/menu_bar.cpp
+    commands/operation_controller.cpp
+    context/coordinate_parser.cpp
+    context/map_context.cpp
+    profile/data_discovery.cpp
+    profile/data_profile.cpp
+    profile/data_profile_store.cpp
+    profile/data_validation.cpp
+    profile/workbench_session.cpp
+    providers/data_providers.cpp
+    dialogs/file_size.cpp
     dialogs/file_browser_dialog.cpp
     dialogs/file_selector_dialog.cpp
     dialogs/map_facet_dialog.cpp
     dialogs/preferences_dialog.cpp
-    log_panel.cpp
-    layout_store.cpp
-    map_context.cpp
-    map_document.cpp
-    map_workspace.cpp
-    menu_bar.cpp
-    new_map_dialog.cpp
-    operation_controller.cpp
-    panels/block_inspector_panel.cpp
-    panels/common.cpp
-    panels/edit_tools_panel.cpp
-    panels/map_canvas_panel.cpp
-    panels/map_info_panel.cpp
-    panels/radarcol_panel.cpp
-    panels/selection_stats_panel.cpp
-    panels/texmaps_panel.cpp
-    panels/tile_inspector_panel.cpp
-    panel_registry.cpp
-    preferences.cpp
-    recent_maps.cpp
-    view_registry.cpp
-    welcome_greetings.cpp
-    welcome_screen.cpp
-    workbench_session.cpp
-    workbench_state.cpp)
+    documents/map_document.cpp
+    documents/map_workspace.cpp
+    persistence/layout_store.cpp
+    persistence/preferences.cpp
+    persistence/recent_maps.cpp
+    tools/edit_tools_panel.cpp
+    views/block_inspector_panel.cpp
+    views/common.cpp
+    views/log_panel.cpp
+    views/map_canvas_panel.cpp
+    views/map_info_panel.cpp
+    views/panel_registry.cpp
+    views/radarcol_panel.cpp
+    views/selection_stats_panel.cpp
+    views/texmaps_panel.cpp
+    views/tile_inspector_panel.cpp
+    views/view_registry.cpp
+    dialogs/new_map_dialog.cpp
+    frontend/welcome_greetings.cpp
+    frontend/welcome_screen.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(

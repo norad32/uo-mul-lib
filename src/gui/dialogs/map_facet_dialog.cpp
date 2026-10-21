@@ -1,7 +1,7 @@
 #include "gui/dialogs/map_facet_dialog.h"
 #include "core/facet_sizes.h"
-#include "gui/new_map_dialog.h"
-#include "gui/theme.h"
+#include "gui/dialogs/new_map_dialog.h"
+#include "gui/frontend/theme.h"
 #include "uomul/map.h"
 #include <cstddef>
 #include <cstdint>
