@@ -15,6 +15,7 @@ namespace
 {
 
 constexpr std::size_t filterBufferSize = 256;
+constexpr float headerHeight = 128.0F;
 constexpr float detailsHeight = 140.0F;
 
 [[nodiscard]] std::string windowName(const AssetAdapterDescriptor & descriptor)
@@ -74,9 +75,9 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
     }
 }
 
-void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state)
+void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state, float height)
 {
-    ImGui::BeginChild("AssetDetails", ImVec2(0.0F, detailsHeight), ImGuiChildFlags_Borders);
+    ImGui::BeginChild("AssetDetails", ImVec2(0.0F, height), ImGuiChildFlags_Borders);
     if (state.detailsCollapsed)
     {
         ImGui::TextUnformatted(strings::detailsCollapsed());
@@ -167,12 +168,13 @@ void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
     const std::vector<AssetItem> items = adapter.loadRange ? adapter.loadRange(request, state.query) : std::vector<AssetItem>{};
     for (std::size_t row = firstRow; row < lastRow; row++)
     {
-        ImGui::SetCursorPosX(startX);
         for (std::size_t column = 0; column < layout.columns; column++)
         {
             const std::size_t itemIndex = (row * layout.columns) + column;
             if (itemIndex < adapter.descriptor.itemCount)
             {
+                ImGui::SetCursorPos(ImVec2(startX + (static_cast<float>(column) * (cellWidth + spacing)),
+                                           startY + (static_cast<float>(row) * rowHeight)));
                 const std::size_t loadedIndex = itemIndex - first;
                 if (loadedIndex < items.size())
                 {
@@ -183,9 +185,7 @@ void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
                     ImGui::TextUnformatted(strings::loading());
                 }
             }
-            ImGui::SetCursorPosX(startX + (static_cast<float>(column + 1U) * (cellWidth + spacing)));
         }
-        ImGui::SetCursorPosY(startY + (static_cast<float>(row + 1U) * rowHeight));
     }
 }
 
@@ -198,7 +198,8 @@ AssetGridLayout gridLayout(std::size_t itemCount, float availableWidth, float ce
         return {};
     }
     const float effectiveCellWidth = std::max(1.0F, cellWidth) + std::max(0.0F, spacing);
-    const auto columns = static_cast<std::size_t>(std::max(1.0F, std::floor(std::max(0.0F, availableWidth) / effectiveCellWidth)));
+    const auto columns = static_cast<std::size_t>(
+        std::max(1.0F, std::floor((std::max(0.0F, availableWidth) + std::max(0.0F, spacing)) / effectiveCellWidth)));
     return {.columns = columns, .rows = (itemCount + columns - 1U) / columns};
 }
 
@@ -211,13 +212,20 @@ void drawAssetWindow(const AssetAdapter & adapter, AssetWindowState & state, boo
         return;
     }
 
+    const float availableHeight = std::max(0.0F, ImGui::GetContentRegionAvail().y);
+    const float actualHeaderHeight = std::min(headerHeight, availableHeight);
+    ImGui::BeginChild("AssetHeader", ImVec2(0.0F, actualHeaderHeight), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
     ImGui::TextUnformatted(adapter.descriptor.title.c_str());
     drawActions(adapter.descriptor.actions);
     drawExtensions(adapter.descriptor.extensionSlots);
     drawQueryControls(adapter, state);
-    ImGui::Separator();
+    ImGui::EndChild();
 
-    ImGui::BeginChild("AssetContent", ImVec2(0.0F, -detailsHeight), ImGuiChildFlags_Borders);
+    const float separatorHeight = ImGui::GetStyle().ItemSpacing.y;
+    const float remainingHeight = std::max(0.0F, ImGui::GetContentRegionAvail().y);
+    const float actualDetailsHeight = std::min(detailsHeight, remainingHeight);
+    const float contentHeight = std::max(0.0F, remainingHeight - actualDetailsHeight - separatorHeight);
+    ImGui::BeginChild("AssetContent", ImVec2(0.0F, contentHeight), ImGuiChildFlags_Borders);
     if (state.presentation == AssetPresentation::grid && adapter.descriptor.capabilities.supports(AssetPresentationCapability::grid) &&
         adapter.descriptor.fixedCellWidth > 0U)
     {
@@ -229,7 +237,7 @@ void drawAssetWindow(const AssetAdapter & adapter, AssetWindowState & state, boo
     }
     ImGui::EndChild();
     ImGui::Separator();
-    drawDetails(adapter, state);
+    drawDetails(adapter, state, actualDetailsHeight);
     ImGui::End();
 }
 

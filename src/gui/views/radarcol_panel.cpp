@@ -32,7 +32,7 @@ constexpr float channelScale = 1.0F / 31.0F;
 constexpr std::uint32_t channelMask = 0x1FU;
 constexpr std::uint32_t redShift = 10U;
 constexpr std::uint32_t greenShift = 5U;
-constexpr std::size_t assetCellWidth = 120U;
+constexpr std::size_t assetCellWidth = 72U;
 constexpr std::size_t assetCellHeight = 44U;
 
 [[nodiscard]] ImVec4 colorToImVec4(uomul::RadarColor color) noexcept

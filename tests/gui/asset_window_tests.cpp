@@ -17,6 +17,14 @@ TEST_CASE("assetGridLayout_Should_CalculateRowsFromAvailableWidth")
     REQUIRE(layout.rows == 4U);
 }
 
+TEST_CASE("assetGridLayout_Should_NotReserveTrailingSpacing")
+{
+    const auto layout = uo_mule::gui::assets::gridLayout(3U, 200.0F, 64.0F, 4.0F);
+
+    REQUIRE(layout.columns == 3U);
+    REQUIRE(layout.rows == 1U);
+}
+
 TEST_CASE("assetGridLayout_Should_ReturnEmptyForNoItems")
 {
     REQUIRE(uo_mule::gui::assets::gridLayout(0U, 640.0F, 64.0F, 4.0F).rows == 0U);

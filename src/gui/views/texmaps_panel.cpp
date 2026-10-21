@@ -27,7 +27,7 @@ namespace
 
 constexpr float thumbnailSize = 64.0F;
 constexpr float borderThickness = 2.0F;
-constexpr std::size_t assetCellWidth = 120U;
+constexpr std::size_t assetCellWidth = 72U;
 constexpr std::size_t assetCellHeight = 72U;
 
 void setPath(std::array<char, texmapsPathBufferSize> & buffer, const std::filesystem::path & path)
