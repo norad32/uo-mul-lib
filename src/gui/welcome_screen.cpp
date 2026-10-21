@@ -135,11 +135,16 @@ constexpr std::size_t timestampBufferSize = 32;
     return std::to_string(recent.dimensions->widthTiles) + " x " + std::to_string(recent.dimensions->heightTiles);
 }
 
-[[nodiscard]] std::string facetLabel(const RecentMap & recent)
+[[nodiscard]] std::string mapLabel(const RecentMap & recent)
 {
     if (recent.facet.empty())
     {
         return "Custom or unknown facet";
+    }
+
+    if (const auto facet = uo_mule::core::facetSize(recent.facet))
+    {
+        return facet->mapLabel;
     }
 
     std::string result = recent.facet;
@@ -175,7 +180,7 @@ void applyRecentMapToOpenDialog(NewMapDialogState & dialog, const RecentMap & re
                 dialog.openFacet = index;
                 break;
             }
-            ++index;
+            index++;
         }
     }
 }
@@ -234,7 +239,7 @@ void drawRecentMap(WorkbenchState & state, const RecentMap & recent, std::size_t
     ImGui::SameLine();
     ImGui::TextDisabled("%s", dimensionsLabel(recent).c_str());
     ImGui::SameLine();
-    ImGui::TextDisabled("%s", facetLabel(recent).c_str());
+    ImGui::TextDisabled("%s", mapLabel(recent).c_str());
     const std::string modifiedLabel = timestampLabel("Modified", recent.lastModified);
     const std::string openedLabel = timestampLabel("Opened", recent.lastOpened);
     ImGui::TextDisabled("%s | %s", modifiedLabel.c_str(), openedLabel.c_str());
@@ -329,7 +334,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     }
     else
     {
-        for (std::size_t index = 0; index < state.session.recentMaps().size(); ++index)
+        for (std::size_t index = 0; index < state.session.recentMaps().size(); index++)
         {
             drawRecentMap(state, state.session.recentMaps().at(index), index);
         }
