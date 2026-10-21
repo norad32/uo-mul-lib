@@ -9,6 +9,8 @@
 namespace uo_mule::gui
 {
 
+struct DataProfile;
+
 struct MapDocument
 {
     DocumentId id = 0;
@@ -32,6 +34,7 @@ class DocumentManager
 public:
     void sync(const MapWorkspace & workspace);
     void close() noexcept;
+    void updateMetadataSources(const DataProfile & profile);
 
     [[nodiscard]] DocumentId open(DocumentSummary summary);
     [[nodiscard]] bool activate(DocumentId id) noexcept;
@@ -54,6 +57,8 @@ private:
     std::vector<DocumentRecord> documents_;
     std::optional<DocumentId> activeId_;
     std::optional<MapDocument> emptyMap_;
+    std::optional<DocumentSourceIdentity> configuredRadarcolSource_;
+    std::optional<DocumentSourceIdentity> configuredTexmapPairSource_;
 };
 
 } // namespace uo_mule::gui

@@ -1,7 +1,10 @@
 #include "gui/documents/document_identity.h"
+#include "gui/metadata/document_contracts.h"
+#include "gui/profile/data_profile.h"
 #include <algorithm>
 #include <filesystem>
 #include <initializer_list>
+#include <optional>
 #include <span>
 #include <system_error>
 
@@ -46,6 +49,35 @@ DocumentSourceIdentity makeDocumentSourceIdentity(std::span<const std::filesyste
 DocumentSourceIdentity makeDocumentSourceIdentity(std::initializer_list<std::filesystem::path> paths)
 {
     return makeDocumentSourceIdentity(std::span<const std::filesystem::path>(paths.begin(), paths.size()));
+}
+
+std::optional<DocumentSourceIdentity> configuredDocumentSourceIdentity(const DataProfile & profile, DocumentKind kind)
+{
+    switch (kind)
+    {
+        case DocumentKind::radarcol :
+        {
+            const auto path = resolvedDataFilePath(profile, DataFileRole::radarcol);
+            if (path.empty())
+            {
+                return std::nullopt;
+            }
+            return makeDocumentSourceIdentity({path});
+        }
+        case DocumentKind::texmapPair :
+        {
+            const auto index = resolvedDataFilePath(profile, DataFileRole::texidx);
+            const auto data = resolvedDataFilePath(profile, DataFileRole::texmaps);
+            if (index.empty() || data.empty())
+            {
+                return std::nullopt;
+            }
+            return makeDocumentSourceIdentity({index, data});
+        }
+        case DocumentKind::map :
+            return std::nullopt;
+    }
+    return std::nullopt;
 }
 
 bool sameDocumentIdentity(const DocumentIdentity & first, const DocumentIdentity & second) noexcept

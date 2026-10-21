@@ -87,6 +87,7 @@ WorkbenchSession::WorkbenchSession(std::filesystem::path recentPath) : recentMap
 
 void WorkbenchSession::updateProfile(const DataProfile & profile)
 {
+    documents_.updateMetadataSources(profile);
     profileState_ = profileReadiness(profile);
     if (profileState_ != ProfileReadinessState::ready)
     {
@@ -96,6 +97,11 @@ void WorkbenchSession::updateProfile(const DataProfile & profile)
     {
         startupState_ = StartupState::mapWelcome;
     }
+}
+
+DocumentId WorkbenchSession::openDocument(DocumentSummary summary)
+{
+    return documents_.open(std::move(summary));
 }
 
 void WorkbenchSession::markProfileInvalid() noexcept

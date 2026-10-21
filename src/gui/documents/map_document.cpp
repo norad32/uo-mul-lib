@@ -2,6 +2,7 @@
 #include "gui/documents/document_identity.h"
 #include "gui/metadata/document_contracts.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/profile/data_profile.h"
 #include <algorithm>
 #include <optional>
 #include <string>
@@ -65,6 +66,31 @@ void DocumentManager::close() noexcept
     }
 }
 
+void DocumentManager::updateMetadataSources(const DataProfile & profile)
+{
+    configuredRadarcolSource_ = configuredDocumentSourceIdentity(profile, DocumentKind::radarcol);
+    configuredTexmapPairSource_ = configuredDocumentSourceIdentity(profile, DocumentKind::texmapPair);
+
+    for (auto & document : documents_)
+    {
+        const auto & identity = document.summary.identity;
+        bool configured = false;
+        switch (identity.kind)
+        {
+            case DocumentKind::radarcol :
+                configured = configuredRadarcolSource_.has_value() && identity.source == configuredRadarcolSource_.value();
+                break;
+            case DocumentKind::texmapPair :
+                configured = configuredTexmapPairSource_.has_value() &&
+                             identity.source == configuredTexmapPairSource_.value();
+                break;
+            case DocumentKind::map :
+                break;
+        }
+        document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
+    }
+}
+
 DocumentId DocumentManager::open(DocumentSummary summary)
 {
     if (summary.identity.kind == DocumentKind::map)
@@ -79,6 +105,21 @@ DocumentId DocumentManager::open(DocumentSummary summary)
     }
 
     summary.identity.id = nextId_++;
+    bool configured = false;
+    switch (summary.identity.kind)
+    {
+        case DocumentKind::radarcol :
+            configured = configuredRadarcolSource_.has_value() &&
+                         summary.identity.source == configuredRadarcolSource_.value();
+            break;
+        case DocumentKind::texmapPair :
+            configured = configuredTexmapPairSource_.has_value() &&
+                         summary.identity.source == configuredTexmapPairSource_.value();
+            break;
+        case DocumentKind::map :
+            break;
+    }
+    summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
     DocumentRecord & record = documents_.emplace_back(DocumentRecord{.summary = std::move(summary), .map = std::nullopt});
     activeId_ = record.summary.identity.id;
     return *activeId_;

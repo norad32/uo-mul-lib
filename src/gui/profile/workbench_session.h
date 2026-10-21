@@ -38,6 +38,8 @@ public:
     [[nodiscard]] ProfileReadinessState profileState() const noexcept;
     [[nodiscard]] bool mapReady() const noexcept;
 
+    [[nodiscard]] DocumentId openDocument(DocumentSummary summary);
+
     void setStartupState(StartupState state) noexcept;
     [[nodiscard]] StartupState startupState() const noexcept;
 

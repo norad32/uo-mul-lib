@@ -4,12 +4,15 @@
 #include <cstdint>
 #include <filesystem>
 #include <initializer_list>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
 
 namespace uo_mule::gui
 {
+
+struct DataProfile;
 
 using DocumentId = std::uint64_t;
 
@@ -23,6 +26,8 @@ struct DocumentSourceIdentity
 [[nodiscard]] std::filesystem::path canonicalDocumentPath(const std::filesystem::path & path);
 [[nodiscard]] DocumentSourceIdentity makeDocumentSourceIdentity(std::span<const std::filesystem::path> paths);
 [[nodiscard]] DocumentSourceIdentity makeDocumentSourceIdentity(std::initializer_list<std::filesystem::path> paths);
+[[nodiscard]] std::optional<DocumentSourceIdentity> configuredDocumentSourceIdentity(const DataProfile & profile,
+                                                                                       DocumentKind kind);
 
 struct DocumentIdentity
 {

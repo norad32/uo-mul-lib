@@ -1,9 +1,11 @@
 #include "gui/documents/document_identity.h"
 #include "gui/documents/map_document.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/profile/workbench_session.h"
 #include "uomul/map.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
+#include <fstream>
 #include <system_error>
 
 namespace
@@ -156,4 +158,76 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
     documents.close();
     REQUIRE_FALSE(documents.activeIdentity());
     REQUIRE(documents.documents().size() == 1);
+}
+
+TEST_CASE("ConfiguredDocumentSource_Should_MatchCanonicalRadarcolPaths")
+{
+    const TestDirectory directory;
+    const auto radarcolPath = testRoot / "radarcol.mul";
+    const auto aliasPath = testRoot / "radarcol-alias.mul";
+    std::ofstream radarcol(radarcolPath);
+    radarcol.close();
+    std::error_code symlinkError;
+    std::filesystem::create_symlink(radarcolPath, aliasPath, symlinkError);
+    REQUIRE_FALSE(symlinkError);
+
+    uo_mule::gui::DataProfile profile;
+    profile.sourceRoot = testRoot;
+    profile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = "radarcol.mul"};
+    const auto configured = uo_mule::gui::configuredDocumentSourceIdentity(
+        profile, uo_mule::gui::DocumentKind::radarcol);
+    REQUIRE(configured.has_value());
+
+    const auto opened = uo_mule::gui::makeDocumentSourceIdentity({aliasPath});
+    REQUIRE(configured.value() == opened);
+}
+
+TEST_CASE("ConfiguredDocumentSource_Should_RequireBothTexmapPairPaths")
+{
+    const TestDirectory directory;
+    uo_mule::gui::DataProfile profile;
+    profile.sourceRoot = testRoot;
+    profile.files[uo_mule::gui::DataFileRole::texidx] = {.path = "texidx.mul"};
+
+    REQUIRE_FALSE(uo_mule::gui::configuredDocumentSourceIdentity(profile, uo_mule::gui::DocumentKind::texmapPair));
+
+    profile.files[uo_mule::gui::DataFileRole::texmaps] = {.path = "texmaps.mul"};
+    const auto configured = uo_mule::gui::configuredDocumentSourceIdentity(
+        profile, uo_mule::gui::DocumentKind::texmapPair);
+    REQUIRE(configured.has_value());
+    REQUIRE(configured->canonicalPaths.size() == 2);
+}
+
+TEST_CASE("WorkbenchSession_Should_RebindOpenMetadataSourceStatusWhenProfileChanges")
+{
+    const TestDirectory directory;
+    const auto firstRadarcol = testRoot / "first-radarcol.mul";
+    const auto secondRadarcol = testRoot / "second-radarcol.mul";
+    std::ofstream(firstRadarcol).close();
+    std::ofstream(secondRadarcol).close();
+
+    const auto makeSummary = [](const std::filesystem::path & path) {
+        return uo_mule::gui::DocumentSummary{
+            .identity = {.kind = uo_mule::gui::DocumentKind::radarcol,
+                         .source = uo_mule::gui::makeDocumentSourceIdentity({path})},
+            .displayName = path.filename().string(),
+        };
+    };
+
+    uo_mule::gui::WorkbenchSession session;
+    const auto documentId = session.openDocument(makeSummary(firstRadarcol));
+    REQUIRE(documentId != 0);
+    REQUIRE(session.documents().front().summary.sourceKind == uo_mule::gui::DocumentSourceKind::standalone);
+
+    uo_mule::gui::DataProfile firstProfile;
+    firstProfile.sourceRoot = testRoot;
+    firstProfile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = firstRadarcol.filename()};
+    session.updateProfile(firstProfile);
+    REQUIRE(session.documents().front().summary.sourceKind == uo_mule::gui::DocumentSourceKind::configuredMetadata);
+
+    uo_mule::gui::DataProfile secondProfile;
+    secondProfile.sourceRoot = testRoot;
+    secondProfile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = secondRadarcol.filename()};
+    session.updateProfile(secondProfile);
+    REQUIRE(session.documents().front().summary.sourceKind == uo_mule::gui::DocumentSourceKind::standalone);
 }
