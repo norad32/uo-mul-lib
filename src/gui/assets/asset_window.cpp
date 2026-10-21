@@ -15,8 +15,7 @@ namespace
 {
 
 constexpr std::size_t filterBufferSize = 256;
-constexpr float detailsWidth = 240.0F;
-constexpr float contentReservedWidth = 250.0F;
+constexpr float detailsHeight = 140.0F;
 
 [[nodiscard]] std::string windowName(const AssetAdapterDescriptor & descriptor)
 {
@@ -77,7 +76,7 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
 
 void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state)
 {
-    ImGui::BeginChild("AssetDetails", ImVec2(detailsWidth, 0.0F), ImGuiChildFlags_Borders);
+    ImGui::BeginChild("AssetDetails", ImVec2(0.0F, detailsHeight), ImGuiChildFlags_Borders);
     if (state.detailsCollapsed)
     {
         ImGui::TextUnformatted(strings::detailsCollapsed());
@@ -126,6 +125,10 @@ void drawItem(const AssetAdapter & adapter, AssetWindowState & state, const Asse
         selectSingle(state.selection, item.id);
     }
     ImGui::EndDisabled();
+    if (ImGui::IsItemHovered() && !item.label.empty())
+    {
+        ImGui::SetTooltip("%s", item.label.c_str());
+    }
     if (item.state != AssetItemState::available && !item.stateMessage.empty() && ImGui::IsItemHovered())
     {
         ImGui::SetTooltip("%s", item.stateMessage.c_str());
@@ -136,38 +139,53 @@ void drawItem(const AssetAdapter & adapter, AssetWindowState & state, const Asse
 void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
 {
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
-    const AssetGridLayout layout = gridLayout(adapter.descriptor.itemCount,
-                                              ImGui::GetContentRegionAvail().x,
-                                              static_cast<float>(adapter.descriptor.fixedCellWidth),
-                                              spacing);
-    if (layout.rows == 0U)
+    const float availableWidth = ImGui::GetContentRegionAvail().x;
+    const float cellWidth = static_cast<float>(adapter.descriptor.fixedCellWidth);
+    const float cellHeight = static_cast<float>(adapter.descriptor.fixedCellHeight);
+    const AssetGridLayout layout = gridLayout(adapter.descriptor.itemCount, availableWidth, cellWidth, spacing);
+    if (layout.rows == 0U || layout.columns == 0U)
     {
         ImGui::TextUnformatted(strings::noItems());
         return;
     }
 
-    ImGuiListClipper clipper;
-    clipper.Begin(static_cast<int>(layout.rows));
-    while (clipper.Step())
+    const float rowHeight = cellHeight + ImGui::GetStyle().ItemSpacing.y;
+    const float viewportHeight = ImGui::GetContentRegionAvail().y;
+    const float contentHeight = static_cast<float>(layout.rows) * rowHeight;
+    const float scrollY = ImGui::GetScrollY();
+    const std::size_t firstRow = std::min(layout.rows, static_cast<std::size_t>(std::floor(scrollY / rowHeight)));
+    const std::size_t visibleRows = static_cast<std::size_t>(std::ceil(viewportHeight / rowHeight)) + 1U;
+    const std::size_t lastRow = std::min(layout.rows, firstRow + visibleRows);
+    const float startX = ImGui::GetCursorPosX();
+    const float startY = ImGui::GetCursorPosY();
+    ImGui::Dummy(ImVec2(0.0F, contentHeight));
+    ImGui::SetCursorPosY(startY + (static_cast<float>(firstRow) * rowHeight));
+
+    const std::size_t first = firstRow * layout.columns;
+    const std::size_t count = std::min((lastRow - firstRow) * layout.columns, adapter.descriptor.itemCount - first);
+    const AssetRangeRequest request{.first = first, .count = count, .presentation = AssetPresentation::grid};
+    const std::vector<AssetItem> items = adapter.loadRange ? adapter.loadRange(request, state.query) : std::vector<AssetItem>{};
+    for (std::size_t row = firstRow; row < lastRow; row++)
     {
-        const std::size_t first = static_cast<std::size_t>(clipper.DisplayStart) * layout.columns;
-        const std::size_t count = std::min(layout.columns * static_cast<std::size_t>(clipper.DisplayEnd - clipper.DisplayStart),
-                                           adapter.descriptor.itemCount - first);
-        const AssetRangeRequest request{.first = first, .count = count, .presentation = AssetPresentation::grid};
-        const std::vector<AssetItem> items = adapter.loadRange ? adapter.loadRange(request, state.query) : std::vector<AssetItem>{};
+        ImGui::SetCursorPosX(startX);
         for (std::size_t column = 0; column < layout.columns; column++)
         {
-            ImGui::TableNextColumn();
-            const std::size_t itemIndex = (static_cast<std::size_t>(clipper.DisplayStart) * layout.columns) + column;
-            if (itemIndex < first + items.size())
+            const std::size_t itemIndex = (row * layout.columns) + column;
+            if (itemIndex < adapter.descriptor.itemCount)
             {
-                drawItem(adapter, state, items.at(itemIndex - first));
+                const std::size_t loadedIndex = itemIndex - first;
+                if (loadedIndex < items.size())
+                {
+                    drawItem(adapter, state, items.at(loadedIndex));
+                }
+                else
+                {
+                    ImGui::TextUnformatted(strings::loading());
+                }
             }
-            else if (itemIndex < adapter.descriptor.itemCount)
-            {
-                ImGui::TextUnformatted(strings::loading());
-            }
+            ImGui::SetCursorPosX(startX + (static_cast<float>(column + 1U) * (cellWidth + spacing)));
         }
+        ImGui::SetCursorPosY(startY + (static_cast<float>(row + 1U) * rowHeight));
     }
 }
 
@@ -199,26 +217,18 @@ void drawAssetWindow(const AssetAdapter & adapter, AssetWindowState & state, boo
     drawQueryControls(adapter, state);
     ImGui::Separator();
 
-    ImGui::BeginChild("AssetContent", ImVec2(-contentReservedWidth, 0.0F), ImGuiChildFlags_Borders);
+    ImGui::BeginChild("AssetContent", ImVec2(0.0F, -detailsHeight), ImGuiChildFlags_Borders);
     if (state.presentation == AssetPresentation::grid && adapter.descriptor.capabilities.supports(AssetPresentationCapability::grid) &&
         adapter.descriptor.fixedCellWidth > 0U)
     {
-        if (ImGui::BeginTable("AssetGrid", static_cast<int>(gridLayout(adapter.descriptor.itemCount,
-                                                                        ImGui::GetContentRegionAvail().x,
-                                                                        static_cast<float>(adapter.descriptor.fixedCellWidth),
-                                                                        ImGui::GetStyle().ItemSpacing.x).columns),
-                              ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_PadOuterX))
-        {
-            drawGrid(adapter, state);
-            ImGui::EndTable();
-        }
+        drawGrid(adapter, state);
     }
     else
     {
         ImGui::TextUnformatted(strings::assetViewUnavailable());
     }
     ImGui::EndChild();
-    ImGui::SameLine();
+    ImGui::Separator();
     drawDetails(adapter, state);
     ImGui::End();
 }

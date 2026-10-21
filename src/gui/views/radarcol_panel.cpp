@@ -172,8 +172,7 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
     const auto index = static_cast<std::uint32_t>(std::stoul(item.id.value));
     const auto color = state.reader ? state.reader->readRawColor(index).value_or(0) : uomul::RadarColor{};
     ImGui::ColorButton("##RadarcolColor", colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(swatchSize, swatchSize));
-    ImGui::SameLine();
-    ImGui::Text("%s%s", item.label.c_str(), selected ? " *" : "");
+    static_cast<void>(selected);
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -214,7 +213,7 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
         const std::size_t end = std::min(request.first + request.count, static_cast<std::size_t>(state.reader->colorCount()));
         for (std::size_t index = request.first; index < end; index++)
         {
-            items.push_back({.id = {.value = std::to_string(index)}, .label = "Color " + std::to_string(index),
+            items.push_back({.id = {.value = std::to_string(index)}, .label = std::to_string(index),
                              .state = state.reader->readRawColor(static_cast<std::uint32_t>(index)).has_value()
                                           ? assets::AssetItemState::available
                                           : assets::AssetItemState::empty,

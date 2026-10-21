@@ -98,8 +98,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
     drawList->AddRect(min, max, selected ? theme::packedColor(theme::brightBrass) : theme::packedColor(theme::stoneBorder), 0.0F,
                       ImDrawFlags_None, borderThickness);
     ImGui::Dummy(ImVec2(thumbnailSize, thumbnailSize));
-    ImGui::SameLine();
-    ImGui::Text("Texture %u", id);
+    static_cast<void>(id);
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -144,7 +143,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
         {
             const auto present = state.reader->hasTexture(static_cast<std::uint32_t>(id));
             items.push_back({.id = {.value = std::to_string(id)},
-                             .label = "Texture " + std::to_string(id),
+                             .label = std::to_string(id),
                              .state = present && *present ? assets::AssetItemState::available : assets::AssetItemState::empty,
                              .stateMessage = {},});
         }
