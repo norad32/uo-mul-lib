@@ -63,13 +63,13 @@ constexpr std::size_t timestampBufferSize = 32;
 {
     if (status == DataFileStatus::foundAndValidated || status == DataFileStatus::overridden || status == DataFileStatus::found)
     {
-        return theme::imguiColor(theme::green);
+        return theme::imguiColor(theme::success);
     }
     if (status == DataFileStatus::missing || status == DataFileStatus::optional || status == DataFileStatus::unsupported)
     {
-        return theme::imguiColor(theme::yellow);
+        return theme::imguiColor(theme::warning);
     }
-    return theme::imguiColor(theme::red);
+    return theme::imguiColor(theme::error);
 }
 
 [[nodiscard]] std::string dimensionsLabel(const RecentMap & recent)
@@ -163,7 +163,7 @@ void drawProfileSummary(const DataProfile & profile, const ProviderStatus & rada
     ImGui::Text("Radarcol: %.*s", static_cast<int>(sourceName.size()), sourceName.data());
     if (radarcolStatus.source == ProviderSourceKind::embeddedDefaultWithWarning && !radarcolStatus.message.empty())
     {
-        ImGui::TextColored(theme::imguiColor(theme::yellow), "Warning: %s", radarcolStatus.message.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::warning), "Warning: %s", radarcolStatus.message.c_str());
     }
 
     for (const auto role : {DataFileRole::radarcol, DataFileRole::texidx, DataFileRole::texmaps, DataFileRole::tiledata})
@@ -195,7 +195,7 @@ void drawRecentMap(WorkbenchState & state, const RecentMap & recent, std::size_t
     {
         const ImVec2 rowMin = ImGui::GetWindowPos();
         const ImVec2 rowMax = ImVec2(rowMin.x + ImGui::GetWindowSize().x, rowMin.y + ImGui::GetWindowSize().y);
-        ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(theme::mauve));
+        ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(theme::accent));
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
         ImGui::SetTooltip("%s", recent.path.string().c_str());
     }
@@ -211,7 +211,7 @@ void drawRecentMap(WorkbenchState & state, const RecentMap & recent, std::size_t
     ImGui::TextDisabled("%s | %s", modifiedLabel.c_str(), openedLabel.c_str());
     if (unavailable)
     {
-        ImGui::TextColored(theme::imguiColor(theme::red), "Unavailable: %s", recent.failure.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::error), "Unavailable: %s", recent.failure.c_str());
     }
 
     const bool rowDoubleClicked = rowHovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
@@ -277,12 +277,12 @@ void drawWelcomeScreen(WorkbenchState & state)
     const ImVec2 bannerTextSize = ImGui::CalcTextSize(bannerText);
     ImGui::SetCursorPos(ImVec2((ImGui::GetWindowSize().x - bannerTextSize.x) * bannerCenterFactor,
                                (ImGui::GetWindowSize().y - bannerTextSize.y) * bannerCenterFactor));
-        ImGui::TextColored(theme::imguiColor(theme::subtext0), "%s", bannerText);
+        ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", bannerText);
     ImGui::EndChild();
     ImGui::Separator();
 
     ImGui::Spacing();
-        ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", state.welcomeGreeting.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::greeting), "%s", state.welcomeGreeting.c_str());
     ImGui::Spacing();
     ImGui::Separator();
 

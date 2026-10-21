@@ -334,7 +334,10 @@ void renderFrame(GLFWwindow * window)
     int displayHeight = 0;
     glfwGetFramebufferSize(window, &displayWidth, &displayHeight);
     glViewport(0, 0, displayWidth, displayHeight);
-    glClearColor(theme::base.red, theme::base.green, theme::base.blue, theme::base.alpha);
+    glClearColor(theme::canvasBackground.red,
+                 theme::canvasBackground.green,
+                 theme::canvasBackground.blue,
+                 theme::canvasBackground.alpha);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(window);

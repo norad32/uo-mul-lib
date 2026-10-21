@@ -95,7 +95,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
             }
         }
     }
-    drawList->AddRect(min, max, selected ? theme::packedColor(theme::text) : theme::packedColor(theme::surface1), 0.0F,
+    drawList->AddRect(min, max, selected ? theme::packedColor(theme::selection) : theme::packedColor(theme::border), 0.0F,
                       ImDrawFlags_None, borderThickness);
     ImGui::Dummy(ImVec2(thumbnailSize, thumbnailSize));
     static_cast<void>(id);
@@ -128,7 +128,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
             }
             if (!state.error.empty())
             {
-                ImGui::TextColored(theme::imguiColor(theme::red), "Error: %s", state.error.c_str());
+                ImGui::TextColored(theme::imguiColor(theme::error), "Error: %s", state.error.c_str());
             }
             static_cast<void>(browser);
         },

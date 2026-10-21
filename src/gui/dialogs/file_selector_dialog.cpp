@@ -117,7 +117,7 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
     ImGui::Separator();
     if (state.candidates.empty())
     {
-        ImGui::TextColored(theme::imguiColor(theme::yellow), "No supported MUL type was detected.");
+        ImGui::TextColored(theme::imguiColor(theme::warning), "No supported MUL type was detected.");
     }
     for (std::size_t index = 0; index < state.candidates.size(); index++)
     {
@@ -147,7 +147,7 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
 
     if (!state.error.empty())
     {
-        ImGui::TextColored(theme::imguiColor(theme::yellow), "%s", state.error.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", state.error.c_str());
     }
     const bool canAccept = state.selectedCandidate < state.candidates.size() &&
                            state.candidates.at(state.selectedCandidate).openable;

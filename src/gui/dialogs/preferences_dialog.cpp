@@ -444,7 +444,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
 
     if (!state.message.empty())
     {
-        ImGui::TextColored(theme::imguiColor(theme::green), "%s", state.message.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::success), "%s", state.message.c_str());
     }
 
     ImGui::Checkbox("Show welcome screen on startup", &state.showWelcomeOnStartup);

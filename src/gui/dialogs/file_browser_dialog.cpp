@@ -325,7 +325,7 @@ void drawSummary(const FileBrowserState & state)
     }
     if (!summary.error.empty())
     {
-        ImGui::TextColored(theme::imguiColor(theme::yellow), "%s", summary.error.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", summary.error.c_str());
     }
 
     for (const auto & candidate : summary.mapCandidates)
@@ -338,7 +338,7 @@ void drawSummary(const FileBrowserState & state)
                     static_cast<unsigned long long>(candidate.expectedBlocks));
         ImGui::Text("Missing: %llu", static_cast<unsigned long long>(candidate.missingBlocks));
         ImGui::Text("Trailing bytes: %llu", static_cast<unsigned long long>(candidate.trailingBytes));
-        ImGui::TextColored(candidate.valid ? theme::imguiColor(theme::green) : theme::imguiColor(theme::red),
+        ImGui::TextColored(candidate.valid ? theme::imguiColor(theme::success) : theme::imguiColor(theme::error),
                            "%s",
                            candidate.valid ? "Valid map candidate" : "Invalid map candidate");
     }
@@ -347,7 +347,7 @@ void drawSummary(const FileBrowserState & state)
         ImGui::Separator();
         ImGui::Text("Type: %s", candidate.label.c_str());
         ImGui::TextWrapped("%s", candidate.reason.c_str());
-        ImGui::TextColored(candidate.openable ? theme::imguiColor(theme::green) : theme::imguiColor(theme::yellow),
+        ImGui::TextColored(candidate.openable ? theme::imguiColor(theme::success) : theme::imguiColor(theme::warning),
                            "%s",
                            candidate.openable ? "Openable" : "Requires selection");
     }
@@ -728,7 +728,7 @@ void drawFileBrowser(FileBrowserState & state)
     if (!state.error.empty())
     {
         ImGui::SameLine();
-        ImGui::TextColored(theme::imguiColor(theme::yellow), "%s", state.error.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", state.error.c_str());
     }
 
     const char * confirmLabel = "Select Folder";

@@ -247,15 +247,15 @@ void drawNotifications(const NotificationState & notifications)
             ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
             if (notification.severity == NotificationSeverity::error)
             {
-                color = theme::imguiColor(theme::red);
+                color = theme::imguiColor(theme::error);
             }
             else if (notification.severity == NotificationSeverity::warning)
             {
-                color = theme::imguiColor(theme::yellow);
+                color = theme::imguiColor(theme::warning);
             }
             else if (notification.severity == NotificationSeverity::success)
             {
-                color = theme::imguiColor(theme::green);
+                color = theme::imguiColor(theme::success);
             }
             ImGui::TextColored(color, "%s", notification.message.c_str());
         }

@@ -68,6 +68,21 @@ inline constexpr Color rosewater = colorFromRgba(0xF5E0DCFFU);
 inline constexpr Color pink = colorFromRgba(0xF5C2E7FFU);
 inline constexpr Color transparent = colorFromRgba(0x00000000U);
 
+// Semantic roles used by application UI code. Keep these mapped to the official palette above.
+inline constexpr Color canvasBackground = base;
+inline constexpr Color panelBackground = mantle;
+inline constexpr Color popupBackground = mantle;
+inline constexpr Color border = surface1;
+inline constexpr Color selection = lavender;
+inline constexpr Color accent = mauve;
+inline constexpr Color primaryText = text;
+inline constexpr Color greeting = lavender;
+inline constexpr Color warning = yellow;
+inline constexpr Color error = red;
+inline constexpr Color success = green;
+inline constexpr Color info = sapphire;
+inline constexpr Color mutedText = subtext0;
+
 [[nodiscard]] constexpr Color withAlpha(Color color, float value) noexcept
 {
     color.alpha = value;
@@ -197,7 +212,7 @@ inline void applyImGuiStyle()
     style.Colors[ImGuiCol_TabHovered] = imguiColor(surface2);
     style.Colors[ImGuiCol_TabDimmed] = imguiColor(withAlpha(mauve, tabDimmedAlpha));
     style.Colors[ImGuiCol_TabDimmedSelected] = imguiColor(withAlpha(mauve, tabDimmedSelectedAlpha));
-    style.Colors[ImGuiCol_TabDimmedSelectedOverline] = imguiColor(withAlpha(overlay0, 0.0F));
+    style.Colors[ImGuiCol_TabDimmedSelectedOverline] = imguiColor(transparent);
     style.Colors[ImGuiCol_TabSelectedOverline] = imguiColor(lavender);
     style.Colors[ImGuiCol_PlotLines] = imguiColor(overlay2);
     style.Colors[ImGuiCol_PlotLinesHovered] = imguiColor(red);

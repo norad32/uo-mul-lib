@@ -87,13 +87,13 @@ MapFacetDialogResult drawMapFacetDialog(NewMapDialogState & state)
     ImGui::Text("Map path: %s", state.openPath.data());
     if (state.openCandidates.empty())
     {
-        ImGui::TextColored(theme::imguiColor(theme::yellow), "No exact known size match, custom dimensions is selected.");
+        ImGui::TextColored(theme::imguiColor(theme::warning), "No exact known size match, custom dimensions is selected.");
     }
 
     const bool validDimensions = drawFacetCombo(state.openFacet, state.openWidth, state.openHeight);
     if (!validDimensions)
     {
-        ImGui::TextColored(theme::imguiColor(theme::yellow), "Dimensions must be positive multiples of 8 tiles.");
+        ImGui::TextColored(theme::imguiColor(theme::warning), "Dimensions must be positive multiples of 8 tiles.");
     }
 
     beginDialogFooter();

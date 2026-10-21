@@ -23,7 +23,7 @@ void drawColorPreview(MapColor color)
     const ImVec2 cellMaximum(cellMinimum.x + assetPreviewSize, cellMinimum.y + assetPreviewSize);
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(color.red, color.green, color.blue, 255));
-    drawList->AddRect(cellMinimum, cellMaximum, theme::packedColor(theme::surface1), 0.0F, ImDrawFlags_None, 1.0F);
+    drawList->AddRect(cellMinimum, cellMaximum, theme::packedColor(theme::border), 0.0F, ImDrawFlags_None, 1.0F);
     ImGui::Dummy(ImVec2(assetPreviewSize, assetPreviewSize));
 }
 

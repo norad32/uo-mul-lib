@@ -36,14 +36,14 @@ void drawMapInfoPanel(const MapWorkspace & workspace, bool & visible)
             ImGui::Text("Complete blocks: %llu", static_cast<unsigned long long>(reader->completeBlocks()));
             ImGui::Text("Missing blocks: %llu", static_cast<unsigned long long>(reader->missingBlocks()));
             ImGui::Text("Trailing bytes: %llu", static_cast<unsigned long long>(reader->ignoredTrailingBytes()));
-            ImGui::TextColored(workspace.dirty() ? theme::imguiColor(theme::yellow) : ImGui::GetStyleColorVec4(ImGuiCol_Text),
+            ImGui::TextColored(workspace.dirty() ? theme::imguiColor(theme::warning) : ImGui::GetStyleColorVec4(ImGuiCol_Text),
                                "Changes: %s",
                                workspace.dirty() ? "Unsaved staged changes" : "Clean");
         }
 
         if (workspace.error())
         {
-            ImGui::TextColored(theme::imguiColor(theme::red), "Map error: %s", workspace.error()->message.c_str());
+            ImGui::TextColored(theme::imguiColor(theme::error), "Map error: %s", workspace.error()->message.c_str());
         }
     }
 
