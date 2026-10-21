@@ -5,13 +5,16 @@
 #include "gui/profile/data_validation.h"
 #include "gui/dialogs/new_map_dialog.h"
 #include "gui/persistence/preferences.h"
-#include "gui/persistence/recent_maps.h"
+#include "gui/persistence/recent_files.h"
+#include "gui/documents/document_identity.h"
+#include "gui/metadata/document_contracts.h"
 #include "gui/frontend/theme.h"
 #include "gui/frontend/welcome_greetings.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/providers/data_providers.h"
 #include "gui/strings/ui_strings.h"
 #include "gui/application/workbench_state.h"
+#include "gui/context/notification_state.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -22,6 +25,7 @@
 #include <random>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace uo_mule::gui
 {
@@ -72,7 +76,7 @@ constexpr std::size_t timestampBufferSize = 32;
     return theme::imguiColor(theme::error);
 }
 
-[[nodiscard]] std::string dimensionsLabel(const RecentMap & recent)
+[[nodiscard]] std::string dimensionsLabel(const RecentFile & recent)
 {
     if (!recent.dimensions)
     {
@@ -82,7 +86,7 @@ constexpr std::size_t timestampBufferSize = 32;
     return std::to_string(recent.dimensions->widthTiles) + " x " + std::to_string(recent.dimensions->heightTiles);
 }
 
-[[nodiscard]] std::string mapLabel(const RecentMap & recent)
+[[nodiscard]] std::string mapLabel(const RecentFile & recent)
 {
     if (recent.facet.empty())
     {
@@ -99,7 +103,7 @@ constexpr std::size_t timestampBufferSize = 32;
     return result;
 }
 
-void applyRecentMapToOpenDialog(NewMapDialogState & dialog, const RecentMap & recent)
+void applyRecentMapToOpenDialog(NewMapDialogState & dialog, const RecentFile & recent)
 {
     dialog.mode = MapFileDialogMode::openMap;
     dialog.activePopup = MapFileDialogMode::none;
@@ -182,7 +186,32 @@ void drawProfileSummary(const DataProfile & profile, const ProviderStatus & rada
     }
 }
 
-void drawRecentMap(WorkbenchState & state, const RecentMap & recent, std::size_t index)
+void openRecentAsset(WorkbenchState & state, const RecentFile & recent)
+{
+    DocumentSummary summary;
+    summary.identity.kind = recent.kind;
+    if (recent.kind == DocumentKind::texmapPair)
+    {
+        summary.identity.source = makeDocumentSourceIdentity({recent.path, recent.companionPath});
+    }
+    else
+    {
+        summary.identity.source = makeDocumentSourceIdentity({recent.path});
+    }
+    summary.displayName = recent.displayName;
+    const DocumentId id = state.session.openDocument(std::move(summary));
+    if (id == 0)
+    {
+        return;
+    }
+    const auto activated = state.session.activateDocument(id, state.workspace);
+    if (!activated)
+    {
+        state.notifications.add(NotificationSeverity::error, activated.error().message);
+    }
+}
+
+void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size_t index)
 {
     ImGui::PushID(static_cast<int>(index));
     ImGui::BeginChild("###welcome.recent-row",
@@ -202,10 +231,18 @@ void drawRecentMap(WorkbenchState & state, const RecentMap & recent, std::size_t
 
     const bool unavailable = !recent.failure.empty();
     ImGui::TextUnformatted(recent.displayName.c_str());
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", dimensionsLabel(recent).c_str());
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", mapLabel(recent).c_str());
+    if (recent.kind == DocumentKind::map)
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", dimensionsLabel(recent).c_str());
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", mapLabel(recent).c_str());
+    }
+    else
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", std::string(documentKindName(recent.kind)).c_str());
+    }
     const std::string modifiedLabel = timestampLabel("Modified", recent.lastModified);
     const std::string openedLabel = timestampLabel("Opened", recent.lastOpened);
     ImGui::TextDisabled("%s | %s", modifiedLabel.c_str(), openedLabel.c_str());
@@ -218,7 +255,14 @@ void drawRecentMap(WorkbenchState & state, const RecentMap & recent, std::size_t
     ImGui::EndChild();
     if (rowDoubleClicked)
     {
-        applyRecentMapToOpenDialog(state.menuBarState.fileDialog, recent);
+        if (recent.kind == DocumentKind::map)
+        {
+            applyRecentMapToOpenDialog(state.menuBarState.fileDialog, recent);
+        }
+        else
+        {
+            openRecentAsset(state, recent);
+        }
     }
     ImGui::PopID();
 }
@@ -240,7 +284,7 @@ void selectGreetingIfNeeded(WorkbenchState & state)
 void drawWelcomeScreen(WorkbenchState & state)
 {
     selectGreetingIfNeeded(state);
-    state.session.refreshRecentMaps();
+    state.session.refreshRecentFiles();
     state.providers.sync(state.activeProfile);
     const ProviderStatus radarcolStatus = state.providers.radarColors().status();
 
@@ -290,7 +334,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     ImGui::TextUnformatted("Recent Files");
     ImGui::Spacing();
 
-    if (state.session.recentMaps().empty())
+    if (state.session.recentFiles().empty())
     {
         ImGui::BeginChild("###welcome.recent-empty",
                           ImVec2(0.0F, recentRowHeight),
@@ -302,9 +346,9 @@ void drawWelcomeScreen(WorkbenchState & state)
     }
     else
     {
-        for (std::size_t index = 0; index < state.session.recentMaps().size(); index++)
+        for (std::size_t index = 0; index < state.session.recentFiles().size(); index++)
         {
-            drawRecentMap(state, state.session.recentMaps().at(index), index);
+            drawRecentFile(state, state.session.recentFiles().at(index), index);
         }
     }
 

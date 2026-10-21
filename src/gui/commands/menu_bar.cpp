@@ -138,6 +138,9 @@ bool openGenericAsset(WorkbenchState & state,
     {
         state.notifications.add(NotificationSeverity::error, activated.error().message);
     }
+    state.session.recordRecentFile(candidate.path,
+                                   candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair,
+                                   candidate.companionPath);
     return false;
 }
 

@@ -4,63 +4,73 @@ find_package(Catch2 CONFIG REQUIRED COMPONENTS Catch2WithMain)
 list(APPEND CMAKE_MODULE_PATH "${Catch2_DIR}")
 include(Catch)
 
-file(
-    GLOB_RECURSE
-    test_sources
-    CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/uomul/*.cpp")
-if(BUILD_GUI)
+if(BUILD_CORE_TESTS)
     file(
         GLOB_RECURSE
-        gui_test_sources
+        core_test_sources
         CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/gui/*.cpp")
-    list(APPEND test_sources ${gui_test_sources})
+        "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/uomul/*.cpp")
+    add_executable(uomul_tests ${core_test_sources})
+    target_link_libraries(uomul_tests PRIVATE Catch2::Catch2WithMain uomul core application_options)
+    apply_common_compile_options(uomul_tests)
+    apply_unit_test_compile_options(uomul_tests)
+    if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+        apply_coverage_compile_options(uomul_tests)
+        apply_unit_test_link_options(uomul_tests)
+        foreach(target IN ITEMS core uomul)
+            apply_coverage_compile_options(${target})
+        endforeach()
+    endif()
+    catch_discover_tests(uomul_tests)
 endif()
-add_executable(tests ${test_sources})
-target_link_libraries(
-    tests
-    PRIVATE Catch2::Catch2WithMain
-            app
-            core
-            application_options
-            CLI11::CLI11)
-apply_common_compile_options(tests)
-if(BUILD_GUI)
-    target_link_libraries(tests PRIVATE gui)
+
+if(BUILD_CLI_TESTS AND (BUILD_CLI OR BUILD_GUI))
+    file(GLOB_RECURSE cli_test_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp")
+    add_executable(cli_tests ${cli_test_sources})
+    target_link_libraries(cli_tests PRIVATE Catch2::Catch2WithMain app core application_options CLI11::CLI11)
+    apply_common_compile_options(cli_tests)
+    apply_unit_test_compile_options(cli_tests)
+    if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+        apply_coverage_compile_options(cli_tests)
+        apply_unit_test_link_options(cli_tests)
+        apply_coverage_compile_options(app)
+        target_link_options(app INTERFACE -fprofile-arcs -ftest-coverage)
+        target_link_libraries(app INTERFACE gcov)
+    endif()
+    catch_discover_tests(cli_tests)
 endif()
-apply_unit_test_compile_options(tests)
-if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-    apply_coverage_compile_options(tests)
-    apply_unit_test_link_options(tests)
-    foreach(target IN ITEMS core uomul app)
-        apply_coverage_compile_options(${target})
-    endforeach()
-    target_link_options(
-        app
-        INTERFACE
-        -fprofile-arcs
-        -ftest-coverage)
-    target_link_libraries(app INTERFACE gcov)
-    if(BUILD_GUI)
+
+if(BUILD_GUI_TESTS AND BUILD_GUI)
+    file(GLOB_RECURSE gui_test_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gui/*.cpp")
+    add_executable(gui_tests ${gui_test_sources})
+    target_link_libraries(gui_tests PRIVATE Catch2::Catch2WithMain gui core uomul application_options)
+    apply_common_compile_options(gui_tests)
+    apply_unit_test_compile_options(gui_tests)
+    if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+        apply_coverage_compile_options(gui_tests)
+        apply_unit_test_link_options(gui_tests)
         apply_coverage_compile_options(gui)
     endif()
+    catch_discover_tests(gui_tests)
 endif()
-catch_discover_tests(tests)
-add_test(NAME cli_check COMMAND ${EXECUTABLE_NAME} check)
-add_test(NAME cli_version COMMAND ${EXECUTABLE_NAME} --version)
+
+if(BUILD_CLI OR BUILD_GUI)
+    add_test(NAME cli_check COMMAND ${EXECUTABLE_NAME} check)
+    add_test(NAME cli_version COMMAND ${EXECUTABLE_NAME} --version)
+endif()
 if(BUILD_GUI_RUNTIME)
     add_test(NAME gui_cli_version COMMAND ${GUI_EXECUTABLE_NAME} --version)
 endif()
 
-add_test(
-    NAME package_consumer
-    COMMAND
-        ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
-        -DMAIN_BINARY_DIR=${PROJECT_BINARY_DIR}
-        -DBINARY_DIR=${PROJECT_BINARY_DIR}/package-consumer
-        -DPREFIX_DIR=${PROJECT_BINARY_DIR}/package-consumer-prefix
-        -DCONFIG=$<CONFIG> -P
-        ${PROJECT_SOURCE_DIR}/tests/package-consumer/run-package-consumer.cmake)
+if(BUILD_CLI OR BUILD_GUI)
+    add_test(
+        NAME package_consumer
+        COMMAND
+            ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+            -DMAIN_BINARY_DIR=${PROJECT_BINARY_DIR}
+            -DBINARY_DIR=${PROJECT_BINARY_DIR}/package-consumer
+            -DPREFIX_DIR=${PROJECT_BINARY_DIR}/package-consumer-prefix
+            -DCONFIG=$<CONFIG> -P
+            ${PROJECT_SOURCE_DIR}/tests/package-consumer/run-package-consumer.cmake)
+endif()

@@ -2,7 +2,7 @@
 #include "gui/context/coordinate_parser.h"
 #include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/persistence/recent_maps.h"
+#include "gui/persistence/recent_files.h"
 #include "gui/frontend/welcome_greetings.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/application/workbench_state.h"
@@ -114,30 +114,30 @@ TEST_CASE("workbenchSession_Should_ShowWelcomeAfterInvalidProfileWithoutBlocking
     REQUIRE(session.startupState() == uo_mule::gui::StartupState::mapWelcome);
 }
 
-TEST_CASE("recentMapStore_Should_RoundTripAndMarkMissingEntries")
+TEST_CASE("recentFileStore_Should_RoundTripAndMarkMissingEntries")
 {
     const TemporaryDirectory directory;
     const auto recentPath = directory.path() / "recent.conf";
     const auto mapPath = directory.path() / "missing.map0.mul";
 
-    uo_mule::gui::RecentMapStore store(recentPath);
+    uo_mule::gui::RecentFileStore store(recentPath);
     store.record(mapPath, uomul::Dimensions{.widthTiles = testMapDimension, .heightTiles = testMapDimension}, "Felucca");
 
-    const uo_mule::gui::RecentMapStore loaded(recentPath);
-    REQUIRE(loaded.maps().size() == 1);
-    REQUIRE(loaded.maps().front().path == mapPath);
-    REQUIRE(loaded.maps().front().displayName == "missing.map0");
-    const auto & dimensions = loaded.maps().front().dimensions;
+    const uo_mule::gui::RecentFileStore loaded(recentPath);
+    REQUIRE(loaded.files().size() == 1);
+    REQUIRE(loaded.files().front().path == mapPath);
+    REQUIRE(loaded.files().front().displayName == "missing.map0");
+    const auto & dimensions = loaded.files().front().dimensions;
     REQUIRE(dimensions.has_value());
     if (dimensions.has_value())
     {
         REQUIRE(dimensions->widthTiles == testMapDimension);
     }
-    REQUIRE(loaded.maps().front().facet == "Felucca");
-    REQUIRE_FALSE(loaded.maps().front().failure.empty());
+    REQUIRE(loaded.files().front().facet == "Felucca");
+    REQUIRE_FALSE(loaded.files().front().failure.empty());
 }
 
-TEST_CASE("recentMapStore_Should_PersistLastOpenedTimestamp")
+TEST_CASE("recentFileStore_Should_PersistLastOpenedTimestamp")
 {
     const TemporaryDirectory directory;
     const auto recentPath = directory.path() / "recent.conf";
@@ -146,16 +146,16 @@ TEST_CASE("recentMapStore_Should_PersistLastOpenedTimestamp")
     mapFile << "fixture";
     mapFile.close();
 
-    uo_mule::gui::RecentMapStore store(recentPath);
+    uo_mule::gui::RecentFileStore store(recentPath);
     store.record(mapPath);
 
-    const uo_mule::gui::RecentMapStore loaded(recentPath);
-    REQUIRE(loaded.maps().size() == 1);
-    REQUIRE(loaded.maps().front().lastOpened > 0);
-    REQUIRE(loaded.maps().front().lastModified > 0);
+    const uo_mule::gui::RecentFileStore loaded(recentPath);
+    REQUIRE(loaded.files().size() == 1);
+    REQUIRE(loaded.files().front().lastOpened > 0);
+    REQUIRE(loaded.files().front().lastModified > 0);
 }
 
-TEST_CASE("workbenchSession_Should_RecordKnownFacetForRecentMapDimensions")
+TEST_CASE("workbenchSession_Should_RecordKnownFacetForRecentFileDimensions")
 {
     const TemporaryDirectory directory;
     const auto recentPath = directory.path() / "recent.conf";
@@ -163,30 +163,50 @@ TEST_CASE("workbenchSession_Should_RecordKnownFacetForRecentMapDimensions")
     REQUIRE(dimensions.has_value());
 
     uo_mule::gui::WorkbenchSession session(recentPath);
-    session.recordRecentMap(directory.path() / "map0.mul", *dimensions);
+    session.recordRecentFile(directory.path() / "map0.mul", *dimensions);
 
-    REQUIRE(session.recentMaps().size() == 1);
-    REQUIRE(session.recentMaps().front().facet == "legacy");
+    REQUIRE(session.recentFiles().size() == 1);
+    REQUIRE(session.recentFiles().front().facet == "legacy");
 }
 
-TEST_CASE("recentMapStore_Should_KeepFiveMostRecentMapsInOrder")
+TEST_CASE("recentFileStore_Should_KeepFiveMostRecentFilesInOrder")
 {
     const TemporaryDirectory directory;
     const auto recentPath = directory.path() / "recent.conf";
-    uo_mule::gui::RecentMapStore store(recentPath);
+    uo_mule::gui::RecentFileStore store(recentPath);
 
     for (std::size_t index = 0; index < uo_mule::gui::recentFileLimit + 1U; ++index)
     {
         store.record(directory.path() / ("map" + std::to_string(index) + ".mul"));
     }
 
-    REQUIRE(store.maps().size() == uo_mule::gui::recentFileLimit);
-    REQUIRE(store.maps().front().path.filename() == "map5.mul");
-    REQUIRE(store.maps().back().path.filename() == "map1.mul");
+    REQUIRE(store.files().size() == uo_mule::gui::recentFileLimit);
+    REQUIRE(store.files().front().path.filename() == "map5.mul");
+    REQUIRE(store.files().back().path.filename() == "map1.mul");
 
     store.record(directory.path() / "map2.mul");
-    REQUIRE(store.maps().front().path.filename() == "map2.mul");
-    REQUIRE(store.maps().size() == uo_mule::gui::recentFileLimit);
+    REQUIRE(store.files().front().path.filename() == "map2.mul");
+    REQUIRE(store.files().size() == uo_mule::gui::recentFileLimit);
+}
+
+TEST_CASE("recentFileStore_Should_RoundTripAllRecentDocumentKinds")
+{
+    const TemporaryDirectory directory;
+    const auto recentPath = directory.path() / "recent.conf";
+    const auto radarcolPath = directory.path() / "radarcol.mul";
+    const auto texidxPath = directory.path() / "texidx.mul";
+    const auto texmapsPath = directory.path() / "texmaps.mul";
+
+    uo_mule::gui::RecentFileStore store(recentPath);
+    store.record(radarcolPath, std::nullopt, {}, uo_mule::gui::DocumentKind::radarcol);
+    store.record(texidxPath, std::nullopt, {}, uo_mule::gui::DocumentKind::texmapPair, texmapsPath);
+
+    const uo_mule::gui::RecentFileStore loaded(recentPath);
+    REQUIRE(loaded.files().size() == 2);
+    REQUIRE(loaded.files().at(0).kind == uo_mule::gui::DocumentKind::texmapPair);
+    REQUIRE(loaded.files().at(0).companionPath == texmapsPath);
+    REQUIRE(loaded.files().at(1).kind == uo_mule::gui::DocumentKind::radarcol);
+    REQUIRE(loaded.files().at(1).companionPath.empty());
 }
 
 TEST_CASE("welcomeGreeting_Should_SelectAConfiguredGreeting")

@@ -555,7 +555,7 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         notifyRadarcolFallback(state);
         if (state.workspace.reader() != nullptr && state.recentMapRecordedPath != state.workspace.mapPath())
         {
-            state.session.recordRecentMap(state.workspace.mapPath(), state.workspace.dimensions());
+            state.session.recordRecentFile(state.workspace.mapPath(), state.workspace.dimensions());
             state.recentMapRecordedPath = state.workspace.mapPath();
         }
     }

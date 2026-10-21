@@ -2,12 +2,13 @@
 #include "core/facet_sizes.h"
 #include "gui/profile/data_profile.h"
 #include "gui/profile/data_validation.h"
-#include "gui/persistence/recent_maps.h"
+#include "gui/persistence/recent_files.h"
 #include "gui/context/map_context.h"
 #include "gui/documents/map_document.h"
 #include "gui/documents/document_identity.h"
 #include "gui/documents/map_workspace_manager.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/metadata/document_contracts.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <expected>
@@ -83,7 +84,7 @@ bool mapReady(const DataProfile & profile)
 
 WorkbenchSession::WorkbenchSession() = default;
 
-WorkbenchSession::WorkbenchSession(std::filesystem::path recentPath) : recentMaps_(std::move(recentPath))
+WorkbenchSession::WorkbenchSession(std::filesystem::path recentPath) : recentFiles_(std::move(recentPath))
 {
 }
 
@@ -137,19 +138,26 @@ StartupState WorkbenchSession::startupState() const noexcept
     return startupState_;
 }
 
-const std::vector<RecentMap> & WorkbenchSession::recentMaps() const noexcept
+const std::vector<RecentFile> & WorkbenchSession::recentFiles() const noexcept
 {
-    return recentMaps_.maps();
+    return recentFiles_.files();
 }
 
-void WorkbenchSession::recordRecentMap(const std::filesystem::path & path, uomul::Dimensions dimensions)
+void WorkbenchSession::recordRecentFile(const std::filesystem::path & path, uomul::Dimensions dimensions)
 {
-    recentMaps_.record(path, dimensions, facetForDimensions(dimensions));
+    recentFiles_.record(path, dimensions, facetForDimensions(dimensions));
 }
 
-void WorkbenchSession::refreshRecentMaps()
+void WorkbenchSession::recordRecentFile(const std::filesystem::path & path,
+                                        DocumentKind kind,
+                                        std::filesystem::path companionPath)
 {
-    recentMaps_.refreshValidity();
+    recentFiles_.record(path, std::nullopt, {}, kind, std::move(companionPath));
+}
+
+void WorkbenchSession::refreshRecentFiles()
+{
+    recentFiles_.refreshValidity();
 }
 
 void WorkbenchSession::syncDocument(MapWorkspaceManager & workspace)

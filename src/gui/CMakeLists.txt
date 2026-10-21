@@ -47,7 +47,7 @@ add_library(
      documents/map_workspace_manager.cpp
     persistence/layout_store.cpp
     persistence/preferences.cpp
-    persistence/recent_maps.cpp
+    persistence/recent_files.cpp
     tools/edit_tools_panel.cpp
     views/block_inspector_panel.cpp
     views/common.cpp

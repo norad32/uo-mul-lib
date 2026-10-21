@@ -4,7 +4,8 @@
 #include "gui/context/map_context.h"
 #include "gui/documents/map_document.h"
 #include "gui/documents/map_workspace_manager.h"
-#include "gui/persistence/recent_maps.h"
+#include "gui/persistence/recent_files.h"
+#include "gui/metadata/document_contracts.h"
 #include <cstdint>
 
 namespace uo_mule::gui
@@ -44,9 +45,12 @@ public:
     void setStartupState(StartupState state) noexcept;
     [[nodiscard]] StartupState startupState() const noexcept;
 
-    [[nodiscard]] const std::vector<RecentMap> & recentMaps() const noexcept;
-    void recordRecentMap(const std::filesystem::path & path, uomul::Dimensions dimensions);
-    void refreshRecentMaps();
+    [[nodiscard]] const std::vector<RecentFile> & recentFiles() const noexcept;
+    void recordRecentFile(const std::filesystem::path & path, uomul::Dimensions dimensions);
+    void recordRecentFile(const std::filesystem::path & path,
+                          DocumentKind kind,
+                          std::filesystem::path companionPath = {});
+    void refreshRecentFiles();
     void syncDocument(MapWorkspaceManager & workspace);
     void syncDocument(const MapWorkspace & workspace);
     [[nodiscard]] std::expected<void, uomul::Error> activateDocument(DocumentId id, MapWorkspaceManager & workspace);
@@ -68,7 +72,7 @@ public:
 private:
     ProfileReadinessState profileState_ = ProfileReadinessState::needsProfile;
     StartupState startupState_ = StartupState::configureProfile;
-    RecentMapStore recentMaps_;
+    RecentFileStore recentFiles_;
     DocumentManager documents_;
 };
 
