@@ -301,14 +301,18 @@ void drawStartupScreen(WorkbenchState & state)
 
 void drawDocumentSurface(WorkbenchState & state)
 {
-    if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+    if (auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
     {
         bool visible = true;
         drawRadarcolDocumentPanel(state.radarcolState,
                                   *active->radarcol,
-                                  active->summary.access,
                                   visible,
                                   state.fileBrowser);
+        if (auto result = active->radarcol->processPendingIntent(); !result)
+        {
+            state.notifications.add(NotificationSeverity::error, result.error().message);
+        }
+        state.session.syncAssetDocuments();
         return;
     }
 

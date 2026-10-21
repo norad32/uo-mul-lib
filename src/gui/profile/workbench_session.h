@@ -54,6 +54,8 @@ public:
     [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id, MapWorkspaceManager & workspace);
     [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id, MapWorkspace & workspace);
     [[nodiscard]] const std::vector<DocumentRecord> & documents() const noexcept;
+    void syncAssetDocuments() noexcept;
+    [[nodiscard]] DocumentRecord * activeDocumentRecord() noexcept;
     [[nodiscard]] const DocumentRecord * activeDocumentRecord() const noexcept;
     [[nodiscard]] std::optional<DocumentId> activeDocumentId() const noexcept;
     [[nodiscard]] std::optional<DocumentIdentity> activeDocumentIdentity() const;

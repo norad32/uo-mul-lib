@@ -262,6 +262,17 @@ const std::vector<DocumentRecord> & WorkbenchSession::documents() const noexcept
     return documents_.documents();
 }
 
+void WorkbenchSession::syncAssetDocuments() noexcept
+{
+    documents_.syncAssetDocuments();
+}
+
+DocumentRecord * WorkbenchSession::activeDocumentRecord() noexcept
+{
+    const auto activeId = documents_.activeId();
+    return activeId ? documents_.findMutable(*activeId) : nullptr;
+}
+
 const DocumentRecord * WorkbenchSession::activeDocumentRecord() const noexcept
 {
     const auto activeId = documents_.activeId();

@@ -43,7 +43,9 @@ public:
     [[nodiscard]] bool close(DocumentId id) noexcept;
 
     [[nodiscard]] const std::vector<DocumentRecord> & documents() const noexcept;
+    [[nodiscard]] DocumentRecord * findMutable(DocumentId id) noexcept;
     [[nodiscard]] const DocumentRecord * find(DocumentId id) const noexcept;
+    void syncAssetDocuments() noexcept;
     [[nodiscard]] std::optional<DocumentId> activeId() const noexcept;
     [[nodiscard]] std::optional<DocumentIdentity> activeIdentity() const;
 

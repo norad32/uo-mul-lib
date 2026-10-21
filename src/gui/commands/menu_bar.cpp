@@ -195,7 +195,17 @@ bool openGenericAsset(WorkbenchState & state,
 
     applyFileBrowserResult(state.menuBarState.fileDialog, result);
     applyFileBrowserResult(state.menuBarState.preferencesDialog, result);
-    applyFileBrowserResult(state.radarcolState, result);
+    if (result.target == FileBrowserTarget::radarcolOutput)
+    {
+        if (auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+        {
+            active->radarcol->setOutputPath(result.path);
+        }
+    }
+    else
+    {
+        applyFileBrowserResult(state.radarcolState, result);
+    }
     applyFileBrowserResult(state.texmapsState, result);
     return false;
 }

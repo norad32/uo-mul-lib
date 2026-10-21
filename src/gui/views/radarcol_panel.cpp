@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <functional>
 #include <imgui.h>
 #include <optional>
 #include <string>
@@ -73,48 +74,6 @@ void loadSource(RadarcolPanelState & state)
     state.error.clear();
 }
 
-void beginEditing(RadarcolPanelState & state, bool overwriteOutput)
-{
-    auto editor = uomul::RadarColEditor::create(std::filesystem::path(state.sourcePath.data()),
-                                                std::filesystem::path(state.outputPath.data()),
-                                                {.overwriteOutput = overwriteOutput});
-    if (!editor)
-    {
-        state.error = formatError(editor.error());
-        return;
-    }
-    state.editor.emplace(std::move(*editor));
-    state.error.clear();
-}
-
-void saveChanges(RadarcolPanelState & state)
-{
-    if (!state.editor)
-    {
-        return;
-    }
-    const std::filesystem::path output(state.outputPath.data());
-    auto committed = state.editor->commit();
-    if (!committed)
-    {
-        state.error = formatError(committed.error());
-        return;
-    }
-    state.editor.reset();
-    setPath(state.sourcePath, output);
-    loadSource(state);
-}
-
-void discardChanges(RadarcolPanelState & state)
-{
-    if (state.editor)
-    {
-        state.editor->abort();
-        state.editor.reset();
-    }
-    state.error.clear();
-}
-
 void drawSourceControls(RadarcolPanelState & state, FileBrowserState & browser, bool readOnly)
 {
     ImGui::Text("Source: %s", state.sourcePath.data());
@@ -123,7 +82,6 @@ void drawSourceControls(RadarcolPanelState & state, FileBrowserState & browser, 
         ImGui::TextUnformatted("Configured metadata source (read-only)");
         return;
     }
-    ImGui::BeginDisabled(state.editor.has_value());
     if (ImGui::Button("Load"))
     {
         requestFileBrowser(browser,
@@ -133,37 +91,68 @@ void drawSourceControls(RadarcolPanelState & state, FileBrowserState & browser, 
                             .extension = ".mul",
                             .title = "Open Radarcol",});
     }
-    ImGui::EndDisabled();
 }
 
-void drawEditControls(RadarcolPanelState & state, bool readOnly)
+void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
 {
-    if (readOnly)
+    if (document.readOnly())
     {
+        ImGui::TextUnformatted("Configured metadata source (read-only)");
         return;
     }
-    if (!state.editor && state.reader)
+    if (!document.editing())
     {
-        ImGui::Text("Output: %s", state.outputPath.data());
-        if (ImGui::Button("Begin editing"))
+        ImGui::Text("Output: %s", document.outputPath().empty() ? "Not selected" : document.outputPath().string().c_str());
+        if (ImGui::Button("Choose output"))
         {
-            beginEditing(state, state.overwriteOutput);
+            requestFileBrowser(browser,
+                               {.mode = FileBrowserMode::saveFile,
+                                .target = FileBrowserTarget::radarcolOutput,
+                                .initialPath = document.outputPath(),
+                                .extension = ".mul",
+                                .title = "Save Radarcol As",});
         }
         ImGui::SameLine();
-        ImGui::Checkbox("Overwrite output", &state.overwriteOutput);
+        bool overwriteOutput = document.overwriteOutput();
+        if (ImGui::Checkbox("Overwrite output", &overwriteOutput))
+        {
+            document.setOverwriteOutput(overwriteOutput);
+        }
+        ImGui::BeginDisabled(document.outputPath().empty());
+        if (ImGui::Button("Begin editing"))
+        {
+            document.requestIntent({.kind = RadarcolDocumentIntentKind::beginEdit,
+                                    .colorIndex = 0,
+                                    .color = 0,
+                                    .outputPath = document.outputPath(),
+                                    .overwriteOutput = document.overwriteOutput(),});
+        }
+        ImGui::EndDisabled();
     }
-    if (state.editor)
+    if (document.editing())
     {
-        ImGui::Text("Editing: %s", state.outputPath.data());
+        ImGui::Text("Editing: %s", document.outputPath().string().c_str());
         if (ImGui::Button("Save changes"))
         {
-            saveChanges(state);
+            document.requestIntent({.kind = RadarcolDocumentIntentKind::save,
+                                    .colorIndex = 0,
+                                    .color = 0,
+                                    .outputPath = {},
+                                    .overwriteOutput = false,});
         }
         ImGui::SameLine();
         if (ImGui::Button("Discard changes"))
         {
-            discardChanges(state);
+            document.requestIntent({.kind = RadarcolDocumentIntentKind::discard,
+                                    .colorIndex = 0,
+                                    .color = 0,
+                                    .outputPath = {},
+                                    .overwriteOutput = false,});
         }
+    }
+    if (!document.error().empty())
+    {
+        ImGui::TextColored(ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "%s", document.error().c_str());
     }
 }
 
@@ -197,11 +186,6 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
     adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
         .id = "source", .label = "Source", .draw = [&state, &browser, readOnly] {
             drawSourceControls(state, browser, readOnly);
-        },
-    });
-    adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
-        .id = "editing", .label = "Editing", .draw = [&state, readOnly] {
-            drawEditControls(state, readOnly);
         },
     });
     adapter.loadRange = [&state](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
@@ -241,13 +225,71 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
     return adapter;
 }
 
-void drawRadarcolView(RadarcolPanelState & state,
-                      bool & visible,
-                      FileBrowserState & browser,
-                      bool readOnly,
-                      std::string viewId)
+void drawRadarcolDocumentView(RadarcolDocument & document,
+                              RadarcolPanelState & state,
+                              bool & visible,
+                              const std::function<void()> & drawSource,
+                              const std::function<void()> & drawEditing,
+                              std::string viewId)
 {
-    const auto adapter = makeAdapter(state, browser, readOnly, std::move(viewId));
+    assets::AssetAdapter adapter;
+    adapter.descriptor.viewId = std::move(viewId);
+    adapter.descriptor.title = "Radarcol";
+    adapter.descriptor.source = {.kind = DocumentKind::radarcol,
+                                 .source = makeDocumentSourceIdentity({document.sourcePath()}),
+                                 .contextId = adapter.descriptor.viewId,};
+    adapter.descriptor.capabilities = {.presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
+                                                       static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
+                                       .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
+                                       .selection = assets::AssetSelectionMode::single,};
+    adapter.descriptor.itemCount = document.reader() ? document.reader()->colorCount() : 0U;
+    adapter.descriptor.fixedCellWidth = assetCellWidth;
+    adapter.descriptor.fixedCellHeight = assetCellHeight;
+    adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
+        .id = "source", .label = "Source", .draw = drawSource,
+    });
+    adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
+        .id = "editing", .label = "Editing", .draw = drawEditing,
+    });
+    adapter.loadRange = [&document](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
+        std::vector<assets::AssetItem> items;
+        if (!document.reader())
+        {
+            return items;
+        }
+        const std::size_t end = std::min(request.first + request.count, static_cast<std::size_t>(document.reader()->colorCount()));
+        for (std::size_t index = request.first; index < end; index++)
+        {
+            items.push_back({.id = {.value = std::to_string(index)}, .label = std::to_string(index),
+                             .state = document.reader()->readRawColor(static_cast<std::uint32_t>(index)).has_value()
+                                          ? assets::AssetItemState::available
+                                          : assets::AssetItemState::empty,
+                             .stateMessage = {},});
+        }
+        return items;
+    };
+    adapter.loadDetails = [&document](const assets::AssetItemId & id) -> std::optional<assets::AssetDetails> {
+        if (!document.reader())
+        {
+            return std::nullopt;
+        }
+        const auto index = static_cast<std::uint32_t>(std::stoul(id.value));
+        const auto color = document.reader()->readRawColor(index);
+        if (!color)
+        {
+            return std::nullopt;
+        }
+        return assets::AssetDetails{.item = id,
+                                    .title = "Radarcol color " + id.value,
+                                    .fields = std::vector<std::string>{"Raw value: " +
+                                                                       std::to_string(static_cast<std::uint32_t>(*color)),},};
+    };
+    adapter.renderItem = [&document](const assets::AssetItem & item, bool selected) {
+        const auto index = static_cast<std::uint32_t>(std::stoul(item.id.value));
+        const auto color = document.reader() ? document.reader()->readRawColor(index).value_or(0) : uomul::RadarColor{};
+        ImGui::ColorButton("##RadarcolColor", colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(swatchSize, swatchSize));
+        static_cast<void>(selected);
+    };
     assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 
@@ -289,7 +331,6 @@ void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile)
     }
     setPath(state.sourcePath, path);
     state.reader.reset();
-    state.editor.reset();
     invalidateMapColorCache(state);
     state.error.clear();
     if (!path.empty())
@@ -300,15 +341,12 @@ void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile)
 
 void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult & result)
 {
-    if (result.target != FileBrowserTarget::radarcolSource && result.target != FileBrowserTarget::radarcolOutput)
+    if (result.target != FileBrowserTarget::radarcolSource)
     {
         return;
     }
-    setPath(result.target == FileBrowserTarget::radarcolSource ? state.sourcePath : state.outputPath, result.path);
-    if (result.target == FileBrowserTarget::radarcolSource)
-    {
-        loadSource(state);
-    }
+    setPath(state.sourcePath, result.path);
+    loadSource(state);
 }
 
 void drawRadarcolPanel(RadarcolPanelState & state,
@@ -316,35 +354,27 @@ void drawRadarcolPanel(RadarcolPanelState & state,
                        FileBrowserState & browser,
                        bool readOnly)
 {
-    drawRadarcolView(state, visible, browser, readOnly, "view.radarcol");
+    const auto adapter = makeAdapter(state, browser, readOnly, "view.radarcol");
+    assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 
 void drawRadarcolDocumentPanel(RadarcolPanelState & state,
-                               const RadarcolDocument & document,
-                               DocumentAccess access,
+                               RadarcolDocument & document,
                                bool & visible,
                                FileBrowserState & browser)
 {
-    const bool readOnly = access == DocumentAccess::readOnly;
-    if (state.documentId != document.id || state.documentReadOnly != readOnly)
-    {
-        if (state.editor)
-        {
-            state.editor->abort();
-            state.editor.reset();
-        }
-        state.documentId = document.id;
-        state.documentReadOnly = readOnly;
-        setPath(state.sourcePath, document.sourcePath);
-        state.reader.reset();
-        invalidateMapColorCache(state);
-        state.error = document.error;
-        if (document.reader)
-        {
-            loadSource(state);
-        }
-    }
-    drawRadarcolView(state, visible, browser, readOnly, "document.radarcol");
+    drawRadarcolDocumentView(document,
+                             state,
+                             visible,
+                             [&document] {
+                                 ImGui::Text("Source: %s", document.sourcePath().string().c_str());
+                                 if (document.readOnly())
+                                 {
+                                     ImGui::TextUnformatted("Configured metadata source (read-only)");
+                                 }
+                             },
+                             [&document, &browser] { drawEditControls(document, browser); },
+                             "document.radarcol");
 }
 
 } // namespace uo_mule::gui

@@ -93,6 +93,10 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
         {
             document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
             document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
+            if (document.radarcol)
+            {
+                document.radarcol->setAccess(document.summary.access);
+            }
         }
         else if (identity.kind == DocumentKind::texmapPair)
         {
@@ -138,7 +142,9 @@ DocumentId DocumentManager::open(DocumentSummary summary)
     std::optional<RadarcolDocument> radarcol;
     if (summary.identity.kind == DocumentKind::radarcol && !summary.identity.source.canonicalPaths.empty())
     {
-        auto opened = RadarcolDocument::open(summary.identity.id, summary.identity.source.canonicalPaths.front());
+        auto opened = RadarcolDocument::open(summary.identity.id,
+                                             summary.identity.source.canonicalPaths.front(),
+                                             summary.access);
         if (opened)
         {
             summary.validation = DocumentValidationState::valid;
@@ -147,12 +153,10 @@ DocumentId DocumentManager::open(DocumentSummary summary)
         else
         {
             summary.validation = DocumentValidationState::invalid;
-            radarcol = RadarcolDocument{
-                .id = summary.identity.id,
-                .sourcePath = summary.identity.source.canonicalPaths.front(),
-                .reader = std::nullopt,
-                .error = opened.error().message,
-            };
+            radarcol = RadarcolDocument::invalid(summary.identity.id,
+                                                 summary.identity.source.canonicalPaths.front(),
+                                                 summary.access,
+                                                 opened.error().message);
         }
     }
 
@@ -193,6 +197,27 @@ bool DocumentManager::close(DocumentId id) noexcept
 const std::vector<DocumentRecord> & DocumentManager::documents() const noexcept
 {
     return documents_;
+}
+
+DocumentRecord * DocumentManager::findMutable(DocumentId id) noexcept
+{
+    const auto record = std::ranges::find_if(documents_, [id](const DocumentRecord & candidate) {
+        return candidate.summary.identity.id == id;
+    });
+    return record == documents_.end() ? nullptr : &*record;
+}
+
+void DocumentManager::syncAssetDocuments() noexcept
+{
+    for (auto & document : documents_)
+    {
+        if (document.radarcol)
+        {
+            document.summary.dirty = document.radarcol->dirty();
+            document.summary.validation = document.radarcol->reader().has_value() ? DocumentValidationState::valid
+                                                                                    : DocumentValidationState::invalid;
+        }
+    }
 }
 
 const DocumentRecord * DocumentManager::find(DocumentId id) const noexcept

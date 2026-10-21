@@ -194,8 +194,8 @@ TEST_CASE("DocumentManager_Should_OpenStandaloneRadarcolAsAnEditableReaderBacked
     REQUIRE(documents.documents().front().summary.access == uo_mule::gui::DocumentAccess::editable);
     REQUIRE(documents.documents().front().summary.validation == uo_mule::gui::DocumentValidationState::valid);
     REQUIRE(documents.documents().front().radarcol.has_value());
-    REQUIRE(documents.documents().front().radarcol->reader.has_value());
-    REQUIRE(documents.documents().front().radarcol->reader->colorCount() == uomul::radarColorCount);
+    REQUIRE(documents.documents().front().radarcol->reader().has_value());
+    REQUIRE(documents.documents().front().radarcol->reader()->colorCount() == uomul::radarColorCount);
 }
 
 TEST_CASE("DocumentManager_Should_KeepInvalidConfiguredRadarcolReadOnly")
@@ -222,8 +222,8 @@ TEST_CASE("DocumentManager_Should_KeepInvalidConfiguredRadarcolReadOnly")
     REQUIRE(document->summary.access == uo_mule::gui::DocumentAccess::readOnly);
     REQUIRE(document->summary.validation == uo_mule::gui::DocumentValidationState::invalid);
     REQUIRE(document->radarcol.has_value());
-    REQUIRE_FALSE(document->radarcol->reader.has_value());
-    REQUIRE_FALSE(document->radarcol->error.empty());
+    REQUIRE_FALSE(document->radarcol->reader().has_value());
+    REQUIRE_FALSE(document->radarcol->error().empty());
 }
 
 TEST_CASE("ConfiguredDocumentSource_Should_MatchCanonicalRadarcolPaths")
