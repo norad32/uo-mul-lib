@@ -475,8 +475,8 @@ void saveLodCacheKey(MapCanvasPanelState & state,
     drawList.AddImage(static_cast<ImTextureID>(state.lodTexture),
                       canvasOrigin,
                       ImVec2(canvasOrigin.x + canvasSize.x, canvasOrigin.y + canvasSize.y),
-                      ImVec2(0.0F, 1.0F),
-                      ImVec2(1.0F, 0.0F));
+                      ImVec2(0.0F, 0.0F),
+                      ImVec2(1.0F, 1.0F));
 
     return true;
 }
