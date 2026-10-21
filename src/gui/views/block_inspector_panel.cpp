@@ -54,14 +54,14 @@ void drawTileCell(const uomul::MapBlock & block,
     drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
     drawList->AddRect(cellMinimum,
                       cellMaximum,
-                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::stoneBorder)),
+                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::surface1)),
                       0.0F,
                       ImDrawFlags_None,
                       gridLineThickness);
     if (selected)
     {
         drawList->AddRect(
-            cellMinimum, cellMaximum, theme::packedColor(theme::brightBrass), 0.0F, ImDrawFlags_None, selectedBorderThickness);
+            cellMinimum, cellMaximum, theme::packedColor(theme::text), 0.0F, ImDrawFlags_None, selectedBorderThickness);
     }
 
     const std::string label = tileLabel(workspace.displayMode(), tile);
@@ -153,7 +153,7 @@ void refreshBlock(const uomul::MapReader & reader,
 
 void drawBlockError(const uomul::Error & error)
 {
-    ImGui::TextColored(theme::imguiColor(theme::coral), "Block read error: %s", error.message.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::red), "Block read error: %s", error.message.c_str());
 }
 
 } // namespace
@@ -229,7 +229,7 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
         if (workspace.error())
         {
             const std::string message = "Workspace error: " + workspace.error()->message;
-            ImGui::TextColored(theme::imguiColor(theme::coral), "%s", message.c_str());
+            ImGui::TextColored(theme::imguiColor(theme::red), "%s", message.c_str());
         }
     }
 

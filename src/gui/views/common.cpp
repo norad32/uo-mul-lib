@@ -39,8 +39,8 @@ std::string tileLabel(MapDisplayMode mode, uomul::MapTile tile)
 
 void drawOutlinedText(ImDrawList & drawList, ImVec2 position, const std::string & text)
 {
-    const ImU32 outlineColor = theme::packedColor(theme::stoneSurface);
-    const ImU32 textColor = theme::packedColor(theme::parchmentText);
+    const ImU32 outlineColor = theme::packedColor(theme::mantle);
+    const ImU32 textColor = theme::packedColor(theme::text);
     drawList.AddText(ImVec2(position.x - textOutlineOffset, position.y), outlineColor, text.c_str());
     drawList.AddText(ImVec2(position.x + textOutlineOffset, position.y), outlineColor, text.c_str());
     drawList.AddText(ImVec2(position.x, position.y - textOutlineOffset), outlineColor, text.c_str());

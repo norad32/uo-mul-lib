@@ -25,7 +25,7 @@ constexpr ImGuiWindowFlags confirmationFlags = ImGuiWindowFlags_AlwaysAutoResize
 constexpr const char * wholeMapConfirmationPopup = "Confirm Whole-Map Edit###EditToolsWholeMapConfirmation";
 [[nodiscard]] ImVec4 statusColor(bool isError) noexcept
 {
-    return theme::imguiColor(isError ? theme::coral : theme::sageGreen);
+    return theme::imguiColor(isError ? theme::red : theme::green);
 }
 
 [[nodiscard]] bool selectionAvailable(const MapWorkspace & workspace) noexcept

@@ -23,42 +23,6 @@ inline constexpr std::uint32_t redChannelShift = 24U;
 inline constexpr std::uint32_t greenChannelShift = 16U;
 inline constexpr std::uint32_t blueChannelShift = 8U;
 
-inline constexpr Color traceLog{
-    .red = 166.0F / maximumColorChannel,
-    .green = 166.0F / maximumColorChannel,
-    .blue = 166.0F / maximumColorChannel,
-    .alpha = 1.0F,
-};
-inline constexpr Color debugLog{
-    .red = 140.0F / maximumColorChannel,
-    .green = 191.0F / maximumColorChannel,
-    .blue = 1.0F,
-    .alpha = 1.0F,
-};
-inline constexpr Color infoLog{
-    .red = 166.0F / maximumColorChannel,
-    .green = 217.0F / maximumColorChannel,
-    .blue = 166.0F / maximumColorChannel,
-    .alpha = 1.0F,
-};
-inline constexpr Color warningLog{
-    .red = 1.0F,
-    .green = 204.0F / maximumColorChannel,
-    .blue = 89.0F / maximumColorChannel,
-    .alpha = 1.0F,
-};
-inline constexpr Color errorLog{
-    .red = 1.0F,
-    .green = 102.0F / maximumColorChannel,
-    .blue = 102.0F / maximumColorChannel,
-    .alpha = 1.0F,
-};
-inline constexpr Color neutralLog{
-    .red = 217.0F / maximumColorChannel,
-    .green = 217.0F / maximumColorChannel,
-    .blue = 217.0F / maximumColorChannel,
-    .alpha = 1.0F,
-};
 constexpr Color colorFromRgba(std::uint32_t rgba) noexcept
 {
     return {
@@ -69,86 +33,84 @@ constexpr Color colorFromRgba(std::uint32_t rgba) noexcept
     };
 }
 
-inline constexpr Color background = colorFromRgba(0x26262FFFU);
-inline constexpr Color stoneSurface = colorFromRgba(0x1A1A21FFU);
-inline constexpr Color stoneBorder = colorFromRgba(0x45454DFFU);
-inline constexpr Color mutedGold = colorFromRgba(0x736333FFU);
-inline constexpr Color brass = colorFromRgba(0x9E8C61FFU);
-inline constexpr Color brightBrass = colorFromRgba(0xD9D4BDFFU);
-inline constexpr Color parchmentText = colorFromRgba(0xBDBDB5FFU);
-inline constexpr Color mutedText = colorFromRgba(0x828278FFU);
+inline constexpr Color traceLog = colorFromRgba(0x9399B2FFU);    // Overlay 2
+inline constexpr Color debugLog = colorFromRgba(0x89B4FAFFU);    // Blue
+inline constexpr Color infoLog = colorFromRgba(0x94E2D5FFU);     // Teal
+inline constexpr Color warningLog = colorFromRgba(0xF9E2AFFFU);  // Yellow
+inline constexpr Color errorLog = colorFromRgba(0xF38BA8FFU);    // Red
+inline constexpr Color neutralLog = colorFromRgba(0xBAC2DEFFU);  // Subtext 1
+
+inline constexpr Color base = colorFromRgba(0x1E1E2EFFU);
+inline constexpr Color mantle = colorFromRgba(0x181825FFU);
+inline constexpr Color crust = colorFromRgba(0x11111BFFU);
+inline constexpr Color surface0 = colorFromRgba(0x313244FFU);
+inline constexpr Color surface1 = colorFromRgba(0x45475AFFU);
+inline constexpr Color surface2 = colorFromRgba(0x585B70FFU);
+inline constexpr Color text = colorFromRgba(0xCDD6F4FFU);
+inline constexpr Color subtext0 = colorFromRgba(0xA6ADC8FFU);
+inline constexpr Color subtext1 = colorFromRgba(0xBAC2DEFFU);
+inline constexpr Color overlay0 = colorFromRgba(0x6C7086FFU);
+inline constexpr Color overlay1 = colorFromRgba(0x7F849CFFU);
+inline constexpr Color overlay2 = colorFromRgba(0x9399B2FFU);
+inline constexpr Color mauve = colorFromRgba(0xCBA6F7FFU);
+inline constexpr Color lavender = colorFromRgba(0xB4BEFEFFU);
+inline constexpr Color blue = colorFromRgba(0x89B4FAFFU);
+inline constexpr Color sapphire = colorFromRgba(0x74C7ECFFU);
+inline constexpr Color sky = colorFromRgba(0x89DCEBFFU);
+inline constexpr Color teal = colorFromRgba(0x94E2D5FFU);
+inline constexpr Color green = colorFromRgba(0xA6E3A1FFU);
+inline constexpr Color yellow = colorFromRgba(0xF9E2AFFFU);
+inline constexpr Color peach = colorFromRgba(0xFAB387FFU);
+inline constexpr Color red = colorFromRgba(0xF38BA8FFU);
+inline constexpr Color maroon = colorFromRgba(0xEBA0ACFFU);
+inline constexpr Color flamingo = colorFromRgba(0xF2CDCDFFU);
+inline constexpr Color rosewater = colorFromRgba(0xF5E0DCFFU);
+inline constexpr Color pink = colorFromRgba(0xF5C2E7FFU);
 inline constexpr Color transparent = colorFromRgba(0x00000000U);
-inline constexpr Color deepSlateVeil = colorFromRgba(0x1A1A21F2U);
-inline constexpr Color blackVeil = colorFromRgba(0x00000082U);
-inline constexpr Color brassWash = colorFromRgba(0x9E8C61ABU);
-inline constexpr Color antiqueGoldHighlight = colorFromRgba(0x736333C9U);
-inline constexpr Color antiqueGoldFade = colorFromRgba(0x736333A1U);
-inline constexpr Color antiqueGoldSoft = colorFromRgba(0x736333F7U);
-inline constexpr Color charcoalVeil = colorFromRgba(0x05050687U);
-inline constexpr Color silverGray = colorFromRgba(0x9C9C9CFFU);
-inline constexpr Color coral = colorFromRgba(0xFF6E59FFU);
-inline constexpr Color amber = colorFromRgba(0xE6B300FFU);
-inline constexpr Color orange = colorFromRgba(0xFF9900FFU);
-inline constexpr Color stoneGray = colorFromRgba(0x474749FFU);
-inline constexpr Color steelGray = colorFromRgba(0x666673FFU);
-inline constexpr Color slateGray = colorFromRgba(0x525257FFU);
-inline constexpr Color whiteTrace = colorFromRgba(0xFFFFFF0FU);
-inline constexpr Color whiteVeil = colorFromRgba(0xFFFFFFB3U);
-inline constexpr Color grayVeil = colorFromRgba(0xCCCCCC33U);
-inline constexpr Color grayWash = colorFromRgba(0xCCCCCC59U);
-inline constexpr Color invisibleGray = colorFromRgba(0x80808000U);
-inline constexpr Color oxblood = colorFromRgba(0x631F1FFFU);
-inline constexpr Color brickRed = colorFromRgba(0x843E37FFU);
-inline constexpr Color dustyRose = colorFromRgba(0xA75D52FFU);
-inline constexpr Color forestGreen = colorFromRgba(0x174638FFU);
-inline constexpr Color leafGreen = colorFromRgba(0x286853FFU);
-inline constexpr Color sageGreen = colorFromRgba(0x3A8068FFU);
+
+[[nodiscard]] constexpr Color withAlpha(Color color, float value) noexcept
+{
+    color.alpha = value;
+    return color;
+}
 
 inline constexpr float alpha = 1.0F;
 inline constexpr float disabledAlpha = 0.60F;
-inline constexpr ImVec2 windowPadding{10.0F, 10.0F};
-inline constexpr float windowRounding = 1.0F;
+inline constexpr ImVec2 windowPadding{12.0F, 12.0F};
+inline constexpr float windowRounding = 8.0F;
 inline constexpr float windowBorderSize = 1.0F;
 inline constexpr float windowBorderHoverPadding = 3.0F;
 inline constexpr ImVec2 windowMinimumSize{160.0F, 100.0F};
 inline constexpr ImVec2 windowTitleAlignment{0.0F, 0.5F};
-inline constexpr float childRounding = 1.0F;
+inline constexpr float childRounding = 5.0F;
 inline constexpr float childBorderSize = 1.0F;
-inline constexpr float popupRounding = 1.0F;
+inline constexpr float popupRounding = 5.0F;
 inline constexpr float popupBorderSize = 1.0F;
-inline constexpr ImVec2 framePadding{7.0F, 5.0F};
-inline constexpr float frameRounding = 1.0F;
-inline constexpr float frameBorderSize = 1.0F;
+inline constexpr ImVec2 framePadding{6.0F, 4.0F};
+inline constexpr float frameRounding = 5.0F;
+inline constexpr float frameBorderSize = 0.0F;
 inline constexpr ImVec2 itemSpacing{8.0F, 6.0F};
 inline constexpr ImVec2 itemInnerSpacing{6.0F, 4.0F};
 inline constexpr float indentSpacing = 18.0F;
 inline constexpr float scrollbarSize = 14.0F;
-inline constexpr float scrollbarRounding = 2.0F;
+inline constexpr float scrollbarRounding = 12.0F;
 inline constexpr float grabMinimumSize = 12.0F;
-inline constexpr float grabRounding = 1.0F;
+inline constexpr float grabRounding = 5.0F;
 inline constexpr float imageBorderSize = 1.0F;
-inline constexpr float tabRounding = 1.0F;
+inline constexpr float tabRounding = 5.0F;
 inline constexpr float tabBorderSize = 1.0F;
 inline constexpr float tabBarBorderSize = 1.0F;
 inline constexpr float dockingSeparatorSize = 2.0F;
-
-struct ButtonColors
-{
-    Color normal;
-    Color hovered;
-    Color active;
-};
-
-inline constexpr ButtonColors alternateButtonBurgundy{
-    .normal = oxblood,
-    .hovered = brickRed,
-    .active = dustyRose,
-};
-inline constexpr ButtonColors alternateButtonGreen{
-    .normal = forestGreen,
-    .hovered = leafGreen,
-    .active = sageGreen,
-};
+inline constexpr float popupAlpha = 0.95F;
+inline constexpr float collapsedTitleAlpha = 0.51F;
+inline constexpr float resizeGripAlpha = 0.67F;
+inline constexpr float resizeGripHoveredAlpha = 0.79F;
+inline constexpr float tabDimmedAlpha = 0.63F;
+inline constexpr float tabDimmedSelectedAlpha = 0.97F;
+inline constexpr float tableAlternateAlpha = 0.06F;
+inline constexpr float navHighlightAlpha = 0.70F;
+inline constexpr float navDimAlpha = 0.20F;
+inline constexpr float modalDimAlpha = 0.35F;
 
 [[nodiscard]] inline ImVec4 imguiColor(const Color & color) noexcept
 {
@@ -163,18 +125,6 @@ inline constexpr ButtonColors alternateButtonGreen{
 [[nodiscard]] inline ImU32 packedColor(const Color & color) noexcept
 {
     return ImGui::ColorConvertFloat4ToU32(imguiColor(color));
-}
-
-inline void pushButtonColors(const ButtonColors & colors)
-{
-    ImGui::PushStyleColor(ImGuiCol_Button, imguiColor(colors.normal));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, imguiColor(colors.hovered));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, imguiColor(colors.active));
-}
-
-inline void popButtonColors()
-{
-    ImGui::PopStyleColor(buttonColorStackDepth);
 }
 
 inline void applyImGuiStyle()
@@ -207,63 +157,63 @@ inline void applyImGuiStyle()
     style.TabBorderSize = tabBorderSize;
     style.TabBarBorderSize = tabBarBorderSize;
     style.DockingSeparatorSize = dockingSeparatorSize;
-    style.Colors[ImGuiCol_Text] = imguiColor(parchmentText);
-    style.Colors[ImGuiCol_TextDisabled] = imguiColor(mutedText);
-    style.Colors[ImGuiCol_TextLink] = imguiColor(brass);
-    style.Colors[ImGuiCol_TextSelectedBg] = imguiColor(mutedGold);
-    style.Colors[ImGuiCol_WindowBg] = imguiColor(background);
+    style.Colors[ImGuiCol_Text] = imguiColor(text);
+    style.Colors[ImGuiCol_TextDisabled] = imguiColor(subtext0);
+    style.Colors[ImGuiCol_TextLink] = imguiColor(lavender);
+    style.Colors[ImGuiCol_TextSelectedBg] = imguiColor(surface0);
+    style.Colors[ImGuiCol_WindowBg] = imguiColor(base);
     style.Colors[ImGuiCol_ChildBg] = imguiColor(transparent);
-    style.Colors[ImGuiCol_PopupBg] = imguiColor(deepSlateVeil);
-    style.Colors[ImGuiCol_Border] = imguiColor(stoneBorder);
+    style.Colors[ImGuiCol_PopupBg] = imguiColor(withAlpha(mantle, popupAlpha));
+    style.Colors[ImGuiCol_Border] = imguiColor(surface1);
     style.Colors[ImGuiCol_BorderShadow] = imguiColor(transparent);
-    style.Colors[ImGuiCol_FrameBg] = imguiColor(stoneSurface);
-    style.Colors[ImGuiCol_FrameBgHovered] = imguiColor(stoneBorder);
-    style.Colors[ImGuiCol_FrameBgActive] = imguiColor(mutedGold);
-    style.Colors[ImGuiCol_TitleBg] = imguiColor(stoneSurface);
-    style.Colors[ImGuiCol_TitleBgActive] = imguiColor(mutedGold);
-    style.Colors[ImGuiCol_TitleBgCollapsed] = imguiColor(blackVeil);
-    style.Colors[ImGuiCol_MenuBarBg] = imguiColor(stoneSurface);
-    style.Colors[ImGuiCol_ScrollbarBg] = imguiColor(charcoalVeil);
-    style.Colors[ImGuiCol_ScrollbarGrab] = imguiColor(brass);
-    style.Colors[ImGuiCol_ScrollbarGrabHovered] = imguiColor(antiqueGoldHighlight);
-    style.Colors[ImGuiCol_ScrollbarGrabActive] = imguiColor(brightBrass);
-    style.Colors[ImGuiCol_CheckMark] = imguiColor(brass);
-    style.Colors[ImGuiCol_SliderGrab] = imguiColor(brass);
-    style.Colors[ImGuiCol_SliderGrabActive] = imguiColor(brightBrass);
-    style.Colors[ImGuiCol_ResizeGrip] = imguiColor(brassWash);
-    style.Colors[ImGuiCol_ResizeGripHovered] = imguiColor(antiqueGoldHighlight);
-    style.Colors[ImGuiCol_ResizeGripActive] = imguiColor(brightBrass);
-    style.Colors[ImGuiCol_Button] = imguiColor(brassWash);
-    style.Colors[ImGuiCol_ButtonHovered] = imguiColor(antiqueGoldHighlight);
-    style.Colors[ImGuiCol_ButtonActive] = imguiColor(brightBrass);
-    style.Colors[ImGuiCol_Header] = imguiColor(brassWash);
-    style.Colors[ImGuiCol_HeaderHovered] = imguiColor(antiqueGoldHighlight);
-    style.Colors[ImGuiCol_HeaderActive] = imguiColor(brightBrass);
-    style.Colors[ImGuiCol_Separator] = imguiColor(stoneBorder);
-    style.Colors[ImGuiCol_SeparatorHovered] = imguiColor(antiqueGoldHighlight);
-    style.Colors[ImGuiCol_SeparatorActive] = imguiColor(brightBrass);
-    style.Colors[ImGuiCol_Tab] = imguiColor(brassWash);
-    style.Colors[ImGuiCol_TabSelected] = imguiColor(mutedGold);
-    style.Colors[ImGuiCol_TabHovered] = imguiColor(antiqueGoldHighlight);
-    style.Colors[ImGuiCol_TabDimmed] = imguiColor(antiqueGoldFade);
-    style.Colors[ImGuiCol_TabDimmedSelected] = imguiColor(antiqueGoldSoft);
-    style.Colors[ImGuiCol_TabDimmedSelectedOverline] = imguiColor(invisibleGray);
-    style.Colors[ImGuiCol_TabSelectedOverline] = imguiColor(brightBrass);
-    style.Colors[ImGuiCol_PlotLines] = imguiColor(silverGray);
-    style.Colors[ImGuiCol_PlotLinesHovered] = imguiColor(coral);
-    style.Colors[ImGuiCol_PlotHistogram] = imguiColor(amber);
-    style.Colors[ImGuiCol_PlotHistogramHovered] = imguiColor(orange);
-    style.Colors[ImGuiCol_TableHeaderBg] = imguiColor(stoneGray);
-    style.Colors[ImGuiCol_TableBorderStrong] = imguiColor(steelGray);
-    style.Colors[ImGuiCol_TableBorderLight] = imguiColor(slateGray);
+    style.Colors[ImGuiCol_FrameBg] = imguiColor(surface0);
+    style.Colors[ImGuiCol_FrameBgHovered] = imguiColor(surface1);
+    style.Colors[ImGuiCol_FrameBgActive] = imguiColor(surface2);
+    style.Colors[ImGuiCol_TitleBg] = imguiColor(mantle);
+    style.Colors[ImGuiCol_TitleBgActive] = imguiColor(base);
+    style.Colors[ImGuiCol_TitleBgCollapsed] = imguiColor(withAlpha(crust, collapsedTitleAlpha));
+    style.Colors[ImGuiCol_MenuBarBg] = imguiColor(mantle);
+    style.Colors[ImGuiCol_ScrollbarBg] = imguiColor(mantle);
+    style.Colors[ImGuiCol_ScrollbarGrab] = imguiColor(surface2);
+    style.Colors[ImGuiCol_ScrollbarGrabHovered] = imguiColor(overlay0);
+    style.Colors[ImGuiCol_ScrollbarGrabActive] = imguiColor(overlay2);
+    style.Colors[ImGuiCol_CheckMark] = imguiColor(lavender);
+    style.Colors[ImGuiCol_SliderGrab] = imguiColor(sapphire);
+    style.Colors[ImGuiCol_SliderGrabActive] = imguiColor(sapphire);
+    style.Colors[ImGuiCol_ResizeGrip] = imguiColor(withAlpha(mauve, resizeGripAlpha));
+    style.Colors[ImGuiCol_ResizeGripHovered] = imguiColor(withAlpha(mauve, resizeGripHoveredAlpha));
+    style.Colors[ImGuiCol_ResizeGripActive] = imguiColor(lavender);
+    style.Colors[ImGuiCol_Button] = imguiColor(surface0);
+    style.Colors[ImGuiCol_ButtonHovered] = imguiColor(mauve);
+    style.Colors[ImGuiCol_ButtonActive] = imguiColor(lavender);
+    style.Colors[ImGuiCol_Header] = imguiColor(surface0);
+    style.Colors[ImGuiCol_HeaderHovered] = imguiColor(surface1);
+    style.Colors[ImGuiCol_HeaderActive] = imguiColor(surface2);
+    style.Colors[ImGuiCol_Separator] = imguiColor(surface1);
+    style.Colors[ImGuiCol_SeparatorHovered] = imguiColor(mauve);
+    style.Colors[ImGuiCol_SeparatorActive] = imguiColor(lavender);
+    style.Colors[ImGuiCol_Tab] = imguiColor(base);
+    style.Colors[ImGuiCol_TabSelected] = imguiColor(surface0);
+    style.Colors[ImGuiCol_TabHovered] = imguiColor(surface2);
+    style.Colors[ImGuiCol_TabDimmed] = imguiColor(withAlpha(mauve, tabDimmedAlpha));
+    style.Colors[ImGuiCol_TabDimmedSelected] = imguiColor(withAlpha(mauve, tabDimmedSelectedAlpha));
+    style.Colors[ImGuiCol_TabDimmedSelectedOverline] = imguiColor(withAlpha(overlay0, 0.0F));
+    style.Colors[ImGuiCol_TabSelectedOverline] = imguiColor(lavender);
+    style.Colors[ImGuiCol_PlotLines] = imguiColor(overlay2);
+    style.Colors[ImGuiCol_PlotLinesHovered] = imguiColor(red);
+    style.Colors[ImGuiCol_PlotHistogram] = imguiColor(yellow);
+    style.Colors[ImGuiCol_PlotHistogramHovered] = imguiColor(peach);
+    style.Colors[ImGuiCol_TableHeaderBg] = imguiColor(surface1);
+    style.Colors[ImGuiCol_TableBorderStrong] = imguiColor(overlay0);
+    style.Colors[ImGuiCol_TableBorderLight] = imguiColor(surface2);
     style.Colors[ImGuiCol_TableRowBg] = imguiColor(transparent);
-    style.Colors[ImGuiCol_TableRowBgAlt] = imguiColor(whiteTrace);
-    style.Colors[ImGuiCol_NavCursor] = imguiColor(brass);
-    style.Colors[ImGuiCol_NavWindowingHighlight] = imguiColor(whiteVeil);
-    style.Colors[ImGuiCol_NavWindowingDimBg] = imguiColor(grayVeil);
-    style.Colors[ImGuiCol_ModalWindowDimBg] = imguiColor(grayWash);
-    style.Colors[ImGuiCol_DockingPreview] = imguiColor(antiqueGoldHighlight);
-    style.Colors[ImGuiCol_DockingEmptyBg] = imguiColor(background);
+    style.Colors[ImGuiCol_TableRowBgAlt] = imguiColor(withAlpha(text, tableAlternateAlpha));
+    style.Colors[ImGuiCol_NavCursor] = imguiColor(lavender);
+    style.Colors[ImGuiCol_NavWindowingHighlight] = imguiColor(withAlpha(text, navHighlightAlpha));
+    style.Colors[ImGuiCol_NavWindowingDimBg] = imguiColor(withAlpha(overlay2, navDimAlpha));
+    style.Colors[ImGuiCol_ModalWindowDimBg] = imguiColor(withAlpha(overlay2, modalDimAlpha));
+    style.Colors[ImGuiCol_DockingPreview] = imguiColor(withAlpha(mauve, resizeGripHoveredAlpha));
+    style.Colors[ImGuiCol_DockingEmptyBg] = imguiColor(base);
 }
 
 [[nodiscard]] inline Color logLevelColor(spdlog::level::level_enum level) noexcept

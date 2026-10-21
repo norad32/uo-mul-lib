@@ -446,7 +446,7 @@ void drawOpenDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
     const bool validDimensions = drawDimensionsFields("OpenDimensions", state.openFacet, state.openWidth, state.openHeight);
     if (!validDimensions)
     {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "Dimensions must be positive multiples of 8 tiles.");
+        ImGui::TextColored(theme::imguiColor(theme::yellow), "Dimensions must be positive multiples of 8 tiles.");
     }
     beginDialogFooter();
     if (dialogButton("Open", state.openPath.front() != '\0' && validDimensions))
@@ -489,7 +489,7 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewMapDialogState & state)
 
     if (!validDimensions)
     {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "Dimensions must be positive multiples of 8 tiles.");
+        ImGui::TextColored(theme::imguiColor(theme::yellow), "Dimensions must be positive multiples of 8 tiles.");
     }
 
     ImGui::InputInt("Default tile ID", &state.initialTileId);
@@ -498,7 +498,7 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewMapDialogState & state)
                            state.initialTileZ >= minimumTileZ && state.initialTileZ <= maximumTileZ;
     if (!validTile)
     {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "ID must be 0-65535 and Z must be -128 to 127.");
+        ImGui::TextColored(theme::imguiColor(theme::yellow), "ID must be 0-65535 and Z must be -128 to 127.");
     }
 
     beginDialogFooter();
@@ -897,7 +897,7 @@ void drawNewMapDialog(MapWorkspaceManager & workspace,
             drawOverwriteDialog(workspace, state);
             break;
         case MapFileDialogMode::error :
-            ImGui::TextColored(theme::imguiColor(theme::coral), "%s", state.error.c_str());
+            ImGui::TextColored(theme::imguiColor(theme::red), "%s", state.error.c_str());
             beginDialogFooter();
             if (dialogButton("OK"))
             {

@@ -132,7 +132,7 @@ void drawSelectionStatsPanel(MapWorkspace & workspace,
         }
         else if (state.status == SelectionStatsState::error && state.error)
         {
-            ImGui::TextColored(theme::imguiColor(theme::coral), "Statistics error: %s", state.error->message.c_str());
+            ImGui::TextColored(theme::imguiColor(theme::red), "Statistics error: %s", state.error->message.c_str());
         }
         else if (state.status == SelectionStatsState::loading)
         {

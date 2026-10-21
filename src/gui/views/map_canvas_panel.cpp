@@ -77,8 +77,8 @@ constexpr double noMapButtonOffset = 28.0;
 [[nodiscard]] ImU32 unavailableColor(std::uint32_t tileX, std::uint32_t tileY) noexcept
 {
     return theme::packedColor(((tileX / uomul::mapBlockDimension) + (tileY / uomul::mapBlockDimension)) % 2U == 0U
-                                  ? theme::oxblood
-                                  : theme::brickRed);
+                                   ? theme::maroon
+                                   : theme::red);
 }
 
 [[nodiscard]] std::uint32_t visibleStart(double pan, double tileSize, std::uint32_t limit) noexcept
@@ -232,7 +232,7 @@ void drawSelection(ImDrawList & drawList,
 
     drawList.AddRect(minimum,
                      maximum,
-                     theme::packedColor(theme::brass),
+                      theme::packedColor(theme::lavender),
                      0.0F,
                      ImDrawFlags_None,
                      static_cast<float>(selectionOutlineThickness));
@@ -318,7 +318,7 @@ void rasterizeLod(const MapWorkspace & workspace,
 {
     const std::size_t pixelCount = static_cast<std::size_t>(rasterWidth) * rasterHeight;
     state.lodPixels.resize(pixelCount * lodPixelChannels);
-    const ImU32 backgroundColor = theme::packedColor(theme::background);
+    const ImU32 backgroundColor = theme::packedColor(theme::base);
 
     for (std::size_t pixel = 0; pixel < pixelCount; pixel++)
     {
@@ -492,7 +492,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
 {
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     const ImVec2 canvasMaximum(canvasOrigin.x + canvasSize.x, canvasOrigin.y + canvasSize.y);
-    drawList->AddRectFilled(canvasOrigin, canvasMaximum, theme::packedColor(theme::background));
+    drawList->AddRectFilled(canvasOrigin, canvasMaximum, theme::packedColor(theme::base));
     drawList->PushClipRect(canvasOrigin, canvasMaximum, true);
 
     const uomul::Dimensions dimensions = workspace.dimensions();
@@ -560,7 +560,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
         const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tile.x) * tileSize)),
                              canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tile.y) * tileSize)));
         const ImVec2 maximum(minimum.x + static_cast<float>(tileSize), minimum.y + static_cast<float>(tileSize));
-        drawList->AddRect(minimum, maximum, theme::packedColor(theme::brass), 0.0F, ImDrawFlags_None, 1.0F);
+        drawList->AddRect(minimum, maximum, theme::packedColor(theme::lavender), 0.0F, ImDrawFlags_None, 1.0F);
     }
 
     if (currentTile)
@@ -569,7 +569,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
         const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tile.x) * tileSize)),
                              canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tile.y) * tileSize)));
         const ImVec2 maximum(minimum.x + static_cast<float>(tileSize), minimum.y + static_cast<float>(tileSize));
-        drawList->AddRect(minimum, maximum, theme::packedColor(theme::parchmentText), 0.0F, ImDrawFlags_None, 1.0F);
+        drawList->AddRect(minimum, maximum, theme::packedColor(theme::text), 0.0F, ImDrawFlags_None, 1.0F);
     }
 
     const uomul::MapReader * reader = workspace.reader();
@@ -579,7 +579,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
         const std::string missingMessage = "Incomplete map: " + std::to_string(reader->missingBlocks()) + " blocks missing";
         drawList->AddText(ImVec2(canvasOrigin.x + static_cast<float>(errorTextLeftPadding),
                                  canvasOrigin.y + static_cast<float>(errorTextTopPadding)),
-                          theme::packedColor(theme::amber),
+                          theme::packedColor(theme::yellow),
                           missingMessage.c_str());
     }
 
@@ -588,7 +588,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
         const std::string errorMessage = "Map read error: " + visibleReadError->message;
         drawList->AddText(ImVec2(canvasOrigin.x + static_cast<float>(errorTextLeftPadding),
                                  canvasOrigin.y + static_cast<float>(readErrorTextOffset)),
-                          theme::packedColor(theme::coral),
+                          theme::packedColor(theme::red),
                           errorMessage.c_str());
     }
     else if (workspace.error())
@@ -596,7 +596,7 @@ void drawCanvasContents(const MapWorkspace & workspace,
         const std::string errorMessage = "Map error: " + workspace.error()->message;
         drawList->AddText(ImVec2(canvasOrigin.x + static_cast<float>(errorTextLeftPadding),
                                  canvasOrigin.y + static_cast<float>(errorTextTopPadding)),
-                          theme::packedColor(theme::coral),
+                          theme::packedColor(theme::red),
                           errorMessage.c_str());
     }
 
@@ -820,7 +820,7 @@ void drawCoordinatePopup(MapCanvasPanelState & state)
     }
     if (!parsed && state.coordinateInput.front() != '\0')
     {
-        ImGui::TextColored(theme::imguiColor(theme::amber), "%s", parsed.error().c_str());
+        ImGui::TextColored(theme::imguiColor(theme::yellow), "%s", parsed.error().c_str());
     }
     ImGui::End();
 }
@@ -957,10 +957,10 @@ void drawEmptyCanvas(ImVec2 canvasOrigin,
                      const std::function<void()> & createMap)
 {
     ImDrawList * drawList = ImGui::GetWindowDrawList();
-    drawList->AddRectFilled(canvasOrigin, canvasMaximum, theme::packedColor(theme::background));
+    drawList->AddRectFilled(canvasOrigin, canvasMaximum, theme::packedColor(theme::base));
     drawList->AddText(
         ImVec2(canvasOrigin.x + static_cast<float>(noMapTextPadding), canvasOrigin.y + static_cast<float>(noMapTextPadding)),
-        theme::packedColor(theme::parchmentText),
+        theme::packedColor(theme::text),
          "No map open");
 
     ImGui::SetCursorScreenPos(ImVec2(canvasOrigin.x + static_cast<float>(noMapTextPadding),
@@ -980,7 +980,7 @@ void drawEmptyCanvas(ImVec2 canvasOrigin,
         const std::string errorMessage = "Map error: " + workspace.error()->message;
         drawList->AddText(ImVec2(canvasOrigin.x + static_cast<float>(errorTextLeftPadding),
                                  canvasOrigin.y + static_cast<float>(readErrorTextOffset)),
-                          theme::packedColor(theme::coral),
+                          theme::packedColor(theme::red),
                           errorMessage.c_str());
     }
 }
