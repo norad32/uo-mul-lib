@@ -338,8 +338,19 @@ void drawStartupScreen(WorkbenchState & state)
     ImGui::End();
 }
 
-void drawEmptyDocumentState(const WorkbenchState & state)
+void drawEmptyDocumentState(WorkbenchState & state)
 {
+    if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+    {
+        bool visible = true;
+        drawRadarcolDocumentPanel(state.radarcolState,
+                                  *active->radarcol,
+                                  active->summary.access,
+                                  visible,
+                                  state.fileBrowser);
+        return;
+    }
+
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + documentTabBarHeight), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - documentTabBarHeight), ImGuiCond_Always);
@@ -355,10 +366,10 @@ void drawEmptyDocumentState(const WorkbenchState & state)
         ImGui::TextUnformatted("No document is open");
         ImGui::TextUnformatted("Use File > Open... or File > Create Map... to begin.");
     }
-    else if (const auto active = state.session.activeDocumentIdentity())
+    else if (const auto activeIdentity = state.session.activeDocumentIdentity())
     {
-        const std::string kindName(documentKindName(active->kind));
-        ImGui::Text("%s is active, but has no map view yet.", kindName.c_str());
+        const std::string kindName(documentKindName(activeIdentity->kind));
+        ImGui::Text("%s is active, but has no view yet.", kindName.c_str());
         ImGui::TextUnformatted("This document type is represented as a placeholder until its view is implemented.");
     }
     ImGui::End();
@@ -519,7 +530,8 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         }
     }
 
-    welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr;
+    welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr &&
+                   !state.session.hasDocuments();
     state.providers.sync(state.activeProfile);
     if (state.nativeWelcomeWindowMode != welcomeShell)
     {

@@ -1,4 +1,6 @@
 #include "gui/views/radarcol_panel.h"
+#include "gui/documents/radarcol_document.h"
+#include "gui/metadata/document_contracts.h"
 #include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/views/common.h"
@@ -163,10 +165,16 @@ void loadSource(RadarcolPanelState & state)
     state.error.clear();
 }
 
-void drawSourceControls(RadarcolPanelState & state, FileBrowserState & browser)
+void drawSourceControls(RadarcolPanelState & state, FileBrowserState & browser, bool readOnly)
 {
-    ImGui::BeginDisabled(state.editor.has_value());
     ImGui::Text("Source: %s", state.sourcePath.data());
+    if (readOnly)
+    {
+        ImGui::TextUnformatted("Configured metadata source (read-only)");
+        return;
+    }
+
+    ImGui::BeginDisabled(state.editor.has_value());
     if (ImGui::IsItemClicked())
     {
         requestFileBrowser(browser,
@@ -217,8 +225,13 @@ void drawCategoryAndPageControls(RadarcolPanelState & state)
     ImGui::Text("of %u", state.pageCount);
 }
 
-void drawEditControls(RadarcolPanelState & state, bool editMode, FileBrowserState & browser)
+void drawEditControls(RadarcolPanelState & state, bool editMode, FileBrowserState & browser, bool readOnly)
 {
+    if (readOnly)
+    {
+        return;
+    }
+
     if (state.editor)
     {
         ImGui::Text("Editing: %s", state.outputPath.data());
@@ -504,7 +517,11 @@ void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult 
     }
 }
 
-void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible, FileBrowserState & browser)
+void drawRadarcolPanel(RadarcolPanelState & state,
+                       bool editMode,
+                       bool & visible,
+                       FileBrowserState & browser,
+                       bool readOnly)
 {
     if (!ImGui::Begin("Radarcol###view.radarcol", &visible))
     {
@@ -512,14 +529,14 @@ void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible
         return;
     }
 
-    drawSourceControls(state, browser);
+    drawSourceControls(state, browser, readOnly);
     updatePageCount(state);
     if (state.reader)
     {
         ImGui::Text("Colors: %u", state.reader->colorCount());
         drawCategoryAndPageControls(state);
     }
-    drawEditControls(state, editMode, browser);
+    drawEditControls(state, editMode, browser, readOnly);
 
     if (!state.error.empty())
     {
@@ -527,7 +544,56 @@ void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible
     }
 
     ImGui::Separator();
-    drawColorGrid(state, editMode && state.editor.has_value());
+    drawColorGrid(state, editMode && !readOnly && state.editor.has_value());
+    ImGui::End();
+}
+
+void drawRadarcolDocumentPanel(RadarcolPanelState & state,
+                               const RadarcolDocument & document,
+                               DocumentAccess access,
+                               bool & visible,
+                               FileBrowserState & browser)
+{
+    const bool readOnly = access == DocumentAccess::readOnly;
+    if (state.documentId != document.id || state.documentReadOnly != readOnly)
+    {
+        if (state.editor)
+        {
+            state.editor->abort();
+            state.editor.reset();
+        }
+        state.documentId = document.id;
+        state.documentReadOnly = readOnly;
+        setPath(state.sourcePath, document.sourcePath);
+        state.reader.reset();
+        state.loadedPageIndex = unloadedRadarcolPage;
+        invalidateMapColorCache(state);
+        state.error = document.error;
+        if (document.reader)
+        {
+            loadSource(state);
+        }
+    }
+
+    if (!ImGui::Begin("Radarcol Document###document.radarcol", &visible))
+    {
+        ImGui::End();
+        return;
+    }
+    drawSourceControls(state, browser, readOnly);
+    updatePageCount(state);
+    if (state.reader)
+    {
+        ImGui::Text("Colors: %u", state.reader->colorCount());
+        drawCategoryAndPageControls(state);
+    }
+    drawEditControls(state, !readOnly, browser, readOnly);
+    if (!state.error.empty())
+    {
+        ImGui::TextWrapped("%s", state.error.c_str());
+    }
+    ImGui::Separator();
+    drawColorGrid(state, !readOnly && state.editor.has_value());
     ImGui::End();
 }
 

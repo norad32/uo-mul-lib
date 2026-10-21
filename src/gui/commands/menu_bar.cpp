@@ -51,6 +51,40 @@ void cancelFileBrowserAndMapDialog(WorkbenchState & state)
     }
 }
 
+bool openGenericAsset(WorkbenchState & state,
+                      const FileBrowserResult & result,
+                      const FileBrowserAssetCandidate & candidate)
+{
+    if (candidate.kind == MulAssetKind::map)
+    {
+        auto mapResult = result;
+        mapResult.target = FileBrowserTarget::mapOpen;
+        applyFileBrowserResult(state.menuBarState.fileDialog, mapResult);
+        return false;
+    }
+
+    DocumentSummary summary;
+    summary.identity.kind = candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair;
+    summary.identity.source = candidate.kind == MulAssetKind::radarcol
+                                  ? makeDocumentSourceIdentity({candidate.path})
+                                  : makeDocumentSourceIdentity({candidate.path, candidate.companionPath});
+    summary.displayName = candidate.path.filename().string();
+    summary.access = candidate.kind == MulAssetKind::texmapsPair ? DocumentAccess::readOnly : DocumentAccess::editable;
+    summary.validation = candidate.validated ? DocumentValidationState::valid : DocumentValidationState::invalid;
+    const DocumentId id = state.session.openDocument(std::move(summary));
+    if (id == 0)
+    {
+        return false;
+    }
+
+    const auto activated = state.session.activateDocument(id, state.workspace);
+    if (!activated)
+    {
+        state.notifications.add(NotificationSeverity::error, activated.error().message);
+    }
+    return false;
+}
+
 [[nodiscard]] bool applyFileBrowserResultToWorkbench(WorkbenchState & state, const FileBrowserResult & result)
 {
     if (result.target == FileBrowserTarget::texmapsCompanion)
@@ -66,6 +100,12 @@ void cancelFileBrowserAndMapDialog(WorkbenchState & state)
         return false;
     }
 
+    if (!result.assetCandidate && result.target == FileBrowserTarget::genericOpen && result.assetCandidates.size() == 1U &&
+        result.assetCandidates.front().openable)
+    {
+        return openGenericAsset(state, result, result.assetCandidates.front());
+    }
+
     if (!result.assetCandidate && (result.target == FileBrowserTarget::genericOpen ||
                                    result.target == FileBrowserTarget::radarcolSource ||
                                    result.target == FileBrowserTarget::texmapsIndex ||
@@ -77,33 +117,7 @@ void cancelFileBrowserAndMapDialog(WorkbenchState & state)
 
     if (result.target == FileBrowserTarget::genericOpen && result.assetCandidate)
     {
-        if (result.assetCandidate->kind == MulAssetKind::map)
-        {
-            auto mapResult = result;
-            mapResult.target = FileBrowserTarget::mapOpen;
-            applyFileBrowserResult(state.menuBarState.fileDialog, mapResult);
-            return false;
-        }
-
-        const auto & candidate = *result.assetCandidate;
-        DocumentSummary summary;
-        summary.identity.kind = candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair;
-        summary.identity.source = candidate.kind == MulAssetKind::radarcol
-                                      ? makeDocumentSourceIdentity({candidate.path})
-                                      : makeDocumentSourceIdentity({candidate.path, candidate.companionPath});
-        summary.displayName = candidate.path.filename().string();
-        summary.access = candidate.kind == MulAssetKind::texmapsPair ? DocumentAccess::readOnly : DocumentAccess::editable;
-        summary.validation = candidate.validated ? DocumentValidationState::valid : DocumentValidationState::invalid;
-        const DocumentId id = state.session.openDocument(std::move(summary));
-        if (id != 0)
-        {
-            const auto activated = state.session.activateDocument(id, state.workspace);
-            if (!activated)
-            {
-                state.notifications.add(NotificationSeverity::error, activated.error().message);
-            }
-        }
-        return false;
+        return openGenericAsset(state, result, *result.assetCandidate);
     }
 
     if (result.assetCandidate && result.assetCandidate->kind == MulAssetKind::texmapsPair)

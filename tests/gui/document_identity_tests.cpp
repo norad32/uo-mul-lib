@@ -3,6 +3,7 @@
 #include "gui/documents/map_workspace.h"
 #include "gui/profile/workbench_session.h"
 #include "uomul/map.h"
+#include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
@@ -12,6 +13,13 @@ namespace
 {
 
 const std::filesystem::path testRoot = std::filesystem::temp_directory_path() / "uo-mule-document-identity";
+
+void createRadarcol(const std::filesystem::path & path)
+{
+    std::ofstream radarcol(path, std::ios::binary);
+    radarcol.seekp(static_cast<std::streamoff>(uomul::radarColorCount * sizeof(uomul::RadarColor)) - 1);
+    radarcol.put('\0');
+}
 
 class TestDirectory
 {
@@ -160,6 +168,64 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
     REQUIRE(documents.documents().size() == 1);
 }
 
+TEST_CASE("DocumentManager_Should_OpenStandaloneRadarcolAsAnEditableReaderBackedDocument")
+{
+    const TestDirectory directory;
+    const auto radarcolPath = testRoot / "radarcol.mul";
+    createRadarcol(radarcolPath);
+
+    uo_mule::gui::DocumentManager documents;
+    const auto summary = uo_mule::gui::DocumentSummary{
+        .identity = {.kind = uo_mule::gui::DocumentKind::radarcol,
+                     .source = uo_mule::gui::makeDocumentSourceIdentity({radarcolPath})},
+        .displayName = radarcolPath.filename().string(),
+    };
+    const auto firstId = documents.open(summary);
+    const auto secondId = documents.open({
+        .identity = {.kind = uo_mule::gui::DocumentKind::radarcol,
+                     .source = uo_mule::gui::makeDocumentSourceIdentity({testRoot / "./radarcol.mul"})},
+        .displayName = "Duplicate",
+    });
+
+    REQUIRE(firstId != 0);
+    REQUIRE(secondId == firstId);
+    REQUIRE(documents.documents().size() == 1);
+    REQUIRE(documents.documents().front().summary.sourceKind == uo_mule::gui::DocumentSourceKind::standalone);
+    REQUIRE(documents.documents().front().summary.access == uo_mule::gui::DocumentAccess::editable);
+    REQUIRE(documents.documents().front().summary.validation == uo_mule::gui::DocumentValidationState::valid);
+    REQUIRE(documents.documents().front().radarcol.has_value());
+    REQUIRE(documents.documents().front().radarcol->reader.has_value());
+    REQUIRE(documents.documents().front().radarcol->reader->colorCount() == uomul::radarColorCount);
+}
+
+TEST_CASE("DocumentManager_Should_KeepInvalidConfiguredRadarcolReadOnly")
+{
+    const TestDirectory directory;
+    const auto radarcolPath = testRoot / "broken-radarcol.mul";
+    std::ofstream(radarcolPath, std::ios::binary).put('\0');
+
+    uo_mule::gui::DataProfile profile;
+    profile.sourceRoot = testRoot;
+    profile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = radarcolPath.filename()};
+
+    uo_mule::gui::DocumentManager documents;
+    documents.updateMetadataSources(profile);
+    const auto documentId = documents.open({
+        .identity = {.kind = uo_mule::gui::DocumentKind::radarcol,
+                     .source = uo_mule::gui::makeDocumentSourceIdentity({radarcolPath})},
+        .displayName = radarcolPath.filename().string(),
+    });
+    const auto * document = documents.find(documentId);
+
+    REQUIRE(document != nullptr);
+    REQUIRE(document->summary.sourceKind == uo_mule::gui::DocumentSourceKind::configuredMetadata);
+    REQUIRE(document->summary.access == uo_mule::gui::DocumentAccess::readOnly);
+    REQUIRE(document->summary.validation == uo_mule::gui::DocumentValidationState::invalid);
+    REQUIRE(document->radarcol.has_value());
+    REQUIRE_FALSE(document->radarcol->reader.has_value());
+    REQUIRE_FALSE(document->radarcol->error.empty());
+}
+
 TEST_CASE("ConfiguredDocumentSource_Should_MatchCanonicalRadarcolPaths")
 {
     const TestDirectory directory;
@@ -224,10 +290,12 @@ TEST_CASE("WorkbenchSession_Should_RebindOpenMetadataSourceStatusWhenProfileChan
     firstProfile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = firstRadarcol.filename()};
     session.updateProfile(firstProfile);
     REQUIRE(session.documents().front().summary.sourceKind == uo_mule::gui::DocumentSourceKind::configuredMetadata);
+    REQUIRE(session.documents().front().summary.access == uo_mule::gui::DocumentAccess::readOnly);
 
     uo_mule::gui::DataProfile secondProfile;
     secondProfile.sourceRoot = testRoot;
     secondProfile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = secondRadarcol.filename()};
     session.updateProfile(secondProfile);
     REQUIRE(session.documents().front().summary.sourceKind == uo_mule::gui::DocumentSourceKind::standalone);
+    REQUIRE(session.documents().front().summary.access == uo_mule::gui::DocumentAccess::editable);
 }

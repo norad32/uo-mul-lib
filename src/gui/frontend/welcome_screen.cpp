@@ -308,7 +308,7 @@ void drawWelcomeScreen(WorkbenchState & state)
         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
-    if (!ImGui::Begin("Map Welcome###welcome.map", nullptr, welcomeWindowFlags))
+    if (!ImGui::Begin("Welcome###welcome.map", nullptr, welcomeWindowFlags))
     {
         ImGui::End();
         ImGui::PopStyleVar();
@@ -418,7 +418,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     {
         ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - actionRowWidth);
     }
-    if (ImGui::Button("Open Map", ImVec2(actionWidth, actionButtonHeight)))
+    if (ImGui::Button("Open", ImVec2(actionWidth, actionButtonHeight)))
     {
         static_cast<void>(state.commands.execute(CommandId::fileOpen, state));
     }

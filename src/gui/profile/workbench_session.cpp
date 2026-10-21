@@ -220,6 +220,12 @@ const std::vector<DocumentRecord> & WorkbenchSession::documents() const noexcept
     return documents_.documents();
 }
 
+const DocumentRecord * WorkbenchSession::activeDocumentRecord() const noexcept
+{
+    const auto activeId = documents_.activeId();
+    return activeId ? documents_.find(*activeId) : nullptr;
+}
+
 std::optional<DocumentId> WorkbenchSession::activeDocumentId() const noexcept
 {
     return documents_.activeId();

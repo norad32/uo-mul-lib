@@ -34,6 +34,7 @@ add_library(
     dialogs/preferences_dialog.cpp
     documents/document_identity.cpp
     documents/map_document.cpp
+    documents/radarcol_document.cpp
     documents/map_workspace.cpp
     persistence/layout_store.cpp
     persistence/preferences.cpp

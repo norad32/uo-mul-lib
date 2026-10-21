@@ -969,7 +969,7 @@ void drawEmptyCanvas(ImVec2 canvasOrigin,
 
     ImGui::SetCursorScreenPos(ImVec2(canvasOrigin.x + static_cast<float>(noMapTextPadding),
                                      canvasOrigin.y + static_cast<float>(noMapTextPadding + noMapButtonOffset)));
-    if (ImGui::Button("Open Map..."))
+    if (ImGui::Button("Open..."))
     {
         openMap();
     }

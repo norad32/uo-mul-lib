@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui/documents/map_workspace.h"
+#include "gui/documents/radarcol_document.h"
 #include "gui/profile/data_profile.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "uomul/radarcol/radarcol.h"
@@ -37,11 +38,22 @@ struct RadarcolPanelState
     std::uint32_t firstColor = 0;
     bool staticColors = false;
     bool overwriteOutput = false;
+    DocumentId documentId = 0;
+    bool documentReadOnly = false;
 };
 
 [[nodiscard]] std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::uint16_t id);
 void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile);
 void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult & result);
-void drawRadarcolPanel(RadarcolPanelState & state, bool editMode, bool & visible, FileBrowserState & browser);
+void drawRadarcolPanel(RadarcolPanelState & state,
+                       bool editMode,
+                       bool & visible,
+                       FileBrowserState & browser,
+                       bool readOnly = false);
+void drawRadarcolDocumentPanel(RadarcolPanelState & state,
+                               const RadarcolDocument & document,
+                               DocumentAccess access,
+                               bool & visible,
+                               FileBrowserState & browser);
 
 } // namespace uo_mule::gui

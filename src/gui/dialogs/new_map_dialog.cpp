@@ -47,7 +47,7 @@ constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     switch (mode)
     {
         case MapFileDialogMode::openMap :
-            return "Open Map###OpenMapDialog";
+            return "Open File###OpenFileDialog";
         case MapFileDialogMode::selectMapFacet :
             return "Select Map Facet###SelectMapFacetDialog";
         case MapFileDialogMode::newMap :

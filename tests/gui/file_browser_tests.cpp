@@ -171,6 +171,48 @@ TEST_CASE("generic open candidate selection preserves format and map dimensions"
     std::filesystem::remove(path, error);
 }
 
+TEST_CASE("generic open selector keeps multiple candidates available for explicit type choice")
+{
+    FileBrowserResult result{
+        .target = FileBrowserTarget::genericOpen,
+        .role = DataFileRole::radarcol,
+        .path = "ambiguous.mul",
+        .mapCandidates = {},
+        .assetCandidates = {
+            FileBrowserAssetCandidate{
+                .kind = MulAssetKind::map,
+                .path = "ambiguous.mul",
+                .companionPath = {},
+                .label = "Map",
+                .reason = "Map candidate",
+                .score = 80,
+                .dimensions = std::nullopt,
+                .validated = true,
+                .openable = true,
+            },
+            FileBrowserAssetCandidate{
+                .kind = MulAssetKind::radarcol,
+                .path = "ambiguous.mul",
+                .companionPath = {},
+                .label = "Radar colors",
+                .reason = "Radarcol candidate",
+                .score = 20,
+                .dimensions = std::nullopt,
+                .validated = true,
+                .openable = true,
+            },
+        },
+        .assetCandidate = std::nullopt,
+    };
+    FileSelectorState selector;
+    openFileSelector(selector, result);
+
+    REQUIRE(selector.visible);
+    REQUIRE(selector.candidates.size() == 2);
+    REQUIRE(selector.candidates.front().kind == MulAssetKind::map);
+    REQUIRE(selectedFileSelectorResult(selector).assetCandidate.has_value());
+}
+
 TEST_CASE("generic open exposes unsupported MUL as an explicit diagnostic")
 {
     const auto path = std::filesystem::temp_directory_path() / "unknown-generic.mul";

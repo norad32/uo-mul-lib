@@ -2,6 +2,7 @@
 #include "gui/documents/document_identity.h"
 #include "gui/metadata/document_contracts.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/documents/radarcol_document.h"
 #include "gui/profile/data_profile.h"
 #include <algorithm>
 #include <optional>
@@ -43,7 +44,8 @@ void DocumentManager::sync(const MapWorkspace & workspace)
             .dimensions = workspace.dimensions(),
             .dirty = workspace.dirty(),
         };
-        record = &documents_.emplace_back(DocumentRecord{.summary = map.summary(), .map = std::move(map)});
+        record = &documents_.emplace_back(
+            DocumentRecord{.summary = map.summary(), .map = std::move(map), .radarcol = std::nullopt});
     }
 
     if (!record->map)
@@ -87,7 +89,16 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
             case DocumentKind::map :
                 break;
         }
-        document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
+        if (identity.kind == DocumentKind::radarcol)
+        {
+            document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
+            document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
+        }
+        else if (identity.kind == DocumentKind::texmapPair)
+        {
+            document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
+            document.summary.access = DocumentAccess::readOnly;
+        }
     }
 }
 
@@ -120,7 +131,33 @@ DocumentId DocumentManager::open(DocumentSummary summary)
             break;
     }
     summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-    DocumentRecord & record = documents_.emplace_back(DocumentRecord{.summary = std::move(summary), .map = std::nullopt});
+    summary.access = summary.identity.kind == DocumentKind::radarcol && !configured
+                         ? DocumentAccess::editable
+                         : DocumentAccess::readOnly;
+
+    std::optional<RadarcolDocument> radarcol;
+    if (summary.identity.kind == DocumentKind::radarcol && !summary.identity.source.canonicalPaths.empty())
+    {
+        auto opened = RadarcolDocument::open(summary.identity.id, summary.identity.source.canonicalPaths.front());
+        if (opened)
+        {
+            summary.validation = DocumentValidationState::valid;
+            radarcol = std::move(*opened);
+        }
+        else
+        {
+            summary.validation = DocumentValidationState::invalid;
+            radarcol = RadarcolDocument{
+                .id = summary.identity.id,
+                .sourcePath = summary.identity.source.canonicalPaths.front(),
+                .reader = std::nullopt,
+                .error = opened.error().message,
+            };
+        }
+    }
+
+    DocumentRecord & record = documents_.emplace_back(
+        DocumentRecord{.summary = std::move(summary), .map = std::nullopt, .radarcol = std::move(radarcol)});
     activeId_ = record.summary.identity.id;
     return *activeId_;
 }

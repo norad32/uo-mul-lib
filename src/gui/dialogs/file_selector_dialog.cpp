@@ -105,14 +105,15 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
         return FileSelectorAction::none;
     }
 
-    ImGui::OpenPopup("Select MUL File Type###dialog.file-selector");
-    if (!ImGui::BeginPopupModal("Select MUL File Type###dialog.file-selector", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    ImGui::OpenPopup("Choose File Type###dialog.file-selector");
+    if (!ImGui::BeginPopupModal("Choose File Type###dialog.file-selector", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
     {
         return FileSelectorAction::none;
     }
 
-    ImGui::TextWrapped("Choose how to open this MUL file:");
+    ImGui::TextUnformatted("Choose how to open this file");
     ImGui::TextWrapped("%s", state.browserResult.path.string().c_str());
+    ImGui::TextDisabled("The file matches more than one supported MUL format.");
     ImGui::Separator();
     if (state.candidates.empty())
     {
@@ -121,15 +122,18 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
     for (std::size_t index = 0; index < state.candidates.size(); index++)
     {
         const auto & candidate = state.candidates.at(index);
-        ImGui::BeginDisabled(!candidate.openable);
         const bool selected = state.selectedCandidate == index;
-        if (ImGui::Selectable(candidate.label.c_str(), selected))
+        const std::string selectableLabel = candidate.label + "##candidate-" + std::to_string(index);
+        ImGui::BeginDisabled(!candidate.openable);
+        if (ImGui::Selectable(selectableLabel.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
         {
             state.selectedCandidate = index;
         }
         ImGui::EndDisabled();
-        ImGui::SameLine();
+        ImGui::Indent();
         ImGui::TextWrapped("%s", candidate.reason.c_str());
+        ImGui::TextDisabled("%s", candidate.openable ? "Ready to open" : "Needs another file");
+        ImGui::Unindent();
         if (candidate.kind == MulAssetKind::texmapsPair && !candidate.openable)
         {
             ImGui::SameLine();
@@ -156,7 +160,7 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
     }
     ImGui::EndDisabled();
     ImGui::SameLine();
-    if (ImGui::Button("Choose Different File"))
+    if (ImGui::Button("Back to Browser"))
     {
         ImGui::EndPopup();
         return FileSelectorAction::chooseDifferent;
