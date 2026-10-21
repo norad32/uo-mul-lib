@@ -2,6 +2,7 @@
 #include "core/facet_sizes.h"
 #include "gui/dialogs/new_map_dialog.h"
 #include "gui/frontend/theme.h"
+#include "gui/dialogs/dialog_presentation.h"
 #include "uomul/map.h"
 #include <cstddef>
 #include <cstdint>
@@ -95,15 +96,19 @@ MapFacetDialogResult drawMapFacetDialog(NewMapDialogState & state)
         ImGui::TextColored(theme::imguiColor(theme::amber), "Dimensions must be positive multiples of 8 tiles.");
     }
 
-    if ((ImGui::Button("Select") || ImGui::IsKeyPressed(ImGuiKey_Enter)) && validDimensions)
+    beginDialogFooter();
+    if ((dialogButton("Select", validDimensions) || ImGui::IsKeyPressed(ImGuiKey_Enter)) && validDimensions)
     {
+        endDialogFooter();
         return MapFacetDialogResult::accept;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Cancel"))
+    if (dialogButton("Cancel"))
     {
+        endDialogFooter();
         return MapFacetDialogResult::cancel;
     }
+    endDialogFooter();
     return MapFacetDialogResult::none;
 }
 

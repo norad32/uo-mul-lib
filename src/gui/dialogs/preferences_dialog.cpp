@@ -7,6 +7,7 @@
 #include "gui/dialogs/file_size.h"
 #include "gui/persistence/preferences.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/dialog_presentation.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/strings/ui_strings.h"
 #include <algorithm>
@@ -25,8 +26,6 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr float dialogWidth = 860.0F;
-constexpr float dialogHeight = 720.0F;
 constexpr float pathInputWidth = 480.0F;
 constexpr float contentHeight = 560.0F;
 constexpr int dataFilesColumnCount = 4;
@@ -425,12 +424,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
     bool profileChanged = false;
     state.browser = &browser;
     const std::string title = "Preferences###dialog.preferences";
-    ImGui::OpenPopup(title.c_str());
-    ImGui::SetNextWindowSize(ImVec2(dialogWidth, dialogHeight), ImGuiCond_FirstUseEver);
-    constexpr ImGuiWindowFlags dialogFlags = static_cast<ImGuiWindowFlags>(
-        static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
-        static_cast<unsigned int>(ImGuiWindowFlags_NoCollapse));
-    if (!ImGui::BeginPopupModal(title.c_str(), &state.visible, dialogFlags))
+    if (!beginDialog(title.c_str(), &state.visible, largeDialogSpec(), ImGuiWindowFlags_NoResize))
     {
         return false;
     }
@@ -459,15 +453,8 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         ImGui::SetTooltip("Show the welcome screen after a valid profile is loaded when the application starts.");
     }
 
-    const float buttonSpacing = ImGui::GetStyle().ItemSpacing.x;
-    constexpr float buttonPaddingMultiplier = 2.0F;
-    const float buttonPadding = ImGui::GetStyle().FramePadding.x * buttonPaddingMultiplier;
-    const float applyWidth = ImGui::CalcTextSize("Apply").x + buttonPadding;
-    const float useWidth = ImGui::CalcTextSize("Apply and Use").x + buttonPadding;
-    const float cancelWidth = ImGui::CalcTextSize("Cancel").x + buttonPadding;
-    const float footerWidth = applyWidth + useWidth + cancelWidth + (buttonSpacing * buttonPaddingMultiplier);
-    ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - footerWidth);
-    if (ImGui::Button("Apply"))
+    beginDialogFooter();
+    if (dialogButton("Apply"))
     {
         scanWorkingProfile(state);
         preferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
@@ -478,8 +465,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
     ImGui::SameLine();
 
     const bool profileIsMapReady = mapReady(state.workingProfile);
-    ImGui::BeginDisabled(!profileIsMapReady);
-    if (ImGui::Button("Apply and Use"))
+    if (dialogButton("Apply and Use", profileIsMapReady))
     {
         scanWorkingProfile(state);
         activeProfile = state.workingProfile;
@@ -488,19 +474,19 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         profileChanged = true;
         state.visible = false;
     }
-    ImGui::EndDisabled();
     ImGui::SameLine();
 
-    if (ImGui::Button("Cancel"))
+    if (dialogButton("Cancel"))
     {
         state.visible = false;
     }
 
+    endDialogFooter();
     if (!state.visible)
     {
         ImGui::CloseCurrentPopup();
     }
-    ImGui::EndPopup();
+    endDialog();
     return profileChanged;
 }
 

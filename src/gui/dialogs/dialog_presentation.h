@@ -1,0 +1,28 @@
+#pragma once
+
+#include <imgui.h>
+
+namespace uo_mule::gui
+{
+
+struct DialogWindowSpec
+{
+    ImVec2 initialSize;
+    ImVec2 minimumSize;
+};
+
+[[nodiscard]] DialogWindowSpec standardDialogSpec() noexcept;
+[[nodiscard]] DialogWindowSpec largeDialogSpec() noexcept;
+[[nodiscard]] DialogWindowSpec browserDialogSpec() noexcept;
+[[nodiscard]] DialogWindowSpec mapDialogSpec() noexcept;
+
+[[nodiscard]] bool beginDialog(const char * popupId,
+                               bool * visible,
+                               DialogWindowSpec spec,
+                               ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None);
+void endDialog();
+void beginDialogFooter();
+void endDialogFooter();
+[[nodiscard]] bool dialogButton(const char * label, bool enabled = true);
+
+} // namespace uo_mule::gui

@@ -1,6 +1,7 @@
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/frontend/theme.h"
+#include "gui/dialogs/dialog_presentation.h"
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
@@ -105,8 +106,7 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
         return FileSelectorAction::none;
     }
 
-    ImGui::OpenPopup("Choose File Type###dialog.file-selector");
-    if (!ImGui::BeginPopupModal("Choose File Type###dialog.file-selector", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    if (!beginDialog("Choose File Type###dialog.file-selector", nullptr, standardDialogSpec()))
     {
         return FileSelectorAction::none;
     }
@@ -151,27 +151,29 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
     }
     const bool canAccept = state.selectedCandidate < state.candidates.size() &&
                            state.candidates.at(state.selectedCandidate).openable;
-    ImGui::BeginDisabled(!canAccept);
-    if (ImGui::Button("Open") || (canAccept && ImGui::IsKeyPressed(ImGuiKey_Enter)))
+    beginDialogFooter();
+    if (dialogButton("Open", canAccept) || (canAccept && ImGui::IsKeyPressed(ImGuiKey_Enter)))
     {
-        ImGui::EndDisabled();
+        endDialogFooter();
         ImGui::EndPopup();
         return FileSelectorAction::accept;
     }
-    ImGui::EndDisabled();
     ImGui::SameLine();
-    if (ImGui::Button("Back to Browser"))
+    if (dialogButton("Back to Browser"))
     {
+        endDialogFooter();
         ImGui::EndPopup();
         return FileSelectorAction::chooseDifferent;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Cancel"))
+    if (dialogButton("Cancel"))
     {
+        endDialogFooter();
         ImGui::EndPopup();
         return FileSelectorAction::cancel;
     }
-    ImGui::EndPopup();
+    endDialogFooter();
+    endDialog();
     return FileSelectorAction::none;
 }
 

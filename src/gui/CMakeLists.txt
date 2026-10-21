@@ -38,6 +38,7 @@ add_library(
      dialogs/preferences_dialog.cpp
      dialogs/dialog_contracts.cpp
      dialogs/dialog_host.cpp
+     dialogs/dialog_presentation.cpp
     documents/document_identity.cpp
     documents/map_document.cpp
     documents/radarcol_document.cpp

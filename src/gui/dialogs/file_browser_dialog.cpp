@@ -1,6 +1,7 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "core/facet_sizes.h"
 #include "gui/dialogs/file_size.h"
+#include "gui/dialogs/dialog_presentation.h"
 #include "gui/frontend/theme.h"
 #include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
@@ -30,8 +31,6 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr float browserWidth = 980.0F;
-constexpr float browserHeight = 620.0F;
 constexpr float placesWidth = 160.0F;
 constexpr float summaryWidth = 260.0F;
 constexpr float listingHeight = 480.0F;
@@ -44,9 +43,6 @@ constexpr int radarcolClassicSizeScore = 60;
 constexpr int radarcolStructuralScore = 20;
 constexpr int texmapsPairScore = 90;
 constexpr std::uintmax_t classicRadarcolByteCount = static_cast<std::uintmax_t>(uomul::radarColorCount) * 2U;
-constexpr ImGuiWindowFlags fileBrowserWindowFlags = static_cast<ImGuiWindowFlags>(
-    static_cast<unsigned int>(ImGuiWindowFlags_NoCollapse) | static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
-    static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar) | static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse));
 constexpr std::array<const char *, 7> standardPlaceNames{
     "Desktop",
     "Documents",
@@ -609,9 +605,9 @@ void drawFileBrowser(FileBrowserState & state)
 
     const std::string title =
         state.request.title.empty() ? "Open File###dialog.file-browser" : state.request.title + "###dialog.file-browser";
-    ImGui::OpenPopup(title.c_str());
-    ImGui::SetNextWindowSize(ImVec2(browserWidth, browserHeight), ImGuiCond_FirstUseEver);
-    if (!ImGui::BeginPopupModal(title.c_str(), &state.visible, fileBrowserWindowFlags))
+    if (!beginDialog(title.c_str(), &state.visible, browserDialogSpec(),
+                     static_cast<ImGuiWindowFlags>(ImGuiWindowFlags_NoResize + ImGuiWindowFlags_NoScrollbar +
+                                                   ImGuiWindowFlags_NoScrollWithMouse)))
     {
         return;
     }
@@ -745,25 +741,22 @@ void drawFileBrowser(FileBrowserState & state)
         confirmLabel = "Save";
     }
 
-    const float buttonPadding = ImGui::GetStyle().FramePadding.x * 2.0F;
-    const float buttonSpacing = ImGui::GetStyle().ItemSpacing.x;
-    const float actionWidth = ImGui::CalcTextSize(confirmLabel).x + buttonPadding;
-    const float cancelWidth = ImGui::CalcTextSize("Cancel").x + buttonPadding;
-    ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMax().x - actionWidth - buttonSpacing - cancelWidth);
-    if (ImGui::Button(confirmLabel))
+    beginDialogFooter();
+    if (dialogButton(confirmLabel))
     {
         complete(state);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Cancel"))
+    if (dialogButton("Cancel"))
     {
         cancelFileBrowser(state);
     }
+    endDialogFooter();
     if (!state.visible)
     {
         ImGui::CloseCurrentPopup();
     }
-    ImGui::EndPopup();
+    endDialog();
 }
 
 } // namespace uo_mule::gui
