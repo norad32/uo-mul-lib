@@ -2,6 +2,9 @@
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
+#include "gui/documents/document_identity.h"
+#include "gui/metadata/document_contracts.h"
+#include "gui/context/notification_state.h"
 #include "gui/profile/data_profile.h"
 #include "gui/views/radarcol_panel.h"
 #include "gui/views/texmaps_panel.h"
@@ -13,6 +16,7 @@
 #include "gui/views/panel_registry.h"
 #include <imgui.h>
 #include <string>
+#include <utility>
 
 namespace uo_mule::gui
 {
@@ -55,7 +59,15 @@ void cancelFileBrowserAndMapDialog(WorkbenchState & state)
         return false;
     }
 
-    if (!result.assetCandidate && (result.target == FileBrowserTarget::radarcolSource ||
+    if (result.target == FileBrowserTarget::genericOpen && !result.assetCandidate && result.assetCandidates.empty())
+    {
+        state.notifications.add(NotificationSeverity::error,
+                                result.path.filename().string() + ": no supported MUL format was detected");
+        return false;
+    }
+
+    if (!result.assetCandidate && (result.target == FileBrowserTarget::genericOpen ||
+                                   result.target == FileBrowserTarget::radarcolSource ||
                                    result.target == FileBrowserTarget::texmapsIndex ||
                                    result.target == FileBrowserTarget::texmapsData))
     {
@@ -63,11 +75,40 @@ void cancelFileBrowserAndMapDialog(WorkbenchState & state)
         return false;
     }
 
+    if (result.target == FileBrowserTarget::genericOpen && result.assetCandidate)
+    {
+        if (result.assetCandidate->kind == MulAssetKind::map)
+        {
+            auto mapResult = result;
+            mapResult.target = FileBrowserTarget::mapOpen;
+            applyFileBrowserResult(state.menuBarState.fileDialog, mapResult);
+            return false;
+        }
+
+        const auto & candidate = *result.assetCandidate;
+        DocumentSummary summary;
+        summary.identity.kind = candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair;
+        summary.identity.source = candidate.kind == MulAssetKind::radarcol
+                                      ? makeDocumentSourceIdentity({candidate.path})
+                                      : makeDocumentSourceIdentity({candidate.path, candidate.companionPath});
+        summary.displayName = candidate.path.filename().string();
+        summary.access = candidate.kind == MulAssetKind::texmapsPair ? DocumentAccess::readOnly : DocumentAccess::editable;
+        summary.validation = candidate.validated ? DocumentValidationState::valid : DocumentValidationState::invalid;
+        const DocumentId id = state.session.openDocument(std::move(summary));
+        if (id != 0)
+        {
+            const auto activated = state.session.activateDocument(id, state.workspace);
+            if (!activated)
+            {
+                state.notifications.add(NotificationSeverity::error, activated.error().message);
+            }
+        }
+        return false;
+    }
+
     if (result.assetCandidate && result.assetCandidate->kind == MulAssetKind::texmapsPair)
     {
         const auto & pair = *result.assetCandidate;
-        state.activeProfile.files[DataFileRole::texidx] = {.path = pair.path, .userOverride = true};
-        state.activeProfile.files[DataFileRole::texmaps] = {.path = pair.companionPath, .userOverride = true};
 
         auto indexResult = result;
         indexResult.target = FileBrowserTarget::texmapsIndex;
@@ -79,30 +120,14 @@ void cancelFileBrowserAndMapDialog(WorkbenchState & state)
         applyFileBrowserResult(state.texmapsState, dataResult);
         applyFileBrowserResult(state.menuBarState.preferencesDialog, indexResult);
         applyFileBrowserResult(state.menuBarState.preferencesDialog, dataResult);
-        return true;
-    }
-
-    const bool profileChanged = result.target == FileBrowserTarget::radarcolSource ||
-                                result.target == FileBrowserTarget::texmapsIndex ||
-                                result.target == FileBrowserTarget::texmapsData;
-    if (result.target == FileBrowserTarget::radarcolSource)
-    {
-        state.activeProfile.files[DataFileRole::radarcol] = {.path = result.path, .userOverride = true};
-    }
-    else if (result.target == FileBrowserTarget::texmapsIndex)
-    {
-        state.activeProfile.files[DataFileRole::texidx] = {.path = result.path, .userOverride = true};
-    }
-    else if (result.target == FileBrowserTarget::texmapsData)
-    {
-        state.activeProfile.files[DataFileRole::texmaps] = {.path = result.path, .userOverride = true};
+        return false;
     }
 
     applyFileBrowserResult(state.menuBarState.fileDialog, result);
     applyFileBrowserResult(state.menuBarState.preferencesDialog, result);
     applyFileBrowserResult(state.radarcolState, result);
     applyFileBrowserResult(state.texmapsState, result);
-    return profileChanged;
+    return false;
 }
 
 void drawFileMenu(WorkbenchState & state)

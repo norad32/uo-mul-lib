@@ -1,6 +1,7 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/dialogs/file_size.h"
+#include "core/facet_sizes.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
@@ -97,9 +98,10 @@ TEST_CASE("file selector rejects a direct texture index result")
         .path = result.path,
         .companionPath = {},
         .label = "Texture pair",
-        .reason = "A matching pair is required",
-        .score = 90,
-        .validated = false,
+         .reason = "A matching pair is required",
+         .score = 90,
+         .dimensions = std::nullopt,
+         .validated = false,
         .openable = false,
     });
     openFileSelector(state, result);
@@ -132,6 +134,57 @@ TEST_CASE("file browser treats an empty texture index and data pair as one opena
     std::error_code error;
     std::filesystem::remove(indexPath, error);
     std::filesystem::remove(dataPath, error);
+}
+
+TEST_CASE("generic open candidate selection preserves format and map dimensions")
+{
+    const auto directory = std::filesystem::temp_directory_path();
+    const auto path = directory / "generic-map.mul";
+    const auto dimensions = uo_mule::core::knownFacetSizes().front();
+    std::error_code error;
+    std::filesystem::remove(path, error);
+    REQUIRE(uomul::MapEditor::createEmpty(
+        path, uomul::Dimensions{.widthTiles = dimensions.widthTiles, .heightTiles = dimensions.heightTiles}));
+
+    const auto summary = inspectFileBrowserSelection(path);
+    FileBrowserResult result{
+        .target = FileBrowserTarget::genericOpen,
+        .path = path,
+        .mapCandidates = summary.mapCandidates,
+        .assetCandidates = summary.assetCandidates,
+        .assetCandidate = std::nullopt,
+    };
+    FileSelectorState selector;
+    openFileSelector(selector, result);
+    const auto mapCandidate = std::find_if(selector.candidates.begin(), selector.candidates.end(), [](const auto & candidate) {
+        return candidate.kind == MulAssetKind::map;
+    });
+    REQUIRE(mapCandidate != selector.candidates.end());
+    selector.selectedCandidate = static_cast<std::size_t>(std::distance(selector.candidates.begin(), mapCandidate));
+    const auto selected = selectedFileSelectorResult(selector);
+
+    REQUIRE(selected.assetCandidate.has_value());
+    REQUIRE(selected.assetCandidate->kind == MulAssetKind::map);
+    REQUIRE(selected.assetCandidate->dimensions.has_value());
+    REQUIRE(selected.assetCandidate->dimensions->widthTiles == dimensions.widthTiles);
+
+    std::filesystem::remove(path, error);
+}
+
+TEST_CASE("generic open exposes unsupported MUL as an explicit diagnostic")
+{
+    const auto path = std::filesystem::temp_directory_path() / "unknown-generic.mul";
+    {
+        std::ofstream output(path, std::ios::binary);
+        output << "not a supported MUL asset";
+    }
+
+    const auto summary = inspectFileBrowserSelection(path);
+    REQUIRE(summary.assetCandidates.empty());
+    REQUIRE_FALSE(summary.error.empty());
+
+    std::error_code error;
+    std::filesystem::remove(path, error);
 }
 
 TEST_CASE("file browser save request preserves the initial filename")

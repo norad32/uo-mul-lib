@@ -398,6 +398,27 @@ void copyPathToBuffer(std::array<char, mapDialogPathBufferSize> & buffer, const 
     buffer.at(length) = '\0';
 }
 
+void applyMapCandidateDimensions(NewMapDialogState & state, const FileBrowserAssetCandidate & candidate)
+{
+    if (candidate.kind != MulAssetKind::map || !candidate.dimensions)
+    {
+        return;
+    }
+
+    state.openWidth = candidate.dimensions->widthTiles;
+    state.openHeight = candidate.dimensions->heightTiles;
+    std::size_t index = 0;
+    for (const auto & facet : uo_mule::core::knownFacetSizes())
+    {
+        if (facet.widthTiles == state.openWidth && facet.heightTiles == state.openHeight)
+        {
+            state.openFacet = static_cast<int>(index + 1U);
+            return;
+        }
+        ++index;
+    }
+}
+
 void drawOpenDialog(MapWorkspace & workspace, NewMapDialogState & state)
 {
     if (state.openWithoutReview && state.openPath.front() != '\0')
@@ -737,6 +758,10 @@ void applyFileBrowserResult(NewMapDialogState & state, const FileBrowserResult &
         copyPathToBuffer(state.openPath, result.path);
         state.openCandidates = result.mapCandidates;
         state.openFacet = 0;
+        if (result.assetCandidate)
+        {
+            applyMapCandidateDimensions(state, *result.assetCandidate);
+        }
         for (const auto & candidate : state.openCandidates)
         {
             if (!candidate.valid)

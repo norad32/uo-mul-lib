@@ -23,6 +23,7 @@ enum class FileBrowserMode : std::uint8_t
 
 enum class FileBrowserTarget : std::uint8_t
 {
+    genericOpen,
     mapOpen,
     newMapOutput,
     mapSaveAs,
@@ -75,6 +76,7 @@ struct FileBrowserAssetCandidate
     std::string label;
     std::string reason;
     int score = 0;
+    std::optional<uomul::Dimensions> dimensions;
     bool validated = false;
     bool openable = false;
 };

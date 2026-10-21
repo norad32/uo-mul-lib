@@ -389,6 +389,7 @@ void appendMapCandidates(FileBrowserSummary & summary, const std::filesystem::pa
             .reason = "Valid map layout for " + std::to_string(dimensions.widthTiles) + " x " +
                       std::to_string(dimensions.heightTiles) + " tiles",
             .score = mapCandidateScore,
+            .dimensions = dimensions,
             .validated = true,
             .openable = true,
         });
@@ -436,9 +437,10 @@ void appendRadarcolCandidate(FileBrowserSummary & summary,
         .path = path,
         .companionPath = {},
         .label = "Radar colors",
-        .reason = std::move(reason),
-        .score = score,
-        .validated = true,
+         .reason = std::move(reason),
+         .score = score,
+         .dimensions = std::nullopt,
+         .validated = true,
         .openable = true,
     });
 }
@@ -466,9 +468,10 @@ void appendTexmapsCandidate(FileBrowserSummary & summary,
         .path = path,
         .companionPath = {},
         .label = "Texture pair",
-        .reason = "A matching texidx.mul and texmaps.mul pair must be selected",
-        .score = texmapsPairScore,
-        .validated = false,
+         .reason = "A matching texidx.mul and texmaps.mul pair must be selected",
+         .score = texmapsPairScore,
+         .dimensions = std::nullopt,
+         .validated = false,
         .openable = false,
     });
 }
@@ -544,9 +547,10 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
         .path = indexPath,
         .companionPath = dataPath,
         .label = "Texture pair",
-        .reason = std::move(reason),
-        .score = texmapsPairScore,
-        .validated = reader.has_value(),
+         .reason = std::move(reason),
+         .score = texmapsPairScore,
+         .dimensions = std::nullopt,
+         .validated = reader.has_value(),
         .openable = reader.has_value(),
     };
 }

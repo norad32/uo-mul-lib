@@ -82,10 +82,10 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
         state.menuBarState.fileDialog.openPath.fill('\0');
         requestFileBrowser(state.fileBrowser,
                            {.mode = FileBrowserMode::openFile,
-                            .target = FileBrowserTarget::mapOpen,
-                            .initialPath = {},
-                            .extension = ".mul",
-                            .title = "Open File",});
+                             .target = FileBrowserTarget::genericOpen,
+                             .initialPath = {},
+                             .extension = ".mul",
+                             .title = "Open MUL File",});
     }
 }
 
@@ -208,7 +208,7 @@ const std::vector<Command> & CommandRegistry::commands() const noexcept
 
 void registerDefaultCommands(CommandRegistry & registry)
 {
-    add(registry, CommandId::fileOpen, "file.open", "Open...", "File", "Open a map", "Ctrl+O", requiresMapReadyProfile,
+    add(registry, CommandId::fileOpen, "file.open", "Open...", "File", "Open a supported MUL file", "Ctrl+O", requiresMapReadyProfile,
         [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::openMap); });
     add(registry, CommandId::fileNew, "file.new", "Create Map...", "File", "Create an empty map", "Ctrl+N", requiresMapReadyProfile,
         [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::newMap); });
