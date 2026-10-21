@@ -49,6 +49,7 @@ add_library(
     views/tile_inspector_panel.cpp
     views/view_registry.cpp
     dialogs/new_map_dialog.cpp
+    frontend/frame_composition.cpp
     frontend/welcome_greetings.cpp
     frontend/welcome_screen.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)

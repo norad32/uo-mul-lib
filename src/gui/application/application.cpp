@@ -1,34 +1,15 @@
 #include "gui/application/application.h"
+#include "gui/application/workbench_state.h"
 #include "core/app_info.h"
 #include "core/gui_log_sink.h"
-#include "gui/profile/data_profile.h"
-#include "gui/profile/data_profile_store.h"
-#include "gui/commands/command_registry.h"
-#include "gui/dialogs/preferences_dialog.h"
-#include "gui/views/log_panel.h"
-#include "gui/documents/map_workspace.h"
-#include "gui/context/map_context.h"
 #include "gui/commands/menu_bar.h"
-#include "gui/context/notification_state.h"
-#include "gui/views/block_inspector_panel.h"
-#include "gui/tools/edit_tools_panel.h"
-#include "gui/views/map_canvas_panel.h"
-#include "gui/views/map_info_panel.h"
-#include "gui/views/radarcol_panel.h"
-#include "gui/views/selection_stats_panel.h"
-#include "gui/views/texmaps_panel.h"
-#include "gui/views/tile_inspector_panel.h"
-#include "gui/persistence/preferences.h"
 #include "gui/frontend/theme.h"
-#include "gui/application/workbench_state.h"
-#include "gui/profile/workbench_session.h"
-#include "gui/frontend/welcome_screen.h"
+#include "gui/frontend/frame_composition.h"
 #include "gui/persistence/layout_store.h"
-#include "gui/views/panel_registry.h"
-#include "uomul/map.h"
+#include "gui/persistence/preferences.h"
+#include "gui/profile/workbench_session.h"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdlib>
@@ -37,7 +18,6 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-#include <imgui_internal.h>
 #include <memory>
 #include <spdlog/common.h>
 #include <spdlog/logger.h>
@@ -47,7 +27,6 @@
 #include <string>
 #include <system_error>
 #include <utility>
-#include <vector>
 
 namespace uo_mule::gui
 {
@@ -69,14 +48,6 @@ constexpr std::size_t appIconHexColorLength = 7;
 constexpr int appIconHexBase = 16;
 constexpr int appIconHexAlphaOffset = 10;
 constexpr int appIconAlpha = 255;
-constexpr float dockLeftWidthRatio = 0.20F;
-constexpr float dockRightWidthRatio = 0.24F;
-constexpr float statusBarHeight = 24.0F;
-constexpr float notificationLeftMargin = 16.0F;
-constexpr float notificationTopMargin = 48.0F;
-constexpr float notificationMinimumWidth = 280.0F;
-constexpr float notificationMaximumWidth = 480.0F;
-constexpr float notificationMaximumHeightRatio = 0.5F;
 constexpr char hexadecimalLowercaseStart = 'a';
 constexpr char hexadecimalUppercaseStart = 'A';
 constexpr char hexadecimalLastDigit = '9';
@@ -356,6 +327,20 @@ private:
     bool initialized_ = false;
 };
 
+void renderFrame(GLFWwindow * window)
+{
+    ImGui::Render();
+    int displayWidth = 0;
+    int displayHeight = 0;
+    glfwGetFramebufferSize(window, &displayWidth, &displayHeight);
+    glViewport(0, 0, displayWidth, displayHeight);
+    glClearColor(theme::background.red, theme::background.green, theme::background.blue, theme::background.alpha);
+    glClear(GL_COLOR_BUFFER_BIT);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    glfwSwapBuffers(window);
+}
+
+#ifdef UO_MULE_LEGACY_FRAME_COMPOSITION
 void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
 {
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
@@ -721,6 +706,13 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
         drawStatusBar(state, bottomPanelHeight);
     }
     drawNotifications(state.notifications);
+    renderFrame(window);
+}
+#endif
+
+void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
+{
+    drawWorkbenchFrame(window, logSink, state);
     renderFrame(window);
 }
 
