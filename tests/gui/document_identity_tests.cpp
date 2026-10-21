@@ -102,3 +102,58 @@ TEST_CASE("DocumentManager_Should_ReuseMapIdentityForEquivalentCanonicalPaths")
 
     REQUIRE(documents.active()->id == firstId);
 }
+
+TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
+{
+    const TestDirectory directory;
+    const auto mapPath = testRoot / "map0.mul";
+    const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, dimensions));
+
+    uo_mule::gui::DocumentManager documents;
+    const auto radarcolIdentity = uo_mule::gui::makeDocumentSourceIdentity({testRoot / "radarcol.mul"});
+    const auto pairIdentity = uo_mule::gui::makeDocumentSourceIdentity(
+        {testRoot / "texidx.mul", testRoot / "texmaps.mul"});
+
+    const auto radarcolId = documents.open({
+        .identity = {.kind = uo_mule::gui::DocumentKind::radarcol, .source = radarcolIdentity},
+        .displayName = "radarcol.mul",
+        .sourceKind = uo_mule::gui::DocumentSourceKind::standalone,
+        .access = uo_mule::gui::DocumentAccess::editable,
+        .validation = uo_mule::gui::DocumentValidationState::valid,
+    });
+    const auto pairId = documents.open({
+        .identity = {.kind = uo_mule::gui::DocumentKind::texmapPair, .source = pairIdentity},
+        .displayName = "Texmap Pair",
+        .sourceKind = uo_mule::gui::DocumentSourceKind::standalone,
+        .access = uo_mule::gui::DocumentAccess::readOnly,
+        .validation = uo_mule::gui::DocumentValidationState::valid,
+    });
+    uo_mule::gui::MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, dimensions));
+    documents.sync(workspace);
+
+    REQUIRE(radarcolId != 0);
+    REQUIRE(pairId != 0);
+    REQUIRE(documents.documents().size() == 3);
+    REQUIRE(documents.active().has_value());
+    const auto mapId = documents.active()->id;
+    REQUIRE(mapId != radarcolId);
+    REQUIRE(mapId != pairId);
+    REQUIRE(documents.activate(radarcolId));
+    REQUIRE(documents.activeIdentity()->id == radarcolId);
+    REQUIRE(documents.open({
+                .identity = {.kind = uo_mule::gui::DocumentKind::radarcol,
+                             .source = uo_mule::gui::makeDocumentSourceIdentity({testRoot / "./radarcol.mul"})},
+                .displayName = "Duplicate",
+            }) == radarcolId);
+    REQUIRE(documents.documents().size() == 3);
+    REQUIRE(documents.close(pairId));
+    REQUIRE_FALSE(documents.find(pairId));
+    REQUIRE(documents.activeIdentity()->id == radarcolId);
+    REQUIRE(documents.activate(mapId));
+    REQUIRE(documents.active().has_value());
+    documents.close();
+    REQUIRE_FALSE(documents.activeIdentity());
+    REQUIRE(documents.documents().size() == 1);
+}
