@@ -123,7 +123,7 @@ void drawMapPanels(WorkbenchState & state,
                    RadarcolPanelState & radarcolState,
                    TexmapsPanelState & texmapsState)
 {
-    MapWorkspace & workspace = state.workspace;
+    MapWorkspace & workspace = state.workspace.active();
     state.providers.sync(activeProfile);
     syncRadarcolPanel(radarcolState, activeProfile);
     syncTexmapsPanel(texmapsState, activeProfile);
@@ -137,7 +137,7 @@ void drawMapPanels(WorkbenchState & state,
                        [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
                        [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
                        documentVisible);
-    const MapContextSnapshot context = state.session.contextSnapshot(workspace);
+    const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
 
     if (state.panelRegistry.find(PanelId::tileInspector)->visible)
     {
@@ -511,6 +511,7 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         state.preferences.activeDataProfile = state.activeProfile.name;
         savePreferences(state.preferences);
         state.session.updateProfile(state.activeProfile);
+        state.workspace.invalidateProviderCaches();
         if (state.session.mapReady() && !state.preferences.showWelcomeOnStartup)
         {
             state.session.setStartupState(StartupState::workbench);
@@ -557,7 +558,7 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         {
             drawMapPanels(state,
                           state.activeProfile,
-                          state.mapCanvasState,
+                          state.workspace.canvasState(),
                           state.blockInspectorState,
                           state.selectionStatsState,
                           state.editToolsState,

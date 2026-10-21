@@ -1,8 +1,10 @@
 #include "gui/documents/map_workspace.h"
+#include "gui/documents/map_workspace_manager.h"
 #include "uomul/map.h"
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
+#include <cmath>
 #include <filesystem>
 #include <limits>
 #include <optional>
@@ -15,6 +17,7 @@ namespace
 using uo_mule::gui::MapEditScope;
 using uo_mule::gui::MapSelectionMode;
 using uo_mule::gui::MapWorkspace;
+using uo_mule::gui::MapWorkspaceManager;
 using uo_mule::gui::PendingChangesAction;
 
 constexpr uomul::Dimensions testDimensions{.widthTiles = 16, .heightTiles = 16};
@@ -316,4 +319,51 @@ TEST_CASE("mapWorkspace_Should_RejectSelectionEditsWithoutSelectionAndDiscardBac
     REQUIRE(workspace.closeMap());
     REQUIRE(workspace.reader() == nullptr);
     REQUIRE(workspace.mapPath().empty());
+}
+
+TEST_CASE("mapWorkspaceManager_Should_PreserveIndependentMapAndCanvasState")
+{
+    const TestDirectory directory;
+    const auto firstPath = directory.path() / "first.mul";
+    const auto secondPath = directory.path() / "second.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(firstPath, testDimensions, initialTile));
+    REQUIRE(uomul::MapEditor::createEmpty(secondPath, testDimensions));
+
+    MapWorkspaceManager manager;
+    REQUIRE(manager.openMap(firstPath, testDimensions));
+    manager.bindActiveDocument(1U);
+    manager.setEditMode(true);
+    manager.setDisplayMode(uo_mule::gui::MapDisplayMode::combined);
+    manager.setTileSelection({.min = {.x = 1, .y = 2}, .maxExclusive = {.x = 3, .y = 4}});
+    manager.canvasState().panX = 12.0;
+    manager.canvasState().zoom = 18.0;
+
+    REQUIRE(manager.openMap(secondPath, testDimensions));
+    manager.bindActiveDocument(2U);
+    REQUIRE(manager.activateMap(1U, firstPath, testDimensions));
+    REQUIRE(manager.fill({.id = selectionReplacementTileId, .z = filledElevation}, MapEditScope::selection));
+    REQUIRE(manager.activateMap(2U, secondPath, testDimensions));
+    REQUIRE(manager.activateMap(1U, firstPath, testDimensions));
+
+    REQUIRE(manager.originalPath() == firstPath);
+    REQUIRE(manager.dirty());
+    REQUIRE(manager.displayMode() == uo_mule::gui::MapDisplayMode::combined);
+    REQUIRE(manager.tileSelection().has_value());
+    REQUIRE(std::abs(manager.canvasState().panX - 12.0) < 0.001);
+    REQUIRE(std::abs(manager.canvasState().zoom - 18.0) < 0.001);
+}
+
+TEST_CASE("mapWorkspaceManager_Should_InvalidateAllResidentCanvasCaches")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "first.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions));
+    MapWorkspaceManager manager;
+    manager.canvasState().lodCacheValid = true;
+    REQUIRE(manager.openMap(mapPath, testDimensions));
+    manager.bindActiveDocument(1U);
+    manager.canvasState().lodCacheValid = true;
+    manager.invalidateProviderCaches();
+
+    REQUIRE_FALSE(manager.canvasState().lodCacheValid);
 }

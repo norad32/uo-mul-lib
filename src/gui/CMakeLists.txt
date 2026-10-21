@@ -42,7 +42,8 @@ add_library(
     documents/document_identity.cpp
     documents/map_document.cpp
     documents/radarcol_document.cpp
-    documents/map_workspace.cpp
+     documents/map_workspace.cpp
+     documents/map_workspace_manager.cpp
     persistence/layout_store.cpp
     persistence/preferences.cpp
     persistence/recent_maps.cpp

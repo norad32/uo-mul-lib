@@ -8,7 +8,7 @@
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
-#include "gui/documents/map_workspace.h"
+#include "gui/documents/map_workspace_manager.h"
 #include "gui/dialogs/new_map_dialog.h"
 #include "gui/dialogs/dialog_host.h"
 #include "gui/context/notification_state.h"
@@ -51,7 +51,7 @@ struct WorkbenchState
     DataProfile activeProfile;
     DataProviders providers;
     WorkbenchSession session;
-    MapWorkspace workspace;
+    MapWorkspaceManager workspace;
     CommandRegistry commands;
     OperationController operationController;
     NotificationState notifications;
@@ -65,7 +65,6 @@ struct WorkbenchState
     DialogHostState dialogHost;
     FileBrowserState fileBrowser;
     FileSelectorState fileSelector;
-    MapCanvasPanelState mapCanvasState;
     std::optional<MapCanvasStatus> lastHoveredCanvasStatus;
     std::string pendingClipboardText;
     BlockInspectorPanelState blockInspectorState;

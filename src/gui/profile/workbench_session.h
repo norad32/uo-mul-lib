@@ -3,6 +3,7 @@
 #include "gui/profile/data_profile.h"
 #include "gui/context/map_context.h"
 #include "gui/documents/map_document.h"
+#include "gui/documents/map_workspace_manager.h"
 #include "gui/persistence/recent_maps.h"
 #include <cstdint>
 
@@ -46,8 +47,11 @@ public:
     [[nodiscard]] const std::vector<RecentMap> & recentMaps() const noexcept;
     void recordRecentMap(const std::filesystem::path & path, uomul::Dimensions dimensions);
     void refreshRecentMaps();
+    void syncDocument(MapWorkspaceManager & workspace);
     void syncDocument(const MapWorkspace & workspace);
+    [[nodiscard]] std::expected<void, uomul::Error> activateDocument(DocumentId id, MapWorkspaceManager & workspace);
     [[nodiscard]] std::expected<void, uomul::Error> activateDocument(DocumentId id, MapWorkspace & workspace);
+    [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id, MapWorkspaceManager & workspace);
     [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id, MapWorkspace & workspace);
     [[nodiscard]] const std::vector<DocumentRecord> & documents() const noexcept;
     [[nodiscard]] const DocumentRecord * activeDocumentRecord() const noexcept;
@@ -55,6 +59,7 @@ public:
     [[nodiscard]] std::optional<DocumentIdentity> activeDocumentIdentity() const;
     [[nodiscard]] bool hasDocuments() const noexcept;
     [[nodiscard]] const std::optional<MapDocument> & activeDocument() const noexcept;
+    [[nodiscard]] MapContextSnapshot contextSnapshot(const MapWorkspaceManager & workspace) const;
     [[nodiscard]] MapContextSnapshot contextSnapshot(const MapWorkspace & workspace) const;
 
 private:

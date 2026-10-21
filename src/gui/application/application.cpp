@@ -402,6 +402,7 @@ int Application::run()
         }
     }
     state.session.updateProfile(state.activeProfile);
+    state.workspace.invalidateProviderCaches();
     if (state.session.mapReady() && !state.preferences.showWelcomeOnStartup)
     {
         state.session.setStartupState(StartupState::workbench);

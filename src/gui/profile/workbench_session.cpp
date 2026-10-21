@@ -6,6 +6,7 @@
 #include "gui/context/map_context.h"
 #include "gui/documents/map_document.h"
 #include "gui/documents/document_identity.h"
+#include "gui/documents/map_workspace_manager.h"
 #include "gui/documents/map_workspace.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -151,12 +152,21 @@ void WorkbenchSession::refreshRecentMaps()
     recentMaps_.refreshValidity();
 }
 
+void WorkbenchSession::syncDocument(MapWorkspaceManager & workspace)
+{
+    documents_.sync(workspace.active());
+    if (const auto id = documents_.activeId())
+    {
+        workspace.bindActiveDocument(*id);
+    }
+}
+
 void WorkbenchSession::syncDocument(const MapWorkspace & workspace)
 {
     documents_.sync(workspace);
 }
 
-std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId id, MapWorkspace & workspace)
+std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId id, MapWorkspaceManager & workspace)
 {
     const DocumentRecord * record = documents_.find(id);
     if (record == nullptr)
@@ -166,14 +176,12 @@ std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId 
 
     if (record->map)
     {
-        if (documents_.activeId() != id)
+        if (auto activated = workspace.activateMap(id, record->map->sourcePath, record->map->dimensions); !activated)
         {
-            if (auto opened = workspace.openMap(record->map->sourcePath, record->map->dimensions); !opened)
-            {
-                return std::unexpected(opened.error());
-            }
+            return std::unexpected(activated.error());
         }
-        documents_.sync(workspace);
+        static_cast<void>(documents_.activate(id));
+        documents_.sync(workspace.active());
         return {};
     }
 
@@ -188,7 +196,25 @@ std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId 
     return {};
 }
 
-std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id, MapWorkspace & workspace)
+std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId id, MapWorkspace & workspace)
+{
+    const DocumentRecord * record = documents_.find(id);
+    if (record == nullptr)
+    {
+        return std::unexpected(makeDocumentSessionError({}, "document is not open"));
+    }
+    if (record->map && documents_.activeId() != id)
+    {
+        if (auto opened = workspace.openMap(record->map->sourcePath, record->map->dimensions); !opened)
+        {
+            return std::unexpected(opened.error());
+        }
+    }
+    documents_.sync(workspace);
+    return {};
+}
+
+std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id, MapWorkspaceManager & workspace)
 {
     const DocumentRecord * record = documents_.find(id);
     if (record == nullptr)
@@ -196,6 +222,27 @@ std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id,
         return std::unexpected(makeDocumentSessionError({}, "document is not open"));
     }
 
+    if (record->map && workspace.activeDocumentId() == id && workspace.reader() != nullptr)
+    {
+        if (auto closed = workspace.closeMap(); !closed)
+        {
+            return std::unexpected(closed.error());
+        }
+    }
+    if (!documents_.close(id))
+    {
+        return std::unexpected(makeDocumentSessionError({}, "document could not be closed"));
+    }
+    return {};
+}
+
+std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id, MapWorkspace & workspace)
+{
+    const DocumentRecord * record = documents_.find(id);
+    if (record == nullptr)
+    {
+        return std::unexpected(makeDocumentSessionError({}, "document is not open"));
+    }
     if (record->map && documents_.activeId() == id && workspace.reader() != nullptr)
     {
         if (auto closed = workspace.closeMap(); !closed)
@@ -239,6 +286,11 @@ bool WorkbenchSession::hasDocuments() const noexcept
 const std::optional<MapDocument> & WorkbenchSession::activeDocument() const noexcept
 {
     return documents_.active();
+}
+
+MapContextSnapshot WorkbenchSession::contextSnapshot(const MapWorkspaceManager & workspace) const
+{
+    return makeMapContextSnapshot(workspace.active(), documents_.active());
 }
 
 MapContextSnapshot WorkbenchSession::contextSnapshot(const MapWorkspace & workspace) const

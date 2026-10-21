@@ -380,7 +380,7 @@ bool drawFileDialogs(WorkbenchState & state)
     const bool browserWasVisible = state.fileBrowser.visible;
     if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::mapWorkflow))
     {
-        drawNewMapDialog(state.workspace,
+        drawNewMapDialog(state.workspace.active(),
                          state.menuBarState.fileDialog,
                          state.operationController,
                          state.activeProfile.outputCollisionPolicy,

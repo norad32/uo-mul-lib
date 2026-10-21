@@ -82,7 +82,7 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
 
 void requestClose(WorkbenchState & state, PendingMapOperationKind kind)
 {
-    requestCloseOperation(state.workspace,
+    requestCloseOperation(state.workspace.active(),
                           state.menuBarState.fileDialog,
                           state.operationController,
                           kind,
@@ -96,10 +96,10 @@ void togglePanel(bool & visibility)
 
 void requestCoordinateDialog(WorkbenchState & state, CoordinateKind kind)
 {
-    state.mapCanvasState.coordinateInputKind = kind;
-    state.mapCanvasState.coordinateInputFocusRequested = true;
-    state.mapCanvasState.coordinateInput.fill('\0');
-    state.mapCanvasState.coordinatePopupRequested = true;
+    state.workspace.canvasState().coordinateInputKind = kind;
+    state.workspace.canvasState().coordinateInputFocusRequested = true;
+    state.workspace.canvasState().coordinateInput.fill('\0');
+    state.workspace.canvasState().coordinatePopupRequested = true;
 }
 
 bool & panelVisibility(WorkbenchState & state, PanelId id)
@@ -305,7 +305,7 @@ void registerDefaultCommands(CommandRegistry & registry)
             state.layoutResetRequested = true;
         });
     add(registry, CommandId::mapFit, "map.fit", "Fit Map", "Map", "Fit the complete map in the canvas", "", requiresMapDocument,
-        [](WorkbenchState & state) { state.mapCanvasState.navigationRequest.request = MapCanvasViewRequest::fitMap; });
+        [](WorkbenchState & state) { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::fitMap; });
     add(registry,
         CommandId::mapFitSelection,
         "map.fit-selection",
@@ -314,7 +314,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Fit the current selection in the canvas",
         "",
         requiresMapDocument,
-        [](WorkbenchState & state) { state.mapCanvasState.navigationRequest.request = MapCanvasViewRequest::fitSelection; });
+        [](WorkbenchState & state) { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::fitSelection; });
     add(registry,
         CommandId::mapCenterSelection,
         "map.center-selection",
@@ -323,7 +323,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Center the current selection in the canvas",
         "",
         requiresMapDocument,
-        [](WorkbenchState & state) { state.mapCanvasState.navigationRequest.request = MapCanvasViewRequest::centerSelection; });
+        [](WorkbenchState & state) { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::centerSelection; });
     add(registry,
         CommandId::mapResetView,
         "map.reset-view",
@@ -332,7 +332,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Reset map pan and zoom",
         "",
         requiresMapDocument,
-        [](WorkbenchState & state) { state.mapCanvasState.navigationRequest.request = MapCanvasViewRequest::resetView; });
+        [](WorkbenchState & state) { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::resetView; });
     add(registry,
         CommandId::mapGoToCoordinate,
         "map.go-to-coordinate",
