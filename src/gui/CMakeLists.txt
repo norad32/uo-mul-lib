@@ -21,6 +21,7 @@ add_library(
      context/coordinate_parser.cpp
      context/color_conversion.cpp
      context/map_context.cpp
+     assets/asset_window_contracts.cpp
      strings/ui_strings.cpp
     profile/data_discovery.cpp
     profile/data_profile.cpp
