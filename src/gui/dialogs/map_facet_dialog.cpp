@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <imgui.h>
+#include <string>
 
 namespace uo_mule::gui
 {
@@ -84,7 +85,7 @@ constexpr std::uint32_t minimumDimension = uomul::mapBlockDimension;
 
 MapFacetDialogResult drawMapFacetDialog(NewMapDialogState & state)
 {
-    ImGui::Text("Map path: %s", state.openPath.data());
+    dialogSubheading((std::string("Map path: ") + state.openPath.data()).c_str());
     if (state.openCandidates.empty())
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "No exact known size match, custom dimensions is selected.");

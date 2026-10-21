@@ -433,7 +433,7 @@ void drawOpenDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
         return;
     }
 
-    ImGui::Text("Map path: %s", state.openPath.data());
+    dialogSubheading((std::string("Map path: ") + state.openPath.data()).c_str());
     if (ImGui::IsItemClicked() && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
@@ -474,7 +474,7 @@ void drawOpenDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
 
 void drawNewMapForm(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
-    ImGui::Text("Output path: %s", state.newMapPath.data());
+    dialogSubheading((std::string("Output path: ") + state.newMapPath.data()).c_str());
     if (ImGui::IsItemClicked() && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,

@@ -21,7 +21,7 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::uint32_t recentFilesSchemaVersion = 4;
+constexpr std::uint32_t recentFilesSchemaVersion = 5;
 constexpr std::uint32_t minimumSupportedSchemaVersion = 1;
 
 [[nodiscard]] std::int64_t currentTimestamp() noexcept
@@ -94,6 +94,17 @@ void refreshEntryValidity(RecentFile & file)
     }
     file >> std::quoted(result.facet) >> std::quoted(result.failure);
     if (version >= recentFilesSchemaVersion)
+    {
+        std::uint32_t kind = 0;
+        file >> kind >> result.itemCount >> std::quoted(companionPath);
+        if (kind <= static_cast<std::uint32_t>(DocumentKind::texmapPair))
+        {
+            result.kind = static_cast<DocumentKind>(kind);
+        }
+        result.companionPath = companionPath;
+        file >> result.lastOpened >> result.lastModified;
+    }
+    else if (version == 4)
     {
         std::uint32_t kind = 0;
         file >> kind >> std::quoted(companionPath);
@@ -195,8 +206,8 @@ void saveRecentFiles(const std::vector<RecentFile> & files, const std::filesyste
             file << ' ' << map.dimensions->widthTiles << ' ' << map.dimensions->heightTiles;
         }
         file << ' ' << std::quoted(map.facet) << ' ' << std::quoted(map.failure) << ' '
-             << static_cast<std::uint32_t>(map.kind) << ' ' << std::quoted(map.companionPath.string()) << ' ' << map.lastOpened
-             << ' ' << map.lastModified << '\n';
+             << static_cast<std::uint32_t>(map.kind) << ' ' << map.itemCount << ' '
+             << std::quoted(map.companionPath.string()) << ' ' << map.lastOpened << ' ' << map.lastModified << '\n';
     }
     file.close();
     std::filesystem::rename(temporary, path);
@@ -216,7 +227,8 @@ void RecentFileStore::record(std::filesystem::path path,
                             std::optional<uomul::Dimensions> dimensions,
                             std::string facet,
                             DocumentKind kind,
-                            std::filesystem::path companionPath)
+                            std::filesystem::path companionPath,
+                            std::uint32_t itemCount)
 {
     if (path.empty())
     {
@@ -228,6 +240,7 @@ void RecentFileStore::record(std::filesystem::path path,
         .companionPath = std::move(companionPath),
         .displayName = {},
         .kind = kind,
+        .itemCount = itemCount,
         .dimensions = dimensions,
         .facet = std::move(facet),
         .failure = {},

@@ -19,6 +19,7 @@ struct RecentFile
     std::filesystem::path companionPath;
     std::string displayName;
     DocumentKind kind = DocumentKind::map;
+    std::uint32_t itemCount = 0;
     std::optional<uomul::Dimensions> dimensions;
     std::string facet;
     std::string failure;
@@ -40,7 +41,8 @@ public:
                 std::optional<uomul::Dimensions> dimensions = std::nullopt,
                 std::string facet = {},
                 DocumentKind kind = DocumentKind::map,
-                std::filesystem::path companionPath = {});
+                std::filesystem::path companionPath = {},
+                std::uint32_t itemCount = 0);
     void refreshValidity();
 
 private:

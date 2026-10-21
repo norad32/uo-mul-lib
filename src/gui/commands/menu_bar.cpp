@@ -140,7 +140,8 @@ bool openGenericAsset(WorkbenchState & state,
     }
     state.session.recordRecentFile(candidate.path,
                                    candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair,
-                                   candidate.companionPath);
+                                   candidate.companionPath,
+                                   candidate.itemCount);
     return false;
 }
 

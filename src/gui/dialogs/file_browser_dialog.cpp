@@ -239,7 +239,7 @@ void drawPlaces(FileBrowserState & state)
                       ImVec2(placesWidth, listingHeight),
                       ImGuiChildFlags_Borders,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    ImGui::TextUnformatted("Places");
+    dialogHeading("Places");
 
     const auto home = std::filesystem::path(std::getenv("HOME") == nullptr ? "" : std::getenv("HOME"));
     if (!home.empty() && ImGui::Selectable("Home", state.directory == home))
@@ -264,7 +264,7 @@ void drawPlaces(FileBrowserState & state)
         }
     }
 
-    ImGui::SeparatorText("Recent Locations");
+    dialogSeparatorText("Recent Locations");
     std::vector<std::filesystem::path> recentLocations;
     for (std::size_t index = state.history.size(); index-- > 0U;)
     {
@@ -300,7 +300,7 @@ void drawSummary(const FileBrowserState & state)
                       ImVec2(summaryWidth, listingHeight),
                       ImGuiChildFlags_Borders,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    ImGui::TextUnformatted("File Summary");
+    dialogHeading("File Summary");
     ImGui::Separator();
     if (state.selectedPath.empty())
     {
@@ -435,6 +435,7 @@ void appendRadarcolCandidate(FileBrowserSummary & summary,
         .label = "Radar colors",
          .reason = std::move(reason),
          .score = score,
+         .itemCount = reader->colorCount(),
          .dimensions = std::nullopt,
          .validated = true,
         .openable = true,
@@ -545,6 +546,7 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
         .label = "Texture pair",
          .reason = std::move(reason),
          .score = texmapsPairScore,
+         .itemCount = reader ? reader->textureCount() : 0U,
          .dimensions = std::nullopt,
          .validated = reader.has_value(),
         .openable = reader.has_value(),

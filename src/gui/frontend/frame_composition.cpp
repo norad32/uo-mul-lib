@@ -55,6 +55,7 @@ constexpr float notificationTopMargin = 48.0F;
 constexpr float notificationMinimumWidth = 280.0F;
 constexpr float notificationMaximumWidth = 480.0F;
 constexpr float notificationMaximumHeightRatio = 0.5F;
+constexpr int welcomeWindowWidth = 744;
 constexpr std::size_t shortcutCount = 6;
 constexpr std::size_t graveShortcutIndex = 0;
 constexpr std::size_t saveAsShortcutIndex = 1;
@@ -519,6 +520,26 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
     state.providers.sync(state.activeProfile);
     if (state.nativeWelcomeWindowMode != welcomeShell)
     {
+        int windowWidth = 0;
+        int windowHeight = 0;
+        int windowX = 0;
+        int windowY = 0;
+        glfwGetWindowSize(window, &windowWidth, &windowHeight);
+        glfwGetWindowPos(window, &windowX, &windowY);
+        if (welcomeShell)
+        {
+            state.workbenchWindowWidth = windowWidth;
+            state.workbenchWindowHeight = windowHeight;
+            const int horizontalOffset = (windowWidth - welcomeWindowWidth) / 2;
+            glfwSetWindowSize(window, welcomeWindowWidth, windowHeight);
+            glfwSetWindowPos(window, windowX + horizontalOffset, windowY);
+        }
+        else if (state.workbenchWindowWidth > 0 && state.workbenchWindowHeight > 0)
+        {
+            const int horizontalOffset = (windowWidth - state.workbenchWindowWidth) / 2;
+            glfwSetWindowSize(window, state.workbenchWindowWidth, state.workbenchWindowHeight);
+            glfwSetWindowPos(window, windowX + horizontalOffset, windowY);
+        }
         glfwSetWindowAttrib(window, GLFW_DECORATED, welcomeShell ? GLFW_FALSE : GLFW_TRUE);
         glfwSetWindowAttrib(window, GLFW_RESIZABLE, welcomeShell ? GLFW_FALSE : GLFW_TRUE);
         state.nativeWelcomeWindowMode = welcomeShell;

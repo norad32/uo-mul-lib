@@ -1,20 +1,21 @@
 #include "gui/frontend/welcome_screen.h"
 #include "core/facet_sizes.h"
+#include "gui/application/workbench_state.h"
 #include "gui/commands/command_registry.h"
-#include "gui/profile/data_profile.h"
-#include "gui/profile/data_validation.h"
+#include "gui/context/notification_state.h"
+#include "gui/dialogs/dialog_presentation.h"
 #include "gui/dialogs/new_map_dialog.h"
-#include "gui/persistence/preferences.h"
-#include "gui/persistence/recent_files.h"
 #include "gui/documents/document_identity.h"
-#include "gui/metadata/document_contracts.h"
 #include "gui/frontend/theme.h"
 #include "gui/frontend/welcome_greetings.h"
+#include "gui/metadata/document_contracts.h"
+#include "gui/persistence/preferences.h"
+#include "gui/persistence/recent_files.h"
+#include "gui/profile/data_profile.h"
+#include "gui/profile/data_validation.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/providers/data_providers.h"
 #include "gui/strings/ui_strings.h"
-#include "gui/application/workbench_state.h"
-#include "gui/context/notification_state.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -32,13 +33,15 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr float welcomeContentWidth = 920.0F;
-constexpr float actionButtonWidth = 180.0F;
-constexpr float actionButtonHeight = 44.0F;
+constexpr float welcomeContentWidth = 720.0F;
 constexpr float actionButtonSpacing = 8.0F;
 constexpr float bannerHeight = 180.0F;
 constexpr float bannerCenterFactor = 0.5F;
-constexpr float recentRowHeight = 86.0F;
+constexpr float verticalCenterFactor = 0.5F;
+constexpr float recentRowHeight = 52.0F;
+constexpr float unavailableRecentRowHeight = 68.0F;
+constexpr float recentRowTextPadding = 8.0F;
+constexpr float welcomeFooterBottomPadding = 16.0F;
 constexpr std::size_t timestampBufferSize = 32;
 
 [[nodiscard]] std::string timestampLabel(std::string_view prefix, std::int64_t timestamp)
@@ -63,19 +66,6 @@ constexpr std::size_t timestampBufferSize = 32;
     return std::string(prefix) + ": " + std::string(formatted.data());
 }
 
-[[nodiscard]] ImVec4 statusColor(DataFileStatus status)
-{
-    if (status == DataFileStatus::foundAndValidated || status == DataFileStatus::overridden || status == DataFileStatus::found)
-    {
-        return theme::imguiColor(theme::success);
-    }
-    if (status == DataFileStatus::missing || status == DataFileStatus::optional || status == DataFileStatus::unsupported)
-    {
-        return theme::imguiColor(theme::warning);
-    }
-    return theme::imguiColor(theme::error);
-}
-
 [[nodiscard]] std::string dimensionsLabel(const RecentFile & recent)
 {
     if (!recent.dimensions)
@@ -90,7 +80,7 @@ constexpr std::size_t timestampBufferSize = 32;
 {
     if (recent.facet.empty())
     {
-        return "Custom or unknown facet";
+        return "Custom";
     }
 
     if (const auto facet = uo_mule::core::facetSize(recent.facet))
@@ -136,54 +126,84 @@ void applyRecentMapToOpenDialog(NewMapDialogState & dialog, const RecentFile & r
     }
 }
 
-void drawProfileSummary(const DataProfile & profile, const ProviderStatus & radarcolStatus)
+[[nodiscard]] bool metadataFileConfigured(DataFileStatus status) noexcept
 {
-    const DataProfileValidation validation = validateDataProfile(profile);
-    ImGui::TextUnformatted("Data profile");
-    const bool noProfile = profile.name.empty() && profile.files.empty() && profile.sourceRoot.empty();
-    if (noProfile)
+    return status == DataFileStatus::found || status == DataFileStatus::foundAndValidated ||
+           status == DataFileStatus::overridden;
+}
+
+[[nodiscard]] bool metadataFileMissing(DataFileStatus status) noexcept
+{
+    return status == DataFileStatus::missing || status == DataFileStatus::unsupported;
+}
+
+void drawMetadataTooltip(const DataProfileValidation & validation)
+{
+    if (!ImGui::IsItemHovered())
     {
-        ImGui::TextDisabled("No profile");
-    }
-    else if (profile.name.empty())
-    {
-        ImGui::TextDisabled("Unnamed profile");
-    }
-    else
-    {
-        ImGui::TextDisabled("%s", profile.name.c_str());
+        return;
     }
 
-    if (!profile.sourceRoot.empty())
-    {
-        ImGui::TextDisabled("Source: %s", profile.sourceRoot.string().c_str());
-    }
-    if (!profile.outputRoot.empty())
-    {
-        ImGui::TextDisabled("Output: %s", profile.outputRoot.string().c_str());
-    }
-
-    const std::string_view sourceName = strings::providerSourceName(radarcolStatus.source);
-    ImGui::Text("Radarcol: %.*s", static_cast<int>(sourceName.size()), sourceName.data());
-    if (radarcolStatus.source == ProviderSourceKind::embeddedDefaultWithWarning && !radarcolStatus.message.empty())
-    {
-        ImGui::TextColored(theme::imguiColor(theme::warning), "Warning: %s", radarcolStatus.message.c_str());
-    }
-
-    for (const auto role : {DataFileRole::radarcol, DataFileRole::texidx, DataFileRole::texmaps, DataFileRole::tiledata})
+    ImGui::BeginTooltip();
+    for (const auto role : {DataFileRole::radarcol, DataFileRole::texidx, DataFileRole::texmaps})
     {
         const auto * file = validation.find(role);
-        if (file == nullptr)
+        const DataFileStatus fileStatus = file == nullptr ? DataFileStatus::missing : file->status;
+        const bool configured = metadataFileConfigured(fileStatus);
+        const bool missing = metadataFileMissing(fileStatus);
+        theme::Color color = theme::peach;
+        const char * label = "incomplete";
+        if (configured)
         {
-            continue;
+            color = theme::success;
+            label = "configured";
         }
-        const std::string_view roleName = strings::dataFileLabel(role);
-        ImGui::TextColored(statusColor(file->status),
-                           "%.*s: %s",
-                           static_cast<int>(roleName.size()),
-                           roleName.data(),
-                            std::string(strings::dataFileStatusLabel(file->status)).c_str());
+        else if (missing)
+        {
+            color = theme::error;
+            label = "not configured";
+        }
+        const std::string_view fileName = strings::dataFileName(role);
+        ImGui::TextColored(theme::imguiColor(color), "%.*s: %s", static_cast<int>(fileName.size()), fileName.data(), label);
     }
+    ImGui::EndTooltip();
+}
+
+void drawProfileSummary(const DataProfile & profile)
+{
+    const DataProfileValidation validation = validateDataProfile(profile);
+    const std::string profileName = profile.name.empty() ? "No profile" : profile.name;
+    ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", profileName.c_str());
+
+    const std::array<DataFileRole, 3> metadataRoles{DataFileRole::radarcol, DataFileRole::texidx, DataFileRole::texmaps};
+    const bool anyConfigured = std::ranges::any_of(metadataRoles,
+                                                   [&validation](DataFileRole role)
+                                                   {
+                                                       const auto * file = validation.find(role);
+                                                       return file != nullptr && metadataFileConfigured(file->status);
+                                                   });
+    const bool allConfigured = std::ranges::all_of(metadataRoles,
+                                                   [&validation](DataFileRole role)
+                                                   {
+                                                       const auto * file = validation.find(role);
+                                                       return file != nullptr && metadataFileConfigured(file->status);
+                                                   });
+    const char * metadataLabel = "Not configured";
+    theme::Color metadataColor = theme::error;
+    if (allConfigured)
+    {
+        metadataLabel = "Configured";
+        metadataColor = theme::success;
+    }
+    else if (anyConfigured)
+    {
+        metadataLabel = "Incomplete";
+        metadataColor = theme::peach;
+    }
+    ImGui::TextUnformatted("Metadata: ");
+    ImGui::SameLine(0.0F, 0.0F);
+    ImGui::TextColored(theme::imguiColor(metadataColor), "%s", metadataLabel);
+    drawMetadataTooltip(validation);
 }
 
 void openRecentAsset(WorkbenchState & state, const RecentFile & recent)
@@ -213,36 +233,64 @@ void openRecentAsset(WorkbenchState & state, const RecentFile & recent)
 
 void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size_t index)
 {
+    const bool unavailable = !recent.failure.empty();
     ImGui::PushID(static_cast<int>(index));
     ImGui::BeginChild("###welcome.recent-row",
-                      ImVec2(0.0F, recentRowHeight),
+                      ImVec2(0.0F, unavailable ? unavailableRecentRowHeight : recentRowHeight),
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    const float rowHeight = unavailable ? unavailableRecentRowHeight : recentRowHeight;
+    const std::size_t lineCount = unavailable ? 3U : 2U;
+    const float lineHeight = ImGui::GetTextLineHeight();
+    const float contentHeight = (static_cast<float>(lineCount) * lineHeight) +
+                                (static_cast<float>(lineCount - 1U) * ImGui::GetStyle().ItemSpacing.y);
+    ImGui::SetCursorPosY(std::max(0.0F, (rowHeight - contentHeight) * verticalCenterFactor));
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + recentRowTextPadding);
+    const float textStartX = ImGui::GetCursorPosX();
 
     const bool rowHovered = ImGui::IsWindowHovered();
     if (rowHovered)
     {
         const ImVec2 rowMin = ImGui::GetWindowPos();
         const ImVec2 rowMax = ImVec2(rowMin.x + ImGui::GetWindowSize().x, rowMin.y + ImGui::GetWindowSize().y);
-        ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(theme::accent));
+        const theme::Color rowColor =
+            rowHovered && ImGui::IsMouseDown(ImGuiMouseButton_Left) ? theme::surface2 : theme::surface1;
+        ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(rowColor));
+    }
+    else
+    {
+        const ImVec2 rowMin = ImGui::GetWindowPos();
+        const ImVec2 rowMax = ImVec2(rowMin.x + ImGui::GetWindowSize().x, rowMin.y + ImGui::GetWindowSize().y);
+        ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(theme::surface0));
+    }
+    if (rowHovered)
+    {
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
         ImGui::SetTooltip("%s", recent.path.string().c_str());
     }
 
-    const bool unavailable = !recent.failure.empty();
-    ImGui::TextUnformatted(recent.displayName.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", recent.displayName.c_str());
     if (recent.kind == DocumentKind::map)
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("%s", dimensionsLabel(recent).c_str());
+        ImGui::TextUnformatted("Map");
         ImGui::SameLine();
-        ImGui::TextDisabled("%s", mapLabel(recent).c_str());
+        ImGui::TextUnformatted(mapLabel(recent).c_str());
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", dimensionsLabel(recent).c_str());
     }
     else
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("%s", std::string(documentKindName(recent.kind)).c_str());
+        const std::string kindLabel(documentKindName(recent.kind));
+        ImGui::TextUnformatted(kindLabel.c_str());
+        if (recent.kind == DocumentKind::radarcol)
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("%u entries", recent.itemCount);
+        }
     }
+    ImGui::SetCursorPosX(textStartX);
     const std::string modifiedLabel = timestampLabel("Modified", recent.lastModified);
     const std::string openedLabel = timestampLabel("Opened", recent.lastOpened);
     ImGui::TextDisabled("%s | %s", modifiedLabel.c_str(), openedLabel.c_str());
@@ -286,7 +334,6 @@ void drawWelcomeScreen(WorkbenchState & state)
     selectGreetingIfNeeded(state);
     state.session.refreshRecentFiles();
     state.providers.sync(state.activeProfile);
-    const ProviderStatus radarcolStatus = state.providers.radarColors().status();
 
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
@@ -321,17 +368,17 @@ void drawWelcomeScreen(WorkbenchState & state)
     const ImVec2 bannerTextSize = ImGui::CalcTextSize(bannerText);
     ImGui::SetCursorPos(ImVec2((ImGui::GetWindowSize().x - bannerTextSize.x) * bannerCenterFactor,
                                (ImGui::GetWindowSize().y - bannerTextSize.y) * bannerCenterFactor));
-        ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", bannerText);
+    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", bannerText);
     ImGui::EndChild();
     ImGui::Separator();
 
     ImGui::Spacing();
-        ImGui::TextColored(theme::imguiColor(theme::greeting), "%s", state.welcomeGreeting.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::peach), "%s", state.welcomeGreeting.c_str());
     ImGui::Spacing();
     ImGui::Separator();
 
     ImGui::Spacing();
-    ImGui::TextUnformatted("Recent Files");
+    dialogHeading("Recent Files");
     ImGui::Spacing();
 
     if (state.session.recentFiles().empty())
@@ -355,25 +402,16 @@ void drawWelcomeScreen(WorkbenchState & state)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
-    ImGui::TextUnformatted("Profile & Status");
+    dialogHeading("Profile");
     if (ImGui::BeginTable("###welcome.details", 2, ImGuiTableFlags_SizingStretchProp))
     {
         ImGui::TableNextColumn();
-        drawProfileSummary(state.activeProfile, radarcolStatus);
+        drawProfileSummary(state.activeProfile);
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Safe by default");
-        ImGui::TextWrapped("Source muls are read-only. Edits remain staged until you explicitly save them to an output path.");
-        ImGui::Spacing();
-        const std::string profileReadiness(strings::profileReadinessName(state.session.profileState()));
-        ImGui::TextDisabled("Map readiness: %s", profileReadiness.c_str());
-        const std::string_view sourceName = strings::providerSourceName(radarcolStatus.source);
-        ImGui::TextDisabled("Maps remain editable and savable with %.*s.",
-                            static_cast<int>(sourceName.size()),
-                            sourceName.data());
         ImGui::EndTable();
     }
 
-    if (ImGui::Button("Preferences..."))
+    if (ImGui::Button("Preferences"))
     {
         static_cast<void>(state.commands.execute(CommandId::dataPaths, state));
     }
@@ -382,7 +420,10 @@ void drawWelcomeScreen(WorkbenchState & state)
         ImGui::SetTooltip("Configure the active data profile and application preferences.");
     }
 
-    const float footerHeight = actionButtonHeight + ImGui::GetStyle().ItemSpacing.y;
+    const float actionButtonHeight = ImGui::GetFrameHeight();
+    const float actionButtonTextWidth = std::max(ImGui::CalcTextSize("Open").x, ImGui::CalcTextSize("Create Map").x);
+    const float actionButtonWidth = actionButtonTextWidth + (ImGui::GetStyle().FramePadding.x * 2.0F);
+    const float footerHeight = actionButtonHeight + ImGui::GetStyle().ItemSpacing.y + welcomeFooterBottomPadding;
     const float availableHeight = ImGui::GetContentRegionAvail().y;
     if (availableHeight > footerHeight)
     {
@@ -421,6 +462,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     {
         static_cast<void>(state.commands.execute(CommandId::fileNew, state));
     }
+    ImGui::Dummy(ImVec2(0.0F, welcomeFooterBottomPadding));
 
     ImGui::EndChild();
     ImGui::End();

@@ -111,8 +111,8 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
         return FileSelectorAction::none;
     }
 
-    ImGui::TextUnformatted("Choose how to open this file");
-    ImGui::TextWrapped("%s", state.browserResult.path.string().c_str());
+    dialogHeading("Choose how to open this file");
+    dialogSubheading(state.browserResult.path.string().c_str());
     ImGui::TextDisabled("The file matches more than one supported MUL format.");
     ImGui::Separator();
     if (state.candidates.empty())

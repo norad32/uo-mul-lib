@@ -1,4 +1,5 @@
 #include "gui/dialogs/dialog_presentation.h"
+#include "gui/frontend/theme.h"
 #include <cfloat>
 #include <imgui.h>
 
@@ -64,6 +65,23 @@ bool beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, Im
 void endDialog()
 {
     ImGui::EndPopup();
+}
+
+void dialogHeading(const char * text)
+{
+    ImGui::TextColored(theme::imguiColor(theme::mauve), "%s", text);
+}
+
+void dialogSubheading(const char * text)
+{
+    ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", text);
+}
+
+void dialogSeparatorText(const char * text)
+{
+    ImGui::PushStyleColor(ImGuiCol_Text, theme::imguiColor(theme::lavender));
+    ImGui::SeparatorText(text);
+    ImGui::PopStyleColor();
 }
 
 void beginDialogFooter()

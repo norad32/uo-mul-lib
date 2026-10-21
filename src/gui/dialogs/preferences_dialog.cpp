@@ -315,7 +315,7 @@ void drawOutputSection(PreferencesDialogState & state)
     const auto policy = state.workingProfile.outputCollisionPolicy;
     ImGui::Text("Collision policy: %s", std::string(outputCollisionPolicyName(policy)).c_str());
 
-    ImGui::SeparatorText("Preview");
+    dialogSeparatorText("Preview");
     if (state.workingProfile.outputRoot.empty())
     {
         ImGui::TextUnformatted("Choose an output folder to preview generated paths.");
@@ -429,7 +429,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         return false;
     }
 
-    ImGui::TextUnformatted("Configure your UO data profile and application startup behavior.");
+    dialogSubheading("Configure your UO data profile and application startup behavior.");
     ImGui::Separator();
     ImGui::BeginChild("PreferencesContent",
                       ImVec2(0.0F, contentHeight),

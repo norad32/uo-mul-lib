@@ -76,6 +76,7 @@ struct FileBrowserAssetCandidate
     std::string label;
     std::string reason;
     int score = 0;
+    std::uint32_t itemCount = 0;
     std::optional<uomul::Dimensions> dimensions;
     bool validated = false;
     bool openable = false;

@@ -21,6 +21,9 @@ struct DialogWindowSpec
                                DialogWindowSpec spec,
                                ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None);
 void endDialog();
+void dialogHeading(const char * text);
+void dialogSubheading(const char * text);
+void dialogSeparatorText(const char * text);
 void beginDialogFooter();
 void endDialogFooter();
 [[nodiscard]] bool dialogButton(const char * label, bool enabled = true);

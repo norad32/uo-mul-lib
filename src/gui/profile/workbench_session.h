@@ -49,7 +49,8 @@ public:
     void recordRecentFile(const std::filesystem::path & path, uomul::Dimensions dimensions);
     void recordRecentFile(const std::filesystem::path & path,
                           DocumentKind kind,
-                          std::filesystem::path companionPath = {});
+                          std::filesystem::path companionPath = {},
+                          std::uint32_t itemCount = 0);
     void refreshRecentFiles();
     void syncDocument(MapWorkspaceManager & workspace);
     void syncDocument(const MapWorkspace & workspace);

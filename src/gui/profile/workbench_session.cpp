@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <cstdint>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -150,9 +151,10 @@ void WorkbenchSession::recordRecentFile(const std::filesystem::path & path, uomu
 
 void WorkbenchSession::recordRecentFile(const std::filesystem::path & path,
                                         DocumentKind kind,
-                                        std::filesystem::path companionPath)
+                                        std::filesystem::path companionPath,
+                                        std::uint32_t itemCount)
 {
-    recentFiles_.record(path, std::nullopt, {}, kind, std::move(companionPath));
+    recentFiles_.record(path, std::nullopt, {}, kind, std::move(companionPath), itemCount);
 }
 
 void WorkbenchSession::refreshRecentFiles()

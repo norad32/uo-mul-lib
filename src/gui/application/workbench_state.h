@@ -77,6 +77,8 @@ struct WorkbenchState
     bool shouldClose = false;
     bool startupLoaded = false;
     bool nativeWelcomeWindowMode = false;
+    int workbenchWindowWidth = 0;
+    int workbenchWindowHeight = 0;
     std::filesystem::path recentMapRecordedPath;
     std::string welcomeGreeting;
     bool welcomeGreetingSelected = false;
