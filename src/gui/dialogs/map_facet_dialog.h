@@ -5,7 +5,7 @@
 namespace uo_mule::gui
 {
 
-struct NewMapDialogState;
+struct NewFileDialogState;
 
 enum class MapFacetDialogResult : std::uint8_t
 {
@@ -14,6 +14,6 @@ enum class MapFacetDialogResult : std::uint8_t
     cancel,
 };
 
-[[nodiscard]] MapFacetDialogResult drawMapFacetDialog(NewMapDialogState & state);
+[[nodiscard]] MapFacetDialogResult drawMapFacetDialog(NewFileDialogState & state);
 
 } // namespace uo_mule::gui

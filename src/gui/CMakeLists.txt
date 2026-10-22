@@ -60,7 +60,7 @@ add_library(
     views/selection_stats_panel.cpp
     views/texmaps_panel.cpp
     views/tile_inspector_panel.cpp
-    dialogs/new_map_dialog.cpp
+    dialogs/new_file_dialog.cpp
     frontend/frame_composition.cpp
     frontend/welcome_greetings.cpp
     frontend/welcome_screen.cpp)

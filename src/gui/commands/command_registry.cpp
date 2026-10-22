@@ -4,7 +4,8 @@
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/dialogs/new_map_dialog.h"
+#include "gui/documents/radarcol_document.h"
+#include "gui/dialogs/new_file_dialog.h"
 #include "gui/views/common.h"
 #include "gui/persistence/preferences.h"
 #include "gui/views/panel_registry.h"
@@ -14,6 +15,7 @@
 #include "gui/strings/ui_strings.h"
 #include <functional>
 #include <algorithm>
+#include <cstddef>
 #include <string_view>
 #include <string>
 #include <utility>
@@ -60,7 +62,7 @@ CommandAvailability requiresMapForSave(const WorkbenchState & state)
     if (state.workspace.reader() == nullptr || !state.workspace.dirty())
     {
         return {.enabled = false, .disabledReason = state.workspace.reader() == nullptr ? "No map is open"
-                                                                                         : "There are no staged changes"};
+                                                                                         : "There are no staged changes",};
     }
     return enabled(state);
 }
@@ -230,8 +232,8 @@ void registerDefaultCommands(CommandRegistry & registry)
 {
     add(registry, CommandId::fileOpen, "file.open", "Open...", "File", "Open a supported MUL file", "Ctrl+O", requiresMapReadyProfile,
         [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::openMap); });
-    add(registry, CommandId::fileNew, "file.new", "Create Map...", "File", "Create an empty map", "Ctrl+N", requiresMapReadyProfile,
-        [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::newMap); });
+    add(registry, CommandId::fileNew, "file.new", "New...", "File", "Create a new supported asset", "Ctrl+N", requiresMapReadyProfile,
+        [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::newType); });
     add(registry,
         CommandId::fileSave,
         "file.save",

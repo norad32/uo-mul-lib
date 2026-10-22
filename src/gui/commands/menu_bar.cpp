@@ -1,7 +1,7 @@
 #include "gui/commands/menu_bar.h"
 #include "gui/commands/file_operations.h"
 #include "gui/commands/command_registry.h"
-#include "gui/dialogs/new_map_dialog.h"
+#include "gui/dialogs/new_file_dialog.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/application/workbench_state.h"
 #include "gui/profile/workbench_session.h"

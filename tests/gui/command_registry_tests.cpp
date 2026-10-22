@@ -1,6 +1,6 @@
 #include "gui/commands/command_registry.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/dialogs/new_map_dialog.h"
+#include "gui/dialogs/new_file_dialog.h"
 #include "gui/application/workbench_state.h"
 #include "gui/views/panel_registry.h"
 #include <catch2/catch_test_macros.hpp>
@@ -56,7 +56,7 @@ TEST_CASE("commandRegistry_Should_DispatchRegisteredShortcuts")
     WorkbenchState state;
 
     REQUIRE(state.commands.executeShortcut("Ctrl+N", state));
-    REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::newMap);
+    REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::newType);
     REQUIRE_FALSE(state.commands.executeShortcut("Ctrl+P", state));
 }
 

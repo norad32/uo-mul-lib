@@ -253,5 +253,66 @@ TEST_CASE("file browser save request preserves the initial filename")
     REQUIRE_FALSE(state.visible);
 }
 
+TEST_CASE("file browser reuses the last navigated folder in the same session")
+{
+    const auto directory = std::filesystem::temp_directory_path() / "uo-mule-file-browser-recent";
+    std::error_code error;
+    std::filesystem::create_directories(directory, error);
+    REQUIRE_FALSE(error);
+
+    FileBrowserState state;
+    requestFileBrowser(state,
+                       {.mode = FileBrowserMode::openFile,
+                        .target = FileBrowserTarget::genericOpen,
+                        .initialPath = directory,
+                        .extension = ".mul",
+                        .title = "Open",});
+    REQUIRE(state.directory == std::filesystem::absolute(directory).lexically_normal());
+    cancelFileBrowser(state);
+
+    requestFileBrowser(state,
+                       {.mode = FileBrowserMode::openFile,
+                        .target = FileBrowserTarget::genericOpen,
+                        .initialPath = {},
+                        .extension = ".mul",
+                        .title = "Open",});
+    REQUIRE(state.directory == std::filesystem::absolute(directory).lexically_normal());
+
+    cancelFileBrowser(state);
+    std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("file browser accumulates multiple recent folders")
+{
+    const auto root = std::filesystem::temp_directory_path() / "uo-mule-file-browser-recent-many";
+    const auto first = root / "first";
+    const auto second = root / "second";
+    const auto third = root / "third";
+    std::error_code error;
+    std::filesystem::create_directories(first, error);
+    std::filesystem::create_directories(second, error);
+    std::filesystem::create_directories(third, error);
+    REQUIRE_FALSE(error);
+
+    FileBrowserState state;
+    for (const auto & folder : {first, second, third})
+    {
+        requestFileBrowser(state,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = FileBrowserTarget::genericOpen,
+                            .initialPath = folder,
+                            .extension = ".mul",
+                            .title = "Open",});
+        cancelFileBrowser(state);
+    }
+
+    REQUIRE(state.recentFolders.size() >= 3U);
+    REQUIRE(state.recentFolders.at(0) == std::filesystem::absolute(third).lexically_normal());
+    REQUIRE(state.recentFolders.at(1) == std::filesystem::absolute(second).lexically_normal());
+    REQUIRE(state.recentFolders.at(2) == std::filesystem::absolute(first).lexically_normal());
+
+    std::filesystem::remove_all(root, error);
+}
+
 } // namespace
 } // namespace uo_mule::gui

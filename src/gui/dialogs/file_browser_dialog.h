@@ -36,6 +36,8 @@ enum class FileBrowserTarget : std::uint8_t
     texmapsIndex,
     texmapsData,
     texmapsCompanion,
+    newRadarcolOutput,
+    newTexmapsData,
 };
 
 enum class MulAssetKind : std::uint8_t
@@ -120,6 +122,7 @@ struct FileBrowserState
     std::array<char, fileBrowserBufferSize> filename{};
     std::vector<std::filesystem::path> history;
     std::size_t historyIndex = 0;
+    std::vector<std::filesystem::path> recentFolders;
     FileBrowserSummary summary{};
     std::string error;
     std::optional<FileBrowserResult> result;

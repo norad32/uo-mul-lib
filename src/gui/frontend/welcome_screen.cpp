@@ -4,7 +4,7 @@
 #include "gui/commands/command_registry.h"
 #include "gui/context/notification_state.h"
 #include "gui/dialogs/dialog_presentation.h"
-#include "gui/dialogs/new_map_dialog.h"
+#include "gui/dialogs/new_file_dialog.h"
 #include "gui/documents/document_identity.h"
 #include "gui/frontend/theme.h"
 #include "gui/frontend/welcome_greetings.h"
@@ -106,7 +106,7 @@ constexpr std::size_t timestampBufferSize = 32;
     return {};
 }
 
-void applyRecentMapToOpenDialog(NewMapDialogState & dialog, const RecentFile & recent)
+void applyRecentMapToOpenDialog(NewFileDialogState & dialog, const RecentFile & recent)
 {
     dialog.mode = MapFileDialogMode::openMap;
     dialog.activePopup = MapFileDialogMode::none;
@@ -423,7 +423,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     }
 
     const float actionButtonHeight = ImGui::GetFrameHeight();
-    const float actionButtonTextWidth = std::max(ImGui::CalcTextSize("Open").x, ImGui::CalcTextSize("Create Map").x);
+    const float actionButtonTextWidth = std::max(ImGui::CalcTextSize("Open").x, ImGui::CalcTextSize("New").x);
     const float actionButtonWidth = actionButtonTextWidth + (ImGui::GetStyle().FramePadding.x * 2.0F);
     const float footerHeight = actionButtonHeight + ImGui::GetStyle().ItemSpacing.y + welcomeFooterBottomPadding;
     const float availableHeight = ImGui::GetContentRegionAvail().y;
@@ -460,7 +460,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     {
         ImGui::SameLine();
     }
-    if (ImGui::Button("Create Map", ImVec2(actionWidth, actionButtonHeight)))
+    if (ImGui::Button("New", ImVec2(actionWidth, actionButtonHeight)))
     {
         static_cast<void>(state.commands.execute(CommandId::fileNew, state));
     }

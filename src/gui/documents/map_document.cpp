@@ -219,7 +219,7 @@ void DocumentManager::syncAssetDocuments() noexcept
         if (document.radarcol)
         {
             const auto source = makeDocumentSourceIdentity({document.radarcol->sourcePath()});
-            const bool configured = configuredRadarcolSource_.has_value() && source == configuredRadarcolSource_.value();
+            const bool configured = configuredRadarcolSource_.has_value() && source == *configuredRadarcolSource_;
             document.summary.identity.source = source;
             document.summary.displayName = document.radarcol->sourcePath().filename().string();
             document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;

@@ -1,5 +1,6 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "core/facet_sizes.h"
+#include "core/app_info.h"
 #include "gui/dialogs/file_size.h"
 #include "gui/dialogs/dialog_presentation.h"
 #include "gui/frontend/theme.h"
@@ -18,6 +19,7 @@
 #include <filesystem>
 #include <fstream>
 #include <imgui.h>
+#include <ios>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -56,6 +58,63 @@ constexpr std::array<const char *, 7> standardPlaceNames{
     "Root",
 };
 
+[[nodiscard]] std::filesystem::path recentFoldersPath()
+{
+    const char * config = std::getenv("XDG_CONFIG_HOME");
+    std::filesystem::path directory;
+    if (config != nullptr && std::filesystem::path(config).is_absolute())
+    {
+        directory = config;
+    }
+    else if (const char * home = std::getenv("HOME"); home != nullptr)
+    {
+        directory = std::filesystem::path(home) / ".config";
+    }
+    if (directory.empty())
+    {
+        return {};
+    }
+    return directory / std::string(core::applicationName()) / "file_browser_folders.conf";
+}
+
+void loadRecentFolders(FileBrowserState & state)
+{
+    const auto path = recentFoldersPath();
+    if (path.empty())
+    {
+        return;
+    }
+    std::ifstream input(path);
+    std::string value;
+    while (std::getline(input, value) && state.recentFolders.size() < maxRecentLocations)
+    {
+        if (!value.empty())
+        {
+            state.recentFolders.emplace_back(value);
+        }
+    }
+}
+
+void saveRecentFolders(const FileBrowserState & state)
+{
+    const auto path = recentFoldersPath();
+    if (path.empty())
+    {
+        return;
+    }
+    std::error_code error;
+    std::filesystem::create_directories(path.parent_path(), error);
+    if (error)
+    {
+        return;
+    }
+    std::ofstream output(path, std::ios::trunc);
+    for (const auto & folder : state.recentFolders)
+    {
+        output << folder.string() << '\n';
+    }
+}
+
 void copyBuffer(std::array<char, fileBrowserBufferSize> & buffer, std::string_view value)
 {
     const auto length = std::min(value.size(), buffer.size() - 1U);
@@ -84,6 +143,21 @@ void copyBuffer(std::array<char, fileBrowserBufferSize> & buffer, const std::fil
         return absolute;
     }
     return std::filesystem::current_path(error);
+}
+
+void recordRecentFolder(FileBrowserState & state, const std::filesystem::path & folder);
+
+void recordRecentFolder(FileBrowserState & state, const std::filesystem::path & folder)
+{
+    const auto normalized = absoluteDirectory(folder);
+    const auto removed = std::ranges::remove(state.recentFolders, normalized);
+    state.recentFolders.erase(removed.begin(), removed.end());
+    state.recentFolders.insert(state.recentFolders.begin(), normalized);
+    if (state.recentFolders.size() > maxRecentLocations)
+    {
+        state.recentFolders.resize(maxRecentLocations);
+    }
+    saveRecentFolders(state);
 }
 
 [[nodiscard]] std::string lowercase(std::string value)
@@ -151,6 +225,7 @@ void navigate(FileBrowserState & state, const std::filesystem::path & path, bool
         }
         state.historyIndex = state.history.size() - 1U;
     }
+    recordRecentFolder(state, directory);
 }
 
 [[nodiscard]] bool selectableEntry(const FileBrowserState & state, const std::filesystem::directory_entry & entry)
@@ -233,6 +308,7 @@ void complete(FileBrowserState & state)
         .assetCandidates = state.summary.assetCandidates,
         .assetCandidate = std::nullopt,
     };
+    recordRecentFolder(state, path.parent_path());
     state.visible = false;
 }
 
@@ -268,20 +344,8 @@ void drawPlaces(FileBrowserState & state)
     }
 
     dialogSeparatorText("Recent Locations");
-    std::vector<std::filesystem::path> recentLocations;
-    for (std::size_t index = state.history.size(); index-- > 0U;)
+    for (const auto & location : state.recentFolders)
     {
-        if (recentLocations.size() >= maxRecentLocations)
-        {
-            break;
-        }
-        const auto & location = state.history.at(index);
-        if (std::ranges::find(recentLocations, location) != recentLocations.end())
-        {
-            continue;
-        }
-        recentLocations.push_back(location);
-
         const auto filename = location.filename().string();
         const auto label = filename.empty() ? location.root_path().string() : filename;
         const auto selectableLabel = label + "##" + location.string();
@@ -651,13 +715,19 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
 
 void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
 {
+    auto recentFolders = std::move(state.recentFolders);
     state = {};
+    state.recentFolders = std::move(recentFolders);
+    if (state.recentFolders.empty())
+    {
+        loadRecentFolders(state);
+    }
     state.visible = true;
     state.request = std::move(request);
     std::filesystem::path initial = state.request.initialPath;
     if (initial.empty())
     {
-        initial = std::filesystem::current_path();
+        initial = state.recentFolders.empty() ? std::filesystem::current_path() : state.recentFolders.front();
     }
     std::error_code error;
     const bool initialIsFile = std::filesystem::is_regular_file(initial, error);
@@ -683,7 +753,9 @@ void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
 
 void cancelFileBrowser(FileBrowserState & state)
 {
+    auto recentFolders = std::move(state.recentFolders);
     state = {};
+    state.recentFolders = std::move(recentFolders);
 }
 
 std::optional<FileBrowserResult> consumeFileBrowserResult(FileBrowserState & state)
@@ -839,17 +911,44 @@ void drawFileBrowser(FileBrowserState & state)
         confirmLabel = "Save";
     }
 
-    beginDialogFooter({confirmLabel, "Cancel"});
-    if (dialogButton(confirmLabel))
+    if (state.request.mode == FileBrowserMode::saveFile)
     {
-        complete(state);
+        ImGui::Separator();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Filename");
+        ImGui::SameLine();
+
+        const float buttonWidth = ImGui::CalcTextSize(confirmLabel).x +
+                                   (ImGui::GetStyle().FramePadding.x * 2.0F) + ImGui::GetStyle().ItemSpacing.x +
+                                   ImGui::CalcTextSize("Cancel").x + (ImGui::GetStyle().FramePadding.x * 2.0F);
+        const float inputWidth = std::max(120.0F, ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemSpacing.x);
+        ImGui::SetNextItemWidth(inputWidth);
+        ImGui::InputText("##Filename", state.filename.data(), state.filename.size());
+        ImGui::SameLine();
+        if (dialogButton(confirmLabel))
+        {
+            complete(state);
+        }
+        ImGui::SameLine();
+        if (dialogButton("Cancel"))
+        {
+            cancelFileBrowser(state);
+        }
     }
-    ImGui::SameLine();
-    if (dialogButton("Cancel"))
+    else
     {
-        cancelFileBrowser(state);
+        beginDialogFooter({confirmLabel, "Cancel"});
+        if (dialogButton(confirmLabel))
+        {
+            complete(state);
+        }
+        ImGui::SameLine();
+        if (dialogButton("Cancel"))
+        {
+            cancelFileBrowser(state);
+        }
+        endDialogFooter();
     }
-    endDialogFooter();
     if (!state.visible)
     {
         ImGui::CloseCurrentPopup();

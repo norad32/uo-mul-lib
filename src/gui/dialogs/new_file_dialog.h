@@ -25,11 +25,19 @@ enum class MapFileDialogMode : std::uint8_t
     none,
     openMap,
     selectMapFacet,
+    newType,
     newMap,
     saveAs,
     dirtyChanges,
     overwrite,
     error,
+};
+
+enum class NewFileKind : std::uint8_t
+{
+    map,
+    radarcol,
+    texmapPair,
 };
 
 enum class PendingMapOperationKind : std::uint8_t
@@ -56,7 +64,7 @@ struct PendingMapOperation
     uomul::MapTile initialTile{};
 };
 
-struct NewMapDialogState
+struct NewFileDialogState
 {
     OperationController * controller = nullptr;
     NotificationState * notifications = nullptr;
@@ -73,6 +81,7 @@ struct NewMapDialogState
     std::vector<FileBrowserMapCandidate> openCandidates;
     FileBrowserState * browser = nullptr;
     int newMapFacet = 1;
+    NewFileKind newFileKind = NewFileKind::map;
     int initialTileId = 0;
     int initialTileZ = 0;
     MapFileDialogMode mode = MapFileDialogMode::none;
@@ -85,19 +94,19 @@ struct NewMapDialogState
     std::string error;
 };
 
-void drawNewMapDialog(MapWorkspaceManager & workspace,
-                      NewMapDialogState & state,
+void drawNewFileDialog(MapWorkspaceManager & workspace,
+                       NewFileDialogState & state,
                       OperationController & controller,
                       OutputCollisionPolicy collisionPolicy,
                       NotificationState & notifications,
                       FileBrowserState & browser,
                       bool & shouldClose);
 
-void cancelMapDialog(NewMapDialogState & state);
-void applyFileBrowserResult(NewMapDialogState & state, const FileBrowserResult & result);
+void cancelFileDialog(NewFileDialogState & state);
+void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult & result);
 
 void requestCloseOperation(MapWorkspaceManager & workspace,
-                           NewMapDialogState & state,
+                            NewFileDialogState & state,
                            OperationController & controller,
                            PendingMapOperationKind kind,
                            NotificationState & notifications);

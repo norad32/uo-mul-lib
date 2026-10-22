@@ -4,15 +4,20 @@
 #include "gui/dialogs/dialog_contracts.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
-#include "gui/dialogs/new_map_dialog.h"
+#include "gui/dialogs/new_file_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/document_identity.h"
 #include "gui/metadata/document_contracts.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/views/radarcol_panel.h"
 #include "gui/views/texmaps_panel.h"
+#include "gui/documents/radarcol_document.h"
+#include "gui/views/common.h"
+#include "uomul/radarcol/radarcol.h"
+#include "uomul/texmaps/texmaps.h"
 #include <string>
 #include <utility>
+#include <filesystem>
 
 namespace uo_mule::gui
 {
@@ -36,6 +41,7 @@ void syncDialogHost(WorkbenchState & state)
                 return MapDialogWorkflow::overwrite;
             case MapFileDialogMode::error:
                 return MapDialogWorkflow::error;
+            case MapFileDialogMode::newType:
             case MapFileDialogMode::selectMapFacet:
                 return MapDialogWorkflow::create;
             case MapFileDialogMode::none:
@@ -79,8 +85,67 @@ void cancelFileBrowserAndMapDialog(WorkbenchState & state)
     cancelFileBrowser(state.fileBrowser);
     if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
     {
-        cancelMapDialog(state.menuBarState.fileDialog);
+        cancelFileDialog(state.menuBarState.fileDialog);
     }
+}
+
+void openCreatedAsset(WorkbenchState & state,
+                      DocumentKind kind,
+                      const std::filesystem::path & primaryPath,
+                      const std::filesystem::path & companionPath = {})
+{
+    DocumentSummary summary;
+    summary.identity.kind = kind;
+    summary.identity.source = companionPath.empty() ? makeDocumentSourceIdentity({primaryPath})
+                                                    : makeDocumentSourceIdentity({primaryPath, companionPath});
+    summary.displayName = primaryPath.filename().string();
+    summary.access = kind == DocumentKind::radarcol ? DocumentAccess::editable : DocumentAccess::readOnly;
+    summary.validation = DocumentValidationState::valid;
+    const DocumentId id = state.session.openDocument(std::move(summary));
+    if (id == 0)
+    {
+        return;
+    }
+    if (auto activated = state.session.activateDocument(id, state.workspace); !activated)
+    {
+        state.notifications.add(NotificationSeverity::error, activated.error().message);
+    }
+}
+
+void createNewAsset(WorkbenchState & state, FileBrowserTarget target, const std::filesystem::path & path)
+{
+    if (target == FileBrowserTarget::newRadarcolOutput)
+    {
+        auto created = uomul::RadarColEditor::createEmpty(path);
+        if (!created)
+        {
+            state.notifications.add(NotificationSeverity::error, formatError(created.error()));
+            return;
+        }
+        if (auto committed = created->commit(); !committed)
+        {
+            state.notifications.add(NotificationSeverity::error, formatError(committed.error()));
+            return;
+        }
+        openCreatedAsset(state, DocumentKind::radarcol, path);
+        return;
+    }
+
+    const std::filesystem::path indexPath = path.filename() == "texmaps.mul"
+                                                ? path.parent_path() / "texidx.mul"
+                                                : path.parent_path() / (path.stem().string() + ".idx");
+    auto created = uomul::TexMapsEditor::createEmpty(indexPath, path);
+    if (!created)
+    {
+        state.notifications.add(NotificationSeverity::error, formatError(created.error()));
+        return;
+    }
+    if (auto committed = created->commit(); !committed)
+    {
+        state.notifications.add(NotificationSeverity::error, formatError(committed.error()));
+        return;
+    }
+    openCreatedAsset(state, DocumentKind::texmapPair, indexPath, path);
 }
 
 bool openGenericAsset(WorkbenchState & state,
@@ -98,7 +163,7 @@ bool openGenericAsset(WorkbenchState & state,
     // Generic Open starts with the map workflow for map candidates. Once an
     // asset is selected, that workflow must not remain active behind the new
     // standalone document.
-    cancelMapDialog(state.menuBarState.fileDialog);
+        cancelFileDialog(state.menuBarState.fileDialog);
 
     DocumentSummary summary;
     summary.identity.kind = candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair;
@@ -131,6 +196,12 @@ bool openGenericAsset(WorkbenchState & state,
     if (result.target == FileBrowserTarget::texmapsCompanion)
     {
         static_cast<void>(applyFileSelectorCompanion(state.fileSelector, result.path));
+        return false;
+    }
+
+    if (result.target == FileBrowserTarget::newRadarcolOutput || result.target == FileBrowserTarget::newTexmapsData)
+    {
+        createNewAsset(state, result.target, result.path);
         return false;
     }
 
@@ -254,7 +325,7 @@ bool drawFileDialogs(WorkbenchState & state)
     const bool browserWasVisible = state.fileBrowser.visible;
     if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::mapWorkflow))
     {
-        drawNewMapDialog(state.workspace,
+        drawNewFileDialog(state.workspace,
                          state.menuBarState.fileDialog,
                          state.operationController,
                          state.activeProfile.outputCollisionPolicy,
@@ -275,7 +346,7 @@ bool drawFileDialogs(WorkbenchState & state)
     if (!state.fileBrowser.visible && browserWasVisible && !result &&
         state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
     {
-        cancelMapDialog(state.menuBarState.fileDialog);
+        cancelFileDialog(state.menuBarState.fileDialog);
     }
     if (result)
     {
@@ -306,7 +377,7 @@ bool handleFileOperationsEscape(WorkbenchState & state)
     }
     else if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
     {
-        cancelMapDialog(state.menuBarState.fileDialog);
+        cancelFileDialog(state.menuBarState.fileDialog);
     }
     else if (state.menuBarState.preferencesDialog.visible)
     {

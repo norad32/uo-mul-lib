@@ -9,7 +9,7 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/documents/map_workspace_manager.h"
-#include "gui/dialogs/new_map_dialog.h"
+#include "gui/dialogs/new_file_dialog.h"
 #include "gui/dialogs/dialog_host.h"
 #include "gui/context/notification_state.h"
 #include "gui/commands/operation_controller.h"
@@ -32,7 +32,7 @@ namespace uo_mule::gui
 
 struct MenuBarState
 {
-    NewMapDialogState fileDialog;
+    NewFileDialogState fileDialog;
     PreferencesDialogState preferencesDialog;
     bool windowCloseRequested = false;
 };
