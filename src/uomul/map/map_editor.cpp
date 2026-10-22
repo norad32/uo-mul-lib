@@ -34,14 +34,6 @@ namespace
 
 constexpr std::size_t bufferSize = 1'048'576U;
 
-[[nodiscard]] inline bool outputAliasesSource(const std::filesystem::path & source,
-                                              const std::filesystem::path & output,
-                                              bool outputExists,
-                                              std::error_code & pathError)
-{
-    return outputExists && std::filesystem::equivalent(source, output, pathError);
-}
-
 [[nodiscard]] inline bool
 copyExactBytes(int sourceDescriptor, int destinationDescriptor, std::byte * buffer, std::size_t byteCount, std::uint64_t offset)
 {
@@ -52,39 +44,23 @@ copyExactBytes(int sourceDescriptor, int destinationDescriptor, std::byte * buff
 std::expected<void, Error>
 validateEditorPaths(const std::filesystem::path & source, const std::filesystem::path & output, bool overwrite)
 {
-    std::error_code pathError;
-    const auto sourceAbsolute = std::filesystem::absolute(source, pathError).lexically_normal();
-    if (pathError)
+    auto exactPath = detail::MulCommon::pathsExactlyMatch(source, output);
+    if (!exactPath)
     {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, source, 0, pathError.message()));
-    }
-    const auto outputAbsolute = std::filesystem::absolute(output, pathError).lexically_normal();
-    if (pathError)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
-    }
-    if (sourceAbsolute == outputAbsolute)
-    {
-        return std::unexpected(detail::MulCommon::makeError(
-            ErrorCode::io, output, 0, "in-place editing is not supported; choose a separate output path"));
+        return std::unexpected(exactPath.error());
     }
 
-    pathError.clear();
-    const bool outputExists = std::filesystem::exists(output, pathError);
-    if (pathError)
+    auto aliased = detail::MulCommon::pathsAlias(source, output);
+    if (!aliased)
     {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
+        return std::unexpected(aliased.error());
     }
-    if (outputAliasesSource(source, output, outputExists, pathError))
+    if (*aliased && !*exactPath)
     {
         return std::unexpected(
             detail::MulCommon::makeError(ErrorCode::io, output, 0, "output path resolves to the source map"));
     }
-    if (pathError)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
-    }
-    if (auto check = detail::MulCommon::checkOutputPath(output, overwrite); !check)
+    if (auto check = detail::MulCommon::checkOutputPath(output, overwrite || *exactPath); !check)
     {
         return check;
     }
@@ -245,10 +221,16 @@ std::expected<MapEditor, Error> MapEditor::create(const std::filesystem::path & 
         return std::unexpected(validPaths.error());
     }
 
+    auto exactPath = detail::MulCommon::pathsExactlyMatch(sourceMap, outputMap);
+    if (!exactPath)
+    {
+        return std::unexpected(exactPath.error());
+    }
+
     auto impl = std::make_unique<Impl>();
     impl->source = sourceMap;
     impl->dimensions = dimensions;
-    auto output = impl->transaction.addOutput(outputMap, options.overwriteOutput);
+    auto output = impl->transaction.addOutput(outputMap, options.overwriteOutput || *exactPath);
     if (!output)
     {
         return std::unexpected(output.error());

@@ -116,8 +116,14 @@ std::expected<RadarColEditor, Error> RadarColEditor::create(const std::filesyste
         return std::unexpected(paths.error());
     }
 
+    auto exactPath = detail::MulCommon::pathsExactlyMatch(sourceFile, outputFile);
+    if (!exactPath)
+    {
+        return std::unexpected(exactPath.error());
+    }
+
     auto impl = std::make_unique<Impl>();
-    auto output = impl->transaction.addOutput(outputFile, options.overwriteOutput);
+    auto output = impl->transaction.addOutput(outputFile, options.overwriteOutput || *exactPath);
     if (!output)
     {
         return std::unexpected(output.error());

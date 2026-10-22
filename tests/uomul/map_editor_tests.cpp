@@ -211,16 +211,20 @@ TEST_CASE("create_Should_RejectInvalidDimensions_If_DimensionsAreNotBlockAligned
     REQUIRE(editor.error().code == uomul::ErrorCode::invalidDimensions);
 }
 
-TEST_CASE("create_Should_RejectInPlaceEditing_If_OutputNamesTheSource")
+TEST_CASE("create_Should_EditInPlace_If_OutputNamesTheSource")
 {
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
     writeFixture(source);
 
-    const auto editor = uomul::MapEditor::create(source, source, dimensions, {.overwriteOutput = true});
+    auto editor = uomul::MapEditor::create(source, source, dimensions);
+    REQUIRE(editor);
+    REQUIRE(editor->fillTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, {.id = 2, .z = 1}));
+    REQUIRE(editor->commit());
 
-    REQUIRE_FALSE(editor);
-    REQUIRE(editor.error().code == uomul::ErrorCode::io);
+    const auto reader = uomul::MapReader::open(source, dimensions);
+    REQUIRE(reader);
+    REQUIRE(reader->readTile({.x = 0, .y = 0}) == uomul::MapTile{.id = 2, .z = 1});
 }
 
 TEST_CASE("create_Should_RejectAliasedPaths_If_OutputIsHardLinkToSource")

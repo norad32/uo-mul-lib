@@ -48,46 +48,24 @@ RadarColCommon::validateEditorPaths(const std::filesystem::path & source, const 
         return std::unexpected(MulCommon::makeError(ErrorCode::io, output, 0, "source and output paths must name files"));
     }
 
-    std::error_code pathError;
-    const auto sourceAbsolute = std::filesystem::absolute(source, pathError).lexically_normal();
-
-    if (pathError)
+    auto exactPath = MulCommon::pathsExactlyMatch(source, output);
+    if (!exactPath)
     {
-        return std::unexpected(MulCommon::makeError(ErrorCode::io, source, 0, pathError.message()));
+        return std::unexpected(exactPath.error());
     }
 
-    const auto outputAbsolute = std::filesystem::absolute(output, pathError).lexically_normal();
-
-    if (pathError)
+    auto aliased = MulCommon::pathsAlias(source, output);
+    if (!aliased)
     {
-        return std::unexpected(MulCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
+        return std::unexpected(aliased.error());
     }
 
-    if (sourceAbsolute == outputAbsolute)
-    {
-        return std::unexpected(
-            MulCommon::makeError(ErrorCode::io, output, 0, "in-place editing is not supported; choose a separate output path"));
-    }
-
-    pathError.clear();
-    const bool outputExists = std::filesystem::exists(output, pathError);
-
-    if (pathError)
-    {
-        return std::unexpected(MulCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
-    }
-
-    if (outputExists && std::filesystem::equivalent(source, output, pathError))
+    if (*aliased && !*exactPath)
     {
         return std::unexpected(MulCommon::makeError(ErrorCode::io, output, 0, "output path resolves to the source file"));
     }
 
-    if (pathError)
-    {
-        return std::unexpected(MulCommon::makeError(ErrorCode::io, output, 0, pathError.message()));
-    }
-
-    if (auto check = MulCommon::checkOutputPath(output, overwrite); !check)
+    if (auto check = MulCommon::checkOutputPath(output, overwrite || *exactPath); !check)
     {
         return check;
     }

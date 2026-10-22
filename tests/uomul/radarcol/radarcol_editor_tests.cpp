@@ -248,7 +248,6 @@ TEST_CASE("RadarColEditor_create_Should_RejectInvalidPathsAndMalformedSource_If_
         outputFile.put('x');
     }
 
-    REQUIRE_FALSE(uomul::RadarColEditor::create(source, source, {.overwriteOutput = true}));
     REQUIRE_FALSE(uomul::RadarColEditor::create(directory.path() / "missing.mul", output));
     REQUIRE_FALSE(uomul::RadarColEditor::create(malformed, output));
     REQUIRE_FALSE(uomul::RadarColEditor::create(source, directory.path() / "missing" / "output.mul"));
@@ -256,6 +255,22 @@ TEST_CASE("RadarColEditor_create_Should_RejectInvalidPathsAndMalformedSource_If_
     auto directorySource = uomul::RadarColEditor::create(directory.path(), output);
     REQUIRE_FALSE(directorySource);
     REQUIRE(directorySource.error().code == uomul::ErrorCode::io);
+}
+
+TEST_CASE("RadarColEditor_create_Should_EditInPlace_If_OutputNamesTheSource")
+{
+    const TestDirectory directory;
+    const auto source = directory.path() / "source.mul";
+    writeColors(source, 2);
+
+    auto editor = uomul::RadarColEditor::create(source, source);
+    REQUIRE(editor);
+    REQUIRE(editor->editRawColor(0, 0x1234));
+    REQUIRE(editor->commit());
+
+    const auto reader = uomul::RadarColReader::open(source);
+    REQUIRE(reader);
+    REQUIRE(reader->readRawColor(0) == 0x1234);
 }
 
 TEST_CASE("RadarColEditor_create_Should_RejectEmptySourcePath_If_SourceDoesNotNameFile")

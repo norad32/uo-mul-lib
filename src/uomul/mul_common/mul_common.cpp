@@ -180,6 +180,66 @@ std::filesystem::path MulCommon::temporaryPath(const std::filesystem::path & pat
            (path.filename().string() + ".uomul-tmp-" + std::to_string(::getpid()) + "-" + std::to_string(sequence));
 }
 
+std::expected<bool, Error>
+MulCommon::pathsExactlyMatch(const std::filesystem::path & first, const std::filesystem::path & second)
+{
+    std::error_code error;
+    const auto firstAbsolute = std::filesystem::absolute(first, error).lexically_normal();
+    if (error)
+    {
+        return std::unexpected(makeError(ErrorCode::io, first, 0, error.message()));
+    }
+
+    const auto secondAbsolute = std::filesystem::absolute(second, error).lexically_normal();
+    if (error)
+    {
+        return std::unexpected(makeError(ErrorCode::io, second, 0, error.message()));
+    }
+
+    return firstAbsolute == secondAbsolute;
+}
+
+std::expected<bool, Error> MulCommon::pathsAlias(const std::filesystem::path & first,
+                                                 const std::filesystem::path & second)
+{
+    auto exact = pathsExactlyMatch(first, second);
+    if (!exact)
+    {
+        return std::unexpected(exact.error());
+    }
+    if (*exact)
+    {
+        return true;
+    }
+
+    std::error_code error;
+    const bool firstExists = std::filesystem::exists(first, error);
+    if (error)
+    {
+        return std::unexpected(makeError(ErrorCode::io, first, 0, error.message()));
+    }
+
+    error.clear();
+    const bool secondExists = std::filesystem::exists(second, error);
+    if (error)
+    {
+        return std::unexpected(makeError(ErrorCode::io, second, 0, error.message()));
+    }
+
+    if (!firstExists || !secondExists)
+    {
+        return false;
+    }
+
+    const bool equivalent = std::filesystem::equivalent(first, second, error);
+    if (error)
+    {
+        return std::unexpected(makeError(ErrorCode::io, second, 0, error.message()));
+    }
+
+    return equivalent;
+}
+
 std::expected<int, Error> MulCommon::createTemporary(const std::filesystem::path & path, std::filesystem::path & temporary)
 {
     for (int attempt = 0; attempt < maximumAttempts; attempt++)

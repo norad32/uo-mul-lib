@@ -243,6 +243,27 @@ TEST_CASE("TexMapsEditor_create_Should_PreserveSourcePairOnAbortAndCommitCopyThr
     REQUIRE(uomul::test::readBytes(outputData) == sourceDataBytes);
 }
 
+TEST_CASE("TexMapsEditor_create_Should_EditInPlace_IfOutputsNameTheSourcePair")
+{
+    const TestDirectory directory;
+    const auto index = directory.path() / "source.idx";
+    const auto data = directory.path() / "source.mul";
+    writeTexture(index, data, 0, uomul::textureSmallDimension, sourceTextureSample);
+
+    auto editor = uomul::TexMapsEditor::create(index, data, index, data);
+    REQUIRE(editor);
+
+    uomul::TextureImage image;
+    image.dimension = uomul::textureSmallDimension;
+    image.pixels.resize(uomul::textureSmallPixelCount, editedTextureSample);
+    REQUIRE(editor->editTexture(0, image));
+    REQUIRE(editor->commit());
+
+    const auto reader = uomul::TexMapsReader::open(index, data);
+    REQUIRE(reader);
+    REQUIRE(reader->readTexture(0) == image);
+}
+
 TEST_CASE("TexMapsEditor_create_Should_RejectMissingSourceIndex")
 {
     const TestDirectory directory;

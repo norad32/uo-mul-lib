@@ -75,75 +75,42 @@ std::expected<void, Error> validateOutput(const std::filesystem::path & path, bo
     return {};
 }
 
-std::expected<bool, Error> pathsAlias(const std::filesystem::path & first, const std::filesystem::path & second)
-{
-    std::error_code error;
-    const auto firstAbsolute = std::filesystem::absolute(first, error).lexically_normal();
-
-    if (error)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, first, 0, error.message()));
-    }
-
-    const auto secondAbsolute = std::filesystem::absolute(second, error).lexically_normal();
-
-    if (error)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, second, 0, error.message()));
-    }
-
-    if (firstAbsolute == secondAbsolute)
-    {
-        return true;
-    }
-
-    error.clear();
-    const bool firstExists = std::filesystem::exists(first, error);
-
-    if (error)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, first, 0, error.message()));
-    }
-
-    error.clear();
-    const bool secondExists = std::filesystem::exists(second, error);
-
-    if (error)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, second, 0, error.message()));
-    }
-
-    if (!firstExists || !secondExists)
-    {
-        return false;
-    }
-
-    const bool equivalent = std::filesystem::equivalent(first, second, error);
-    if (error)
-    {
-        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, second, 0, error.message()));
-    }
-
-    return equivalent;
-}
-
 std::expected<void, Error> validatePairPaths(const std::filesystem::path & outputIndex,
                                              const std::filesystem::path & outputData,
                                              bool overwrite,
                                              const std::filesystem::path * sourceIndex = nullptr,
                                              const std::filesystem::path * sourceData = nullptr)
 {
-    if (auto valid = validateOutput(outputIndex, overwrite); !valid)
+    bool indexInPlace = false;
+    bool dataInPlace = false;
+    if (sourceIndex != nullptr && sourceData != nullptr)
+    {
+        auto exactIndex = detail::MulCommon::pathsExactlyMatch(*sourceIndex, outputIndex);
+        if (!exactIndex)
+        {
+            return std::unexpected(exactIndex.error());
+        }
+        indexInPlace = *exactIndex;
+
+        auto exactData = detail::MulCommon::pathsExactlyMatch(*sourceData, outputData);
+        if (!exactData)
+        {
+            return std::unexpected(exactData.error());
+        }
+        dataInPlace = *exactData;
+    }
+
+    if (auto valid = validateOutput(outputIndex, overwrite || indexInPlace); !valid)
     {
         return valid;
     }
 
-    if (auto valid = validateOutput(outputData, overwrite); !valid)
+    if (auto valid = validateOutput(outputData, overwrite || dataInPlace); !valid)
     {
         return valid;
     }
 
-    auto alias = pathsAlias(outputIndex, outputData);
+    auto alias = detail::MulCommon::pathsAlias(outputIndex, outputData);
     if (!alias)
     {
         return std::unexpected(alias.error());
@@ -161,13 +128,15 @@ std::expected<void, Error> validatePairPaths(const std::filesystem::path & outpu
         {
             for (const auto * output : {&outputIndex, &outputData})
             {
-                alias = pathsAlias(*source, *output);
+                alias = detail::MulCommon::pathsAlias(*source, *output);
                 if (!alias)
                 {
                     return std::unexpected(alias.error());
                 }
 
-                if (*alias)
+                const bool isMatchingInPlaceOutput = (source == sourceIndex && output == &outputIndex && indexInPlace) ||
+                                                     (source == sourceData && output == &outputData && dataInPlace);
+                if (*alias && !isMatchingInPlaceOutput)
                 {
                     return std::unexpected(detail::MulCommon::makeError(
                         ErrorCode::io, *output, 0, "texture outputs must not alias either source file"));
@@ -569,7 +538,8 @@ struct TexMapsEditor::Impl
     detail::OutputTransaction::OutputId indexId = 0;
     detail::OutputTransaction::OutputId dataId = 0;
     std::vector<TextureIndexEntry> entries;
-    bool overwrite = false;
+    bool overwriteIndex = false;
+    bool overwriteData = false;
     bool active = true;
 
     [[nodiscard]] int descriptor(detail::OutputTransaction::OutputId output) const { return transaction.descriptor(output); }
@@ -642,14 +612,25 @@ std::expected<TexMapsEditor, Error> TexMapsEditor::create(const std::filesystem:
     }
 
     auto impl = std::make_unique<Impl>();
-    impl->overwrite = options.overwriteOutput;
-    auto indexOutput = impl->transaction.addOutput(outputIndex, options.overwriteOutput);
+    auto indexInPlace = detail::MulCommon::pathsExactlyMatch(sourceIndex, outputIndex);
+    auto dataInPlace = detail::MulCommon::pathsExactlyMatch(sourceData, outputData);
+    if (!indexInPlace)
+    {
+        return std::unexpected(indexInPlace.error());
+    }
+    if (!dataInPlace)
+    {
+        return std::unexpected(dataInPlace.error());
+    }
+    impl->overwriteIndex = options.overwriteOutput || *indexInPlace;
+    impl->overwriteData = options.overwriteOutput || *dataInPlace;
+    auto indexOutput = impl->transaction.addOutput(outputIndex, impl->overwriteIndex);
     if (!indexOutput)
     {
         return std::unexpected(indexOutput.error());
     }
     impl->indexId = *indexOutput;
-    auto dataOutput = impl->transaction.addOutput(outputData, options.overwriteOutput);
+    auto dataOutput = impl->transaction.addOutput(outputData, impl->overwriteData);
     if (!dataOutput)
     {
         return std::unexpected(dataOutput.error());
@@ -690,7 +671,8 @@ std::expected<TexMapsEditor, Error> TexMapsEditor::createEmpty(const std::filesy
     }
 
     auto impl = std::make_unique<Impl>();
-    impl->overwrite = options.overwriteOutput;
+    impl->overwriteIndex = options.overwriteOutput;
+    impl->overwriteData = options.overwriteOutput;
     auto indexOutput = impl->transaction.addOutput(outputIndex, options.overwriteOutput);
     if (!indexOutput)
     {
@@ -947,13 +929,6 @@ std::expected<void, Error> TexMapsEditor::commit()
     if (auto closed = impl_->transaction.close(impl_->dataId, ErrorCode::commitFailed); !closed)
     {
         return closed;
-    }
-
-    if (auto valid = validatePairPaths(impl_->destination(impl_->indexId), impl_->destination(impl_->dataId), impl_->overwrite);
-        !valid)
-    {
-        return std::unexpected(detail::MulCommon::makeError(
-            ErrorCode::commitFailed, valid.error().path, valid.error().offset, valid.error().message));
     }
 
     auto published = impl_->transaction.publish();

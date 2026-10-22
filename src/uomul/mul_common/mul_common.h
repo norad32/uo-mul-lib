@@ -111,6 +111,10 @@ public:
     [[nodiscard]] static bool readExact(int descriptor, void * data, std::size_t size, std::uint64_t offset);
     [[nodiscard]] static bool writeExact(int descriptor, const void * data, std::size_t size, std::uint64_t offset);
     [[nodiscard]] static std::filesystem::path temporaryPath(const std::filesystem::path & path);
+    [[nodiscard]] static std::expected<bool, Error>
+    pathsExactlyMatch(const std::filesystem::path & first, const std::filesystem::path & second);
+    [[nodiscard]] static std::expected<bool, Error>
+    pathsAlias(const std::filesystem::path & first, const std::filesystem::path & second);
     [[nodiscard]] static std::expected<int, Error> createTemporary(const std::filesystem::path & path,
                                                                    std::filesystem::path & temporary);
     [[nodiscard]] static std::expected<void, Error>
