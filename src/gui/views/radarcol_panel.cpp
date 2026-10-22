@@ -76,25 +76,6 @@ void loadSource(RadarcolPanelState & state)
     state.error.clear();
 }
 
-void drawSourceControls(RadarcolPanelState & state, FileBrowserState & browser, bool readOnly)
-{
-    ImGui::Text("Source: %s", state.sourcePath.data());
-    if (readOnly)
-    {
-        ImGui::TextUnformatted("Configured metadata source (read-only)");
-        return;
-    }
-    if (ImGui::Button("Load"))
-    {
-        requestFileBrowser(browser,
-                           {.mode = FileBrowserMode::openFile,
-                            .target = FileBrowserTarget::radarcolSource,
-                            .initialPath = state.sourcePath.data(),
-                            .extension = ".mul",
-                            .title = "Open Radarcol",});
-    }
-}
-
 void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
 {
     if (document.readOnly())
@@ -104,7 +85,7 @@ void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
     }
     if (!document.editing())
     {
-        ImGui::Text("Editing source: %s", document.sourcePath().string().c_str());
+        ImGui::TextUnformatted("Ready to edit");
         if (ImGui::Button("Begin editing"))
         {
             document.requestIntent({.kind = RadarcolDocumentIntentKind::beginEdit,
@@ -126,7 +107,7 @@ void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
     }
     if (document.editing())
     {
-        ImGui::Text("Editing source: %s", document.sourcePath().string().c_str());
+        ImGui::TextUnformatted("Editing");
         if (ImGui::Button("Save"))
         {
             document.requestIntent({.kind = RadarcolDocumentIntentKind::save,
@@ -161,14 +142,17 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 [[nodiscard]] assets::AssetAdapter makeAdapter(RadarcolPanelState & state,
-                                                 FileBrowserState & browser,
-                                                 bool readOnly,
                                                  IdFormat idFormat,
                                                  std::string viewId)
 {
     assets::AssetAdapter adapter;
     adapter.descriptor.viewId = std::move(viewId);
     adapter.descriptor.title = "Radarcol";
+    adapter.descriptor.sourceTooltip = "Source: " + std::string(state.sourcePath.data());
+    if (!state.error.empty())
+    {
+        adapter.descriptor.sourceTooltip += "\nError: " + state.error;
+    }
     adapter.descriptor.source = {.kind = DocumentKind::radarcol,
                                  .source = makeDocumentSourceIdentity({std::filesystem::path(state.sourcePath.data())}),
                                  .contextId = adapter.descriptor.viewId,};
@@ -179,11 +163,6 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
     adapter.descriptor.itemCount = state.reader ? state.reader->colorCount() : 0U;
     adapter.descriptor.fixedCellWidth = assetCellWidth;
     adapter.descriptor.fixedCellHeight = assetCellHeight;
-    adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
-        .id = "source", .label = "Source", .draw = [&state, &browser, readOnly] {
-            drawSourceControls(state, browser, readOnly);
-        },
-    });
     adapter.loadRange = [&state, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
         std::vector<assets::AssetItem> items;
         if (!state.reader)
@@ -224,7 +203,6 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
 void drawRadarcolDocumentView(RadarcolDocument & document,
                               assets::AssetWindowState & assetView,
                               bool & visible,
-                               const std::function<void()> & drawSource,
                                const std::function<void()> & drawEditing,
                                IdFormat idFormat,
                                std::string viewId,
@@ -233,6 +211,7 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
     assets::AssetAdapter adapter;
     adapter.descriptor.viewId = std::move(viewId);
     adapter.descriptor.title = "Radarcol";
+    adapter.descriptor.sourceTooltip = "Source: " + document.sourcePath().string();
     adapter.descriptor.source = {.kind = DocumentKind::radarcol,
                                  .source = makeDocumentSourceIdentity({document.sourcePath()}),
                                  .contextId = adapter.descriptor.viewId,};
@@ -243,9 +222,6 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
     adapter.descriptor.itemCount = document.reader() ? document.reader()->colorCount() : 0U;
     adapter.descriptor.fixedCellWidth = assetCellWidth;
     adapter.descriptor.fixedCellHeight = assetCellHeight;
-    adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
-        .id = "source", .label = "Source", .draw = drawSource,
-    });
     adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
         .id = "editing", .label = "Editing", .draw = drawEditing,
     });
@@ -349,11 +325,9 @@ void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult 
 
 void drawRadarcolPanel(RadarcolPanelState & state,
                        bool & visible,
-                       FileBrowserState & browser,
-                       IdFormat idFormat,
-                       bool readOnly)
+                       IdFormat idFormat)
 {
-    const auto adapter = makeAdapter(state, browser, readOnly, idFormat, "view.radarcol");
+    const auto adapter = makeAdapter(state, idFormat, "view.radarcol");
     assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 
@@ -367,14 +341,7 @@ void drawRadarcolDocumentPanel(RadarcolPanelState & state,
     drawRadarcolDocumentView(document,
                              state.documentAssetViews[document.id()],
                              visible,
-                             [&document] {
-                                 ImGui::Text("Source: %s", document.sourcePath().string().c_str());
-                                 if (document.readOnly())
-                                 {
-                                     ImGui::TextUnformatted("Configured metadata source (read-only)");
-                                 }
-                             },
-                               [&document, &browser] { drawEditControls(document, browser); },
+                              [&document, &browser] { drawEditControls(document, browser); },
                               idFormat,
                               "document.radarcol." + std::to_string(document.id()),
                               becameVisible);

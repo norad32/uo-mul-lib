@@ -45,6 +45,6 @@ struct TexmapsPanelState
 
 void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile);
 void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult & result);
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser, IdFormat idFormat);
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, IdFormat idFormat);
 
 } // namespace uo_mule::gui

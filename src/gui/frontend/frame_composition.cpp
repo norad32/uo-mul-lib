@@ -154,13 +154,11 @@ void drawMapPanels(WorkbenchState & state,
     {
         drawRadarcolPanel(radarcolState,
                           state.panelRegistry.find(PanelId::radarcol)->visible,
-                           state.fileBrowser,
-                           state.preferences.idFormat,
-                           true);
+                          state.preferences.idFormat);
     }
     if (state.panelRegistry.find(PanelId::texmaps)->visible)
     {
-        drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible, state.fileBrowser, state.preferences.idFormat);
+        drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible, state.preferences.idFormat);
     }
 }
 

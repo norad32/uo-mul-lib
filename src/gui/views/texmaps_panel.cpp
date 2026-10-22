@@ -104,11 +104,17 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-[[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state, FileBrowserState & browser, IdFormat idFormat)
+[[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state, IdFormat idFormat)
 {
     assets::AssetAdapter adapter;
     adapter.descriptor.viewId = "view.texmaps";
     adapter.descriptor.title = "Texmaps";
+    adapter.descriptor.sourceTooltip = "Index: " + std::string(state.sourceIndexPath.data()) +
+                                      "\nData: " + std::string(state.sourceDataPath.data());
+    if (!state.error.empty())
+    {
+        adapter.descriptor.sourceTooltip += "\nError: " + state.error;
+    }
     adapter.descriptor.source = {.kind = DocumentKind::texmapPair,
                                  .source = makeDocumentSourceIdentity({std::filesystem::path(state.sourceIndexPath.data()),
                                                                         std::filesystem::path(state.sourceDataPath.data()),}),
@@ -120,21 +126,6 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
     adapter.descriptor.itemCount = state.reader ? state.reader->textureCount() : 0U;
     adapter.descriptor.fixedCellWidth = assetCellWidth;
     adapter.descriptor.fixedCellHeight = assetCellHeight;
-    adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
-        .id = "source", .label = "Source", .draw = [&state, &browser] {
-            ImGui::Text("Index: %s", state.sourceIndexPath.data());
-            ImGui::Text("Data: %s", state.sourceDataPath.data());
-            if (ImGui::Button("Load Textures"))
-            {
-                loadSource(state);
-            }
-            if (!state.error.empty())
-            {
-                ImGui::TextColored(theme::imguiColor(theme::error), "Error: %s", state.error.c_str());
-            }
-            static_cast<void>(browser);
-        },
-    });
     adapter.loadRange = [&state, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
         std::vector<assets::AssetItem> items;
         if (!state.reader)
@@ -217,9 +208,9 @@ void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult &
     }
 }
 
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser, IdFormat idFormat)
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, IdFormat idFormat)
 {
-    const auto adapter = makeAdapter(state, browser, idFormat);
+    const auto adapter = makeAdapter(state, idFormat);
     assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 

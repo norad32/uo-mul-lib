@@ -148,6 +148,7 @@ struct AssetAdapterDescriptor
 {
     std::string viewId;
     std::string title;
+    std::string sourceTooltip;
     AssetSourceContext source;
     AssetCapabilitySet capabilities;
     std::size_t itemCount = 0;
