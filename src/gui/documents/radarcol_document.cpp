@@ -156,14 +156,38 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
     {
         return fail(makeDocumentError(outputPath_, "Radarcol editing has not started"));
     }
+    auto inPlace = uomul::detail::MulCommon::pathsExactlyMatch(sourcePath_, outputPath_);
+    if (!inPlace)
+    {
+        return fail(inPlace.error());
+    }
+
+    if (*inPlace)
+    {
+        reader_.reset();
+    }
+
     if (auto committed = editor_->commit(); !committed)
     {
+        editor_->abort();
+        editor_.reset();
+        dirtyState_ = false;
+        if (*inPlace)
+        {
+            auto restored = uomul::RadarColReader::open(sourcePath_);
+            if (restored)
+            {
+                reader_ = std::move(*restored);
+            }
+        }
         return fail(committed.error());
     }
 
     auto opened = uomul::RadarColReader::open(outputPath_);
     if (!opened)
     {
+        editor_.reset();
+        dirtyState_ = false;
         return fail(opened.error());
     }
 
@@ -186,11 +210,14 @@ std::expected<void, uomul::Error> RadarcolDocument::discard()
 }
 
 std::expected<void, uomul::Error> RadarcolDocument::saveAs(const std::filesystem::path & output,
-                                                            bool outputOverwrite)
+                                                             bool outputOverwrite)
 {
     if (editor_ && dirtyState_)
     {
-        return fail(makeDocumentError(output, "discard or save current Radarcol changes before Save As"));
+        if (auto saved = save(); !saved)
+        {
+            return saved;
+        }
     }
     if (editor_)
     {

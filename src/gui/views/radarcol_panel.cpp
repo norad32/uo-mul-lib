@@ -104,37 +104,30 @@ void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
     }
     if (!document.editing())
     {
-        ImGui::Text("Output: %s", document.outputPath().empty() ? "Not selected" : document.outputPath().string().c_str());
-        if (ImGui::Button("Choose output"))
-        {
-            requestFileBrowser(browser,
-                               {.mode = FileBrowserMode::saveFile,
-                                .target = FileBrowserTarget::radarcolOutput,
-                                .initialPath = document.outputPath(),
-                                .extension = ".mul",
-                                .title = "Save Radarcol As",});
-        }
-        ImGui::SameLine();
-        bool overwriteOutput = document.overwriteOutput();
-        if (ImGui::Checkbox("Overwrite output", &overwriteOutput))
-        {
-            document.setOverwriteOutput(overwriteOutput);
-        }
-        ImGui::BeginDisabled(document.outputPath().empty());
+        ImGui::Text("Editing source: %s", document.sourcePath().string().c_str());
         if (ImGui::Button("Begin editing"))
         {
             document.requestIntent({.kind = RadarcolDocumentIntentKind::beginEdit,
                                     .colorIndex = 0,
                                     .color = 0,
-                                    .outputPath = document.outputPath(),
-                                    .overwriteOutput = document.overwriteOutput(),});
+                                    .outputPath = document.sourcePath(),
+                                    .overwriteOutput = true,});
         }
-        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::Button("Save As..."))
+        {
+            requestFileBrowser(browser,
+                               {.mode = FileBrowserMode::saveFile,
+                                .target = FileBrowserTarget::radarcolOutput,
+                                .initialPath = document.sourcePath(),
+                                .extension = ".mul",
+                                .title = "Save Radarcol As",});
+        }
     }
     if (document.editing())
     {
-        ImGui::Text("Editing: %s", document.outputPath().string().c_str());
-        if (ImGui::Button("Save changes"))
+        ImGui::Text("Editing source: %s", document.sourcePath().string().c_str());
+        if (ImGui::Button("Save"))
         {
             document.requestIntent({.kind = RadarcolDocumentIntentKind::save,
                                     .colorIndex = 0,
@@ -381,7 +374,7 @@ void drawRadarcolDocumentPanel(RadarcolPanelState & state,
                                      ImGui::TextUnformatted("Configured metadata source (read-only)");
                                  }
                              },
-                              [&document, &browser] { drawEditControls(document, browser); },
+                               [&document, &browser] { drawEditControls(document, browser); },
                               idFormat,
                               "document.radarcol." + std::to_string(document.id()),
                               becameVisible);

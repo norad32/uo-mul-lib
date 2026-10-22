@@ -43,6 +43,7 @@ void drawFileMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::fileOpen);
     drawCommandItem(state, CommandId::fileNew);
     ImGui::Separator();
+    drawCommandItem(state, CommandId::fileSave);
     drawCommandItem(state, CommandId::fileSaveAs);
     drawCommandItem(state, CommandId::fileDiscard);
     ImGui::Separator();

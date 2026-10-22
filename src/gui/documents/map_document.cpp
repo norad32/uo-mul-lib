@@ -218,6 +218,13 @@ void DocumentManager::syncAssetDocuments() noexcept
     {
         if (document.radarcol)
         {
+            const auto source = makeDocumentSourceIdentity({document.radarcol->sourcePath()});
+            const bool configured = configuredRadarcolSource_.has_value() && source == configuredRadarcolSource_.value();
+            document.summary.identity.source = source;
+            document.summary.displayName = document.radarcol->sourcePath().filename().string();
+            document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
+            document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
+            document.radarcol->setAccess(document.summary.access);
             document.summary.dirty = document.radarcol->dirty();
             document.summary.validation = document.radarcol->reader().has_value() ? DocumentValidationState::valid
                                                                                     : DocumentValidationState::invalid;

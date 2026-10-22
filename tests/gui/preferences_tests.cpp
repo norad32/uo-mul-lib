@@ -29,7 +29,6 @@ TEST_CASE("loadPreferences_Should_UseDefaultsWhenFileIsMissing")
     REQUIRE(std::abs(preferences.logPanelHeight) < heightTolerance);
     REQUIRE(preferences.showWelcomeOnStartup);
     REQUIRE(preferences.idFormat == uo_mule::gui::IdFormat::hexadecimal);
-    REQUIRE(preferences.idFormat == uo_mule::gui::IdFormat::hexadecimal);
     std::filesystem::remove_all(preferencesFile.parent_path());
 }
 
@@ -46,7 +45,6 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
         .activeDataProfile = {},
         .showWelcomeOnStartup = false,
         .idFormat = uo_mule::gui::IdFormat::decimal,
-        .idFormat = uo_mule::gui::IdFormat::decimal,
     };
 
     uo_mule::gui::savePreferences(expected, preferencesFile);
@@ -59,7 +57,6 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
     REQUIRE(actual.logPanelCollapsed);
     REQUIRE(std::abs(actual.logPanelHeight - expectedLogPanelHeight) < heightTolerance);
     REQUIRE_FALSE(actual.showWelcomeOnStartup);
-    REQUIRE(actual.idFormat == uo_mule::gui::IdFormat::decimal);
     REQUIRE(actual.idFormat == uo_mule::gui::IdFormat::decimal);
     std::filesystem::remove_all(configDirectory);
 }

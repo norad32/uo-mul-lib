@@ -56,13 +56,14 @@ constexpr float notificationMinimumWidth = 280.0F;
 constexpr float notificationMaximumWidth = 480.0F;
 constexpr float notificationMaximumHeightRatio = 0.5F;
 constexpr int welcomeWindowWidth = 1004;
-constexpr std::size_t shortcutCount = 6;
+constexpr std::size_t shortcutCount = 7;
 constexpr std::size_t graveShortcutIndex = 0;
 constexpr std::size_t saveAsShortcutIndex = 1;
-constexpr std::size_t openShortcutIndex = 2;
-constexpr std::size_t newShortcutIndex = 3;
-constexpr std::size_t quitShortcutIndex = 4;
-constexpr std::size_t goToShortcutIndex = 5;
+constexpr std::size_t saveShortcutIndex = 2;
+constexpr std::size_t openShortcutIndex = 3;
+constexpr std::size_t newShortcutIndex = 4;
+constexpr std::size_t quitShortcutIndex = 5;
+constexpr std::size_t goToShortcutIndex = 6;
 
 void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
 {
@@ -392,6 +393,22 @@ void drawDocumentSurface(WorkbenchState & state)
     drawDocumentWindows(state);
 }
 
+void processDocumentIntents(WorkbenchState & state)
+{
+    for (auto & document : state.session.documentsMutable())
+    {
+        if (!document.radarcol)
+        {
+            continue;
+        }
+        if (auto result = document.radarcol->processPendingIntent(); !result)
+        {
+            state.notifications.add(NotificationSeverity::error, result.error().message);
+        }
+    }
+    state.session.syncAssetDocuments();
+}
+
 void requestDocumentClose(WorkbenchState & state, DocumentId id, bool dirty)
 {
     state.pendingDocumentClose = id;
@@ -450,6 +467,7 @@ void dispatchShortcuts(WorkbenchState & state)
     const std::array<std::pair<ImGuiKey, std::string_view>, shortcutCount> shortcuts{
         std::pair{ImGuiKey_GraveAccent, "`"},
         std::pair{ImGuiKey_S, "Ctrl+Shift+S"},
+        std::pair{ImGuiKey_S, "Ctrl+S"},
         std::pair{ImGuiKey_O, "Ctrl+O"},
         std::pair{ImGuiKey_N, "Ctrl+N"},
         std::pair{ImGuiKey_Q, "Ctrl+Q"},
@@ -462,6 +480,11 @@ void dispatchShortcuts(WorkbenchState & state)
     else if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(shortcuts.at(saveAsShortcutIndex).first, false))
     {
         static_cast<void>(state.commands.executeShortcut(shortcuts.at(saveAsShortcutIndex).second, state));
+    }
+    else if (ImGui::GetIO().KeyCtrl && !ImGui::GetIO().KeyShift &&
+             ImGui::IsKeyPressed(shortcuts.at(saveShortcutIndex).first, false))
+    {
+        static_cast<void>(state.commands.executeShortcut(shortcuts.at(saveShortcutIndex).second, state));
     }
     else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(openShortcutIndex).first, false))
     {
@@ -568,6 +591,7 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         drawDockSpace(state, bottomPanelHeight);
         applyPendingDocumentAction(state);
         drawDocumentSurface(state);
+        processDocumentIntents(state);
         drawMapPanels(state,
                       state.activeProfile,
                       state.blockInspectorState,

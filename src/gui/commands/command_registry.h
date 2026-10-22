@@ -19,6 +19,7 @@ enum class CommandId : std::uint8_t
     fileDiscard,
     fileClose,
     fileQuit,
+    fileSave,
     viewTileIds,
     viewZ,
     viewCombined,

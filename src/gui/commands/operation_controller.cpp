@@ -63,6 +63,7 @@ OperationTransition OperationController::completeSave(bool success)
     }
     if (!success)
     {
+        reset();
         return {.kind = OperationTransitionKind::cancelled, .error = {}};
     }
     dirty_ = false;

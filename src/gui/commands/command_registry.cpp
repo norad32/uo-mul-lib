@@ -13,6 +13,7 @@
 #include "gui/views/map_canvas_panel.h"
 #include "gui/strings/ui_strings.h"
 #include <functional>
+#include <algorithm>
 #include <string_view>
 #include <string>
 #include <utility>
@@ -56,11 +57,38 @@ CommandAvailability requiresActiveLocation(const WorkbenchState & state)
 
 CommandAvailability requiresMapForSave(const WorkbenchState & state)
 {
-    if (state.workspace.reader() == nullptr)
+    if (state.workspace.reader() == nullptr || !state.workspace.dirty())
     {
-        return {.enabled = false, .disabledReason = "No map is open"};
+        return {.enabled = false, .disabledReason = state.workspace.reader() == nullptr ? "No map is open"
+                                                                                         : "There are no staged changes"};
     }
     return enabled(state);
+}
+
+CommandAvailability requiresSaveableDocument(const WorkbenchState & state)
+{
+    const auto * active = state.session.activeDocumentRecord();
+    if (active == nullptr)
+    {
+        return {.enabled = false, .disabledReason = "No document is open"};
+    }
+    if (active->map)
+    {
+        return requiresMapForSave(state);
+    }
+    if (active->radarcol)
+    {
+        if (active->radarcol->readOnly())
+        {
+            return {.enabled = false, .disabledReason = "Configured Radarcol sources are read-only"};
+        }
+        if (!active->radarcol->editing() || !active->radarcol->dirty())
+        {
+            return {.enabled = false, .disabledReason = "There are no staged changes"};
+        }
+        return enabled(state);
+    }
+    return {.enabled = false, .disabledReason = "This document cannot be edited"};
 }
 
 void openDialog(WorkbenchState & state, MapFileDialogMode mode)
@@ -205,9 +233,43 @@ void registerDefaultCommands(CommandRegistry & registry)
     add(registry, CommandId::fileNew, "file.new", "Create Map...", "File", "Create an empty map", "Ctrl+N", requiresMapReadyProfile,
         [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::newMap); });
     add(registry,
+        CommandId::fileSave,
+        "file.save",
+        "Save",
+        "File",
+        "Save staged changes in place",
+        "Ctrl+S",
+        requiresSaveableDocument,
+        [](WorkbenchState & state)
+        {
+            auto * active = state.session.activeDocumentRecord();
+            if (active == nullptr)
+            {
+                return;
+            }
+            if (active->map)
+            {
+                const auto saved = state.workspace.save(state.workspace.originalPath(), false);
+                if (!saved)
+                {
+                    state.menuBarState.fileDialog.error = formatError(saved.error());
+                    state.menuBarState.fileDialog.mode = MapFileDialogMode::error;
+                }
+                return;
+            }
+            if (active->radarcol)
+            {
+                active->radarcol->requestIntent({.kind = RadarcolDocumentIntentKind::save,
+                                                 .colorIndex = 0,
+                                                 .color = 0,
+                                                 .outputPath = {},
+                                                 .overwriteOutput = false,});
+            }
+        });
+    add(registry,
         CommandId::fileSaveAs,
         "file.save-as",
-        "Save As / Commit...",
+        "Save As...",
         "File",
         "Save staged map changes",
         "Ctrl+Shift+S",
@@ -216,6 +278,20 @@ void registerDefaultCommands(CommandRegistry & registry)
         {
             if (state.workspace.dirty())
             {
+                state.menuBarState.fileDialog.savePath.fill('\0');
+                if (const auto path = state.workspace.originalPath(); !path.empty())
+                {
+                    const std::string value = path.string();
+                    const std::size_t length = std::min(value.size(), state.menuBarState.fileDialog.savePath.size() - 1U);
+                    std::copy_n(value.data(), length, state.menuBarState.fileDialog.savePath.data());
+                    state.menuBarState.fileDialog.savePath.at(length) = '\0';
+                }
+                requestFileBrowser(state.fileBrowser,
+                                   {.mode = FileBrowserMode::saveFile,
+                                    .target = FileBrowserTarget::mapSaveAs,
+                                    .initialPath = state.workspace.originalPath(),
+                                    .extension = ".mul",
+                                    .title = "Save Map As",});
                 openDialog(state, MapFileDialogMode::saveAs);
             }
             else

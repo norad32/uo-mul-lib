@@ -21,6 +21,18 @@ TEST_CASE("defaultCommands_Should_ExposeStableIdsAndMetadata")
     REQUIRE(open->defaultShortcut == "Ctrl+O");
     REQUIRE_FALSE(open->description.empty());
     REQUIRE(state.commands.find("data.paths") != nullptr);
+
+    const auto * save = state.commands.find(CommandId::fileSave);
+    REQUIRE(save != nullptr);
+    REQUIRE(save->stableId == "file.save");
+    REQUIRE(save->label == "Save");
+    REQUIRE(save->defaultShortcut == "Ctrl+S");
+
+    const auto * saveAs = state.commands.find(CommandId::fileSaveAs);
+    REQUIRE(saveAs != nullptr);
+    REQUIRE(saveAs->stableId == "file.save-as");
+    REQUIRE(saveAs->label == "Save As...");
+    REQUIRE(saveAs->defaultShortcut == "Ctrl+Shift+S");
 }
 
 TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")

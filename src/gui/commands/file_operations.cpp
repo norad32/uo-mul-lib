@@ -184,7 +184,9 @@ bool openGenericAsset(WorkbenchState & state,
     {
         if (auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
         {
-            active->radarcol->setOutputPath(result.path);
+            active->radarcol->requestIntent({.kind = RadarcolDocumentIntentKind::saveAs,
+                                             .outputPath = result.path,
+                                             .overwriteOutput = false,});
         }
     }
     else

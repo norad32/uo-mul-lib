@@ -12,7 +12,12 @@ if(BUILD_CORE_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/uomul/*.cpp")
     add_executable(uomul_tests ${core_test_sources})
-    target_link_libraries(uomul_tests PRIVATE Catch2::Catch2WithMain uomul core application_options)
+    target_link_libraries(
+        uomul_tests
+        PRIVATE Catch2::Catch2WithMain
+                uomul
+                core
+                application_options)
     apply_common_compile_options(uomul_tests)
     apply_unit_test_compile_options(uomul_tests)
     if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -26,25 +31,49 @@ if(BUILD_CORE_TESTS)
 endif()
 
 if(BUILD_CLI_TESTS AND (BUILD_CLI OR BUILD_GUI))
-    file(GLOB_RECURSE cli_test_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp")
+    file(
+        GLOB_RECURSE
+        cli_test_sources
+        CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/app/*.cpp")
     add_executable(cli_tests ${cli_test_sources})
-    target_link_libraries(cli_tests PRIVATE Catch2::Catch2WithMain app core application_options CLI11::CLI11)
+    target_link_libraries(
+        cli_tests
+        PRIVATE Catch2::Catch2WithMain
+                app
+                core
+                application_options
+                CLI11::CLI11)
     apply_common_compile_options(cli_tests)
     apply_unit_test_compile_options(cli_tests)
     if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
         apply_coverage_compile_options(cli_tests)
         apply_unit_test_link_options(cli_tests)
         apply_coverage_compile_options(app)
-        target_link_options(app INTERFACE -fprofile-arcs -ftest-coverage)
+        target_link_options(
+            app
+            INTERFACE
+            -fprofile-arcs
+            -ftest-coverage)
         target_link_libraries(app INTERFACE gcov)
     endif()
     catch_discover_tests(cli_tests)
 endif()
 
 if(BUILD_GUI_TESTS AND BUILD_GUI)
-    file(GLOB_RECURSE gui_test_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gui/*.cpp")
+    file(
+        GLOB_RECURSE
+        gui_test_sources
+        CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/gui/*.cpp")
     add_executable(gui_tests ${gui_test_sources})
-    target_link_libraries(gui_tests PRIVATE Catch2::Catch2WithMain gui core uomul application_options)
+    target_link_libraries(
+        gui_tests
+        PRIVATE Catch2::Catch2WithMain
+                gui
+                core
+                uomul
+                application_options)
     apply_common_compile_options(gui_tests)
     apply_unit_test_compile_options(gui_tests)
     if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -72,5 +101,6 @@ if(BUILD_CLI OR BUILD_GUI)
             -DBINARY_DIR=${PROJECT_BINARY_DIR}/package-consumer
             -DPREFIX_DIR=${PROJECT_BINARY_DIR}/package-consumer-prefix
             -DCONFIG=$<CONFIG> -P
-            ${PROJECT_SOURCE_DIR}/tests/package-consumer/run-package-consumer.cmake)
+            ${PROJECT_SOURCE_DIR}/tests/package-consumer/run-package-consumer.cmake
+    )
 endif()

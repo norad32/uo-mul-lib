@@ -232,6 +232,7 @@ std::uint8_t zGrayscale(std::int8_t z) noexcept
 
 MapWorkspace::~MapWorkspace()
 {
+    reader_.reset();
     removeWorkingFile();
 }
 
@@ -342,27 +343,41 @@ std::expected<void, uomul::Error> MapWorkspace::save(const std::filesystem::path
         return {};
     }
 
-    std::error_code sourcePathError;
-    std::error_code workingPathError;
-    std::error_code outputPathError;
-    const auto sourcePath = std::filesystem::weakly_canonical(originalPath_, sourcePathError);
-    const auto workingPath = std::filesystem::weakly_canonical(mapPath_, workingPathError);
-    const auto canonicalOutput = std::filesystem::weakly_canonical(outputPath, outputPathError);
-
-    if ((!sourcePathError && sourcePath == canonicalOutput) || (!workingPathError && workingPath == canonicalOutput))
+    auto inPlace = uomul::detail::MulCommon::pathsExactlyMatch(mapPath_, outputPath);
+    if (!inPlace)
     {
-        return fail(makeWorkspaceError(outputPath, "save output must differ from source and working maps"));
+        return fail(inPlace.error());
     }
 
-    auto editor = uomul::MapEditor::create(mapPath_, outputPath, dimensions_, {.overwriteOutput = overwriteOutput});
+    auto replacesOriginal = uomul::detail::MulCommon::pathsExactlyMatch(originalPath_, outputPath);
+    if (!replacesOriginal)
+    {
+        return fail(replacesOriginal.error());
+    }
+
+    auto editor = uomul::MapEditor::create(
+        mapPath_, outputPath, dimensions_, {.overwriteOutput = overwriteOutput || *inPlace || *replacesOriginal});
 
     if (!editor)
     {
         return fail(editor.error());
     }
 
+    if (*inPlace)
+    {
+        reader_.reset();
+    }
+
     if (auto committed = editor->commit(); !committed)
     {
+        if (*inPlace)
+        {
+            auto restored = uomul::MapReader::open(mapPath_, dimensions_);
+            if (restored)
+            {
+                reader_ = std::move(*restored);
+            }
+        }
         return fail(committed.error());
     }
 
@@ -375,7 +390,6 @@ std::expected<void, uomul::Error> MapWorkspace::save(const std::filesystem::path
     const MapSelectionMode selectionMode = selectionMode_;
     const auto tileSelection = tileSelection_;
     const auto blockSelection = blockSelection_;
-    removeWorkingFile();
     replaceDocument(std::move(*opened), outputPath, outputPath);
     selectionMode_ = selectionMode;
     tileSelection_ = tileSelection;
@@ -397,7 +411,6 @@ std::expected<void, uomul::Error> MapWorkspace::discard()
         return fail(opened.error());
     }
 
-    removeWorkingFile();
     replaceDocument(std::move(*opened), originalPath_, originalPath_);
     return {};
 }
@@ -409,8 +422,8 @@ std::expected<void, uomul::Error> MapWorkspace::closeMap()
         return fail(makeWorkspaceError(mapPath_, "pending map changes require save or discard before closing"));
     }
 
-    removeWorkingFile();
     reader_.reset();
+    removeWorkingFile();
     dimensions_ = {};
     mapPath_.clear();
     originalPath_.clear();
@@ -765,7 +778,6 @@ std::expected<void, uomul::Error> MapWorkspace::applyEdit(const EditOperation & 
     const auto selectionMode = selectionMode_;
     const auto tileSelection = tileSelection_;
     const auto blockSelection = blockSelection_;
-    removeWorkingFile();
     replaceDocument(std::move(*opened), *outputPath, originalPath_, *outputPath);
     selectionMode_ = selectionMode;
     tileSelection_ = tileSelection;
@@ -786,6 +798,7 @@ void MapWorkspace::replaceDocument(uomul::MapReader reader,
                                    std::filesystem::path originalPath,
                                    std::optional<std::filesystem::path> workingPath)
 {
+    const auto previousWorkingPath = workingPath_;
     reader_ = std::move(reader);
     dimensions_ = reader_->dimensions();
     mapPath_ = std::move(path);
@@ -796,6 +809,12 @@ void MapWorkspace::replaceDocument(uomul::MapReader reader,
     clearHover();
     clearSelectedTile();
     error_.reset();
+
+    if (previousWorkingPath && (!workingPath_ || *previousWorkingPath != *workingPath_))
+    {
+        std::error_code ignoredError;
+        std::filesystem::remove(*previousWorkingPath, ignoredError);
+    }
 }
 
 void MapWorkspace::removeWorkingFile() noexcept

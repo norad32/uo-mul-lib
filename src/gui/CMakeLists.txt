@@ -16,15 +16,16 @@ add_library(
     application/application.cpp
     application/workbench_state.cpp
     commands/command_registry.cpp
+    commands/file_operations.cpp
     commands/menu_bar.cpp
     commands/operation_controller.cpp
-     context/coordinate_parser.cpp
-     context/color_conversion.cpp
-     context/map_context.cpp
-     frontend/document_surface.cpp
-     assets/asset_window_contracts.cpp
-     assets/asset_window.cpp
-     strings/ui_strings.cpp
+    context/coordinate_parser.cpp
+    context/color_conversion.cpp
+    context/map_context.cpp
+    frontend/document_surface.cpp
+    assets/asset_window_contracts.cpp
+    assets/asset_window.cpp
+    strings/ui_strings.cpp
     profile/data_discovery.cpp
     profile/data_profile.cpp
     profile/data_profile_store.cpp
@@ -36,15 +37,15 @@ add_library(
     dialogs/file_browser_dialog.cpp
     dialogs/file_selector_dialog.cpp
     dialogs/map_facet_dialog.cpp
-     dialogs/preferences_dialog.cpp
-     dialogs/dialog_contracts.cpp
-     dialogs/dialog_host.cpp
-     dialogs/dialog_presentation.cpp
+    dialogs/preferences_dialog.cpp
+    dialogs/dialog_contracts.cpp
+    dialogs/dialog_host.cpp
+    dialogs/dialog_presentation.cpp
     documents/document_identity.cpp
     documents/map_document.cpp
     documents/radarcol_document.cpp
-     documents/map_workspace.cpp
-     documents/map_workspace_manager.cpp
+    documents/map_workspace.cpp
+    documents/map_workspace_manager.cpp
     persistence/layout_store.cpp
     persistence/preferences.cpp
     persistence/recent_files.cpp

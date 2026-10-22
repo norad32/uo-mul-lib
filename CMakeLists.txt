@@ -107,7 +107,9 @@ if(NOT spdlog_FOUND)
     FetchContent_MakeAvailable(spdlog)
 endif()
 
-if(BUILD_CLI OR BUILD_GUI OR BUILD_CLI_TESTS)
+if(BUILD_CLI
+   OR BUILD_GUI
+   OR BUILD_CLI_TESTS)
     find_package(
         CLI11
         ${CLI11_PACKAGE_VERSION}
@@ -130,7 +132,9 @@ endif()
 
 add_subdirectory(src/core)
 add_subdirectory(src/uomul)
-if(BUILD_CLI OR BUILD_GUI OR BUILD_CLI_TESTS)
+if(BUILD_CLI
+   OR BUILD_GUI
+   OR BUILD_CLI_TESTS)
     add_subdirectory(src/app)
 endif()
 
@@ -146,10 +150,10 @@ if(BUILD_CLI OR BUILD_GUI)
     endif()
 endif()
 
-set(compile_targets
-    core
-    uomul)
-if(BUILD_CLI OR BUILD_GUI OR BUILD_CLI_TESTS)
+set(compile_targets core uomul)
+if(BUILD_CLI
+   OR BUILD_GUI
+   OR BUILD_CLI_TESTS)
     list(APPEND compile_targets app)
 endif()
 if(BUILD_CLI OR BUILD_GUI)
@@ -166,10 +170,17 @@ foreach(target IN LISTS compile_targets)
     apply_common_compile_options(${target})
 endforeach()
 
-if(BUILD_TESTS OR BUILD_BENCHMARKS OR BUILD_CORE_TESTS OR BUILD_CLI_TESTS OR BUILD_GUI_TESTS)
+if(BUILD_TESTS
+   OR BUILD_BENCHMARKS
+   OR BUILD_CORE_TESTS
+   OR BUILD_CLI_TESTS
+   OR BUILD_GUI_TESTS)
     find_package(Catch2 CONFIG REQUIRED COMPONENTS Catch2WithMain)
 endif()
-if(BUILD_TESTS OR BUILD_CORE_TESTS OR BUILD_CLI_TESTS OR BUILD_GUI_TESTS)
+if(BUILD_TESTS
+   OR BUILD_CORE_TESTS
+   OR BUILD_CLI_TESTS
+   OR BUILD_GUI_TESTS)
     include(CTest)
     add_subdirectory(tests "${PROJECT_BINARY_DIR}/unit-tests")
 endif()
@@ -179,10 +190,10 @@ endif()
 
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
-    set(clang_tidy_targets
-        core
-        uomul)
-    if(BUILD_CLI OR BUILD_GUI OR BUILD_CLI_TESTS)
+    set(clang_tidy_targets core uomul)
+    if(BUILD_CLI
+       OR BUILD_GUI
+       OR BUILD_CLI_TESTS)
         list(APPEND clang_tidy_targets app)
     endif()
     if(BUILD_CLI OR BUILD_GUI)

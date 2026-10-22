@@ -565,8 +565,8 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewMapDialogState & state
                             .title = "Save Map",});
     }
 
-    beginDialogFooter({"Save / Commit", "Cancel"});
-    if (dialogButton("Save / Commit", state.savePath.front() != '\0'))
+    beginDialogFooter({"Save", "Cancel"});
+    if (dialogButton("Save", state.savePath.front() != '\0'))
     {
         const std::filesystem::path path(state.savePath.data());
         if (outputExists(path, state))
@@ -593,6 +593,20 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewMapDialogState & state
 
         if (state.saveForPendingOperation)
         {
+            if (state.controller != nullptr)
+            {
+                const auto transition = state.controller->completeSave(true);
+                if (transition.kind == OperationTransitionKind::rejected)
+                {
+                    showError(state,
+                              uomul::Error{.code = uomul::ErrorCode::io,
+                                           .path = path,
+                                           .offset = 0,
+                                           .message = transition.error,});
+                    endDialogFooter();
+                    return;
+                }
+            }
             const PendingMapOperationKind operation = state.operation.kind;
             if (operation == PendingMapOperationKind::close || operation == PendingMapOperationKind::quit)
             {
@@ -634,9 +648,42 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewMapDialogState & state
 
 void drawDirtyDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
-    ImGui::TextWrapped("The current map has staged changes. Save, discard, or cancel this operation?");
+    ImGui::TextWrapped("The current map has staged changes. Save, save as, discard, or cancel this operation?");
 
-    beginDialogFooter({"Save As...", "Discard", "Cancel"});
+    beginDialogFooter({"Save", "Save As...", "Discard", "Cancel"});
+    if (dialogButton("Save"))
+    {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
+        }
+        const auto saved = workspace.save(workspace.originalPath(), false);
+        if (!saved)
+        {
+            if (state.controller != nullptr)
+            {
+                static_cast<void>(state.controller->completeSave(false));
+            }
+            showError(state, saved.error());
+            endDialogFooter();
+            return;
+        }
+        const auto transition = state.controller == nullptr
+                                    ? OperationTransition{.kind = OperationTransitionKind::execute, .error = {}}
+                                    : state.controller->completeSave(true);
+        if (transition.kind == OperationTransitionKind::execute)
+        {
+            const bool overwriteOperation = state.operationOverwriteOutput;
+            continueOperation(workspace, state, overwriteOperation);
+        }
+        else
+        {
+            closeDialog(state);
+        }
+    }
+
+    ImGui::SameLine();
+
     if (dialogButton("Save As..."))
     {
         if (state.controller != nullptr)
@@ -645,6 +692,12 @@ void drawDirtyDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
         }
         state.saveForPendingOperation = true;
         state.savePath.fill('\0');
+        requestFileBrowser(*state.browser,
+                           {.mode = FileBrowserMode::saveFile,
+                            .target = FileBrowserTarget::mapSaveAs,
+                            .initialPath = workspace.originalPath(),
+                            .extension = ".mul",
+                            .title = "Save Map As",});
         state.mode = MapFileDialogMode::saveAs;
         ImGui::CloseCurrentPopup();
     }
