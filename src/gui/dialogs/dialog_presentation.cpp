@@ -31,6 +31,11 @@ constexpr float mapWidth = 620.0F;
 constexpr float mapHeight = 420.0F;
 constexpr float mapMinimumWidth = 440.0F;
 constexpr float mapMinimumHeight = 260.0F;
+constexpr float mapFacetWidth = 520.0F;
+constexpr float mapFacetHeight = 220.0F;
+constexpr float mapFacetMinimumWidth = 420.0F;
+constexpr float mapFacetMinimumHeight = 180.0F;
+constexpr float dialogFieldLabelWidth = 240.0F;
 
 [[nodiscard]] ImGuiWindowFlags modalFlags(ImGuiWindowFlags extraFlags) noexcept
 {
@@ -68,6 +73,12 @@ DialogWindowSpec mapDialogSpec() noexcept
     return {.initialSize = ImVec2(mapWidth, mapHeight), .minimumSize = ImVec2(mapMinimumWidth, mapMinimumHeight)};
 }
 
+DialogWindowSpec mapFacetDialogSpec() noexcept
+{
+    return {.initialSize = ImVec2(mapFacetWidth, mapFacetHeight),
+            .minimumSize = ImVec2(mapFacetMinimumWidth, mapFacetMinimumHeight),};
+}
+
 bool beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, ImGuiWindowFlags extraFlags)
 {
     ImGui::OpenPopup(popupId);
@@ -96,6 +107,18 @@ void dialogSeparatorText(const char * text)
     ImGui::PushStyleColor(ImGuiCol_Text, theme::imguiColor(theme::lavender));
     ImGui::SeparatorText(text);
     ImGui::PopStyleColor();
+}
+
+void dialogFieldLabel(const char * text)
+{
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(text);
+    ImGui::SameLine(dialogFieldLabelWidth);
+}
+
+void dialogFieldWidth(float width)
+{
+    ImGui::SetNextItemWidth(width);
 }
 
 void beginDialogFooter(std::initializer_list<const char *> labels)

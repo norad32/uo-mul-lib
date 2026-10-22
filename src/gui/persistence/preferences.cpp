@@ -187,6 +187,10 @@ Preferences loadPreferences(const std::filesystem::path & path)
         {
             preferences.showWelcomeOnStartup = value == "1";
         }
+        else if (key == "id_format")
+        {
+            preferences.idFormat = value == "decimal" ? IdFormat::decimal : IdFormat::hexadecimal;
+        }
     }
     return preferences;
 }
@@ -210,6 +214,7 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
     contents << "logs_panel_collapsed " << static_cast<int>(preferences.logPanelCollapsed) << '\n';
     contents << "active_data_profile " << std::quoted(preferences.activeDataProfile) << '\n';
     contents << "show_welcome_on_startup " << static_cast<int>(preferences.showWelcomeOnStartup) << '\n';
+    contents << "id_format " << (preferences.idFormat == IdFormat::decimal ? "decimal" : "hexadecimal") << '\n';
     TemporaryPreferencesFile temporaryFile(path);
     temporaryFile.write(contents.str());
     temporaryFile.commit(path);

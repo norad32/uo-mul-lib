@@ -7,7 +7,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <imgui.h>
-#include <string>
 
 namespace uo_mule::gui
 {
@@ -17,6 +16,7 @@ namespace
 
 constexpr int customFacetIndex = 0;
 constexpr std::uint32_t minimumDimension = uomul::mapBlockDimension;
+constexpr float fieldWidth = 200.0F;
 
 [[nodiscard]] const core::FacetSize * facetAt(std::size_t index) noexcept
 {
@@ -46,7 +46,9 @@ constexpr std::uint32_t minimumDimension = uomul::mapBlockDimension;
     const std::size_t facetCount = core::knownFacetSizes().size() + 1U;
     const std::size_t requestedIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
     const std::size_t selectedIndex = requestedIndex < facetCount ? requestedIndex : 0U;
-    if (ImGui::BeginCombo("Facet", facetLabel(selectedIndex)))
+    dialogFieldLabel("Facet");
+    dialogFieldWidth(fieldWidth);
+    if (ImGui::BeginCombo("##Facet", facetLabel(selectedIndex)))
     {
         for (std::size_t index = 0; index < facetCount; index++)
         {
@@ -75,8 +77,12 @@ constexpr std::uint32_t minimumDimension = uomul::mapBlockDimension;
     {
         return true;
     }
-    ImGui::InputScalar("Width", ImGuiDataType_U32, &width);
-    ImGui::InputScalar("Height", ImGuiDataType_U32, &height);
+    dialogFieldLabel("Width");
+    dialogFieldWidth(fieldWidth);
+    ImGui::InputScalar("##Width", ImGuiDataType_U32, &width, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
+    dialogFieldLabel("Height");
+    dialogFieldWidth(fieldWidth);
+    ImGui::InputScalar("##Height", ImGuiDataType_U32, &height, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
     return width >= minimumDimension && height >= minimumDimension && width % minimumDimension == 0U &&
            height % minimumDimension == 0U;
 }
@@ -85,7 +91,6 @@ constexpr std::uint32_t minimumDimension = uomul::mapBlockDimension;
 
 MapFacetDialogResult drawMapFacetDialog(NewMapDialogState & state)
 {
-    dialogSubheading((std::string("Map path: ") + state.openPath.data()).c_str());
     if (state.openCandidates.empty())
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "No exact known size match, custom dimensions is selected.");

@@ -1,5 +1,7 @@
 #include "gui/strings/ui_strings.h"
 #include "gui/metadata/document_contracts.h"
+#include "gui/persistence/preferences.h"
+#include "gui/persistence/preferences.h"
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("uiStrings_Should_CentralizeSharedDisplayVocabulary")
@@ -19,4 +21,16 @@ TEST_CASE("uiStrings_Should_FormatSharedStatusValues")
     REQUIRE(uo_mule::gui::strings::formatDataStatus(uo_mule::gui::ProfileReadinessState::ready) == "Data: Configured");
     REQUIRE(uo_mule::gui::strings::formatRadarcolStatus(uo_mule::gui::ProviderSourceKind::embeddedDefault) ==
             "Radarcol: Embedded Radarcol");
+}
+
+TEST_CASE("uiStrings_Should_FormatIdsAccordingToPreference")
+{
+    REQUIRE(uo_mule::gui::strings::formatId(0x3AU, uo_mule::gui::IdFormat::hexadecimal) == "0x003A");
+    REQUIRE(uo_mule::gui::strings::formatId(0x3AU, uo_mule::gui::IdFormat::decimal) == "58");
+}
+
+TEST_CASE("uiStrings_Should_FormatIdsAccordingToPreference")
+{
+    REQUIRE(uo_mule::gui::strings::formatId(0x3AU, uo_mule::gui::IdFormat::hexadecimal) == "0x003A");
+    REQUIRE(uo_mule::gui::strings::formatId(0x3AU, uo_mule::gui::IdFormat::decimal) == "58");
 }

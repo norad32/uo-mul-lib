@@ -23,16 +23,19 @@ struct PreferencesDialogState
     bool initialized = false;
     bool closeRequested = false;
     bool showWelcomeOnStartup = true;
+    IdFormat idFormat = IdFormat::hexadecimal;
     std::array<char, preferencesDialogBufferSize> profileName{};
     std::array<char, preferencesDialogBufferSize> sourceRoot{};
     std::array<char, preferencesDialogBufferSize> outputRoot{};
     std::map<DataFileRole, std::array<char, preferencesDialogBufferSize>> overrides;
+    std::map<DataFileRole, bool> metadataOverrides;
     std::vector<std::filesystem::path> profiles;
     DataProfile workingProfile;
     DataDiscoveryResult discovery;
     DataProfileValidation validation;
     FileBrowserState * browser = nullptr;
     DiscoveryMode discoveryMode = DiscoveryMode::folder;
+    bool validationRequested = false;
     std::string message;
 };
 

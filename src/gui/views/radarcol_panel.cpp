@@ -1,4 +1,6 @@
 #include "gui/views/radarcol_panel.h"
+#include "gui/persistence/preferences.h"
+#include "gui/strings/ui_strings.h"
 #include "gui/assets/asset_window.h"
 #include "gui/assets/asset_window_contracts.h"
 #include "gui/context/color_conversion.h"
@@ -168,6 +170,7 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
 [[nodiscard]] assets::AssetAdapter makeAdapter(RadarcolPanelState & state,
                                                  FileBrowserState & browser,
                                                  bool readOnly,
+                                                 IdFormat idFormat,
                                                  std::string viewId)
 {
     assets::AssetAdapter adapter;
@@ -188,7 +191,7 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
             drawSourceControls(state, browser, readOnly);
         },
     });
-    adapter.loadRange = [&state](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
+    adapter.loadRange = [&state, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
         std::vector<assets::AssetItem> items;
         if (!state.reader)
         {
@@ -197,7 +200,7 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
         const std::size_t end = std::min(request.first + request.count, static_cast<std::size_t>(state.reader->colorCount()));
         for (std::size_t index = request.first; index < end; index++)
         {
-            items.push_back({.id = {.value = std::to_string(index)}, .label = std::to_string(index),
+            items.push_back({.id = {.value = std::to_string(index)}, .label = strings::formatId(static_cast<std::uint32_t>(index), idFormat),
                              .state = state.reader->readRawColor(static_cast<std::uint32_t>(index)).has_value()
                                           ? assets::AssetItemState::available
                                           : assets::AssetItemState::empty,
@@ -205,7 +208,7 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
         }
         return items;
     };
-    adapter.loadDetails = [&state](const assets::AssetItemId & id) -> std::optional<assets::AssetDetails> {
+    adapter.loadDetails = [&state, idFormat](const assets::AssetItemId & id) -> std::optional<assets::AssetDetails> {
         if (!state.reader)
         {
             return std::nullopt;
@@ -217,9 +220,9 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
             return std::nullopt;
         }
         return assets::AssetDetails{.item = id,
-                                    .title = "Radarcol color " + id.value,
-                                    .fields = std::vector<std::string>{"Raw value: " +
-                                                                       std::to_string(static_cast<std::uint32_t>(*color)),},};
+                                     .title = "Radarcol color " + strings::formatId(index, idFormat),
+                                     .fields = std::vector<std::string>{"Raw value: " +
+                                                                       strings::formatId(static_cast<std::uint32_t>(*color), idFormat),},};
     };
     adapter.renderItem = [&state](const assets::AssetItem & item, bool selected) { drawRadarcolItem(state, item, selected); };
     return adapter;
@@ -228,9 +231,10 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
 void drawRadarcolDocumentView(RadarcolDocument & document,
                               assets::AssetWindowState & assetView,
                               bool & visible,
-                              const std::function<void()> & drawSource,
-                              const std::function<void()> & drawEditing,
-                              std::string viewId,
+                               const std::function<void()> & drawSource,
+                               const std::function<void()> & drawEditing,
+                               IdFormat idFormat,
+                               std::string viewId,
                               const std::function<void()> & becameVisible)
 {
     assets::AssetAdapter adapter;
@@ -252,7 +256,7 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
     adapter.descriptor.extensionSlots.push_back(assets::AssetExtensionSlot{
         .id = "editing", .label = "Editing", .draw = drawEditing,
     });
-    adapter.loadRange = [&document](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
+    adapter.loadRange = [&document, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
         std::vector<assets::AssetItem> items;
         if (!document.reader())
         {
@@ -261,7 +265,7 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
         const std::size_t end = std::min(request.first + request.count, static_cast<std::size_t>(document.reader()->colorCount()));
         for (std::size_t index = request.first; index < end; index++)
         {
-            items.push_back({.id = {.value = std::to_string(index)}, .label = std::to_string(index),
+            items.push_back({.id = {.value = std::to_string(index)}, .label = strings::formatId(static_cast<std::uint32_t>(index), idFormat),
                              .state = document.reader()->readRawColor(static_cast<std::uint32_t>(index)).has_value()
                                           ? assets::AssetItemState::available
                                           : assets::AssetItemState::empty,
@@ -269,7 +273,7 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
         }
         return items;
     };
-    adapter.loadDetails = [&document](const assets::AssetItemId & id) -> std::optional<assets::AssetDetails> {
+    adapter.loadDetails = [&document, idFormat](const assets::AssetItemId & id) -> std::optional<assets::AssetDetails> {
         if (!document.reader())
         {
             return std::nullopt;
@@ -281,9 +285,9 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
             return std::nullopt;
         }
         return assets::AssetDetails{.item = id,
-                                    .title = "Radarcol color " + id.value,
-                                    .fields = std::vector<std::string>{"Raw value: " +
-                                                                       std::to_string(static_cast<std::uint32_t>(*color)),},};
+                                      .title = "Radarcol color " + strings::formatId(index, idFormat),
+                                      .fields = std::vector<std::string>{"Raw value: " +
+                                                                        strings::formatId(static_cast<std::uint32_t>(*color), idFormat),},};
     };
     adapter.renderItem = [&document](const assets::AssetItem & item, bool selected) {
         const auto index = static_cast<std::uint32_t>(std::stoul(item.id.value));
@@ -353,17 +357,19 @@ void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult 
 void drawRadarcolPanel(RadarcolPanelState & state,
                        bool & visible,
                        FileBrowserState & browser,
+                       IdFormat idFormat,
                        bool readOnly)
 {
-    const auto adapter = makeAdapter(state, browser, readOnly, "view.radarcol");
+    const auto adapter = makeAdapter(state, browser, readOnly, idFormat, "view.radarcol");
     assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 
 void drawRadarcolDocumentPanel(RadarcolPanelState & state,
                                RadarcolDocument & document,
-                               bool & visible,
-                               FileBrowserState & browser,
-                               const std::function<void()> & becameVisible)
+                                bool & visible,
+                                FileBrowserState & browser,
+                                IdFormat idFormat,
+                                const std::function<void()> & becameVisible)
 {
     drawRadarcolDocumentView(document,
                              state.documentAssetViews[document.id()],
@@ -375,7 +381,8 @@ void drawRadarcolDocumentPanel(RadarcolPanelState & state,
                                      ImGui::TextUnformatted("Configured metadata source (read-only)");
                                  }
                              },
-                             [&document, &browser] { drawEditControls(document, browser); },
+                              [&document, &browser] { drawEditControls(document, browser); },
+                              idFormat,
                               "document.radarcol." + std::to_string(document.id()),
                               becameVisible);
 }

@@ -3,6 +3,7 @@
 #include "gui/profile/data_profile.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/providers/data_providers.h"
+#include "gui/persistence/preferences.h"
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -59,5 +60,7 @@ namespace uo_mule::gui::strings
 [[nodiscard]] std::string formatStateStatus(bool dirty);
 [[nodiscard]] std::string formatDataStatus(ProfileReadinessState state);
 [[nodiscard]] std::string formatRadarcolStatus(ProviderSourceKind source);
+[[nodiscard]] std::string formatId(std::uint32_t id, IdFormat format);
+[[nodiscard]] const char * idInputFormat(IdFormat format) noexcept;
 
 } // namespace uo_mule::gui::strings

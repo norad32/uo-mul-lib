@@ -1,4 +1,6 @@
 #include "gui/tools/edit_tools_panel.h"
+#include "gui/persistence/preferences.h"
+#include "gui/strings/ui_strings.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/views/common.h"
 #include "gui/frontend/theme.h"
@@ -167,24 +169,37 @@ void applyOperation(MapWorkspace & workspace, EditToolsPanelState & state, EditT
     state.statusIsError = false;
 }
 
-void drawFillControls(EditToolsPanelState & state)
+void drawFillControls(EditToolsPanelState & state, IdFormat idFormat)
 {
     ImGui::SeparatorText("Fill");
-    ImGui::InputInt("Tile ID##Fill", &state.fillId);
+    ImGui::InputScalar("Tile ID##Fill",
+                       ImGuiDataType_S32,
+                       &state.fillId,
+                       nullptr,
+                       nullptr,
+                       strings::idInputFormat(idFormat),
+                       idFormat == IdFormat::decimal ? ImGuiInputTextFlags_CharsDecimal : ImGuiInputTextFlags_CharsHexadecimal);
     ImGui::SameLine();
-    ImGui::Text("[%d, %d]", minimumTileId, maximumTileId);
+    const std::string range = "[" + strings::formatId(minimumTileId, idFormat) + ", " + strings::formatId(maximumTileId, idFormat) + "]";
+    ImGui::TextUnformatted(range.c_str());
     ImGui::InputInt("Z##Fill", &state.fillZ);
     ImGui::SameLine();
     ImGui::Text("[%d, %d]", minimumTileZ, maximumTileZ);
 }
 
-void drawIdReplacementControls(EditToolsPanelState & state)
+void drawIdReplacementControls(EditToolsPanelState & state, IdFormat idFormat)
 {
     ImGui::SeparatorText("Replace tile ID");
-    ImGui::InputInt("From ID", &state.replaceIdFrom);
+    ImGui::InputScalar("From ID", ImGuiDataType_S32, &state.replaceIdFrom, nullptr, nullptr,
+                       strings::idInputFormat(idFormat),
+                       idFormat == IdFormat::decimal ? ImGuiInputTextFlags_CharsDecimal : ImGuiInputTextFlags_CharsHexadecimal);
     ImGui::SameLine();
-    ImGui::InputInt("To ID", &state.replaceIdTo);
-    ImGui::Text("IDs must be in [%d, %d]; Z is preserved", minimumTileId, maximumTileId);
+    ImGui::InputScalar("To ID", ImGuiDataType_S32, &state.replaceIdTo, nullptr, nullptr,
+                       strings::idInputFormat(idFormat),
+                       idFormat == IdFormat::decimal ? ImGuiInputTextFlags_CharsDecimal : ImGuiInputTextFlags_CharsHexadecimal);
+    const std::string range = "IDs must be in [" + strings::formatId(minimumTileId, idFormat) + ", " +
+                              strings::formatId(maximumTileId, idFormat) + "]; Z is preserved";
+    ImGui::TextUnformatted(range.c_str());
 }
 
 void drawZReplacementControls(EditToolsPanelState & state)
@@ -281,7 +296,7 @@ void drawWarnings(const EditToolsPanelState & state, bool canApply, bool hasSele
     }
 }
 
-void drawEditToolsContents(MapWorkspace & workspace, EditToolsPanelState & state)
+void drawEditToolsContents(MapWorkspace & workspace, EditToolsPanelState & state, IdFormat idFormat)
 {
     const bool mapOpen = workspace.reader() != nullptr;
     const bool hasSelection = selectionAvailable(workspace);
@@ -313,13 +328,13 @@ void drawEditToolsContents(MapWorkspace & workspace, EditToolsPanelState & state
     ImGui::Text("Effective scope: %s",
                 state.scope == MapEditScope::selection ? selectionStyleName(workspace.selectionMode()) : "Whole map");
 
-    drawFillControls(state);
+    drawFillControls(state, idFormat);
     drawOperationPreview(state, EditToolsOperation::fill);
     const bool fillValid = state.fillId >= minimumTileId && state.fillId <= maximumTileId && state.fillZ >= minimumTileZ &&
                            state.fillZ <= maximumTileZ;
     drawOperationButton(workspace, state, EditToolsOperation::fill, "Fill", fillValid, canApply, hasSelection);
 
-    drawIdReplacementControls(state);
+    drawIdReplacementControls(state, idFormat);
     drawOperationPreview(state, EditToolsOperation::replaceTileId);
     const bool idValid = state.replaceIdFrom >= minimumTileId && state.replaceIdFrom <= maximumTileId &&
                          state.replaceIdTo >= minimumTileId && state.replaceIdTo <= maximumTileId;
@@ -338,10 +353,10 @@ void drawEditToolsContents(MapWorkspace & workspace, EditToolsPanelState & state
 
 } // namespace
 
-void drawEditToolsPanel(MapWorkspace & workspace, EditToolsPanelState & state, bool & visible)
+void drawEditToolsPanel(MapWorkspace & workspace, EditToolsPanelState & state, IdFormat idFormat, bool & visible)
 {
     ImGui::Begin("Edit Tools###view.edit-tools", &visible);
-    drawEditToolsContents(workspace, state);
+    drawEditToolsContents(workspace, state, idFormat);
     ImGui::End();
 }
 

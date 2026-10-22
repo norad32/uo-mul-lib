@@ -1,10 +1,13 @@
 #include "gui/strings/ui_strings.h"
 #include "gui/profile/data_profile.h"
+#include "gui/persistence/preferences.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/providers/data_providers.h"
 #include "uomul/mul_common/mul_common.h"
 #include <string>
 #include <string_view>
+#include <format>
+#include <cstdint>
 
 namespace uo_mule::gui::strings
 {
@@ -185,6 +188,20 @@ std::string formatDataStatus(ProfileReadinessState state)
 std::string formatRadarcolStatus(ProviderSourceKind source)
 {
     return "Radarcol: " + std::string(strings::providerSourceName(source));
+}
+
+std::string formatId(std::uint32_t id, IdFormat format)
+{
+    if (format == IdFormat::decimal)
+    {
+        return std::to_string(id);
+    }
+    return std::format("0x{:04X}", id);
+}
+
+const char * idInputFormat(IdFormat format) noexcept
+{
+    return format == IdFormat::decimal ? "%d" : "0x%04X";
 }
 
 } // namespace uo_mule::gui::strings

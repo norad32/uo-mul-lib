@@ -5,6 +5,7 @@
 #include "gui/profile/data_profile.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/assets/asset_window_contracts.h"
+#include "gui/persistence/preferences.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
 #include <cstddef>
@@ -34,13 +35,15 @@ struct RadarcolPanelState
 void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile);
 void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult & result);
 void drawRadarcolPanel(RadarcolPanelState & state,
-                       bool & visible,
-                       FileBrowserState & browser,
-                       bool readOnly = false);
+                        bool & visible,
+                        FileBrowserState & browser,
+                        IdFormat idFormat,
+                        bool readOnly = false);
 void drawRadarcolDocumentPanel(RadarcolPanelState & state,
                                RadarcolDocument & document,
-                               bool & visible,
-                               FileBrowserState & browser,
-                               const std::function<void()> & becameVisible = {});
+                                bool & visible,
+                                FileBrowserState & browser,
+                                IdFormat idFormat,
+                                const std::function<void()> & becameVisible = {});
 
 } // namespace uo_mule::gui

@@ -4,6 +4,7 @@
 #include "gui/profile/data_profile.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/assets/asset_window_contracts.h"
+#include "gui/persistence/preferences.h"
 #include "uomul/texmaps/texmaps.h"
 #include <array>
 #include <cstddef>
@@ -44,6 +45,6 @@ struct TexmapsPanelState
 
 void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile);
 void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult & result);
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser);
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser, IdFormat idFormat);
 
 } // namespace uo_mule::gui

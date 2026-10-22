@@ -1,4 +1,6 @@
 #include "gui/views/tile_inspector_panel.h"
+#include "gui/persistence/preferences.h"
+#include "gui/strings/ui_strings.h"
 #include "gui/context/map_context.h"
 #include "gui/providers/data_providers.h"
 #include "gui/documents/map_workspace.h"
@@ -8,6 +10,7 @@
 #include <cstdint>
 #include <imgui.h>
 #include <optional>
+#include <string>
 
 namespace uo_mule::gui
 {
@@ -81,7 +84,8 @@ void drawTexturePreview(const ProviderTexture & texturePreview)
 }
 
 void drawTileDetails(const MapContextSnapshot & context,
-                     const DataProviders & providers)
+                     const DataProviders & providers,
+                     IdFormat idFormat)
 {
     const auto & tileValue = context.activeTile;
     const auto & dataValue = context.activeValue;
@@ -115,7 +119,8 @@ void drawTileDetails(const MapContextSnapshot & context,
     ImGui::BeginGroup();
     ImGui::Text("Tile: (%u, %u)", tile.x, tile.y);
     ImGui::Text("Block: (%u, %u)", block.x, block.y);
-    ImGui::Text("ID: %u", static_cast<unsigned int>(value.id));
+    const std::string idLabel = strings::formatId(value.id, idFormat);
+    ImGui::Text("ID: %s", idLabel.c_str());
     ImGui::Text("Elevation: %d", static_cast<int>(value.z));
     ImGui::EndGroup();
 }
@@ -123,9 +128,10 @@ void drawTileDetails(const MapContextSnapshot & context,
 } // namespace
 
 void drawTileInspectorPanel(const MapWorkspace & workspace,
-                            const MapContextSnapshot & context,
-                            const DataProviders & providers,
-                            bool & visible)
+                             const MapContextSnapshot & context,
+                             const DataProviders & providers,
+                             IdFormat idFormat,
+                             bool & visible)
 {
     const bool contentsVisible = ImGui::Begin("Tile Inspector###view.tile-inspector", &visible);
 
@@ -141,7 +147,7 @@ void drawTileInspectorPanel(const MapWorkspace & workspace,
         }
         else
         {
-            drawTileDetails(context, providers);
+            drawTileDetails(context, providers, idFormat);
         }
     }
 

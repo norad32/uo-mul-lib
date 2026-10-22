@@ -5,6 +5,12 @@
 namespace uo_mule::gui
 {
 
+enum class IdFormat : unsigned char
+{
+    hexadecimal,
+    decimal,
+};
+
 struct Preferences
 {
     bool showLogPanel = false;
@@ -13,6 +19,7 @@ struct Preferences
     float logPanelHeight = 0.0F;
     std::string activeDataProfile;
     bool showWelcomeOnStartup = true;
+    IdFormat idFormat = IdFormat::hexadecimal;
 };
 
 [[nodiscard]] Preferences loadPreferences();

@@ -1,4 +1,6 @@
 #include "gui/views/texmaps_panel.h"
+#include "gui/persistence/preferences.h"
+#include "gui/strings/ui_strings.h"
 #include "gui/assets/asset_window.h"
 #include "gui/assets/asset_window_contracts.h"
 #include "gui/context/color_conversion.h"
@@ -102,7 +104,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-[[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state, FileBrowserState & browser)
+[[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state, FileBrowserState & browser, IdFormat idFormat)
 {
     assets::AssetAdapter adapter;
     adapter.descriptor.viewId = "view.texmaps";
@@ -133,7 +135,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
             static_cast<void>(browser);
         },
     });
-    adapter.loadRange = [&state](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
+    adapter.loadRange = [&state, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &) {
         std::vector<assets::AssetItem> items;
         if (!state.reader)
         {
@@ -144,13 +146,13 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
         {
             const auto present = state.reader->hasTexture(static_cast<std::uint32_t>(id));
             items.push_back({.id = {.value = std::to_string(id)},
-                             .label = std::to_string(id),
+                             .label = strings::formatId(static_cast<std::uint32_t>(id), idFormat),
                              .state = present && *present ? assets::AssetItemState::available : assets::AssetItemState::empty,
                              .stateMessage = {},});
         }
         return items;
     };
-    adapter.loadDetails = [&state](const assets::AssetItemId & item) -> std::optional<assets::AssetDetails> {
+    adapter.loadDetails = [&state, idFormat](const assets::AssetItemId & item) -> std::optional<assets::AssetDetails> {
         if (!state.reader)
         {
             return std::nullopt;
@@ -162,7 +164,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
             return std::nullopt;
         }
         return assets::AssetDetails{.item = item,
-                                    .title = "Texture " + item.value,
+                                     .title = "Texture " + strings::formatId(id, idFormat),
                                     .fields = {"Dimensions: " + std::to_string(texture->dimension) + " x " +
                                                 std::to_string(texture->dimension),},};
     };
@@ -215,9 +217,9 @@ void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult &
     }
 }
 
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser)
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, FileBrowserState & browser, IdFormat idFormat)
 {
-    const auto adapter = makeAdapter(state, browser);
+    const auto adapter = makeAdapter(state, browser, idFormat);
     assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 

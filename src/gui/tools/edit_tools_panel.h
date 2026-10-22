@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui/documents/map_workspace.h"
+#include "gui/persistence/preferences.h"
 #include <cstdint>
 #include <string>
 
@@ -29,6 +30,6 @@ struct EditToolsPanelState
     bool statusIsError = false;
 };
 
-void drawEditToolsPanel(MapWorkspace & workspace, EditToolsPanelState & state, bool & visible);
+void drawEditToolsPanel(MapWorkspace & workspace, EditToolsPanelState & state, IdFormat idFormat, bool & visible);
 
 } // namespace uo_mule::gui

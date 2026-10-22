@@ -11,6 +11,7 @@
 #include "gui/application/workbench_state.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/views/map_canvas_panel.h"
+#include "gui/strings/ui_strings.h"
 #include <functional>
 #include <string_view>
 #include <string>
@@ -371,7 +372,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state)
         {
             const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
-            state.pendingClipboardText = "Tile ID: " + std::to_string(context.activeValue->id) +
+            state.pendingClipboardText = "Tile ID: " + strings::formatId(context.activeValue->id, state.preferences.idFormat) +
                                          "\nElevation: " + std::to_string(static_cast<int>(context.activeValue->z));
         });
 }

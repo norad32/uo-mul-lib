@@ -4,7 +4,6 @@
 #include "gui/profile/data_profile_store.h"
 #include "gui/frontend/theme.h"
 #include "gui/profile/data_validation.h"
-#include "gui/dialogs/file_size.h"
 #include "gui/persistence/preferences.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/dialog_presentation.h"
@@ -28,13 +27,6 @@ namespace
 
 constexpr float pathInputWidth = 480.0F;
 constexpr float contentHeight = 560.0F;
-constexpr int dataFilesColumnCount = 4;
-constexpr int discoveryModeCount = 3;
-constexpr std::array<const char *, discoveryModeCount> discoveryModeNames{
-    "Folder scan",
-    "Installation scan",
-    "Deep scan",
-};
 
 void copyToBuffer(std::array<char, preferencesDialogBufferSize> & buffer, const std::filesystem::path & value)
 {
@@ -60,13 +52,23 @@ void copyToBuffer(std::array<char, preferencesDialogBufferSize> & buffer, std::s
 void initializeOverrides(PreferencesDialogState & state)
 {
     state.overrides.clear();
+    state.metadataOverrides.clear();
+    for (const auto role : knownDataFileRoles())
+    {
+        std::array<char, preferencesDialogBufferSize> buffer{};
+        const auto path = resolvedDataFilePath(state.workingProfile, role);
+        copyToBuffer(buffer, path);
+        state.overrides.emplace(role, buffer);
+        state.metadataOverrides.emplace(role, false);
+    }
     for (const auto & [role, entry] : state.workingProfile.files)
     {
         if (entry.userOverride)
         {
             std::array<char, preferencesDialogBufferSize> buffer{};
             copyToBuffer(buffer, entry.path);
-            state.overrides.emplace(role, buffer);
+            state.overrides.insert_or_assign(role, buffer);
+            state.metadataOverrides[role] = entry.userOverride;
         }
     }
 }
@@ -94,29 +96,41 @@ void refreshProfiles(PreferencesDialogState & state)
     std::ranges::sort(state.profiles);
 }
 
-void scanWorkingProfile(PreferencesDialogState & state)
+void syncWorkingProfile(PreferencesDialogState & state)
 {
     state.workingProfile.sourceRoot = bufferPath(state.sourceRoot);
     state.workingProfile.outputRoot = bufferPath(state.outputRoot);
     state.workingProfile.name = state.profileName.data();
-    state.discovery = {};
-    state.validation = {};
-
-    if (!state.workingProfile.sourceRoot.empty())
-    {
-        state.discovery = discoverDataFiles(state.workingProfile.sourceRoot, state.discoveryMode);
-        applyDiscovery(state.workingProfile, state.discovery);
-    }
-
     for (const auto & [role, buffer] : state.overrides)
     {
+        if (buffer.front() == '\0')
+        {
+            state.workingProfile.files.erase(role);
+            continue;
+        }
         state.workingProfile.files[role] = DataFileEntry{
             .path = bufferPath(buffer),
-            .userOverride = true,
+            .userOverride = state.metadataOverrides[role],
         };
     }
+}
 
+void validateWorkingProfile(PreferencesDialogState & state)
+{
+    syncWorkingProfile(state);
     state.validation = validateDataProfile(state.workingProfile);
+    state.validationRequested = true;
+}
+
+void searchMetadataFolder(PreferencesDialogState & state, const std::filesystem::path & root)
+{
+    copyToBuffer(state.sourceRoot, root);
+    state.workingProfile.sourceRoot = root;
+    state.discovery = discoverDataFiles(root, DiscoveryMode::folder);
+    applyDiscovery(state.workingProfile, state.discovery);
+    initializeDialogFields(state);
+    validateWorkingProfile(state);
+    state.message = "Metadata search completed";
 }
 
 void drawPathField(const char * label,
@@ -124,8 +138,8 @@ void drawPathField(const char * label,
                    const std::function<void()> & picker)
 {
     ImGui::PushID(label);
-    ImGui::TextUnformatted(label);
-    ImGui::SetNextItemWidth(pathInputWidth);
+    dialogFieldLabel(label);
+    dialogFieldWidth(pathInputWidth);
     ImGui::InputText("##Path", buffer.data(), buffer.size(), ImGuiInputTextFlags_ElideLeft | ImGuiInputTextFlags_ReadOnly);
     if (ImGui::IsItemClicked())
     {
@@ -142,12 +156,14 @@ void drawProfileSection(PreferencesDialogState & state)
         return;
     }
 
-    ImGui::SetNextItemWidth(pathInputWidth);
-    ImGui::InputText("Name", state.profileName.data(), state.profileName.size());
+    dialogFieldLabel("Name");
+    dialogFieldWidth(pathInputWidth);
+    ImGui::InputText("##Name", state.profileName.data(), state.profileName.size());
     ImGui::Text("Profiles are stored in %s", dataProfilesDirectory().string().c_str());
 
     refreshProfiles(state);
-    if (ImGui::BeginCombo("Open Profile", state.workingProfile.name.empty() ? "None" : state.workingProfile.name.c_str()))
+    dialogFieldLabel("Open Profile");
+    if (ImGui::BeginCombo("##OpenProfile", state.workingProfile.name.empty() ? "None" : state.workingProfile.name.c_str()))
     {
         for (const auto & profilePath : state.profiles)
         {
@@ -159,7 +175,7 @@ void drawProfileSection(PreferencesDialogState & state)
                 {
                     state.workingProfile = loaded.profile;
                     initializeDialogFields(state);
-                    scanWorkingProfile(state);
+                    validateWorkingProfile(state);
                 }
             }
         }
@@ -172,7 +188,7 @@ void drawProfileSection(PreferencesDialogState & state)
         state.workingProfile = DataProfile{};
         state.workingProfile.name = "New profile";
         initializeDialogFields(state);
-        scanWorkingProfile(state);
+        validateWorkingProfile(state);
     }
 
     ImGui::SameLine();
@@ -186,106 +202,73 @@ void drawProfileSection(PreferencesDialogState & state)
     }
 }
 
-void drawSourceSection(PreferencesDialogState & state)
+void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
 {
-    if (!ImGui::CollapsingHeader("Source Discovery", ImGuiTreeNodeFlags_DefaultOpen))
+    const auto path = state.overrides.find(role);
+    if (path == state.overrides.end())
     {
         return;
     }
 
-    drawPathField("Source folder", state.sourceRoot, [&state]
-                  {
-                      if (state.browser != nullptr)
-                      {
-                          requestFileBrowser(*state.browser,
-                                             {.mode = FileBrowserMode::chooseDirectory,
-                                              .target = FileBrowserTarget::dataSourceRoot,
-                                              .initialPath = bufferPath(state.sourceRoot),
-                                              .extension = {},
-                                              .title = "Choose Source Folder",});
-                      }
-                  });
-    ImGui::TextUnformatted("Folder scan checks the selected root and documented UO layout folders.");
-
-    int discoveryModeIndex = 0;
-    if (state.discoveryMode == DiscoveryMode::installation)
-    {
-        discoveryModeIndex = 1;
-    }
-    else if (state.discoveryMode == DiscoveryMode::deep)
-    {
-        discoveryModeIndex = 2;
-    }
-
-    if (ImGui::Combo("Scope", &discoveryModeIndex, discoveryModeNames.data(), discoveryModeCount))
-    {
-        state.discoveryMode = DiscoveryMode::folder;
-
-        if (discoveryModeIndex == 1)
-        {
-            state.discoveryMode = DiscoveryMode::installation;
-        }
-        else if (discoveryModeIndex == 2)
-        {
-            state.discoveryMode = DiscoveryMode::deep;
-        }
-    }
-
-    if (ImGui::Button("Scan / Re-scan"))
-    {
-        scanWorkingProfile(state);
-    }
-}
-
-void drawFileRow(PreferencesDialogState & state, DataFileRole role)
-{
-    const auto * file = state.validation.find(role);
-    ImGui::TableNextRow();
-    ImGui::TableNextColumn();
     const std::string label(strings::dataFileName(role));
-    ImGui::TextUnformatted(label.c_str());
-    ImGui::TableNextColumn();
-    std::filesystem::path path;
-    if (file != nullptr)
+    ImGui::PushID(label.c_str());
+    dialogFieldLabel(label.c_str());
+    dialogFieldWidth(pathInputWidth);
+    ImGui::InputText("##Path", path->second.data(), path->second.size(), ImGuiInputTextFlags_ElideLeft | ImGuiInputTextFlags_ReadOnly);
+    ImGui::SameLine();
+    if (ImGui::Button("Browse...##MetadataPath") && state.browser != nullptr)
     {
-        path = file->path;
+        requestFileBrowser(*state.browser,
+                           {.mode = FileBrowserMode::openFile,
+                            .target = FileBrowserTarget::dataOverride,
+                            .role = role,
+                            .initialPath = bufferPath(path->second),
+                            .extension = ".mul",
+                            .title = "Choose Metadata File",});
     }
-    ImGui::TextUnformatted(path.empty() ? "Not found" : path.string().c_str());
-    if (ImGui::IsItemHovered() && !path.empty())
-    {
-        const std::string purpose(strings::dataFilePurpose(role));
-        ImGui::SetTooltip("%s\n%s", path.string().c_str(), purpose.c_str());
-    }
-    ImGui::TableNextColumn();
-    ImGui::TextUnformatted(file == nullptr ? "Missing" : std::string(strings::dataFileStatusLabel(file->status)).c_str());
-    ImGui::TableNextColumn();
-    if (file != nullptr && file->fileSize)
-    {
-        ImGui::TextUnformatted(formatFileSize(*file->fileSize).c_str());
-    }
+    const auto * validation = state.validation.find(role);
+    ImGui::TextDisabled("Status: %s",
+                        validation == nullptr ? "Missing" : std::string(strings::dataFileStatusLabel(validation->status)).c_str());
+    ImGui::PopID();
 }
 
-void drawFileRows(PreferencesDialogState & state)
+void drawMetadataSection(PreferencesDialogState & state)
 {
     if (!ImGui::CollapsingHeader("Metadata Paths", ImGuiTreeNodeFlags_DefaultOpen))
     {
         return;
     }
 
-    if (ImGui::BeginTable("DataFiles", dataFilesColumnCount, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+    dialogFieldLabel("Search folder");
+    if (ImGui::Button("Choose folder...##MetadataSearch") && state.browser != nullptr)
     {
-        ImGui::TableSetupColumn("Role");
-        ImGui::TableSetupColumn("Path");
-        ImGui::TableSetupColumn("Status");
-        ImGui::TableSetupColumn("Size");
-        ImGui::TableHeadersRow();
+        requestFileBrowser(*state.browser,
+                           {.mode = FileBrowserMode::chooseDirectory,
+                            .target = FileBrowserTarget::dataSearchRoot,
+                            .initialPath = bufferPath(state.sourceRoot),
+                            .extension = {},
+                            .title = "Search Metadata Folder",});
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("Search the selected folder for known metadata files.");
 
-        for (const auto role : knownDataFileRoles())
-        {
-            drawFileRow(state, role);
-        }
+    for (const auto role : knownDataFileRoles())
+    {
+        drawMetadataPath(state, role);
+    }
 
-        ImGui::EndTable();
+    if (ImGui::Button("Validate metadata"))
+    {
+        validateWorkingProfile(state);
+        state.message = state.validation.hasErrors() ? "Metadata validation found errors" : "Metadata validation passed";
+    }
+    if (!state.validationRequested)
+    {
+        return;
+    }
+    for (const auto & diagnostic : state.validation.diagnostics)
+    {
+        ImGui::BulletText("%s", diagnostic.message.c_str());
     }
 }
 
@@ -308,9 +291,11 @@ void drawOutputSection(PreferencesDialogState & state)
                                               .title = "Choose Output Folder",});
                       }
                   });
-    ImGui::Checkbox("Create if missing", &state.workingProfile.createOutputIfMissing);
+    dialogFieldLabel("Create if missing");
+    ImGui::Checkbox("##CreateIfMissing", &state.workingProfile.createOutputIfMissing);
     ImGui::BeginDisabled();
-    ImGui::Checkbox("Use source folder", &state.workingProfile.useSourceFolderForOutput);
+    dialogFieldLabel("Use source folder");
+    ImGui::Checkbox("##UseSourceFolder", &state.workingProfile.useSourceFolderForOutput);
     ImGui::EndDisabled();
     const auto policy = state.workingProfile.outputCollisionPolicy;
     ImGui::Text("Collision policy: %s", std::string(outputCollisionPolicyName(policy)).c_str());
@@ -335,29 +320,7 @@ void drawOutputSection(PreferencesDialogState & state)
 
     if (ImGui::Button("Refresh Preview"))
     {
-        scanWorkingProfile(state);
-    }
-}
-
-void drawSummary(const PreferencesDialogState & state)
-{
-    if (!ImGui::CollapsingHeader("Validation Summary", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        return;
-    }
-
-    const auto errors = std::count_if(state.validation.diagnostics.begin(),
-                                      state.validation.diagnostics.end(),
-                                      [](const Diagnostic & diagnostic)
-                                      { return diagnostic.severity == Diagnostic::Severity::error; });
-    const auto warnings = std::count_if(state.validation.diagnostics.begin(),
-                                        state.validation.diagnostics.end(),
-                                        [](const Diagnostic & diagnostic)
-                                        { return diagnostic.severity == Diagnostic::Severity::warning; });
-    ImGui::Text("Errors: %zu  Warnings: %zu", errors, warnings);
-    for (const auto & diagnostic : state.validation.diagnostics)
-    {
-        ImGui::BulletText("%s", diagnostic.message.c_str());
+        validateWorkingProfile(state);
     }
 }
 
@@ -371,9 +334,12 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
     state.message.clear();
     state.browser = nullptr;
     state.showWelcomeOnStartup = preferences.showWelcomeOnStartup;
+    state.idFormat = preferences.idFormat;
     state.closeRequested = false;
+    state.validationRequested = false;
     initializeDialogFields(state);
-    scanWorkingProfile(state);
+    syncWorkingProfile(state);
+    state.validation = validateDataProfile(state.workingProfile);
 }
 
 void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserResult & result)
@@ -383,6 +349,9 @@ void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserRes
     case FileBrowserTarget::dataSourceRoot:
         copyToBuffer(state.sourceRoot, result.path);
         break;
+    case FileBrowserTarget::dataSearchRoot:
+        searchMetadataFolder(state, result.path);
+        return;
     case FileBrowserTarget::dataOutputRoot:
         copyToBuffer(state.outputRoot, result.path);
         break;
@@ -390,12 +359,13 @@ void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserRes
     {
         auto & buffer = state.overrides[result.role];
         copyToBuffer(buffer, result.path);
+        state.metadataOverrides[result.role] = true;
         break;
     }
     default:
         return;
     }
-    scanWorkingProfile(state);
+    validateWorkingProfile(state);
 }
 
 bool drawPreferencesDialog(PreferencesDialogState & state,
@@ -436,10 +406,27 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_AlwaysVerticalScrollbar);
     drawProfileSection(state);
-    drawSourceSection(state);
-    drawFileRows(state);
+    if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        dialogFieldLabel("Show Welcome screen at startup");
+        ImGui::Checkbox("##ShowWelcomeScreen", &state.showWelcomeOnStartup);
+        dialogFieldLabel("ID Format");
+        const char * idFormatLabel = state.idFormat == IdFormat::decimal ? "Decimal" : "Hexadecimal";
+        if (ImGui::BeginCombo("##IdFormat", idFormatLabel))
+        {
+            if (ImGui::Selectable("Hexadecimal", state.idFormat == IdFormat::hexadecimal))
+            {
+                state.idFormat = IdFormat::hexadecimal;
+            }
+            if (ImGui::Selectable("Decimal", state.idFormat == IdFormat::decimal))
+            {
+                state.idFormat = IdFormat::decimal;
+            }
+            ImGui::EndCombo();
+        }
+    }
+    drawMetadataSection(state);
     drawOutputSection(state);
-    drawSummary(state);
     ImGui::EndChild();
 
     if (!state.message.empty())
@@ -447,17 +434,12 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         ImGui::TextColored(theme::imguiColor(theme::success), "%s", state.message.c_str());
     }
 
-    ImGui::Checkbox("Show welcome screen on startup", &state.showWelcomeOnStartup);
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Show the welcome screen after a valid profile is loaded when the application starts.");
-    }
-
     beginDialogFooter({"Apply", "Apply and Use", "Cancel"});
     if (dialogButton("Apply"))
     {
-        scanWorkingProfile(state);
+        validateWorkingProfile(state);
         preferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
+        preferences.idFormat = state.idFormat;
         savePreferences(preferences);
         state.message = "Changes applied for this dialog session";
     }
@@ -467,9 +449,10 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
     const bool profileIsMapReady = mapReady(state.workingProfile);
     if (dialogButton("Apply and Use", profileIsMapReady))
     {
-        scanWorkingProfile(state);
+        validateWorkingProfile(state);
         activeProfile = state.workingProfile;
         preferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
+        preferences.idFormat = state.idFormat;
         savePreferences(preferences);
         profileChanged = true;
         state.visible = false;

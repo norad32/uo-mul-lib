@@ -37,6 +37,7 @@ constexpr std::uint32_t dimensionMultiple = uomul::mapBlockDimension;
 constexpr int maximumTileId = std::numeric_limits<std::uint16_t>::max();
 constexpr int minimumTileZ = -std::numeric_limits<std::int8_t>::max() - 1;
 constexpr int maximumTileZ = std::numeric_limits<std::int8_t>::max();
+constexpr float dimensionFieldWidth = 200.0F;
 constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     static_cast<unsigned int>(ImGuiWindowFlags_NoDecoration) | static_cast<unsigned int>(ImGuiWindowFlags_NoBackground) |
     static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) | static_cast<unsigned int>(ImGuiWindowFlags_NoInputs) |
@@ -50,7 +51,7 @@ constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
         case MapFileDialogMode::openMap :
             return "Open File###OpenFileDialog";
         case MapFileDialogMode::selectMapFacet :
-            return "Select Map Facet###SelectMapFacetDialog";
+            return "Select Facet###SelectMapFacetDialog";
         case MapFileDialogMode::newMap :
             return "New Empty Map###NewMapDialog";
         case MapFileDialogMode::saveAs :
@@ -342,7 +343,9 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
     const std::size_t facetCount = uo_mule::core::knownFacetSizes().size() + 1U;
     const std::size_t requestedIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
     const std::size_t selectedIndex = requestedIndex < facetCount ? requestedIndex : 0U;
-    if (!ImGui::BeginCombo("Facet", facetLabel(selectedIndex)))
+    dialogFieldLabel("Facet");
+    dialogFieldWidth(dimensionFieldWidth);
+    if (!ImGui::BeginCombo("##Facet", facetLabel(selectedIndex)))
     {
         return;
     }
@@ -376,8 +379,12 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
 
 [[nodiscard]] bool drawCustomDimensions(std::uint32_t & width, std::uint32_t & height)
 {
-    ImGui::InputScalar("Width (tiles)", ImGuiDataType_U32, &width);
-    ImGui::InputScalar("Height (tiles)", ImGuiDataType_U32, &height);
+    dialogFieldLabel("Width");
+    dialogFieldWidth(dimensionFieldWidth);
+    ImGui::InputScalar("##Width", ImGuiDataType_U32, &width, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
+    dialogFieldLabel("Height");
+    dialogFieldWidth(dimensionFieldWidth);
+    ImGui::InputScalar("##Height", ImGuiDataType_U32, &height, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
     return width >= minimumDimension && height >= minimumDimension && width % dimensionMultiple == 0U &&
            height % dimensionMultiple == 0U;
 }
@@ -433,7 +440,8 @@ void drawOpenDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
         return;
     }
 
-    dialogSubheading((std::string("Map path: ") + state.openPath.data()).c_str());
+    dialogFieldLabel("Map path");
+    ImGui::TextUnformatted(state.openPath.data());
     if (ImGui::IsItemClicked() && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
@@ -474,7 +482,8 @@ void drawOpenDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
 
 void drawNewMapForm(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
-    dialogSubheading((std::string("Output path: ") + state.newMapPath.data()).c_str());
+    dialogFieldLabel("Output path");
+    ImGui::TextUnformatted(state.newMapPath.data());
     if (ImGui::IsItemClicked() && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
@@ -492,8 +501,13 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewMapDialogState & state)
         ImGui::TextColored(theme::imguiColor(theme::warning), "Dimensions must be positive multiples of 8 tiles.");
     }
 
-    ImGui::InputInt("Default tile ID", &state.initialTileId);
-    ImGui::InputInt("Default Z", &state.initialTileZ);
+    dialogFieldLabel("Tile ID");
+    dialogFieldWidth(dimensionFieldWidth);
+    ImGui::InputScalar(
+        "##TileId", ImGuiDataType_S32, &state.initialTileId, nullptr, nullptr, "%d", ImGuiInputTextFlags_CharsDecimal);
+    dialogFieldLabel("Elevation");
+    dialogFieldWidth(dimensionFieldWidth);
+    ImGui::InputScalar("##Elevation", ImGuiDataType_S32, &state.initialTileZ, nullptr, nullptr, "%d");
     const bool validTile = state.initialTileId >= 0 && state.initialTileId <= maximumTileId &&
                            state.initialTileZ >= minimumTileZ && state.initialTileZ <= maximumTileZ;
     if (!validTile)
@@ -539,7 +553,8 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewMapDialogState & state)
 
 void drawSaveAsDialog(MapWorkspaceManager & workspace, NewMapDialogState & state)
 {
-    ImGui::Text("Commit staged changes to: %s", state.savePath.data());
+    dialogFieldLabel("Commit path");
+    ImGui::TextUnformatted(state.savePath.data());
     if (ImGui::IsItemClicked() && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
@@ -848,7 +863,8 @@ void drawNewMapDialog(MapWorkspaceManager & workspace,
 
     const MapFileDialogMode currentMode = state.mode;
 
-    if (!beginDialog(popupName(currentMode), nullptr, mapDialogSpec(), ImGuiWindowFlags_AlwaysAutoResize))
+    const DialogWindowSpec dialogSpec = currentMode == MapFileDialogMode::selectMapFacet ? mapFacetDialogSpec() : mapDialogSpec();
+    if (!beginDialog(popupName(currentMode), nullptr, dialogSpec, ImGuiWindowFlags_AlwaysAutoResize))
     {
         state.mode = MapFileDialogMode::none;
         state.activePopup = MapFileDialogMode::none;

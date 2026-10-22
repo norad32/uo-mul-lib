@@ -131,7 +131,7 @@ void drawMapPanels(WorkbenchState & state,
 
     if (mapActive && state.panelRegistry.find(PanelId::tileInspector)->visible)
     {
-        drawTileInspectorPanel(workspace, context, state.providers, state.panelRegistry.find(PanelId::tileInspector)->visible);
+        drawTileInspectorPanel(workspace, context, state.providers, state.preferences.idFormat, state.panelRegistry.find(PanelId::tileInspector)->visible);
     }
     if (mapActive && state.panelRegistry.find(PanelId::blockInspector)->visible)
     {
@@ -147,18 +147,19 @@ void drawMapPanels(WorkbenchState & state,
     }
     if (mapActive && state.panelRegistry.find(PanelId::editTools)->visible)
     {
-        drawEditToolsPanel(workspace, editToolsState, state.panelRegistry.find(PanelId::editTools)->visible);
+        drawEditToolsPanel(workspace, editToolsState, state.preferences.idFormat, state.panelRegistry.find(PanelId::editTools)->visible);
     }
     if (state.panelRegistry.find(PanelId::radarcol)->visible)
     {
         drawRadarcolPanel(radarcolState,
                           state.panelRegistry.find(PanelId::radarcol)->visible,
-                          state.fileBrowser,
-                          true);
+                           state.fileBrowser,
+                           state.preferences.idFormat,
+                           true);
     }
     if (state.panelRegistry.find(PanelId::texmaps)->visible)
     {
-        drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible, state.fileBrowser);
+        drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible, state.fileBrowser, state.preferences.idFormat);
     }
 }
 
@@ -338,9 +339,10 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         }
         drawRadarcolDocumentPanel(state.radarcolState,
                                   *document.radarcol,
-                                  visible,
-                                  state.fileBrowser,
-                                  [&state, id = document.summary.identity.id] {
+                                   visible,
+                                   state.fileBrowser,
+                                   state.preferences.idFormat,
+                                   [&state, id = document.summary.identity.id] {
                                       const auto activated = state.session.activateDocument(id, state.workspace);
                                       if (!activated)
                                       {
