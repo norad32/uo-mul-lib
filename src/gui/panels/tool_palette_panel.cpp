@@ -112,7 +112,23 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
     }
 
     drawSectionHeading("Active Tile");
-    drawPlaceholder("ID and Z controls will appear here.");
+    if (state.toolState.activeTile())
+    {
+        const uomul::MapTile tile = *state.toolState.activeTile();
+        ImGui::Text("ID: %u  Z: %d", static_cast<unsigned int>(tile.id), static_cast<int>(tile.z));
+    }
+    else
+    {
+        drawPlaceholder("No active tile");
+    }
+    if (ImGui::Button("Pick from Canvas"))
+    {
+        state.toolState.requestTilePick();
+    }
+    if (state.toolState.tilePickRequested())
+    {
+        drawPlaceholder("Click a map tile to sample ID and Z.");
+    }
     ImGui::End();
 }
 

@@ -13,6 +13,16 @@ ToolSelectionGranularity ToolState::selectionGranularity() const noexcept
     return selectionGranularity_;
 }
 
+const std::optional<uomul::MapTile> & ToolState::activeTile() const noexcept
+{
+    return activeTile_;
+}
+
+bool ToolState::tilePickRequested() const noexcept
+{
+    return tilePickRequested_;
+}
+
 ToolStateChange ToolState::activate(ToolId tool, const ToolContext & context, const ToolRegistry & registry)
 {
     ToolContext candidateContext = context;
@@ -52,6 +62,22 @@ ToolStateChange ToolState::setSelectionGranularity(ToolSelectionGranularity gran
     const bool changed = selectionGranularity_ != granularity;
     selectionGranularity_ = granularity;
     return {.accepted = true, .changed = changed, .reason = {}};
+}
+
+void ToolState::setActiveTile(uomul::MapTile tile) noexcept
+{
+    activeTile_ = tile;
+    tilePickRequested_ = false;
+}
+
+void ToolState::requestTilePick() noexcept
+{
+    tilePickRequested_ = true;
+}
+
+void ToolState::clearTilePickRequest() noexcept
+{
+    tilePickRequested_ = false;
 }
 
 } // namespace uo_mule::gui

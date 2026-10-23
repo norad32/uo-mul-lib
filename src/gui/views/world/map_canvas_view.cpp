@@ -1425,7 +1425,8 @@ void updateNavigation(MapCanvasViewState & state,
 
     const bool temporaryPan = ImGui::IsKeyDown(ImGuiKey_Space);
     const bool moveTool = toolState.activeTool() == ToolId::move;
-    const bool panButtonPressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left) && (moveTool || temporaryPan);
+    const bool panButtonPressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left) && (moveTool || temporaryPan) &&
+                                  !ImGui::GetIO().KeyAlt;
     const bool legacyPanButtonPressed = ImGui::IsMouseClicked(ImGuiMouseButton_Right);
     if (canvasHovered && (panButtonPressed || legacyPanButtonPressed))
     {
@@ -1480,10 +1481,12 @@ void updateSelectionDrag(MapWorkspace & workspace,
                          const ToolState & toolState,
                          std::optional<uomul::TileCoord> currentTile,
                          uomul::Dimensions dimensions,
-                         bool canvasHovered)
+                         bool canvasHovered,
+                         bool clickHandled)
 {
     const bool lassoTool = toolState.activeTool() == ToolId::lassoSelect;
-    if ((toolState.activeTool() != ToolId::rectangleSelect && !lassoTool) || ImGui::IsKeyDown(ImGuiKey_Space))
+    if ((toolState.activeTool() != ToolId::rectangleSelect && !lassoTool) || ImGui::IsKeyDown(ImGuiKey_Space) ||
+        ImGui::GetIO().KeyAlt || toolState.tilePickRequested() || clickHandled)
     {
         state.dragStart.reset();
         state.dragEnd.reset();
@@ -1561,6 +1564,23 @@ void updateSelectionDrag(MapWorkspace & workspace,
     state.dragEnd.reset();
 }
 
+bool updateTilePick(MapWorkspace & workspace,
+                    ToolState & toolState,
+                    std::optional<uomul::TileCoord> currentTile,
+                    bool canvasHovered)
+{
+    const bool altClick = canvasHovered && ImGui::GetIO().KeyAlt && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+    const bool requestedPick = toolState.tilePickRequested() && canvasHovered &&
+                              ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+    if ((!altClick && !requestedPick) || !currentTile || !workspace.hoveredValue())
+    {
+        return false;
+    }
+
+    toolState.setActiveTile(*workspace.hoveredValue());
+    return true;
+}
+
 void drawEmptyCanvas(ImVec2 canvasOrigin,
                      ImVec2 canvasMaximum,
                      const MapWorkspace & workspace,
@@ -1604,7 +1624,7 @@ MapColor mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const Rada
 }
 
 void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
-                       const ToolState & toolState,
+                       ToolState & toolState,
                        const TextureProvider & textures,
                        const RadarColorProvider & radarColors,
                        MapViewTileSource tileSource,
@@ -1685,7 +1705,8 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
         updateNavigation(state, toolState, mouse, canvasOrigin, canvasHovered, minimumZoom);
         currentTile = tileAtMouse(mouse, canvasOrigin, canvasSize, state, dimensions, canvasHovered);
         updateHover(workspace, currentTile);
-        updateSelectionDrag(workspace, state, toolState, currentTile, dimensions, canvasHovered);
+        const bool tilePickHandled = updateTilePick(workspace, toolState, currentTile, canvasHovered);
+        updateSelectionDrag(workspace, state, toolState, currentTile, dimensions, canvasHovered, tilePickHandled);
     }
     else
     {

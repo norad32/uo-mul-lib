@@ -155,3 +155,15 @@ TEST_CASE("toolState_Should_AllowGranularityBeforeMapOpens")
     REQUIRE(result.accepted);
     REQUIRE(state.selectionGranularity() == ToolSelectionGranularity::blocks);
 }
+
+TEST_CASE("toolState_Should_StoreActiveTileAndClearPickRequest")
+{
+    ToolState state;
+
+    state.requestTilePick();
+    REQUIRE(state.tilePickRequested());
+    state.setActiveTile({.id = 321, .z = -7});
+
+    REQUIRE(state.activeTile() == uomul::MapTile{.id = 321, .z = -7});
+    REQUIRE_FALSE(state.tilePickRequested());
+}
