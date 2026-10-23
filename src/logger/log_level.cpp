@@ -1,11 +1,11 @@
-#include "core/log_level.h"
+#include "logger/log_level.h"
 #include <cctype>
 #include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
 
-namespace uo_mule::core
+namespace uo_mule::logger
 {
 namespace
 {
@@ -78,4 +78,4 @@ std::string_view toString(LogLevel level) noexcept
     return "UNKNOWN";
 }
 
-} // namespace uo_mule::core
+} // namespace uo_mule::logger

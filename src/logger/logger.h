@@ -1,21 +1,21 @@
 #pragma once
 
 #include "core/app_info.h"
-#include "core/gui_log_sink.h"
-#include "core/log_level.h"
+#include "logger/gui_log_sink.h"
+#include "logger/log_level.h"
 #include <filesystem>
 #include <memory>
 #include <spdlog/logger.h>
 #include <string>
 #include <string_view>
 
-namespace uo_mule::core
+namespace uo_mule::logger
 {
 
 class Logger
 {
 public:
-    explicit Logger(std::string_view name = applicationName());
+    explicit Logger(std::string_view name = core::applicationName());
     ~Logger();
 
     Logger(const Logger &) = delete;
@@ -37,4 +37,4 @@ private:
     std::shared_ptr<GuiLogSink> guiSink_;
 };
 
-} // namespace uo_mule::core
+} // namespace uo_mule::logger

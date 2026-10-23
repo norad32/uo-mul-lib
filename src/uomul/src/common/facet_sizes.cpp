@@ -1,4 +1,4 @@
-#include "core/facet_sizes.h"
+#include "uomul/facet_sizes.h"
 #include <array>
 #include <cctype>
 #include <cstdint>
@@ -8,10 +8,13 @@
 #include <string_view>
 #include <vector>
 
-namespace uo_mule::core
+namespace uomul
 {
 namespace
 {
+
+constexpr std::uint64_t mapBlockByteCount = 196;
+constexpr std::uint64_t mapBlockDimension = 8;
 
 constexpr std::array<FacetSize, 6> facetSizes{
     FacetSize{
@@ -126,4 +129,4 @@ std::optional<FacetSize> facetSize(std::string_view name)
     return std::nullopt;
 }
 
-} // namespace uo_mule::core
+} // namespace uomul

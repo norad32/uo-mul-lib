@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-namespace uo_mule::core
+namespace uomul
 {
 
 struct FacetSize
@@ -24,9 +24,6 @@ struct FacetSize
     }
 };
 
-inline constexpr std::uint64_t mapBlockByteCount = 196;
-inline constexpr std::uint64_t mapBlockDimension = 8;
-
 [[nodiscard]] std::uint64_t facetMapFileBytes(const FacetSize & facet) noexcept;
 
 [[nodiscard]] std::vector<FacetSize> facetSizesForMapFileBytes(std::uintmax_t fileBytes);
@@ -37,4 +34,4 @@ inline constexpr std::uint64_t mapBlockDimension = 8;
 /** @brief Looks up a facet preset by canonical name or supported alias. */
 [[nodiscard]] std::optional<FacetSize> facetSize(std::string_view name);
 
-} // namespace uo_mule::core
+} // namespace uomul

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/facet_sizes.h"
 #include "uomul/mul_common/mul_common.h"
 #include <array>
 #include <cstddef>

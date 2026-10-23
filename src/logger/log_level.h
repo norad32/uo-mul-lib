@@ -4,7 +4,7 @@
 #include <optional>
 #include <string_view>
 
-namespace uo_mule::core
+namespace uo_mule::logger
 {
 
 enum class LogLevel : std::uint8_t
@@ -29,4 +29,4 @@ enum class LogLevel : std::uint8_t
 [[nodiscard]] std::optional<LogLevel> parseLogLevel(std::string_view value);
 [[nodiscard]] std::string_view toString(LogLevel level) noexcept;
 
-} // namespace uo_mule::core
+} // namespace uo_mule::logger

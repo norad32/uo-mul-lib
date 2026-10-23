@@ -1,5 +1,5 @@
-#include "core/facet_sizes.h"
 #include "map_common.h"
+#include "uomul/facet_sizes.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <algorithm>
@@ -1125,7 +1125,7 @@ std::expected<DiffReport, Error> MapDiff::report(const std::filesystem::path & s
 
 std::expected<Dimensions, Error> facetDimensions(const std::string & name)
 {
-    const auto facet = uo_mule::core::facetSize(name);
+    const auto facet = uomul::facetSize(name);
     if (facet)
     {
         return Dimensions{.widthTiles = facet->widthTiles, .heightTiles = facet->heightTiles};

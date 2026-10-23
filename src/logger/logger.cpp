@@ -1,7 +1,7 @@
-#include "core/logger.h"
+#include "logger/logger.h"
 #include "core/app_info.h"
-#include "core/gui_log_sink.h"
-#include "core/log_level.h"
+#include "logger/gui_log_sink.h"
+#include "logger/log_level.h"
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
@@ -18,7 +18,7 @@
 #include <string_view>
 #include <vector>
 
-namespace uo_mule::core
+namespace uo_mule::logger
 {
 namespace
 {
@@ -94,11 +94,11 @@ public:
     if (const char * stateDirectory = std::getenv("XDG_STATE_HOME");
         stateDirectory != nullptr && *stateDirectory != '\0' && std::filesystem::path(stateDirectory).is_absolute())
     {
-        return std::filesystem::path(stateDirectory) / std::string(applicationName()) / "logs";
+        return std::filesystem::path(stateDirectory) / std::string(core::applicationName()) / "logs";
     }
     if (const char * homeDirectory = std::getenv("HOME"); homeDirectory != nullptr && !std::string_view(homeDirectory).empty())
     {
-        return std::filesystem::path(homeDirectory) / ".local" / "state" / std::string(applicationName()) / "logs";
+        return std::filesystem::path(homeDirectory) / ".local" / "state" / std::string(core::applicationName()) / "logs";
     }
     throw std::runtime_error("Cannot determine log directory: XDG_STATE_HOME and HOME are unset");
 }
@@ -181,4 +181,4 @@ std::shared_ptr<spdlog::logger> Logger::get() const noexcept
     return logger_;
 }
 
-} // namespace uo_mule::core
+} // namespace uo_mule::logger

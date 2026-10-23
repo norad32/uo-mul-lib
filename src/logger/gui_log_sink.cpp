@@ -1,4 +1,4 @@
-#include "core/gui_log_sink.h"
+#include "logger/gui_log_sink.h"
 #include <cstddef>
 #include <mutex>
 #include <spdlog/common.h>
@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-namespace uo_mule::core
+namespace uo_mule::logger
 {
 
 GuiLogSink::GuiLogSink(std::size_t capacity) : capacity_(capacity)
@@ -49,4 +49,4 @@ void GuiLogSink::flush_()
 {
 }
 
-} // namespace uo_mule::core
+} // namespace uo_mule::logger

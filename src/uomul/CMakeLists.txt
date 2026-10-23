@@ -1,20 +1,23 @@
 add_library(
     uomul
-    mul_common/mul_common.cpp
-    mul_common/output_transaction.cpp
-    radarcol/radarcol_common.cpp
-    radarcol/radarcol_editor.cpp
-    radarcol/radarcol_reader.cpp
-    texmaps/texmaps_common.cpp
-    texmaps/texmaps_editor.cpp
-    texmaps/texmaps_reader.cpp
-    map/map_diff.cpp
-    map/map_editor.cpp
-    map/map_common.cpp
-    map/map_reader.cpp
-    map/map_stats.cpp)
+    src/common/facet_sizes.cpp
+    src/mul_common/mul_common.cpp
+    src/mul_common/output_transaction.cpp
+    src/radarcol/radarcol_common.cpp
+    src/radarcol/radarcol_editor.cpp
+    src/radarcol/radarcol_reader.cpp
+    src/texmaps/texmaps_common.cpp
+    src/texmaps/texmaps_editor.cpp
+    src/texmaps/texmaps_reader.cpp
+    src/map/map_diff.cpp
+    src/map/map_editor.cpp
+    src/map/map_common.cpp
+    src/map/map_reader.cpp
+    src/map/map_stats.cpp)
 set_target_properties(uomul PROPERTIES EXPORT_NAME uomul)
-target_link_libraries(uomul PUBLIC core application_options)
+target_link_libraries(uomul PUBLIC options)
 target_include_directories(
-    uomul PUBLIC $<BUILD_INTERFACE:${APPLICATION_SOURCE_DIR}/src>
-                 $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    uomul
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${APPLICATION_SOURCE_DIR}/src)

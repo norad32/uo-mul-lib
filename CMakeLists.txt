@@ -69,16 +69,16 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/app_metadata.h.in"
 set(OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/packaging")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/GeneratePackagingMetadata.cmake")
 
-add_library(application_options INTERFACE)
+add_library(options INTERFACE)
 
-set_target_properties(application_options PROPERTIES EXPORT_NAME options)
-target_compile_features(application_options
-                        INTERFACE cxx_std_${PROJECT_CXX_STANDARD})
-set_target_properties(application_options PROPERTIES CXX_EXTENSIONS OFF)
+set_target_properties(options PROPERTIES EXPORT_NAME options)
+target_compile_features(options INTERFACE cxx_std_${PROJECT_CXX_STANDARD})
+set_target_properties(options PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(
-    application_options
+    options
     INTERFACE
         $<BUILD_INTERFACE:${APPLICATION_SOURCE_DIR}/src>
+        $<BUILD_INTERFACE:${APPLICATION_SOURCE_DIR}/src/uomul/include>
         $<BUILD_INTERFACE:${GENERATED_INCLUDE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}>)
 
@@ -125,7 +125,9 @@ if(BUILD_CLI
 endif()
 
 add_subdirectory(src/core)
+add_subdirectory(src/logger)
 add_subdirectory(src/uomul)
+add_subdirectory(src/gui_model)
 if(BUILD_CLI
    OR BUILD_GUI
    OR BUILD_CLI_TESTS)
@@ -144,7 +146,7 @@ if(BUILD_CLI OR BUILD_GUI)
     endif()
 endif()
 
-set(compile_targets core uomul)
+set(compile_targets core logger uomul)
 if(BUILD_CLI
    OR BUILD_GUI
    OR BUILD_CLI_TESTS)
@@ -154,6 +156,7 @@ if(BUILD_CLI OR BUILD_GUI)
     list(APPEND compile_targets ${EXECUTABLE_NAME})
 endif()
 
+list(APPEND compile_targets gui_model)
 if(BUILD_GUI)
     list(APPEND compile_targets gui)
     if(BUILD_GUI_RUNTIME)
@@ -184,7 +187,7 @@ endif()
 
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
-    set(clang_tidy_targets core uomul)
+    set(clang_tidy_targets core logger uomul)
     if(BUILD_CLI
        OR BUILD_GUI
        OR BUILD_CLI_TESTS)
@@ -193,12 +196,26 @@ if(ENABLE_CLANG_TIDY)
     if(BUILD_CLI OR BUILD_GUI)
         list(APPEND clang_tidy_targets ${EXECUTABLE_NAME})
     endif()
+    list(APPEND clang_tidy_targets gui_model)
     if(BUILD_GUI)
         list(APPEND clang_tidy_targets gui)
         if(BUILD_GUI_RUNTIME)
             list(APPEND clang_tidy_targets ${GUI_EXECUTABLE_NAME})
         endif()
     endif()
+    foreach(
+        target IN
+        ITEMS uomul_tests
+              cli_tests
+              gui_tests
+              gui_model_tests
+              map_benchmarks
+              radarcol_benchmarks
+              texmaps_benchmarks)
+        if(TARGET ${target})
+            list(APPEND clang_tidy_targets ${target})
+        endif()
+    endforeach()
     foreach(target IN LISTS clang_tidy_targets)
         set_target_properties(${target} PROPERTIES CXX_CLANG_TIDY
                                                    "${CLANG_TIDY_EXECUTABLE}")

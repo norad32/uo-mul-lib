@@ -1,13 +1,9 @@
-add_library(core facet_sizes.cpp gui_log_sink.cpp log_level.cpp logger.cpp)
+add_library(core INTERFACE)
 set_target_properties(core PROPERTIES EXPORT_NAME core)
-target_link_libraries(
-    core PUBLIC application_options "$<BUILD_INTERFACE:spdlog::spdlog>"
-                "$<INSTALL_INTERFACE:$<TARGET_NAME_IF_EXISTS:spdlog::spdlog>>")
-if(ENABLE_COVERAGE)
-    target_link_options(
-        core
-        INTERFACE
-        -fprofile-arcs
-        -ftest-coverage)
-    target_link_libraries(core INTERFACE gcov)
-endif()
+target_link_libraries(core INTERFACE options)
+target_include_directories(
+    core
+    INTERFACE
+        $<BUILD_INTERFACE:${APPLICATION_SOURCE_DIR}/src>
+        $<BUILD_INTERFACE:${GENERATED_INCLUDE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}>)

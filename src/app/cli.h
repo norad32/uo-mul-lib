@@ -1,5 +1,7 @@
 #pragma once
 
+#include "logger/gui_log_sink.h"
+#include "logger/logger.h"
 #include <filesystem>
 #include <functional>
 #include <iosfwd>
@@ -8,9 +10,6 @@
 #include <spdlog/logger.h>
 #include <string_view>
 
-#include "core/gui_log_sink.h"
-#include "core/logger.h"
-
 namespace uo_mule::app
 {
 
@@ -18,8 +17,8 @@ namespace uo_mule::app
 runCli(std::span<const std::string_view> arguments,
        std::ostream & output,
        std::ostream & error,
-       core::Logger & logger,
+       logger::Logger & logger,
        const std::filesystem::path & logDirectory = {},
-       const std::function<int(std::shared_ptr<spdlog::logger>, std::shared_ptr<core::GuiLogSink>)> & runGui = {});
+       const std::function<int(std::shared_ptr<spdlog::logger>, std::shared_ptr<logger::GuiLogSink>)> & runGui = {});
 
 }

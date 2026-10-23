@@ -1,5 +1,5 @@
-#include "output_transaction.h"
-#include "mul_common.h"
+#include "uomul/mul_common/output_transaction.h"
+#include "uomul/mul_common/mul_common.h"
 #include <cerrno>
 #include <cstdio>
 #include <cstring>

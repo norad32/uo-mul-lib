@@ -1,9 +1,9 @@
 #include "app/cli.h"
 #include "app/map_cli.h"
 #include "core/app_info.h"
-#include "core/gui_log_sink.h"
-#include "core/log_level.h"
-#include "core/logger.h"
+#include "logger/gui_log_sink.h"
+#include "logger/log_level.h"
+#include "logger/logger.h"
 #include <CLI/CLI.hpp>
 #include <algorithm>
 #include <exception>
@@ -68,11 +68,11 @@ reportParseError(const CLI::App & application, const CLI::ParseError & exception
 int runCli(std::span<const std::string_view> arguments,
            std::ostream & output,
            std::ostream & error,
-           core::Logger & logger,
+           logger::Logger & logger,
            const std::filesystem::path & logDirectory,
-           const std::function<int(std::shared_ptr<spdlog::logger>, std::shared_ptr<core::GuiLogSink>)> & runGui)
+           const std::function<int(std::shared_ptr<spdlog::logger>, std::shared_ptr<logger::GuiLogSink>)> & runGui)
 {
-    std::string logLevelValue{core::toString(core::defaultLogLevel())};
+    std::string logLevelValue{logger::toString(logger::defaultLogLevel())};
     CLI::App application{"", std::string(core::applicationName())};
     CLI::App * checkCommand = nullptr;
     CLI::App * guiCommand = nullptr;
@@ -102,7 +102,7 @@ int runCli(std::span<const std::string_view> arguments,
         return 2;
     }
 
-    const std::optional<core::LogLevel> parsedLevel = core::parseLogLevel(logLevelValue);
+    const std::optional<logger::LogLevel> parsedLevel = logger::parseLogLevel(logLevelValue);
     if (!parsedLevel)
     {
         error << "Invalid log level: " << logLevelValue << '\n';
