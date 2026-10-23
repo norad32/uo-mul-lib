@@ -1,4 +1,5 @@
-#include "gui/ui/widgets/asset_browser.h"
+#include "gui/widgets/asset_window.h"
+#include "gui_model/model/assets/asset_window_contracts.h"
 #include <catch2/catch_test_macros.hpp>
 
 namespace
@@ -7,6 +8,7 @@ namespace
 constexpr float testCanvasWidth = 640.0F;
 constexpr float testCellWidth = 64.0F;
 constexpr float testCellSpacing = 4.0F;
+constexpr float resetScrollPosition = 42.0F;
 
 } // namespace
 
@@ -52,7 +54,7 @@ TEST_CASE("assetWindowState_Should_ResetSelectionAndCachesForNewContext")
     state.selection.anchorIndex = 3U;
     state.selectionDragBase = state.selection;
     state.selectionDragActive = true;
-    state.scrollPosition = 42.0F;
+    state.scrollPosition = resetScrollPosition;
     state.detailsCollapsed = true;
 
     uo_mule::gui::assets::resetContext(state);

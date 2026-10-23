@@ -1,17 +1,19 @@
 #include "gui/commands/command_registry.h"
-#include "gui/documents/radarcol_document.h"
-#include "gui/layout/panel_registry.h"
-#include "gui/persistence/preferences.h"
-#include "gui/session/workbench_session.h"
+#include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/map_workflow_dialog.h"
+#include "gui/dialogs/preferences_dialog.h"
+#include "gui/presentation/strings/ui_strings.h"
 #include "gui/state/workbench_state.h"
-#include "gui/ui/dialogs/file_browser_dialog.h"
-#include "gui/ui/dialogs/map_workflow_dialog.h"
-#include "gui/ui/dialogs/preferences_dialog.h"
-#include "gui/ui/input/coordinate_parser.h"
-#include "gui/ui/strings/ui_strings.h"
-#include "gui/ui/world/map_canvas_view.h"
-#include "gui/workspaces/map_workspace.h"
-#include "gui/world/map_context.h"
+#include "gui/views/world/map_canvas_view.h"
+#include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/documents/radarcol_document.h"
+#include "gui_model/input/coordinate_parser.h"
+#include "gui_model/layout/panel_registry.h"
+#include "gui_model/persistence/preferences.h"
+#include "gui_model/session/workbench_session.h"
+#include "gui_model/workspaces/map_workspace.h"
+#include "gui_model/world/map_canvas_state.h"
+#include "gui_model/world/map_context.h"
 #include <algorithm>
 #include <cstddef>
 #include <functional>
@@ -401,11 +403,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Show or hide the log panel",
         "`",
         enabled,
-        [](WorkbenchState & state)
-        {
-            state.preferences.showLogPanel = !state.preferences.showLogPanel;
-            savePreferences(state.preferences);
-        });
+        [](WorkbenchState & state) { state.preferences.showLogPanel = !state.preferences.showLogPanel; });
     add(registry,
         CommandId::viewToggleFullscreen,
         "view.fullscreen.toggle",
@@ -495,9 +493,17 @@ void registerDefaultCommands(CommandRegistry & registry)
             state.layout.dockingIni.clear();
             state.layout.window.geometryValid = false;
             state.preferences.workspaceFullscreen = false;
-            savePreferences(state.preferences);
             state.layoutResetRequested = true;
         });
+    add(registry,
+        CommandId::resetAssetState,
+        "view.reset-asset-state",
+        "Reset Asset State",
+        "View",
+        "Clear saved metadata-view and asset-document presentation state",
+        "",
+        enabled,
+        [](WorkbenchState & state) { state.assetStateResetRequested = true; });
     add(registry,
         CommandId::mapFit,
         "map.fit",

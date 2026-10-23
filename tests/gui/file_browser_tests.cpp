@@ -1,17 +1,34 @@
-#include "core/facet_sizes.h"
-#include "gui/ui/dialogs/file_browser_dialog.h"
-#include "gui/ui/dialogs/file_selector_dialog.h"
-#include "gui/ui/formatting/file_size.h"
+#include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/file_selector_dialog.h"
+#include "gui/presentation/formatting/file_size.h"
+#include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/profile/data_profile.h"
+#include "uomul/facet_sizes.h"
+#include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <ios>
+#include <iterator>
+#include <optional>
+#include <system_error>
 
 namespace uo_mule::gui
 {
 namespace
 {
+
+constexpr std::uint16_t radarValueMask = 0x7FFFU;
+constexpr std::uint16_t byteMask = 0xFFU;
+constexpr unsigned byteShift = 8U;
+constexpr std::streamsize emptyTextureIndexBytes = 12;
+constexpr int directTextureScore = 90;
+constexpr int mapCandidateScore = 80;
+constexpr int radarCandidateScore = 20;
 
 TEST_CASE("file browser matches extensions case insensitively")
 {
@@ -41,7 +58,7 @@ TEST_CASE("file browser inspects generic file metadata")
     REQUIRE(summary.regularFile);
     REQUIRE(summary.readable);
     REQUIRE(summary.size);
-    REQUIRE(*summary.size == 4U);
+    REQUIRE(summary.size.value_or(0U) == 4U);
 
     std::error_code error;
     std::filesystem::remove(path, error);
@@ -54,16 +71,16 @@ TEST_CASE("file browser identifies a valid radar color table")
         std::ofstream output(path, std::ios::binary);
         for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
         {
-            const std::uint16_t value = static_cast<std::uint16_t>(index & 0x7FFFU);
-            output.put(static_cast<char>(value & 0xFFU));
-            output.put(static_cast<char>(value >> 8U));
+            const std::uint16_t value = static_cast<std::uint16_t>(index & radarValueMask);
+            output.put(static_cast<char>(value & byteMask));
+            output.put(static_cast<char>(value >> byteShift));
         }
     }
 
     const auto summary = inspectFileBrowserSelection(path);
-    REQUIRE(std::any_of(summary.assetCandidates.begin(),
-                        summary.assetCandidates.end(),
-                        [](const auto & candidate) { return candidate.kind == MulAssetKind::radarcol && candidate.openable; }));
+    REQUIRE(std::ranges::any_of(summary.assetCandidates,
+                                [](const auto & candidate)
+                                { return candidate.kind == MulAssetKind::radarcol && candidate.openable; }));
 
     std::error_code error;
     std::filesystem::remove(path, error);
@@ -75,14 +92,13 @@ TEST_CASE("file browser never treats an index file as an openable texture asset 
     const auto indexPath = directory / "texidx.mul";
     {
         std::ofstream output(indexPath, std::ios::binary);
-        output.write("\0\0\0\0\0\0\0\0\0\0\0\0", 12);
+        output.write("\0\0\0\0\0\0\0\0\0\0\0\0", emptyTextureIndexBytes);
     }
 
     const auto summary = inspectFileBrowserSelection(indexPath);
-    REQUIRE(std::any_of(summary.assetCandidates.begin(),
-                        summary.assetCandidates.end(),
-                        [](const auto & candidate)
-                        { return candidate.kind == MulAssetKind::texmapsPair && !candidate.openable; }));
+    REQUIRE(std::ranges::any_of(summary.assetCandidates,
+                                [](const auto & candidate)
+                                { return candidate.kind == MulAssetKind::texmapsPair && !candidate.openable; }));
 
     std::error_code error;
     std::filesystem::remove(indexPath, error);
@@ -102,7 +118,7 @@ TEST_CASE("file selector rejects a direct texture index result")
         .facet = {},
         .reason = "A matching pair is required",
         .warning = {},
-        .score = 90,
+        .score = directTextureScore,
         .dimensions = std::nullopt,
         .validated = false,
         .openable = false,
@@ -112,7 +128,7 @@ TEST_CASE("file selector rejects a direct texture index result")
     REQUIRE(state.visible);
     const auto selected = selectedFileSelectorResult(state);
     REQUIRE(selected.assetCandidate.has_value());
-    REQUIRE_FALSE(selected.assetCandidate->openable);
+    REQUIRE_FALSE(selected.assetCandidate.value_or(FileBrowserAssetCandidate{}).openable);
 }
 
 TEST_CASE("file browser treats an empty texture index and data pair as one openable asset")
@@ -121,14 +137,15 @@ TEST_CASE("file browser treats an empty texture index and data pair as one opena
     const auto indexPath = directory / "texidx.mul";
     const auto dataPath = directory / "texmaps.mul";
     {
-        std::ofstream index(indexPath, std::ios::binary);
-        std::ofstream data(dataPath, std::ios::binary);
+        const std::ofstream index(indexPath, std::ios::binary);
+        const std::ofstream data(dataPath, std::ios::binary);
+        static_cast<void>(index);
+        static_cast<void>(data);
     }
 
     const auto summary = inspectFileBrowserSelection(indexPath);
-    const auto pair = std::find_if(summary.assetCandidates.begin(),
-                                   summary.assetCandidates.end(),
-                                   [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsPair; });
+    const auto pair = std::ranges::find_if(summary.assetCandidates,
+                                           [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsPair; });
     REQUIRE(pair != summary.assetCandidates.end());
     REQUIRE(pair->openable);
     REQUIRE(pair->path == indexPath);
@@ -143,14 +160,14 @@ TEST_CASE("generic open candidate selection preserves format and map dimensions"
 {
     const auto directory = std::filesystem::temp_directory_path();
     const auto path = directory / "generic-map.mul";
-    const auto dimensions = uo_mule::core::knownFacetSizes().front();
+    const auto dimensions = uomul::knownFacetSizes().front();
     std::error_code error;
     std::filesystem::remove(path, error);
     REQUIRE(uomul::MapEditor::createEmpty(
         path, uomul::Dimensions{.widthTiles = dimensions.widthTiles, .heightTiles = dimensions.heightTiles}));
 
     const auto summary = inspectFileBrowserSelection(path);
-    FileBrowserResult result{
+    const FileBrowserResult result{
         .target = FileBrowserTarget::genericOpen,
         .path = path,
         .mapCandidates = summary.mapCandidates,
@@ -159,24 +176,24 @@ TEST_CASE("generic open candidate selection preserves format and map dimensions"
     };
     FileSelectorState selector;
     openFileSelector(selector, result);
-    const auto mapCandidate = std::find_if(selector.candidates.begin(),
-                                           selector.candidates.end(),
-                                           [](const auto & candidate) { return candidate.kind == MulAssetKind::map; });
+    const auto mapCandidate =
+        std::ranges::find_if(selector.candidates, [](const auto & candidate) { return candidate.kind == MulAssetKind::map; });
     REQUIRE(mapCandidate != selector.candidates.end());
     selector.selectedCandidate = static_cast<std::size_t>(std::distance(selector.candidates.begin(), mapCandidate));
     const auto selected = selectedFileSelectorResult(selector);
 
     REQUIRE(selected.assetCandidate.has_value());
-    REQUIRE(selected.assetCandidate->kind == MulAssetKind::map);
-    REQUIRE(selected.assetCandidate->dimensions.has_value());
-    REQUIRE(selected.assetCandidate->dimensions->widthTiles == dimensions.widthTiles);
+    const auto selectedCandidate = selected.assetCandidate.value_or(FileBrowserAssetCandidate{});
+    REQUIRE(selectedCandidate.kind == MulAssetKind::map);
+    REQUIRE(selectedCandidate.dimensions.has_value());
+    REQUIRE(selectedCandidate.dimensions.value_or(uomul::Dimensions{}).widthTiles == dimensions.widthTiles);
 
     std::filesystem::remove(path, error);
 }
 
 TEST_CASE("generic open selector keeps multiple candidates available for explicit type choice")
 {
-    FileBrowserResult result{
+    const FileBrowserResult result{
         .target = FileBrowserTarget::genericOpen,
         .role = DataFileRole::radarcol,
         .path = "ambiguous.mul",
@@ -191,7 +208,7 @@ TEST_CASE("generic open selector keeps multiple candidates available for explici
                     .facet = {},
                     .reason = "Map candidate",
                     .warning = {},
-                    .score = 80,
+                    .score = mapCandidateScore,
                     .dimensions = std::nullopt,
                     .validated = true,
                     .openable = true,
@@ -204,7 +221,7 @@ TEST_CASE("generic open selector keeps multiple candidates available for explici
                     .facet = {},
                     .reason = "Radarcol candidate",
                     .warning = {},
-                    .score = 20,
+                    .score = radarCandidateScore,
                     .dimensions = std::nullopt,
                     .validated = true,
                     .openable = true,

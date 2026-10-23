@@ -1,13 +1,14 @@
 #include "gui/application/application.h"
 #include "core/app_info.h"
-#include "core/gui_log_sink.h"
 #include "gui/commands/menu_bar.h"
+#include "gui/frame/workbench_frame.h"
 #include "gui/persistence/layout_store.h"
-#include "gui/persistence/preferences.h"
-#include "gui/session/workbench_session.h"
+#include "gui/presentation/theme/theme.h"
 #include "gui/state/workbench_state.h"
-#include "gui/ui/frame/workbench_frame.h"
-#include "gui/ui/theme/theme.h"
+#include "gui_model/persistence/asset_state_store.h"
+#include "gui_model/persistence/preferences.h"
+#include "gui_model/session/workbench_session.h"
+#include "logger/gui_log_sink.h"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <array>
@@ -341,7 +342,7 @@ void renderFrame(GLFWwindow * window)
     glfwSwapBuffers(window);
 }
 
-void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
+void drawFrame(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchState & state)
 {
     drawWorkbenchFrame(window, logSink, state);
     renderFrame(window);
@@ -361,7 +362,7 @@ void captureWindowLayout(GLFWwindow * window, WorkspaceLayout & layout, bool ful
 
 } // namespace
 
-Application::Application(std::shared_ptr<spdlog::logger> logger, std::shared_ptr<core::GuiLogSink> logSink) :
+Application::Application(std::shared_ptr<spdlog::logger> logger, std::shared_ptr<logger::GuiLogSink> logSink) :
     logger_(std::move(logger)), logSink_(std::move(logSink))
 {
 }
@@ -377,6 +378,7 @@ int Application::run()
     const std::string applicationName(core::applicationName());
     WorkbenchState state(loadPreferences());
     loadLayout(state.panelRegistry, state.layout);
+    state.assetStateRecords = assets::loadAssetState(assets::assetStatePath());
     const std::unique_ptr<GLFWwindow, WindowDeleter> window{
         glfwCreateWindow(defaultWindowWidth, defaultWindowHeight, applicationName.c_str(), nullptr, nullptr)};
 
@@ -452,6 +454,11 @@ int Application::run()
         const char * dockingIni = ImGui::SaveIniSettingsToMemory();
         state.layout.dockingIni = dockingIni == nullptr ? std::string{} : std::string(dockingIni);
         saveLayout(state.panelRegistry, state.layout);
+        if (state.assetStateResetRequested)
+        {
+            assets::resetAssetState(state.assetStateRecords);
+        }
+        assets::saveAssetState(assets::assetStatePath(), state.assetStateRecords);
         savePreferences(state.preferences);
     }
 

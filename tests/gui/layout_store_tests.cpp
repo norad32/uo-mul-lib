@@ -1,6 +1,6 @@
 #include "core/app_info.h"
-#include "gui/layout/panel_registry.h"
 #include "gui/persistence/layout_store.h"
+#include "gui_model/layout/panel_registry.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <string>

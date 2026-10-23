@@ -16,53 +16,30 @@ add_library(
     application/application.cpp
     commands/command_registry.cpp
     commands/menu_bar.cpp
-    ui/dialogs/dialog_contracts.cpp
-    ui/dialogs/dialog_host.cpp
-    ui/dialogs/dialog_presentation.cpp
-    ui/dialogs/file_browser_dialog.cpp
-    ui/dialogs/file_selector_dialog.cpp
-    ui/dialogs/map_facet_dialog.cpp
-    ui/dialogs/map_workflow_dialog.cpp
-    ui/dialogs/preferences_dialog.cpp
-    documents/document_identity.cpp
-    documents/map_document.cpp
-    documents/radarcol_document.cpp
-    persistence/config_paths.cpp
+    presentation/dialog/dialog_presentation.cpp
+    dialogs/file_browser_dialog.cpp
+    dialogs/file_selector_dialog.cpp
+    dialogs/map_facet_dialog.cpp
+    dialogs/map_workflow_dialog.cpp
+    dialogs/preferences_dialog.cpp
     persistence/layout_store.cpp
-    persistence/preferences.cpp
-    persistence/recent_files.cpp
-    profile/data_discovery.cpp
-    profile/data_profile.cpp
-    profile/data_profile_store.cpp
-    profile/data_validation.cpp
-    providers/color_conversion.cpp
-    providers/data_providers.cpp
-    providers/embedded_radarcol.cpp
-    ui/strings/ui_strings.cpp
-    layout/panel_registry.cpp
-    operations/operation_controller.cpp
-    session/workbench_session.cpp
+    presentation/strings/ui_strings.cpp
     state/workbench_state.cpp
-    ui/documents/document_window.cpp
-    ui/frame/workbench_frame.cpp
-    ui/input/coordinate_parser.cpp
-    ui/formatting/file_size.cpp
-    ui/panels/block_inspector_panel.cpp
-    ui/panels/tile_inspector_panel.cpp
-    ui/panels/log_panel.cpp
-    ui/panels/radarcol_panel.cpp
-    ui/panels/texmap_panel.cpp
-    ui/shell/welcome_greetings.cpp
-    ui/shell/welcome_screen.cpp
-    ui/widgets/asset_browser.cpp
-    ui/widgets/asset_browser_contracts.cpp
-    ui/widgets/texture_preview.cpp
-    ui/world/map_canvas_view.cpp
-    ui/world/tile_labels.cpp
-    workflows/file_operations.cpp
-    world/map_context.cpp
-    workspaces/map_workspace.cpp
-    workspaces/map_workspace_manager.cpp)
+    documents/document_window.cpp
+    frame/workbench_frame.cpp
+    presentation/formatting/file_size.cpp
+    panels/block_inspector_panel.cpp
+    panels/tile_inspector_panel.cpp
+    panels/log_panel.cpp
+    panels/radarcol_panel.cpp
+    panels/texmap_panel.cpp
+    shell/welcome_greetings.cpp
+    shell/welcome_screen.cpp
+    widgets/asset_window.cpp
+    widgets/texture_preview.cpp
+    views/world/map_canvas_view.cpp
+    views/world/tile_labels.cpp
+    workflows/file_operations.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(
@@ -77,9 +54,9 @@ target_link_libraries(
     PUBLIC imgui
            glfw
            OpenGL::GL
-           core
-           uomul
-           application_options)
+           gui_model
+           logger
+           options)
 file(
     RELATIVE_PATH
     APPLICATION_ICON_INSTALL_RELATIVE_PATH
@@ -107,7 +84,7 @@ if(BUILD_GUI_RUNTIME)
     target_link_libraries(
         ${GUI_EXECUTABLE_NAME}
         PRIVATE app
-                application_options
+                options
                 gui
                 CLI11::CLI11)
     target_compile_definitions(${GUI_EXECUTABLE_NAME} PRIVATE HAS_GUI=1)

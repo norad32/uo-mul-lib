@@ -1,7 +1,7 @@
 #include "gui/persistence/layout_store.h"
 #include "core/app_info.h"
-#include "gui/layout/panel_registry.h"
-#include "gui/persistence/config_paths.h"
+#include "gui_model/layout/panel_registry.h"
+#include "gui_model/persistence/config_paths.h"
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>

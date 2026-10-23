@@ -1,11 +1,11 @@
 #include "gui/commands/menu_bar.h"
 #include "gui/commands/command_registry.h"
-#include "gui/layout/panel_registry.h"
-#include "gui/session/workbench_session.h"
+#include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/state/workbench_state.h"
-#include "gui/ui/dialogs/map_workflow_dialog.h"
 #include "gui/workflows/file_operations.h"
-#include "gui/workspaces/map_workspace.h"
+#include "gui_model/layout/panel_registry.h"
+#include "gui_model/session/workbench_session.h"
+#include "gui_model/workspaces/map_workspace.h"
 #include <imgui.h>
 #include <string>
 
@@ -71,6 +71,7 @@ void drawViewMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::panelTexmaps, state.panelRegistry.find(PanelId::texmaps)->visible);
     drawCommandItem(state, CommandId::viewToggleLogPanel, state.preferences.showLogPanel);
     drawCommandItem(state, CommandId::resetLayout);
+    drawCommandItem(state, CommandId::resetAssetState);
     ImGui::EndMenu();
 }
 

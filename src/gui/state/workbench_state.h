@@ -1,26 +1,29 @@
 #pragma once
 
-#include "core/gui_log_sink.h"
 #include "gui/commands/command_registry.h"
-#include "gui/layout/panel_registry.h"
-#include "gui/operations/operation_controller.h"
+#include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/file_selector_dialog.h"
+#include "gui/dialogs/map_workflow_dialog.h"
+#include "gui/dialogs/preferences_dialog.h"
+#include "gui/panels/block_inspector_panel.h"
+#include "gui/panels/radarcol_panel.h"
+#include "gui/panels/texmap_panel.h"
 #include "gui/persistence/layout_store.h"
-#include "gui/persistence/preferences.h"
-#include "gui/profile/data_profile.h"
-#include "gui/profile/data_profile_store.h"
-#include "gui/providers/data_providers.h"
-#include "gui/session/workbench_session.h"
 #include "gui/state/notification_state.h"
-#include "gui/ui/dialogs/dialog_host.h"
-#include "gui/ui/dialogs/file_browser_dialog.h"
-#include "gui/ui/dialogs/file_selector_dialog.h"
-#include "gui/ui/dialogs/map_workflow_dialog.h"
-#include "gui/ui/dialogs/preferences_dialog.h"
-#include "gui/ui/panels/block_inspector_panel.h"
-#include "gui/ui/panels/radarcol_panel.h"
-#include "gui/ui/panels/texmap_panel.h"
-#include "gui/ui/world/map_canvas_view.h"
-#include "gui/workspaces/map_workspace_manager.h"
+#include "gui/views/world/map_canvas_view.h"
+#include "gui_model/dialogs/dialog_host.h"
+#include "gui_model/documents/document_descriptors.h"
+#include "gui_model/layout/panel_registry.h"
+#include "gui_model/lifecycle/document_lifecycle.h"
+#include "gui_model/operations/operation_controller.h"
+#include "gui_model/persistence/asset_state_store.h"
+#include "gui_model/persistence/preferences.h"
+#include "gui_model/profile/data_profile.h"
+#include "gui_model/profile/data_profile_store.h"
+#include "gui_model/providers/data_providers.h"
+#include "gui_model/session/workbench_session.h"
+#include "gui_model/workspaces/map_workspace_manager.h"
+#include "logger/gui_log_sink.h"
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -37,15 +40,12 @@ struct MenuBarState
     bool windowCloseRequested = false;
 };
 
-enum class DocumentCloseDirtyPolicy : std::uint8_t
+struct PendingPreferenceChanges
 {
-    prompt,
-};
+    std::optional<bool> texmapsHideUnused;
+    std::optional<bool> texmapsTablePresentation;
 
-struct DocumentCloseRequest
-{
-    DocumentId id = 0;
-    DocumentCloseDirtyPolicy dirtyPolicy = DocumentCloseDirtyPolicy::prompt;
+    [[nodiscard]] bool empty() const noexcept { return !texmapsHideUnused && !texmapsTablePresentation; }
 };
 
 struct WorkbenchState
@@ -58,10 +58,12 @@ struct WorkbenchState
     WorkbenchState & operator=(WorkbenchState &&) = delete;
 
     Preferences preferences;
+    Preferences persistedPreferences;
     DataProfileStore profileStore;
     DataProfile activeProfile;
     DataProviders providers;
     WorkbenchSession session;
+    DocumentDescriptorRegistry documentDescriptors;
     MapWorkspaceManager workspace;
     CommandRegistry commands;
     OperationController operationController;
@@ -71,8 +73,11 @@ struct WorkbenchState
     bool layoutResetRequested = false;
     bool fullscreenToggleRequested = false;
     bool workbenchLayoutApplied = false;
-    std::optional<DocumentId> pendingDocumentActivation;
-    std::optional<DocumentCloseRequest> pendingDocumentClose;
+    DocumentLifecycleController documentLifecycle;
+    std::optional<DocumentId> pendingAssetCloseDecision;
+    std::optional<PendingChangesAction> pendingAssetCloseAction;
+    PendingPreferenceChanges pendingPreferenceChanges;
+    std::optional<DataProfile> pendingProfileSave;
     MenuBarState menuBarState;
     DialogHostState dialogHost;
     FileBrowserState fileBrowser;
@@ -82,7 +87,7 @@ struct WorkbenchState
     BlockInspectorPanelState blockInspectorState;
     RadarcolPanelState radarcolState;
     TexmapsPanelState texmapsState;
-    std::vector<core::GuiLogEntry> logEntries;
+    std::vector<logger::GuiLogEntry> logEntries;
     bool followLogScroll = true;
     bool shouldClose = false;
     bool startupLoaded = false;
@@ -91,6 +96,10 @@ struct WorkbenchState
     std::string welcomeGreeting;
     bool welcomeGreetingSelected = false;
     std::uint64_t radarcolNotificationRevision = 0;
+    ProviderRevisions providerRevisions;
+    std::vector<assets::AssetStateRecord> assetStateRecords;
+    bool assetStateResetRequested = false;
+    bool assetStateRestored = false;
 };
 
 } // namespace uo_mule::gui

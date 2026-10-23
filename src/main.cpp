@@ -1,12 +1,14 @@
 #include "app/cli.h"
 #include "app/cli_arguments.h"
 #include "logger/logger.h"
+#if HAS_GUI
+#include "gui/application/application.h"
+#include "logger/gui_log_sink.h"
+#endif
 #include <cstddef>
 #include <iostream>
 #include <span>
 #if HAS_GUI
-#include "gui/application/application.h"
-#include "logger/gui_log_sink.h"
 #include <memory>
 #include <spdlog/logger.h>
 #include <utility>

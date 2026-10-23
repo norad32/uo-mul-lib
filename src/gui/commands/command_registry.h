@@ -33,6 +33,7 @@ enum class CommandId : std::uint8_t
     selectionBlocks,
     dataPaths,
     resetLayout,
+    resetAssetState,
     mapFit,
     mapFitSelection,
     mapCenterSelection,

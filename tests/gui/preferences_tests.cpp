@@ -1,6 +1,6 @@
 #include "core/app_info.h"
-#include "gui/persistence/preferences.h"
-#include "gui/persistence/preferences_store.h"
+#include "gui_model/persistence/preferences.h"
+#include "gui_model/persistence/preferences_store.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <filesystem>

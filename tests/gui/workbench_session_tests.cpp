@@ -1,11 +1,12 @@
 #include "gui/commands/command_registry.h"
-#include "gui/persistence/recent_files.h"
-#include "gui/profile/data_profile.h"
-#include "gui/session/workbench_session.h"
+#include "gui/shell/welcome_greetings.h"
 #include "gui/state/workbench_state.h"
-#include "gui/ui/input/coordinate_parser.h"
-#include "gui/ui/shell/welcome_greetings.h"
-#include "gui/workspaces/map_workspace.h"
+#include "gui_model/documents/document_contracts.h"
+#include "gui_model/input/coordinate_parser.h"
+#include "gui_model/persistence/recent_files.h"
+#include "gui_model/profile/data_profile.h"
+#include "gui_model/session/workbench_session.h"
+#include "gui_model/workspaces/map_workspace.h"
 #include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
@@ -16,6 +17,7 @@
 #include <fstream>
 #include <iomanip>
 #include <ios>
+#include <optional>
 #include <random>
 #include <string>
 
@@ -176,7 +178,7 @@ TEST_CASE("recentFileStore_Should_KeepFiveMostRecentFilesInOrder")
     const auto recentPath = directory.path() / "recent.conf";
     uo_mule::gui::RecentFileStore store(recentPath);
 
-    for (std::size_t index = 0; index < uo_mule::gui::recentFileLimit + 1U; ++index)
+    for (std::size_t index = 0; index < uo_mule::gui::recentFileLimit + 1U; index++)
     {
         store.record(directory.path() / ("map" + std::to_string(index) + ".mul"));
     }
@@ -303,7 +305,9 @@ TEST_CASE("workbenchSession_Should_ActivateMapDocumentsThroughTheCollection")
     REQUIRE(secondId.has_value());
     REQUIRE(firstId != secondId);
 
-    REQUIRE(session.activateDocument(*firstId, workspace));
+    const auto firstDocumentId = firstId.value_or(0);
+    REQUIRE(firstId.has_value());
+    REQUIRE(session.activateDocument(firstDocumentId, workspace));
     REQUIRE(session.activeDocumentId() == firstId);
     REQUIRE(workspace.originalPath() == firstPath);
     REQUIRE(session.documents().size() == 2);
@@ -332,7 +336,9 @@ TEST_CASE("workbenchSession_Should_KeepExistingMapTabsWhenOpeningMapsSequentiall
     REQUIRE(secondId != firstId);
     REQUIRE(session.documents().size() == 2);
 
-    REQUIRE(session.activateDocument(*firstId, workspace));
+    const auto firstDocumentId = firstId.value_or(0);
+    REQUIRE(firstId.has_value());
+    REQUIRE(session.activateDocument(firstDocumentId, workspace));
     REQUIRE(session.activeDocumentId() == firstId);
     REQUIRE(workspace.originalPath() == firstPath);
 }

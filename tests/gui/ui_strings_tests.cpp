@@ -1,7 +1,10 @@
-#include "gui/documents/document_contracts.h"
-#include "gui/persistence/preferences.h"
-#include "gui/ui/strings/ui_strings.h"
+#include "gui/presentation/strings/ui_strings.h"
+#include "gui_model/persistence/preferences.h"
+#include "gui_model/profile/data_profile.h"
+#include "gui_model/providers/data_providers.h"
+#include "gui_model/session/workbench_session.h"
 #include <catch2/catch_test_macros.hpp>
+#include <string_view>
 
 TEST_CASE("uiStrings_Should_CentralizeSharedDisplayVocabulary")
 {

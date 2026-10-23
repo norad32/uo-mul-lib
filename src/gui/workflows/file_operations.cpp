@@ -1,21 +1,24 @@
 #include "gui/workflows/file_operations.h"
-#include "gui/documents/document_contracts.h"
-#include "gui/documents/document_identity.h"
-#include "gui/documents/radarcol_document.h"
-#include "gui/session/workbench_session.h"
+#include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/file_selector_dialog.h"
+#include "gui/dialogs/map_workflow_dialog.h"
+#include "gui/dialogs/preferences_dialog.h"
+#include "gui/presentation/strings/ui_strings.h"
 #include "gui/state/notification_state.h"
 #include "gui/state/workbench_state.h"
-#include "gui/ui/dialogs/dialog_contracts.h"
-#include "gui/ui/dialogs/file_browser_dialog.h"
-#include "gui/ui/dialogs/file_selector_dialog.h"
-#include "gui/ui/dialogs/map_workflow_dialog.h"
-#include "gui/ui/dialogs/preferences_dialog.h"
-#include "gui/ui/strings/ui_strings.h"
+#include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/radarcol_document.h"
+#include "gui_model/session/workbench_session.h"
+#include "gui_model/source/source_identity.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 
 namespace uo_mule::gui
 {
@@ -56,21 +59,27 @@ void syncDialogHost(WorkbenchState & state)
     {
         auto request = makeDialogRequest(DialogId::fileBrowser, FileBrowserDialogRequest{.request = state.fileBrowser.request});
         request.replaceActive = true;
-        state.dialogHost.activate(std::move(request));
+        static_cast<void>(state.dialogHost.request(std::move(request)));
     }
     else if (selectorVisible)
     {
-        state.dialogHost.activate(makeDialogRequest(
-            DialogId::fileSelector, FileSelectorDialogRequest{.sourcePath = state.fileSelector.browserResult.path}));
+        auto request = makeDialogRequest(DialogId::fileSelector,
+                                         FileSelectorDialogRequest{.sourcePath = state.fileSelector.browserResult.path});
+        request.replaceActive = true;
+        static_cast<void>(state.dialogHost.request(std::move(request)));
     }
     else if (mapDialogVisible)
     {
-        state.dialogHost.activate(makeDialogRequest(
-            DialogId::mapWorkflow, MapDialogRequest{.workflow = mapWorkflow(state.menuBarState.fileDialog.mode)}));
+        auto request = makeDialogRequest(DialogId::mapWorkflow,
+                                         MapDialogRequest{.workflow = mapWorkflow(state.menuBarState.fileDialog.mode)});
+        request.replaceActive = true;
+        static_cast<void>(state.dialogHost.request(std::move(request)));
     }
     else if (preferencesVisible)
     {
-        state.dialogHost.activate(makeDialogRequest(DialogId::preferences));
+        auto request = makeDialogRequest(DialogId::preferences);
+        request.replaceActive = true;
+        static_cast<void>(state.dialogHost.request(std::move(request)));
     }
     else if (state.dialogHost.active)
     {
@@ -92,14 +101,26 @@ void openCreatedAsset(WorkbenchState & state,
                       const std::filesystem::path & primaryPath,
                       const std::filesystem::path & companionPath = {})
 {
-    DocumentSummary summary;
-    summary.identity.kind = kind;
-    summary.identity.source = companionPath.empty() ? makeDocumentSourceIdentity({primaryPath})
-                                                    : makeDocumentSourceIdentity({primaryPath, companionPath});
-    summary.displayName = primaryPath.filename().string();
-    summary.access = kind == DocumentKind::radarcol ? DocumentAccess::editable : DocumentAccess::readOnly;
-    summary.validation = DocumentValidationState::valid;
-    const DocumentId id = state.session.openDocument(std::move(summary));
+    const DocumentSourceIdentity source = companionPath.empty() ? makeDocumentSourceIdentity({primaryPath})
+                                                                : makeRoleAwareDocumentSourceIdentity({
+                                                                      {.role = SourceRole::index, .path = primaryPath},
+                                                                      {.role = SourceRole::data, .path = companionPath},
+                                                                  });
+    const auto summary = state.documentDescriptors.createSummary({
+        .kind = kind,
+        .source = source,
+        .displayName = primaryPath.filename().string(),
+        .access = kind == DocumentKind::radarcol ? DocumentAccess::editable : DocumentAccess::readOnly,
+        .validation = DocumentValidationState::valid,
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+    });
+    if (!summary)
+    {
+        state.notifications.add(NotificationSeverity::error, "Document kind is not available");
+        return;
+    }
+    const DocumentId id = state.session.openDocument(*summary);
     if (id == 0)
     {
         return;
@@ -161,15 +182,28 @@ bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, 
     // standalone document.
     cancelFileDialog(state.menuBarState.fileDialog);
 
-    DocumentSummary summary;
-    summary.identity.kind = candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair;
-    summary.identity.source = candidate.kind == MulAssetKind::radarcol
-                                  ? makeDocumentSourceIdentity({candidate.path})
-                                  : makeDocumentSourceIdentity({candidate.path, candidate.companionPath});
-    summary.displayName = candidate.path.filename().string();
-    summary.access = candidate.kind == MulAssetKind::texmapsPair ? DocumentAccess::readOnly : DocumentAccess::editable;
-    summary.validation = candidate.validated ? DocumentValidationState::valid : DocumentValidationState::invalid;
-    const DocumentId id = state.session.openDocument(std::move(summary));
+    const DocumentKind kind = candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair;
+    const DocumentSourceIdentity source = candidate.kind == MulAssetKind::radarcol
+                                              ? makeDocumentSourceIdentity({candidate.path})
+                                              : makeRoleAwareDocumentSourceIdentity({
+                                                    {.role = SourceRole::index, .path = candidate.path},
+                                                    {.role = SourceRole::data, .path = candidate.companionPath},
+                                                });
+    const auto summary = state.documentDescriptors.createSummary({
+        .kind = kind,
+        .source = source,
+        .displayName = candidate.path.filename().string(),
+        .access = candidate.kind == MulAssetKind::texmapsPair ? DocumentAccess::readOnly : DocumentAccess::editable,
+        .validation = candidate.validated ? DocumentValidationState::valid : DocumentValidationState::invalid,
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+    });
+    if (!summary)
+    {
+        state.notifications.add(NotificationSeverity::error, "Document kind is not available");
+        return false;
+    }
+    const DocumentId id = state.session.openDocument(*summary);
     if (id == 0)
     {
         return false;
@@ -266,42 +300,26 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     return false;
 }
 
-bool handleFileSelector(WorkbenchState & state)
+bool handleDialogResult(WorkbenchState & state, DialogResult result)
 {
-    if (!state.dialogHost.owns(DialogId::fileSelector) || state.fileBrowser.visible || !state.fileSelector.visible)
+    if (result.action == DialogAction::cancel)
     {
+        if (result.id == DialogId::fileSelector)
+        {
+            cancelFileSelector(state.fileSelector);
+        }
+        else if (result.id == DialogId::fileBrowser && state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+        {
+            cancelFileDialog(state.menuBarState.fileDialog);
+        }
         return false;
     }
 
-    const auto action = drawFileSelector(state.fileSelector);
-    if (action == FileSelectorAction::accept)
+    if (result.id == DialogId::fileSelector && result.action == DialogAction::chooseCompanion &&
+        std::holds_alternative<FileBrowserResult>(result.payload))
     {
-        const auto selected = selectedFileSelectorResult(state.fileSelector);
+        const auto original = std::get<FileBrowserResult>(result.payload);
         cancelFileSelector(state.fileSelector);
-        return routeFileBrowserResult(state, selected);
-    }
-    if (action == FileSelectorAction::cancel)
-    {
-        cancelFileSelector(state.fileSelector);
-        return false;
-    }
-    if (action == FileSelectorAction::chooseDifferent)
-    {
-        const auto original = state.fileSelector.browserResult;
-        cancelFileSelector(state.fileSelector);
-        requestFileBrowser(state.fileBrowser,
-                           {
-                               .mode = FileBrowserMode::openFile,
-                               .target = original.target,
-                               .initialPath = original.path,
-                               .extension = ".mul",
-                               .title = "Open Texture Pair Component",
-                           });
-        return false;
-    }
-    if (action == FileSelectorAction::chooseCompanion)
-    {
-        const auto original = state.fileSelector.browserResult;
         requestFileBrowser(state.fileBrowser,
                            {
                                .mode = FileBrowserMode::openFile,
@@ -310,8 +328,31 @@ bool handleFileSelector(WorkbenchState & state)
                                .extension = ".mul",
                                .title = "Choose Texture Pair Companion",
                            });
+        return false;
+    }
+
+    if (result.id == DialogId::fileSelector && result.action == DialogAction::accept &&
+        std::holds_alternative<FileBrowserResult>(result.payload))
+    {
+        cancelFileSelector(state.fileSelector);
+        return routeFileBrowserResult(state, std::get<FileBrowserResult>(result.payload));
     }
     return false;
+}
+
+bool completeDialogResult(WorkbenchState & state, DialogResult result)
+{
+    if (!state.dialogHost.active || result.id != state.dialogHost.active->id)
+    {
+        return false;
+    }
+    result.generation = state.dialogHost.active->generation;
+    if (!state.dialogHost.complete(std::move(result)))
+    {
+        return false;
+    }
+    const auto completed = state.dialogHost.consumeResult();
+    return completed && handleDialogResult(state, *completed);
 }
 
 bool drawFileDialogs(WorkbenchState & state)
@@ -324,7 +365,13 @@ bool drawFileDialogs(WorkbenchState & state)
         state.menuBarState.fileDialog.shouldClose = false;
     }
 
+    if (const auto pendingResult = state.dialogHost.consumeResult())
+    {
+        profileChanged = handleDialogResult(state, *pendingResult) || profileChanged;
+    }
+
     const bool browserWasVisible = state.fileBrowser.visible;
+    std::optional<DialogResult> dialogResult;
     if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::mapWorkflow))
     {
         drawNewFileDialog(state.workspace,
@@ -342,24 +389,25 @@ bool drawFileDialogs(WorkbenchState & state)
     }
     if (state.dialogHost.owns(DialogId::fileBrowser))
     {
-        drawFileBrowser(state.fileBrowser);
+        dialogResult = drawFileBrowser(state.fileBrowser);
     }
-    const auto result = consumeFileBrowserResult(state.fileBrowser);
-    if (!state.fileBrowser.visible && browserWasVisible && !result &&
+    if (dialogResult)
+    {
+        profileChanged = completeDialogResult(state, *dialogResult) || profileChanged;
+    }
+    if (!state.fileBrowser.visible && browserWasVisible && !dialogResult &&
         state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
     {
         cancelFileDialog(state.menuBarState.fileDialog);
     }
-    if (result)
+    if (state.dialogHost.owns(DialogId::fileSelector) && !state.fileBrowser.visible && state.fileSelector.visible)
     {
-        state.dialogHost.complete({
-            .id = DialogId::fileBrowser,
-            .action = DialogAction::accept,
-            .payload = *result,
-        });
-        profileChanged = routeFileBrowserResult(state, *result) || profileChanged;
+        if (const auto selectorResult = drawFileSelector(state.fileSelector))
+        {
+            profileChanged = completeDialogResult(state, *selectorResult) || profileChanged;
+        }
     }
-    return handleFileSelector(state) || profileChanged;
+    return profileChanged;
 }
 
 } // namespace

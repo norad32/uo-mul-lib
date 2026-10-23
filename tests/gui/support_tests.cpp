@@ -1,11 +1,12 @@
-#include "gui/ui/input/bounded_buffer.h"
+#include "gui/presentation/input/bounded_buffer.h"
 #include <array>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <string_view>
 
 TEST_CASE("copyToBuffer_Should_NullTerminateAndTruncate")
 {
-    std::array<char, 5> buffer{};
+    std::array<char, 5> buffer{}; // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 
     uo_mule::gui::copyToBuffer(buffer, std::string_view("abcdef"));
 
@@ -14,7 +15,8 @@ TEST_CASE("copyToBuffer_Should_NullTerminateAndTruncate")
 
 TEST_CASE("copyToBuffer_Should_ClearPreviousContentsForEmptyInput")
 {
-    std::array<char, 5> buffer{'x', 'x', 'x', 'x', '\0'};
+    constexpr std::size_t bufferSize = 5;
+    std::array<char, bufferSize> buffer{'x', 'x', 'x', 'x', '\0'};
 
     uo_mule::gui::copyToBuffer(buffer, std::string_view{});
 
