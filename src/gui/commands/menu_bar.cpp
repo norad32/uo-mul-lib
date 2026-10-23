@@ -90,6 +90,10 @@ void drawSelectionMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::toolLassoSelect, state.toolState.activeTool() == ToolId::lassoSelect);
     drawCommandItem(state, CommandId::toolFuzzySelect, state.toolState.activeTool() == ToolId::fuzzySelect);
     ImGui::Separator();
+    drawCommandItem(state, CommandId::selectionAll);
+    drawCommandItem(state, CommandId::selectionNone);
+    drawCommandItem(state, CommandId::selectionInvert);
+    ImGui::Separator();
     drawCommandItem(state, CommandId::selectionTiles, selectionMode == MapSelectionMode::tiles);
     drawCommandItem(state, CommandId::selectionBlocks, selectionMode == MapSelectionMode::blocks);
 

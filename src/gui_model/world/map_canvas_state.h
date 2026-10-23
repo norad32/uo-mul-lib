@@ -122,6 +122,7 @@ struct MapCanvasViewState
     uomul::Dimensions documentDimensions{};
     bool hasDocument = false;
     bool panning = false;
+    bool panningWithLeftButton = false;
     bool scrollResetPending = false;
     MapCanvasNavigationRequest navigationRequest;
     bool coordinatePopupRequested = false;

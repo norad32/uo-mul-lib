@@ -410,6 +410,64 @@ void drawSelection(ImDrawList & drawList,
         }
     }
 
+    const MapSelectionMask & mask = workspace.selectionMask();
+    if ((!state.dragStart || !state.dragEnd) && !mask.empty())
+    {
+        if (mask.granularity() == ToolSelectionGranularity::tiles)
+        {
+            for (std::uint32_t y = 0; y < dimensions.heightTiles; y++)
+            {
+                for (std::uint32_t x = 0; x < dimensions.widthTiles; x++)
+                {
+                    if (!mask.contains(uomul::TileCoord{.x = x, .y = y}))
+                    {
+                        continue;
+                    }
+                    const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(x) * state.zoom)),
+                                         canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(y) * state.zoom)));
+                    const ImVec2 maximum(minimum.x + static_cast<float>(state.zoom), minimum.y + static_cast<float>(state.zoom));
+                    drawList.AddRect(minimum,
+                                     maximum,
+                                     theme::packedColor(theme::selection),
+                                     0.0F,
+                                     ImDrawFlags_None,
+                                     1.0F);
+                }
+            }
+            return;
+        }
+
+        const std::uint32_t blockWidth = (dimensions.widthTiles / uomul::mapBlockDimension) +
+                                         static_cast<std::uint32_t>(dimensions.widthTiles % uomul::mapBlockDimension != 0U);
+        const std::uint32_t blockHeight = (dimensions.heightTiles / uomul::mapBlockDimension) +
+                                          static_cast<std::uint32_t>(dimensions.heightTiles % uomul::mapBlockDimension != 0U);
+        for (std::uint32_t y = 0; y < blockHeight; y++)
+        {
+            for (std::uint32_t x = 0; x < blockWidth; x++)
+            {
+                if (!mask.contains(uomul::BlockCoord{.x = x, .y = y}))
+                {
+                    continue;
+                }
+                const std::uint32_t tileMinX = x * uomul::mapBlockDimension;
+                const std::uint32_t tileMinY = y * uomul::mapBlockDimension;
+                const std::uint32_t tileMaxX = std::min(dimensions.widthTiles, tileMinX + uomul::mapBlockDimension);
+                const std::uint32_t tileMaxY = std::min(dimensions.heightTiles, tileMinY + uomul::mapBlockDimension);
+                const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tileMinX) * state.zoom)),
+                                     canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tileMinY) * state.zoom)));
+                const ImVec2 maximum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tileMaxX) * state.zoom)),
+                                     canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tileMaxY) * state.zoom)));
+                drawList.AddRect(minimum,
+                                 maximum,
+                                 theme::packedColor(theme::selection),
+                                 0.0F,
+                                 ImDrawFlags_None,
+                                 2.0F);
+            }
+        }
+        return;
+    }
+
     if (!selection || selection->min.x >= selection->maxExclusive.x || selection->min.y >= selection->maxExclusive.y)
     {
         return;
@@ -1069,7 +1127,12 @@ void updateHover(MapWorkspace & workspace, std::optional<uomul::TileCoord> tile)
     }
 }
 
-void updateNavigation(MapCanvasViewState & state, ImVec2 mouse, ImVec2 canvasOrigin, bool canvasHovered, double minimumZoom)
+void updateNavigation(MapCanvasViewState & state,
+                      const ToolState & toolState,
+                      ImVec2 mouse,
+                      ImVec2 canvasOrigin,
+                      bool canvasHovered,
+                      double minimumZoom)
 {
     if (!state.scrollResetPending)
     {
@@ -1089,16 +1152,23 @@ void updateNavigation(MapCanvasViewState & state, ImVec2 mouse, ImVec2 canvasOri
         state.scrollResetPending = false;
     }
 
-    if (canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+    const bool temporaryPan = ImGui::IsKeyDown(ImGuiKey_Space);
+    const bool moveTool = toolState.activeTool() == ToolId::move;
+    const bool panButtonPressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left) && (moveTool || temporaryPan);
+    const bool legacyPanButtonPressed = ImGui::IsMouseClicked(ImGuiMouseButton_Right);
+    if (canvasHovered && (panButtonPressed || legacyPanButtonPressed))
     {
         state.panning = true;
+        state.panningWithLeftButton = panButtonPressed;
         state.panStartMouseX = mouse.x;
         state.panStartMouseY = mouse.y;
         state.panStartX = state.panX;
         state.panStartY = state.panY;
     }
 
-    if (state.panning && ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    const bool panButtonDown = state.panningWithLeftButton ? ImGui::IsMouseDown(ImGuiMouseButton_Left)
+                                                           : ImGui::IsMouseDown(ImGuiMouseButton_Right);
+    if (state.panning && panButtonDown)
     {
         state.panX = std::clamp(state.panStartX + mouse.x - state.panStartMouseX, -maximumPanMagnitude, 0.0);
         state.panY = std::clamp(state.panStartY + mouse.y - state.panStartMouseY, -maximumPanMagnitude, 0.0);
@@ -1108,9 +1178,11 @@ void updateNavigation(MapCanvasViewState & state, ImVec2 mouse, ImVec2 canvasOri
         state.panY = -static_cast<double>(ImGui::GetScrollY());
     }
 
-    if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+    if ((state.panningWithLeftButton && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) ||
+        (!state.panningWithLeftButton && ImGui::IsMouseReleased(ImGuiMouseButton_Right)))
     {
         state.panning = false;
+        state.panningWithLeftButton = false;
     }
 
     if (!canvasHovered || std::abs(ImGui::GetIO().MouseWheel) <= std::numeric_limits<float>::epsilon())
@@ -1134,10 +1206,18 @@ void updateNavigation(MapCanvasViewState & state, ImVec2 mouse, ImVec2 canvasOri
 
 void updateSelectionDrag(MapWorkspace & workspace,
                          MapCanvasViewState & state,
+                         const ToolState & toolState,
                          std::optional<uomul::TileCoord> currentTile,
                          uomul::Dimensions dimensions,
                          bool canvasHovered)
 {
+    if (toolState.activeTool() != ToolId::rectangleSelect || ImGui::IsKeyDown(ImGuiKey_Space))
+    {
+        state.dragStart.reset();
+        state.dragEnd.reset();
+        return;
+    }
+
     if (canvasHovered && currentTile && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
         state.dragStart = currentTile;
@@ -1158,11 +1238,17 @@ void updateSelectionDrag(MapWorkspace & workspace,
     {
         if (workspace.selectionMode() == MapSelectionMode::tiles)
         {
-            workspace.setTileSelection(tileSelectionFromDrag(*state.dragStart, *state.dragEnd, dimensions));
+            const SelectionCombineMode mode = ImGui::GetIO().KeyCtrl ? SelectionCombineMode::subtract
+                                                                       : ImGui::GetIO().KeyShift ? SelectionCombineMode::add
+                                                                                                 : SelectionCombineMode::replace;
+            workspace.applyTileSelection(tileSelectionFromDrag(*state.dragStart, *state.dragEnd, dimensions), mode);
         }
         else
         {
-            workspace.setBlockSelection(blockSelectionFromDrag(*state.dragStart, *state.dragEnd, dimensions));
+            const SelectionCombineMode mode = ImGui::GetIO().KeyCtrl ? SelectionCombineMode::subtract
+                                                                       : ImGui::GetIO().KeyShift ? SelectionCombineMode::add
+                                                                                                 : SelectionCombineMode::replace;
+            workspace.applyBlockSelection(blockSelectionFromDrag(*state.dragStart, *state.dragEnd, dimensions), mode);
         }
 
         const uomul::TileCoord inspectorTile = selectionInspectorTile(workspace.selectionMode(), *state.dragEnd);
@@ -1217,6 +1303,7 @@ MapColor mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const Rada
 }
 
 void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
+                       const ToolState & toolState,
                        const TextureProvider & textures,
                        const RadarColorProvider & radarColors,
                        MapViewTileSource tileSource,
@@ -1294,10 +1381,10 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
 
     if (hasDocument && canvasContentsVisible)
     {
-        updateNavigation(state, mouse, canvasOrigin, canvasHovered, minimumZoom);
+        updateNavigation(state, toolState, mouse, canvasOrigin, canvasHovered, minimumZoom);
         currentTile = tileAtMouse(mouse, canvasOrigin, canvasSize, state, dimensions, canvasHovered);
         updateHover(workspace, currentTile);
-        updateSelectionDrag(workspace, state, currentTile, dimensions, canvasHovered);
+        updateSelectionDrag(workspace, state, toolState, currentTile, dimensions, canvasHovered);
     }
     else
     {

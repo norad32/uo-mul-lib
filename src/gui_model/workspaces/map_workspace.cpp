@@ -430,6 +430,7 @@ std::expected<void, uomul::Error> MapWorkspace::closeMap()
     originalPath_.clear();
     tileSelection_.reset();
     blockSelection_.reset();
+    selectionMask_.clear();
     clearHover();
     clearSelectedTile();
     error_.reset();
@@ -604,25 +605,113 @@ void MapWorkspace::clearSelectedTile() noexcept
     selectedValue_.reset();
 }
 
-void MapWorkspace::setSelectionMode(MapSelectionMode mode) noexcept
+void MapWorkspace::setSelectionMode(MapSelectionMode mode)
 {
     selectionMode_ = mode;
     tileSelection_.reset();
     blockSelection_.reset();
+    selectionMask_.setGranularity(mode == MapSelectionMode::tiles ? ToolSelectionGranularity::tiles
+                                                                    : ToolSelectionGranularity::blocks);
 }
 
-void MapWorkspace::setTileSelection(uomul::TileRegion region) noexcept
+void MapWorkspace::setTileSelection(uomul::TileRegion region)
 {
     tileSelection_ = clampTileRegion(region, dimensions_);
     blockSelection_.reset();
     selectionMode_ = MapSelectionMode::tiles;
+    selectionMask_.replaceTileRegion(*tileSelection_, dimensions_);
 }
 
-void MapWorkspace::setBlockSelection(uomul::BlockRegion region) noexcept
+void MapWorkspace::applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode)
+{
+    const uomul::TileRegion clamped = clampTileRegion(region, dimensions_);
+    if (mode == SelectionCombineMode::replace)
+    {
+        setTileSelection(clamped);
+        return;
+    }
+
+    MapSelectionMask selection;
+    selection.replaceTileRegion(clamped, dimensions_);
+    selectionMode_ = MapSelectionMode::tiles;
+    tileSelection_.reset();
+    blockSelection_.reset();
+    if (mode == SelectionCombineMode::add)
+    {
+        selectionMask_.add(selection);
+    }
+    else
+    {
+        selectionMask_.subtract(selection);
+    }
+}
+
+void MapWorkspace::setBlockSelection(uomul::BlockRegion region)
 {
     blockSelection_ = clampBlockRegion(region, dimensions_);
     tileSelection_.reset();
     selectionMode_ = MapSelectionMode::blocks;
+    selectionMask_.replaceBlockRegion(*blockSelection_, dimensions_);
+}
+
+void MapWorkspace::applyBlockSelection(uomul::BlockRegion region, SelectionCombineMode mode)
+{
+    const uomul::BlockRegion clamped = clampBlockRegion(region, dimensions_);
+    if (mode == SelectionCombineMode::replace)
+    {
+        setBlockSelection(clamped);
+        return;
+    }
+
+    MapSelectionMask selection;
+    selection.replaceBlockRegion(clamped, dimensions_);
+    selectionMode_ = MapSelectionMode::blocks;
+    tileSelection_.reset();
+    blockSelection_.reset();
+    if (mode == SelectionCombineMode::add)
+    {
+        selectionMask_.add(selection);
+    }
+    else
+    {
+        selectionMask_.subtract(selection);
+    }
+}
+
+void MapWorkspace::clearSelection()
+{
+    tileSelection_.reset();
+    blockSelection_.reset();
+    selectionMask_.clear();
+}
+
+void MapWorkspace::selectAll()
+{
+    tileSelection_.reset();
+    blockSelection_.reset();
+    selectionMask_.selectAll(dimensions_);
+    selectionMode_ = selectionMask_.granularity() == ToolSelectionGranularity::tiles ? MapSelectionMode::tiles
+                                                                                       : MapSelectionMode::blocks;
+}
+
+void MapWorkspace::invertSelection()
+{
+    selectionMask_.invert(dimensions_);
+    tileSelection_.reset();
+    blockSelection_.reset();
+}
+
+void MapWorkspace::convertTileSelectionToBlocks()
+{
+    selectionMask_.convertTilesToCoveringBlocks(dimensions_);
+    tileSelection_.reset();
+    blockSelection_.reset();
+    selectionMode_ = MapSelectionMode::blocks;
+}
+
+const MapSelectionMask & MapWorkspace::selectionMask() const noexcept
+{
+    return selectionMask_;
 }
 
 const uomul::MapReader * MapWorkspace::reader() const noexcept

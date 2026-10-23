@@ -75,6 +75,7 @@ constexpr std::size_t newShortcutIndex = 4;
 constexpr std::size_t quitShortcutIndex = 5;
 constexpr std::size_t goToShortcutIndex = 6;
 constexpr std::size_t fullscreenShortcutIndex = 7;
+constexpr std::size_t selectionShortcutCount = 3;
 
 struct ToolShortcut
 {
@@ -469,6 +470,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         dockDocumentWindow();
         drawMapCanvasView(
             state.workspace,
+            state.toolState,
             state.providers.textures(),
             state.providers.radarColors(),
             state.preferences.mapViewTileSource,
@@ -776,6 +778,28 @@ void dispatchShortcuts(WorkbenchState & state, bool allowFullscreen)
         {
             return;
         }
+    }
+    const std::array<std::pair<ImGuiKey, std::string_view>, selectionShortcutCount> selectionShortcuts{
+        std::pair{ImGuiKey_A, "Ctrl+A"},
+        std::pair{ImGuiKey_A, "Ctrl+Shift+A"},
+        std::pair{ImGuiKey_I, "Ctrl+I"},
+    };
+    if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift &&
+        ImGui::IsKeyPressed(selectionShortcuts.at(1).first, false))
+    {
+        static_cast<void>(state.commands.executeShortcut(selectionShortcuts.at(1).second, state));
+        return;
+    }
+    if (ImGui::GetIO().KeyCtrl && !ImGui::GetIO().KeyShift &&
+        ImGui::IsKeyPressed(selectionShortcuts.at(0).first, false))
+    {
+        static_cast<void>(state.commands.executeShortcut(selectionShortcuts.at(0).second, state));
+        return;
+    }
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(selectionShortcuts.at(2).first, false))
+    {
+        static_cast<void>(state.commands.executeShortcut(selectionShortcuts.at(2).second, state));
+        return;
     }
     const std::array<std::pair<ImGuiKey, std::string_view>, shortcutCount> shortcuts{
         std::pair{ImGuiKey_GraveAccent, "`"},

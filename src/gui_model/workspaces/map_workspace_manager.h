@@ -39,6 +39,19 @@ public:
     void setSelectionMode(MapSelectionMode mode) noexcept { active_->setSelectionMode(mode); }
     void setTileSelection(uomul::TileRegion region) noexcept { active_->setTileSelection(region); }
     void setBlockSelection(uomul::BlockRegion region) noexcept { active_->setBlockSelection(region); }
+    void applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode)
+    {
+        active_->applyTileSelection(region, mode);
+    }
+    void applyBlockSelection(uomul::BlockRegion region, SelectionCombineMode mode)
+    {
+        active_->applyBlockSelection(region, mode);
+    }
+    void clearSelection() { active_->clearSelection(); }
+    void selectAll() { active_->selectAll(); }
+    void invertSelection() { active_->invertSelection(); }
+    void convertTileSelectionToBlocks() { active_->convertTileSelectionToBlocks(); }
+    [[nodiscard]] const MapSelectionMask & selectionMask() const noexcept { return active_->selectionMask(); }
     [[nodiscard]] const std::optional<uomul::TileRegion> & tileSelection() const noexcept { return active_->tileSelection(); }
     [[nodiscard]] const std::optional<uomul::BlockRegion> & blockSelection() const noexcept
     {

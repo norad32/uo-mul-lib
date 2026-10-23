@@ -103,6 +103,36 @@ TEST_CASE("toolCommands_Should_RejectEditingToolWithoutEditableMap")
     REQUIRE_FALSE(state.commands.execute(CommandId::toolFill, state));
 }
 
+TEST_CASE("selectionCommands_Should_ExposeStandardSelectionShortcuts")
+{
+    const WorkbenchState state;
+
+    REQUIRE(state.commands.find(CommandId::selectionAll)->defaultShortcut == "Ctrl+A");
+    REQUIRE(state.commands.find(CommandId::selectionNone)->defaultShortcut == "Ctrl+Shift+A");
+    REQUIRE(state.commands.find(CommandId::selectionInvert)->defaultShortcut == "Ctrl+I");
+}
+
+TEST_CASE("selectionCommands_Should_OperateOnTheActiveMapMask")
+{
+    WorkbenchState state;
+    const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};
+    const auto mapPath = std::filesystem::temp_directory_path() / "uo-mule-selection-command-map.mul";
+    std::filesystem::remove(mapPath);
+    REQUIRE(state.workspace.createEmptyMap(mapPath, dimensions));
+    state.session.syncDocument(state.workspace);
+
+    REQUIRE(state.commands.execute(CommandId::selectionAll, state));
+    REQUIRE(state.workspace.selectionMask().size() == 64);
+    REQUIRE(state.commands.execute(CommandId::selectionInvert, state));
+    REQUIRE(state.workspace.selectionMask().empty());
+    REQUIRE(state.commands.execute(CommandId::selectionAll, state));
+    REQUIRE(state.commands.execute(CommandId::selectionNone, state));
+    REQUIRE(state.workspace.selectionMask().empty());
+
+    static_cast<void>(state.workspace.closeMap());
+    std::filesystem::remove(mapPath);
+}
+
 TEST_CASE("defaultCommands_Should_ExposeSeparateTileAndBlockNavigationCommands")
 {
     const WorkbenchState state;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui_model/world/map_color.h"
+#include "gui_model/world/map_selection.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <cstdint>
@@ -96,9 +97,16 @@ public:
     [[nodiscard]] std::expected<void, uomul::Error> updateSelectedTile(uomul::TileCoord tile);
     void clearHover() noexcept;
     void clearSelectedTile() noexcept;
-    void setSelectionMode(MapSelectionMode mode) noexcept;
-    void setTileSelection(uomul::TileRegion region) noexcept;
-    void setBlockSelection(uomul::BlockRegion region) noexcept;
+    void setSelectionMode(MapSelectionMode mode);
+    void setTileSelection(uomul::TileRegion region);
+    void setBlockSelection(uomul::BlockRegion region);
+    void applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode);
+    void applyBlockSelection(uomul::BlockRegion region, SelectionCombineMode mode);
+    void clearSelection();
+    void selectAll();
+    void invertSelection();
+    void convertTileSelectionToBlocks();
+    [[nodiscard]] const MapSelectionMask & selectionMask() const noexcept;
 
     [[nodiscard]] const uomul::MapReader * reader() const noexcept;
     [[nodiscard]] uomul::Dimensions dimensions() const noexcept;
@@ -141,6 +149,7 @@ private:
     MapSelectionMode selectionMode_ = MapSelectionMode::tiles;
     std::optional<uomul::TileRegion> tileSelection_;
     std::optional<uomul::BlockRegion> blockSelection_;
+    MapSelectionMask selectionMask_;
     std::optional<uomul::TileCoord> hoveredTile_;
     std::optional<uomul::MapTile> hoveredValue_;
     std::optional<uomul::TileCoord> selectedTile_;

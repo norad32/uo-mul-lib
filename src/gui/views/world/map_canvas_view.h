@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui_model/providers/data_providers.h"
+#include "gui_model/tools/tool_state.h"
 #include "gui_model/world/map_canvas_state.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -18,6 +19,7 @@ class MapWorkspaceManager;
 mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const RadarColorProvider & radarColors) noexcept;
 
 void drawMapCanvasView(MapWorkspaceManager & workspace,
+                       const ToolState & toolState,
                        const TextureProvider & textures,
                        const RadarColorProvider & radarColors,
                        MapViewTileSource tileSource,

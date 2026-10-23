@@ -29,6 +29,7 @@ set(GUI_MODEL_SOURCES
     model/assets/asset_window_contracts.cpp
     output/output_set_transaction.cpp
     world/map_context.cpp
+    world/map_selection.cpp
     world/combine_contracts.cpp
     workspaces/map_workspace.cpp
     workspaces/map_workspace_manager.cpp
