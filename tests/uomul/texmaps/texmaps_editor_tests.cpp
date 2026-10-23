@@ -29,8 +29,6 @@ constexpr std::uint16_t smallTextureSample = 0x1234;
 constexpr std::uint16_t largeTextureSample = 0xABCD;
 constexpr std::uint16_t editedTextureSample = 0x9876;
 constexpr std::uint16_t sourceTextureSample = 0x3456;
-constexpr std::uint32_t indexLookupFieldOffset = 8;
-constexpr std::uint32_t largeTextureId = 0x3FFF;
 constexpr std::uint32_t fileSizeLimitBytes = 100; // Very small to force write failure
 constexpr std::size_t invalidDimensionValue = 100;
 

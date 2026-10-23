@@ -1,6 +1,6 @@
 #include "core/app_info.h"
-#include "core/log_level.h"
-#include "core/logger.h"
+#include "logger/log_level.h"
+#include "logger/logger.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
 #include <filesystem>
@@ -28,8 +28,8 @@ TEST_CASE("Logger_Should_IgnoreRelativeXdgStateHome")
     setenv("HOME", log_directory.c_str(), 1);
     setenv("XDG_STATE_HOME", "relative-state-home", 1);
 
-    uo_mule::core::Logger logger("relative-state-test");
-    logger.setup(uo_mule::core::defaultLogLevel());
+    uo_mule::logger::Logger logger("relative-state-test");
+    logger.setup(uo_mule::logger::defaultLogLevel());
     const auto expected_path =
         log_directory / ".local" / "state" / uo_mule::core::applicationName() / "logs" / "relative-state-test.log";
     const auto actual_path = logger.logFilePath();
@@ -63,8 +63,8 @@ TEST_CASE("Logger_Should_WriteLogToRotatingFile")
     const auto log_directory = std::filesystem::temp_directory_path() / "logger-tests";
     std::filesystem::remove_all(log_directory);
 
-    uo_mule::core::Logger logger("test");
-    logger.setup(uo_mule::core::defaultLogLevel(), log_directory);
+    uo_mule::logger::Logger logger("test");
+    logger.setup(uo_mule::logger::defaultLogLevel(), log_directory);
     const auto guiSink = logger.attachGuiSink();
     SPDLOG_LOGGER_INFO(logger.get(), "test log message");
     logger.shutdown();
@@ -90,10 +90,10 @@ TEST_CASE("Logger_Should_UseSourceFilenameForDebugAndTraceAndDisableThemInReleas
     const auto log_directory = std::filesystem::temp_directory_path() / "logger-level-tests";
     std::filesystem::remove_all(log_directory);
 
-    uo_mule::core::Logger logger("level-test");
-    logger.setup(uo_mule::core::LogLevel::trace, log_directory);
+    uo_mule::logger::Logger logger("level-test");
+    logger.setup(uo_mule::logger::LogLevel::trace, log_directory);
     const auto guiSink = logger.attachGuiSink();
-    logger.setLevel(uo_mule::core::LogLevel::trace);
+    logger.setLevel(uo_mule::logger::LogLevel::trace);
     const auto activeLogger = logger.get();
     constexpr int debugSourceLine = 42;
     constexpr int traceSourceLine = 43;

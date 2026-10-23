@@ -377,7 +377,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
             [](uomul::BlockCoord, const uomul::MapBlock & current) -> std::expected<uomul::MapBlock, uomul::Error>
             {
                 auto changed = current;
-                ++changed.front().id;
+                changed.front().id++;
                 return changed;
             }));
         editor->abort();
@@ -549,7 +549,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
             [](uomul::BlockCoord, const uomul::MapBlock & current) -> std::expected<uomul::MapBlock, uomul::Error>
             {
                 auto changed = current;
-                ++changed.front().id;
+                changed.front().id++;
                 return changed;
             }));
         editor->abort();

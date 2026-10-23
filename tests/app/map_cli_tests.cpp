@@ -1,7 +1,6 @@
 #include "app/cli.h"
-#include "core/logger.h"
+#include "logger/logger.h"
 #include "uomul/map.h"
-
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
@@ -55,7 +54,7 @@ public:
 
 int run(const std::vector<std::string_view> & arguments, std::ostringstream & output, std::ostringstream & error)
 {
-    uo_mule::core::Logger logger("map-cli-test");
+    uo_mule::logger::Logger logger("map-cli-test");
     return uo_mule::app::runCli(arguments, output, error, logger);
 }
 

@@ -1,7 +1,7 @@
 #include "app/cli.h"
 #include "core/app_info.h"
-#include "core/gui_log_sink.h"
-#include "core/logger.h"
+#include "logger/gui_log_sink.h"
+#include "logger/logger.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
@@ -22,7 +22,7 @@ TEST_CASE("runCli_Should_PrintCheckResult")
     const std::vector<std::string_view> arguments{"check", "--log-level", "DEBUG"};
     std::ostringstream output;
     std::ostringstream error;
-    uo_mule::core::Logger logger("cli-test");
+    uo_mule::logger::Logger logger("cli-test");
 
     const int result = uo_mule::app::runCli(arguments, output, error, logger, log_directory);
 
@@ -41,7 +41,7 @@ TEST_CASE("runCli_Should_PrintVersion")
     const std::vector<std::string_view> arguments{"--version"};
     std::ostringstream output;
     std::ostringstream error;
-    uo_mule::core::Logger logger("cli-version-test");
+    uo_mule::logger::Logger logger("cli-version-test");
 
     const int result = uo_mule::app::runCli(arguments, output, error, logger);
 
@@ -58,7 +58,7 @@ TEST_CASE("runCli_Should_InvokeGuiRunnerWhenGuiCommandIsSelected")
     const std::vector<std::string_view> arguments{"gui"};
     std::ostringstream output;
     std::ostringstream error;
-    uo_mule::core::Logger logger("cli-gui-test");
+    uo_mule::logger::Logger logger("cli-gui-test");
     bool guiWasRun = false;
     spdlog::level::level_enum guiLogLevel = spdlog::level::off;
     constexpr int expectedGuiExitCode = 7;
@@ -70,7 +70,7 @@ TEST_CASE("runCli_Should_InvokeGuiRunnerWhenGuiCommandIsSelected")
                              logger,
                              log_directory,
                              [&guiWasRun, &guiLogLevel](const std::shared_ptr<spdlog::logger> & activeLogger,
-                                                        const std::shared_ptr<uo_mule::core::GuiLogSink> & logSink)
+                                                        const std::shared_ptr<uo_mule::logger::GuiLogSink> & logSink)
                              {
                                  guiWasRun = activeLogger != nullptr && logSink != nullptr;
                                  guiLogLevel = activeLogger->level();
@@ -99,20 +99,20 @@ TEST_CASE("runCli_Should_RespectExplicitGuiLogLevel")
     const std::vector<std::string_view> arguments{"gui", "--log-level", "INFO"};
     std::ostringstream output;
     std::ostringstream error;
-    uo_mule::core::Logger logger("cli-gui-log-level-test");
+    uo_mule::logger::Logger logger("cli-gui-log-level-test");
     spdlog::level::level_enum guiLogLevel = spdlog::level::off;
 
-    const int result = uo_mule::app::runCli(
-        arguments,
-        output,
-        error,
-        logger,
-        log_directory,
-        [&guiLogLevel](const std::shared_ptr<spdlog::logger> & activeLogger, const std::shared_ptr<uo_mule::core::GuiLogSink> &)
-        {
-            guiLogLevel = activeLogger->level();
-            return 0;
-        });
+    const int result = uo_mule::app::runCli(arguments,
+                                            output,
+                                            error,
+                                            logger,
+                                            log_directory,
+                                            [&guiLogLevel](const std::shared_ptr<spdlog::logger> & activeLogger,
+                                                           const std::shared_ptr<uo_mule::logger::GuiLogSink> &)
+                                            {
+                                                guiLogLevel = activeLogger->level();
+                                                return 0;
+                                            });
 
     REQUIRE(result == 0);
     REQUIRE(guiLogLevel == spdlog::level::info);
@@ -127,7 +127,7 @@ TEST_CASE("runCli_Should_LogGuiRunnerException")
     const std::vector<std::string_view> arguments{"gui"};
     std::ostringstream output;
     std::ostringstream error;
-    uo_mule::core::Logger logger("cli-gui-exception-test");
+    uo_mule::logger::Logger logger("cli-gui-exception-test");
 
     const int result = uo_mule::app::runCli(
         arguments,
@@ -135,7 +135,7 @@ TEST_CASE("runCli_Should_LogGuiRunnerException")
         error,
         logger,
         log_directory,
-        [](const std::shared_ptr<spdlog::logger> &, const std::shared_ptr<uo_mule::core::GuiLogSink> &) -> int
+        [](const std::shared_ptr<spdlog::logger> &, const std::shared_ptr<uo_mule::logger::GuiLogSink> &) -> int
         { throw std::runtime_error("GUI failure"); });
 
     std::ifstream logFile(log_directory / "cli-gui-exception-test.log");
@@ -157,7 +157,7 @@ TEST_CASE("runCli_Should_ReportLoggerSetupFailure")
     const std::vector<std::string_view> arguments{"check"};
     std::ostringstream output;
     std::ostringstream error;
-    uo_mule::core::Logger logger("cli-logger-setup-failure-test");
+    uo_mule::logger::Logger logger("cli-logger-setup-failure-test");
 
     const int result = uo_mule::app::runCli(arguments, output, error, logger, blocker_path);
 
@@ -172,7 +172,7 @@ TEST_CASE("runCli_Should_RejectInvalidLogLevel")
     const std::vector<std::string_view> arguments{"check", "--log-level", "35"};
     std::ostringstream output;
     std::ostringstream error;
-    uo_mule::core::Logger logger("cli-invalid-level-test");
+    uo_mule::logger::Logger logger("cli-invalid-level-test");
 
     const int result = uo_mule::app::runCli(arguments, output, error, logger);
 

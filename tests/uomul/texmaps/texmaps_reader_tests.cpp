@@ -24,7 +24,6 @@ constexpr std::uint16_t smallTextureSample = 0x1234;
 constexpr std::uint16_t largeTextureSample = 0xABCD;
 constexpr std::uint32_t indexLookupFieldOffset = 8;
 constexpr std::uint32_t oversizeEntryCount = 0x4001;
-constexpr std::uint32_t maxValidEntryCount = 0x4000;
 constexpr std::uint8_t invalidLookupByte = 7;
 constexpr std::uint32_t mismatchedEntryLength = 100;
 
