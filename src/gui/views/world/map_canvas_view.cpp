@@ -369,8 +369,202 @@ void drawSelection(ImDrawList & drawList,
                    ImVec2 canvasOrigin,
                    MapCanvasViewState & state,
                    const MapWorkspace & workspace,
-                   uomul::Dimensions dimensions)
+                   uomul::Dimensions dimensions,
+                   std::uint32_t visibleMinX,
+                   std::uint32_t visibleMaxX,
+                   std::uint32_t visibleMinY,
+                   std::uint32_t visibleMaxY)
 {
+    const double marchingDistance = ImGui::GetTime() * 24.0;
+    const auto drawMarchingLine = [&drawList, marchingDistance](ImVec2 start,
+                                                                ImVec2 end,
+                                                                float thickness,
+                                                                float spacing)
+    {
+        const float dx = end.x - start.x;
+        const float dy = end.y - start.y;
+        const float length = std::sqrt((dx * dx) + (dy * dy));
+        if (length <= 0.0F)
+        {
+            return;
+        }
+        const float unitX = dx / length;
+        const float unitY = dy / length;
+        const float dashLength = spacing;
+        const float gapLength = spacing;
+        const float cycle = dashLength + gapLength;
+        if (length < cycle * 1.5F)
+        {
+            drawList.AddLine(start, end, theme::packedColor(theme::selection), thickness);
+            return;
+        }
+        const float phaseCoordinate = std::abs(dy) > std::abs(dx) ? std::min(start.y, end.y) : std::min(start.x, end.x);
+        const float phase = static_cast<float>(std::fmod(marchingDistance + static_cast<double>(phaseCoordinate),
+                                                         static_cast<double>(cycle)));
+        for (float offset = -phase; offset < length; offset += cycle)
+        {
+            const float dashStart = std::max(0.0F, offset);
+            const float dashEnd = std::min(length, offset + dashLength);
+            if (dashEnd <= dashStart)
+            {
+                continue;
+            }
+            drawList.AddLine(ImVec2(start.x + (unitX * dashStart), start.y + (unitY * dashStart)),
+                             ImVec2(start.x + (unitX * dashEnd), start.y + (unitY * dashEnd)),
+                             theme::packedColor(theme::selection),
+                             thickness);
+        }
+    };
+    const auto drawMarchingRect = [&drawMarchingLine](ImVec2 minimum, ImVec2 maximum, float thickness, float spacing)
+    {
+        drawMarchingLine(minimum, ImVec2(maximum.x, minimum.y), thickness, spacing);
+        drawMarchingLine(ImVec2(maximum.x, minimum.y), maximum, thickness, spacing);
+        drawMarchingLine(maximum, ImVec2(minimum.x, maximum.y), thickness, spacing);
+        drawMarchingLine(ImVec2(minimum.x, maximum.y), minimum, thickness, spacing);
+    };
+    const auto drawMarchingPolyline = [&drawList, marchingDistance](const std::vector<ImVec2> & points,
+                                                                     float thickness,
+                                                                     float spacing)
+    {
+        if (points.size() < 2U)
+        {
+            return;
+        }
+
+        const float cycle = spacing * 2.0F;
+        const float phase = static_cast<float>(std::fmod(marchingDistance, static_cast<double>(cycle)));
+        float totalLength = 0.0F;
+        for (std::size_t index = 1; index < points.size(); index++)
+        {
+            const float dx = points.at(index).x - points.at(index - 1U).x;
+            const float dy = points.at(index).y - points.at(index - 1U).y;
+            totalLength += std::sqrt((dx * dx) + (dy * dy));
+        }
+        if (totalLength <= 0.0F)
+        {
+            return;
+        }
+
+        for (float dashOffset = -phase; dashOffset < totalLength; dashOffset += cycle)
+        {
+            const float dashStart = std::max(0.0F, dashOffset);
+            const float dashEnd = std::min(totalLength, dashOffset + spacing);
+            if (dashEnd <= dashStart)
+            {
+                continue;
+            }
+
+            float segmentStart = 0.0F;
+            for (std::size_t index = 1; index < points.size(); index++)
+            {
+                const ImVec2 start = points.at(index - 1U);
+                const ImVec2 end = points.at(index);
+                const float dx = end.x - start.x;
+                const float dy = end.y - start.y;
+                const float segmentLength = std::sqrt((dx * dx) + (dy * dy));
+                const float segmentEnd = segmentStart + segmentLength;
+                const float visibleStart = std::max(dashStart, segmentStart);
+                const float visibleEnd = std::min(dashEnd, segmentEnd);
+                if (visibleEnd > visibleStart && segmentLength > 0.0F)
+                {
+                    const float startRatio = (visibleStart - segmentStart) / segmentLength;
+                    const float endRatio = (visibleEnd - segmentStart) / segmentLength;
+                    drawList.AddLine(ImVec2(start.x + (dx * startRatio), start.y + (dy * startRatio)),
+                                     ImVec2(start.x + (dx * endRatio), start.y + (dy * endRatio)),
+                                     theme::packedColor(theme::selection),
+                                     thickness);
+                }
+                segmentStart = segmentEnd;
+            }
+        }
+    };
+    struct BoundaryEdge
+    {
+        std::int32_t x1;
+        std::int32_t y1;
+        std::int32_t x2;
+        std::int32_t y2;
+    };
+    const auto appendBoundaryEdge = [](std::vector<BoundaryEdge> & edges,
+                                       std::int32_t x1,
+                                       std::int32_t y1,
+                                       std::int32_t x2,
+                                       std::int32_t y2)
+    {
+        if (x1 == x2 && y1 > y2)
+        {
+            std::swap(y1, y2);
+        }
+        else if (y1 == y2 && x1 > x2)
+        {
+            std::swap(x1, x2);
+        }
+        edges.push_back({.x1 = x1, .y1 = y1, .x2 = x2, .y2 = y2});
+    };
+    const auto drawMergedBoundaries = [&](std::vector<BoundaryEdge> edges, float thickness, float spacing)
+    {
+        std::sort(edges.begin(), edges.end(), [](const BoundaryEdge & left, const BoundaryEdge & right)
+        {
+            const bool leftHorizontal = left.y1 == left.y2;
+            const bool rightHorizontal = right.y1 == right.y2;
+            if (leftHorizontal != rightHorizontal)
+            {
+                return leftHorizontal;
+            }
+            const std::int32_t leftAxis = leftHorizontal ? left.y1 : left.x1;
+            const std::int32_t rightAxis = rightHorizontal ? right.y1 : right.x1;
+            if (leftAxis != rightAxis)
+            {
+                return leftAxis < rightAxis;
+            }
+            return (leftHorizontal ? left.x1 : left.y1) < (rightHorizontal ? right.x1 : right.y1);
+        });
+
+        std::vector<BoundaryEdge> merged;
+        for (const BoundaryEdge edge : edges)
+        {
+            if (!merged.empty())
+            {
+                BoundaryEdge & previous = merged.back();
+                const bool sameHorizontal = (previous.y1 == previous.y2) == (edge.y1 == edge.y2);
+                const bool sameAxis = previous.y1 == previous.y2 ? previous.y1 == edge.y1 : previous.x1 == edge.x1;
+                const bool adjacent = previous.x2 == edge.x1 && previous.y2 == edge.y1;
+                if (sameHorizontal && sameAxis && adjacent)
+                {
+                    previous.x2 = edge.x2;
+                    previous.y2 = edge.y2;
+                    continue;
+                }
+            }
+            merged.push_back(edge);
+        }
+
+        for (const BoundaryEdge edge : merged)
+        {
+            const ImVec2 start(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(edge.x1) * state.zoom)),
+                               canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(edge.y1) * state.zoom)));
+            const ImVec2 end(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(edge.x2) * state.zoom)),
+                             canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(edge.y2) * state.zoom)));
+            drawMarchingLine(start, end, thickness, spacing);
+        }
+    };
+
+    if (state.lassoPath.size() > 1U)
+    {
+        const auto point = [](uomul::TileCoord tile, ImVec2 origin, const MapCanvasViewState & canvasState)
+        {
+            return ImVec2(origin.x + static_cast<float>(canvasState.panX + ((static_cast<double>(tile.x) + 0.5) * canvasState.zoom)),
+                          origin.y + static_cast<float>(canvasState.panY + ((static_cast<double>(tile.y) + 0.5) * canvasState.zoom)));
+        };
+        std::vector<ImVec2> lassoPoints;
+        lassoPoints.reserve(state.lassoPath.size());
+        for (const uomul::TileCoord tile : state.lassoPath)
+        {
+            lassoPoints.push_back(point(tile, canvasOrigin, state));
+        }
+        drawMarchingPolyline(lassoPoints, 1.0F, 4.0F);
+    }
+
     std::optional<uomul::TileRegion> selection = workspace.tileSelection();
 
     if (workspace.selectionMode() == MapSelectionMode::blocks && workspace.blockSelection())
@@ -415,25 +609,58 @@ void drawSelection(ImDrawList & drawList,
     {
         if (mask.granularity() == ToolSelectionGranularity::tiles)
         {
-            for (std::uint32_t y = 0; y < dimensions.heightTiles; y++)
+            std::vector<BoundaryEdge> edges;
+            for (std::uint32_t y = visibleMinY; y < visibleMaxY; y++)
             {
-                for (std::uint32_t x = 0; x < dimensions.widthTiles; x++)
+                for (std::uint32_t x = visibleMinX; x < visibleMaxX; x++)
                 {
                     if (!mask.contains(uomul::TileCoord{.x = x, .y = y}))
                     {
                         continue;
                     }
-                    const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(x) * state.zoom)),
-                                         canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(y) * state.zoom)));
-                    const ImVec2 maximum(minimum.x + static_cast<float>(state.zoom), minimum.y + static_cast<float>(state.zoom));
-                    drawList.AddRect(minimum,
-                                     maximum,
-                                     theme::packedColor(theme::selection),
-                                     0.0F,
-                                     ImDrawFlags_None,
-                                     1.0F);
+                    if (selectionCellHasExposedEdge(mask,
+                                                    static_cast<std::int32_t>(x),
+                                                    static_cast<std::int32_t>(y),
+                                                    -1,
+                                                    0,
+                                                    dimensions))
+                    {
+                        appendBoundaryEdge(edges, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y),
+                                           static_cast<std::int32_t>(x), static_cast<std::int32_t>(y + 1U));
+                    }
+                    if (selectionCellHasExposedEdge(mask,
+                                                    static_cast<std::int32_t>(x),
+                                                    static_cast<std::int32_t>(y),
+                                                    1,
+                                                    0,
+                                                    dimensions))
+                    {
+                        appendBoundaryEdge(edges, static_cast<std::int32_t>(x + 1U), static_cast<std::int32_t>(y),
+                                           static_cast<std::int32_t>(x + 1U), static_cast<std::int32_t>(y + 1U));
+                    }
+                    if (selectionCellHasExposedEdge(mask,
+                                                    static_cast<std::int32_t>(x),
+                                                    static_cast<std::int32_t>(y),
+                                                    0,
+                                                    -1,
+                                                    dimensions))
+                    {
+                        appendBoundaryEdge(edges, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y),
+                                           static_cast<std::int32_t>(x + 1U), static_cast<std::int32_t>(y));
+                    }
+                    if (selectionCellHasExposedEdge(mask,
+                                                    static_cast<std::int32_t>(x),
+                                                    static_cast<std::int32_t>(y),
+                                                    0,
+                                                    1,
+                                                    dimensions))
+                    {
+                        appendBoundaryEdge(edges, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y + 1U),
+                                           static_cast<std::int32_t>(x + 1U), static_cast<std::int32_t>(y + 1U));
+                    }
                 }
             }
+            drawMergedBoundaries(std::move(edges), 1.0F, 4.0F);
             return;
         }
 
@@ -441,9 +668,18 @@ void drawSelection(ImDrawList & drawList,
                                          static_cast<std::uint32_t>(dimensions.widthTiles % uomul::mapBlockDimension != 0U);
         const std::uint32_t blockHeight = (dimensions.heightTiles / uomul::mapBlockDimension) +
                                           static_cast<std::uint32_t>(dimensions.heightTiles % uomul::mapBlockDimension != 0U);
-        for (std::uint32_t y = 0; y < blockHeight; y++)
+        const std::uint32_t visibleBlockMinX = visibleMinX / uomul::mapBlockDimension;
+        const std::uint32_t visibleBlockMaxX = std::min(blockWidth,
+                                                        (visibleMaxX + uomul::mapBlockDimension - 1U) /
+                                                            uomul::mapBlockDimension);
+        const std::uint32_t visibleBlockMinY = visibleMinY / uomul::mapBlockDimension;
+        const std::uint32_t visibleBlockMaxY = std::min(blockHeight,
+                                                        (visibleMaxY + uomul::mapBlockDimension - 1U) /
+                                                            uomul::mapBlockDimension);
+        std::vector<BoundaryEdge> edges;
+        for (std::uint32_t y = visibleBlockMinY; y < visibleBlockMaxY; y++)
         {
-            for (std::uint32_t x = 0; x < blockWidth; x++)
+            for (std::uint32_t x = visibleBlockMinX; x < visibleBlockMaxX; x++)
             {
                 if (!mask.contains(uomul::BlockCoord{.x = x, .y = y}))
                 {
@@ -453,18 +689,49 @@ void drawSelection(ImDrawList & drawList,
                 const std::uint32_t tileMinY = y * uomul::mapBlockDimension;
                 const std::uint32_t tileMaxX = std::min(dimensions.widthTiles, tileMinX + uomul::mapBlockDimension);
                 const std::uint32_t tileMaxY = std::min(dimensions.heightTiles, tileMinY + uomul::mapBlockDimension);
-                const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tileMinX) * state.zoom)),
-                                     canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tileMinY) * state.zoom)));
-                const ImVec2 maximum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tileMaxX) * state.zoom)),
-                                     canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tileMaxY) * state.zoom)));
-                drawList.AddRect(minimum,
-                                 maximum,
-                                 theme::packedColor(theme::selection),
-                                 0.0F,
-                                 ImDrawFlags_None,
-                                 2.0F);
+                if (selectionCellHasExposedEdge(mask,
+                                                 static_cast<std::int32_t>(x),
+                                                 static_cast<std::int32_t>(y),
+                                                 -1,
+                                                 0,
+                                                 dimensions))
+                {
+                    appendBoundaryEdge(edges, static_cast<std::int32_t>(tileMinX), static_cast<std::int32_t>(tileMinY),
+                                       static_cast<std::int32_t>(tileMinX), static_cast<std::int32_t>(tileMaxY));
+                }
+                if (selectionCellHasExposedEdge(mask,
+                                                 static_cast<std::int32_t>(x),
+                                                 static_cast<std::int32_t>(y),
+                                                 1,
+                                                 0,
+                                                 dimensions))
+                {
+                    appendBoundaryEdge(edges, static_cast<std::int32_t>(tileMaxX), static_cast<std::int32_t>(tileMinY),
+                                       static_cast<std::int32_t>(tileMaxX), static_cast<std::int32_t>(tileMaxY));
+                }
+                if (selectionCellHasExposedEdge(mask,
+                                                 static_cast<std::int32_t>(x),
+                                                 static_cast<std::int32_t>(y),
+                                                 0,
+                                                 -1,
+                                                 dimensions))
+                {
+                    appendBoundaryEdge(edges, static_cast<std::int32_t>(tileMinX), static_cast<std::int32_t>(tileMinY),
+                                       static_cast<std::int32_t>(tileMaxX), static_cast<std::int32_t>(tileMinY));
+                }
+                if (selectionCellHasExposedEdge(mask,
+                                                 static_cast<std::int32_t>(x),
+                                                 static_cast<std::int32_t>(y),
+                                                 0,
+                                                 1,
+                                                 dimensions))
+                {
+                    appendBoundaryEdge(edges, static_cast<std::int32_t>(tileMinX), static_cast<std::int32_t>(tileMaxY),
+                                       static_cast<std::int32_t>(tileMaxX), static_cast<std::int32_t>(tileMaxY));
+                }
             }
         }
+        drawMergedBoundaries(std::move(edges), 2.0F, 8.0F);
         return;
     }
 
@@ -480,12 +747,8 @@ void drawSelection(ImDrawList & drawList,
         canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(selection->maxExclusive.x) * state.zoom)),
         canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(selection->maxExclusive.y) * state.zoom)));
 
-    drawList.AddRect(minimum,
-                     maximum,
-                     theme::packedColor(theme::selection),
-                     0.0F,
-                     ImDrawFlags_None,
-                     static_cast<float>(selectionOutlineThickness));
+    drawMarchingRect(minimum, maximum, static_cast<float>(selectionOutlineThickness), 4.0F);
+
 }
 
 void writeLodPixel(std::vector<std::uint8_t> & pixels, std::size_t pixelIndex, ImU32 color)
@@ -769,9 +1032,9 @@ void drawCanvasContents(const MapWorkspace & workspace,
                         MapViewTileSource tileSource,
                         MapCanvasViewState & state,
                         ImVec2 canvasOrigin,
-                        ImVec2 canvasSize,
-                        std::optional<uomul::TileCoord> currentTile,
-                        std::optional<uomul::Error> & visibleReadError)
+                         ImVec2 canvasSize,
+                         std::optional<uomul::TileCoord> currentTile,
+                         std::optional<uomul::Error> & visibleReadError)
 {
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     const ImVec2 canvasMaximum(canvasOrigin.x + canvasSize.x, canvasOrigin.y + canvasSize.y);
@@ -842,7 +1105,15 @@ void drawCanvasContents(const MapWorkspace & workspace,
         }
     }
 
-    drawSelection(*drawList, canvasOrigin, state, workspace, dimensions);
+    drawSelection(*drawList,
+                  canvasOrigin,
+                  state,
+                  workspace,
+                  dimensions,
+                  minX,
+                  maxX,
+                  minY,
+                  maxY);
 
     if (!currentTile && workspace.selectedTile())
     {
@@ -1211,10 +1482,40 @@ void updateSelectionDrag(MapWorkspace & workspace,
                          uomul::Dimensions dimensions,
                          bool canvasHovered)
 {
-    if (toolState.activeTool() != ToolId::rectangleSelect || ImGui::IsKeyDown(ImGuiKey_Space))
+    const bool lassoTool = toolState.activeTool() == ToolId::lassoSelect;
+    if ((toolState.activeTool() != ToolId::rectangleSelect && !lassoTool) || ImGui::IsKeyDown(ImGuiKey_Space))
     {
         state.dragStart.reset();
         state.dragEnd.reset();
+        state.lassoing = false;
+        state.lassoPath.clear();
+        return;
+    }
+
+    if (lassoTool)
+    {
+        if (canvasHovered && currentTile && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            state.lassoing = true;
+            state.lassoPath.clear();
+            state.lassoPath.push_back(*currentTile);
+            state.lassoCombineMode = ImGui::GetIO().KeyCtrl ? SelectionCombineMode::subtract
+                                                              : ImGui::GetIO().KeyShift ? SelectionCombineMode::add
+                                                                                        : SelectionCombineMode::replace;
+        }
+        if (state.lassoing && ImGui::IsMouseDown(ImGuiMouseButton_Left) && currentTile &&
+            (state.lassoPath.empty() || state.lassoPath.back().x != currentTile->x ||
+             state.lassoPath.back().y != currentTile->y))
+        {
+            state.lassoPath.push_back(*currentTile);
+        }
+        if (!state.lassoing || !ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
+            return;
+        }
+        workspace.applyLassoSelection(state.lassoPath, state.lassoCombineMode);
+        state.lassoing = false;
+        state.lassoPath.clear();
         return;
     }
 
@@ -1420,7 +1721,15 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
         else
         {
             drawCanvasContents(
-                workspace, textures, radarColors, tileSource, state, canvasOrigin, canvasSize, currentTile, visibleReadError);
+                workspace,
+                textures,
+                radarColors,
+                tileSource,
+                state,
+                canvasOrigin,
+                canvasSize,
+                currentTile,
+                visibleReadError);
         }
     }
 

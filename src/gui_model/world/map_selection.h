@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <unordered_set>
+#include <vector>
 
 namespace uo_mule::gui
 {
@@ -29,6 +30,7 @@ public:
     void setGranularity(ToolSelectionGranularity granularity);
     void replaceTileRegion(uomul::TileRegion region, uomul::Dimensions dimensions);
     void replaceBlockRegion(uomul::BlockRegion region, uomul::Dimensions dimensions);
+    void replaceLasso(const std::vector<uomul::TileCoord> & path, uomul::Dimensions dimensions);
     void selectAll(uomul::Dimensions dimensions);
     void invert(uomul::Dimensions dimensions);
     void add(const MapSelectionMask & other);
@@ -42,5 +44,12 @@ private:
     ToolSelectionGranularity granularity_ = ToolSelectionGranularity::tiles;
     std::unordered_set<std::uint64_t> selected_;
 };
+
+[[nodiscard]] bool selectionCellHasExposedEdge(const MapSelectionMask & mask,
+                                               std::int32_t x,
+                                               std::int32_t y,
+                                               std::int32_t dx,
+                                               std::int32_t dy,
+                                               uomul::Dimensions dimensions) noexcept;
 
 } // namespace uo_mule::gui

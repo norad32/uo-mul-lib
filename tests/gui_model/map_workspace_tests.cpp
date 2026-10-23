@@ -247,6 +247,28 @@ TEST_CASE("mapWorkspace_Should_OpenCreateHoverAndExposeSelectionState")
     REQUIRE_FALSE(workspace.hoveredTile());
 }
 
+TEST_CASE("mapWorkspace_Should_ApplyLassoSelectionWithCombineModes")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "lasso.mul";
+    MapWorkspace workspace;
+    REQUIRE(workspace.createEmptyMap(mapPath, testDimensions));
+
+    const std::vector<uomul::TileCoord> firstLasso{
+        {.x = 1, .y = 1}, {.x = 4, .y = 1}, {.x = 4, .y = 4}, {.x = 1, .y = 4},
+    };
+    workspace.applyLassoSelection(firstLasso, uo_mule::gui::SelectionCombineMode::replace);
+    REQUIRE(workspace.selectionMask().size() == 9);
+
+    const std::vector<uomul::TileCoord> secondLasso{
+        {.x = 3, .y = 3}, {.x = 5, .y = 3}, {.x = 5, .y = 5}, {.x = 3, .y = 5},
+    };
+    workspace.applyLassoSelection(secondLasso, uo_mule::gui::SelectionCombineMode::add);
+    REQUIRE(workspace.selectionMask().size() == 12);
+    workspace.applyLassoSelection(secondLasso, uo_mule::gui::SelectionCombineMode::subtract);
+    REQUIRE(workspace.selectionMask().size() == 8);
+}
+
 TEST_CASE("mapWorkspace_Should_StageEditsAndRequireExplicitDirtyResolution")
 {
     const TestDirectory directory;

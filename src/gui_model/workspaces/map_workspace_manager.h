@@ -47,6 +47,10 @@ public:
     {
         active_->applyBlockSelection(region, mode);
     }
+    void applyLassoSelection(const std::vector<uomul::TileCoord> & path, SelectionCombineMode mode)
+    {
+        active_->applyLassoSelection(path, mode);
+    }
     void clearSelection() { active_->clearSelection(); }
     void selectAll() { active_->selectAll(); }
     void invertSelection() { active_->invertSelection(); }

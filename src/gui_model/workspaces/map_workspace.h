@@ -102,6 +102,7 @@ public:
     void setBlockSelection(uomul::BlockRegion region);
     void applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode);
     void applyBlockSelection(uomul::BlockRegion region, SelectionCombineMode mode);
+    void applyLassoSelection(const std::vector<uomul::TileCoord> & path, SelectionCombineMode mode);
     void clearSelection();
     void selectAll();
     void invertSelection();

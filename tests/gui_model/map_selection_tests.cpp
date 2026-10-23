@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 using uo_mule::gui::MapSelectionMask;
+using uo_mule::gui::selectionCellHasExposedEdge;
 using uo_mule::gui::ToolSelectionGranularity;
 
 TEST_CASE("selectionMask_Should_ReplaceRegionsAtTheRequestedGranularity")
@@ -89,4 +90,47 @@ TEST_CASE("selectionMask_Should_IgnoreCombinesAtDifferentGranularities")
     REQUIRE(tiles.size() == 1);
     tiles.subtract(blocks);
     REQUIRE(tiles.size() == 1);
+}
+
+TEST_CASE("selectionMask_Should_RasterizeTileLassoByCellCenters")
+{
+    MapSelectionMask mask;
+    const uomul::Dimensions dimensions{.widthTiles = 6, .heightTiles = 6};
+    const std::vector<uomul::TileCoord> path{
+        {.x = 1, .y = 1}, {.x = 4, .y = 1}, {.x = 4, .y = 4}, {.x = 1, .y = 4},
+    };
+
+    mask.replaceLasso(path, dimensions);
+
+    REQUIRE(mask.size() == 9);
+    REQUIRE(mask.contains(uomul::TileCoord{.x = 2, .y = 2}));
+    REQUIRE_FALSE(mask.contains(uomul::TileCoord{.x = 0, .y = 0}));
+}
+
+TEST_CASE("selectionMask_Should_RasterizeBlockLassoByTouchedBlocks")
+{
+    MapSelectionMask mask;
+    const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
+    mask.setGranularity(ToolSelectionGranularity::blocks);
+    const std::vector<uomul::TileCoord> path{
+        {.x = 7, .y = 1}, {.x = 9, .y = 1}, {.x = 9, .y = 9},
+    };
+
+    mask.replaceLasso(path, dimensions);
+
+    REQUIRE(mask.size() == 3);
+    REQUIRE(mask.contains(uomul::BlockCoord{.x = 0, .y = 0}));
+    REQUIRE(mask.contains(uomul::BlockCoord{.x = 1, .y = 1}));
+}
+
+TEST_CASE("selectionMask_Should_ExposeOnlyOuterEdgesForAdjacentCells")
+{
+    MapSelectionMask mask;
+    const uomul::Dimensions dimensions{.widthTiles = 4, .heightTiles = 4};
+    mask.replaceTileRegion({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 3, .y = 3}}, dimensions);
+
+    REQUIRE(selectionCellHasExposedEdge(mask, 1, 1, -1, 0, dimensions));
+    REQUIRE(selectionCellHasExposedEdge(mask, 1, 1, 0, -1, dimensions));
+    REQUIRE_FALSE(selectionCellHasExposedEdge(mask, 1, 1, 1, 0, dimensions));
+    REQUIRE_FALSE(selectionCellHasExposedEdge(mask, 1, 1, 0, 1, dimensions));
 }

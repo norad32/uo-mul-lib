@@ -123,6 +123,9 @@ struct MapCanvasViewState
     bool hasDocument = false;
     bool panning = false;
     bool panningWithLeftButton = false;
+    bool lassoing = false;
+    SelectionCombineMode lassoCombineMode = SelectionCombineMode::replace;
+    std::vector<uomul::TileCoord> lassoPath;
     bool scrollResetPending = false;
     MapCanvasNavigationRequest navigationRequest;
     bool coordinatePopupRequested = false;

@@ -678,6 +678,29 @@ void MapWorkspace::applyBlockSelection(uomul::BlockRegion region, SelectionCombi
     }
 }
 
+void MapWorkspace::applyLassoSelection(const std::vector<uomul::TileCoord> & path, SelectionCombineMode mode)
+{
+    MapSelectionMask selection;
+    selection.setGranularity(selectionMask_.granularity());
+    selection.replaceLasso(path, dimensions_);
+    if (mode == SelectionCombineMode::replace)
+    {
+        selectionMask_ = std::move(selection);
+    }
+    else if (mode == SelectionCombineMode::add)
+    {
+        selectionMask_.add(selection);
+    }
+    else
+    {
+        selectionMask_.subtract(selection);
+    }
+    selectionMode_ = selectionMask_.granularity() == ToolSelectionGranularity::tiles ? MapSelectionMode::tiles
+                                                                                        : MapSelectionMode::blocks;
+    tileSelection_.reset();
+    blockSelection_.reset();
+}
+
 void MapWorkspace::clearSelection()
 {
     tileSelection_.reset();

@@ -1,6 +1,7 @@
 #include "gui_model/world/map_selection.h"
 #include "uomul/mul_common/mul_common.h"
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace uo_mule::gui
@@ -84,6 +85,89 @@ void MapSelectionMask::replaceBlockRegion(uomul::BlockRegion region, uomul::Dime
         for (std::uint32_t x = region.min.x; x < region.maxExclusive.x; x++)
         {
             selected_.insert(blockKey({.x = x, .y = y}));
+        }
+    }
+}
+
+void MapSelectionMask::replaceLasso(const std::vector<uomul::TileCoord> & path, uomul::Dimensions dimensions)
+{
+    selected_.clear();
+    if (path.empty() || dimensions.widthTiles == 0U || dimensions.heightTiles == 0U)
+    {
+        return;
+    }
+
+    if (granularity_ == ToolSelectionGranularity::blocks)
+    {
+        for (const uomul::TileCoord point : path)
+        {
+            if (point.x < dimensions.widthTiles && point.y < dimensions.heightTiles)
+            {
+                selected_.insert(blockKey({.x = point.x / uomul::mapBlockDimension,
+                                           .y = point.y / uomul::mapBlockDimension}));
+            }
+        }
+        return;
+    }
+
+    if (path.size() < 3U)
+    {
+        for (const uomul::TileCoord point : path)
+        {
+            if (point.x < dimensions.widthTiles && point.y < dimensions.heightTiles)
+            {
+                selected_.insert(tileKey(point));
+            }
+        }
+        return;
+    }
+
+    std::uint32_t minX = dimensions.widthTiles - 1U;
+    std::uint32_t minY = dimensions.heightTiles - 1U;
+    std::uint32_t maxX = 0U;
+    std::uint32_t maxY = 0U;
+    for (const uomul::TileCoord point : path)
+    {
+        minX = std::min(minX, point.x);
+        minY = std::min(minY, point.y);
+        maxX = std::max(maxX, point.x);
+        maxY = std::max(maxY, point.y);
+    }
+    minX = std::min(minX, dimensions.widthTiles - 1U);
+    minY = std::min(minY, dimensions.heightTiles - 1U);
+    maxX = std::min(maxX, dimensions.widthTiles - 1U);
+    maxY = std::min(maxY, dimensions.heightTiles - 1U);
+
+    for (std::uint32_t y = minY; y <= maxY; y++)
+    {
+        for (std::uint32_t x = minX; x <= maxX; x++)
+        {
+            const double sampleX = static_cast<double>(x) + 0.5;
+            const double sampleY = static_cast<double>(y) + 0.5;
+            bool inside = false;
+            std::size_t previous = path.size() - 1U;
+            for (std::size_t current = 0; current < path.size(); current++)
+            {
+                const double currentY = static_cast<double>(path.at(current).y);
+                const double previousY = static_cast<double>(path.at(previous).y);
+                const bool crosses = (currentY > sampleY) != (previousY > sampleY);
+                if (crosses)
+                {
+                    const double currentX = static_cast<double>(path.at(current).x);
+                    const double previousX = static_cast<double>(path.at(previous).x);
+                    const double intersection = ((previousX - currentX) * (sampleY - currentY) /
+                                                 (previousY - currentY)) + currentX;
+                    if (sampleX < intersection)
+                    {
+                        inside = !inside;
+                    }
+                }
+                previous = current;
+            }
+            if (inside)
+            {
+                selected_.insert(tileKey({.x = x, .y = y}));
+            }
         }
     }
 }
@@ -189,6 +273,45 @@ std::uint64_t MapSelectionMask::tileKey(uomul::TileCoord coordinate) const noexc
 std::uint64_t MapSelectionMask::blockKey(uomul::BlockCoord coordinate) const noexcept
 {
     return (static_cast<std::uint64_t>(coordinate.x) << 32U) | coordinate.y;
+}
+
+bool selectionCellHasExposedEdge(const MapSelectionMask & mask,
+                                 std::int32_t x,
+                                 std::int32_t y,
+                                 std::int32_t dx,
+                                 std::int32_t dy,
+                                 uomul::Dimensions dimensions) noexcept
+{
+    if (mask.granularity() == ToolSelectionGranularity::tiles)
+    {
+        if (x < 0 || y < 0 || x >= static_cast<std::int32_t>(dimensions.widthTiles) ||
+            y >= static_cast<std::int32_t>(dimensions.heightTiles) ||
+            !mask.contains(uomul::TileCoord{.x = static_cast<std::uint32_t>(x), .y = static_cast<std::uint32_t>(y)}))
+        {
+            return false;
+        }
+        const std::int32_t neighborX = x + dx;
+        const std::int32_t neighborY = y + dy;
+        return neighborX < 0 || neighborY < 0 || neighborX >= static_cast<std::int32_t>(dimensions.widthTiles) ||
+               neighborY >= static_cast<std::int32_t>(dimensions.heightTiles) ||
+               !mask.contains(uomul::TileCoord{.x = static_cast<std::uint32_t>(neighborX),
+                                               .y = static_cast<std::uint32_t>(neighborY)});
+    }
+
+    const std::int32_t blockWidth = static_cast<std::int32_t>((dimensions.widthTiles + uomul::mapBlockDimension - 1U) /
+                                                               uomul::mapBlockDimension);
+    const std::int32_t blockHeight = static_cast<std::int32_t>((dimensions.heightTiles + uomul::mapBlockDimension - 1U) /
+                                                                uomul::mapBlockDimension);
+    if (x < 0 || y < 0 || x >= blockWidth || y >= blockHeight ||
+        !mask.contains(uomul::BlockCoord{.x = static_cast<std::uint32_t>(x), .y = static_cast<std::uint32_t>(y)}))
+    {
+        return false;
+    }
+    const std::int32_t neighborX = x + dx;
+    const std::int32_t neighborY = y + dy;
+    return neighborX < 0 || neighborY < 0 || neighborX >= blockWidth || neighborY >= blockHeight ||
+           !mask.contains(uomul::BlockCoord{.x = static_cast<std::uint32_t>(neighborX),
+                                            .y = static_cast<std::uint32_t>(neighborY)});
 }
 
 } // namespace uo_mule::gui
