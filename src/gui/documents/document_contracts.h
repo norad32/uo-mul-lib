@@ -12,6 +12,7 @@ enum class DocumentKind : std::uint8_t
     map,
     radarcol,
     texmapPair,
+    unavailable,
 };
 
 // Metadata documents are either independent user documents or profile sources.
@@ -65,8 +66,26 @@ inline constexpr UnsupportedMulPolicy unsupportedMulPolicy = UnsupportedMulPolic
             return "Radarcol";
         case DocumentKind::texmapPair :
             return "Texmap Pair";
+        case DocumentKind::unavailable :
+            return "Unavailable";
     }
     return "Unknown";
+}
+
+[[nodiscard]] constexpr std::string_view documentKindStableName(DocumentKind kind) noexcept
+{
+    switch (kind)
+    {
+        case DocumentKind::map :
+            return "map";
+        case DocumentKind::radarcol :
+            return "radarcol";
+        case DocumentKind::texmapPair :
+            return "texmap_pair";
+        case DocumentKind::unavailable :
+            return "unavailable";
+    }
+    return "unavailable";
 }
 
 } // namespace uo_mule::gui

@@ -44,6 +44,7 @@ TEST_CASE("assetWindowState_Should_ResetSelectionAndCachesForNewContext")
     uo_mule::gui::assets::AssetWindowState state;
     state.queryCacheContext = "old-context";
     state.queryCacheFilter = "old-filter";
+    state.query.filter = "old query";
     state.searchItemsValid = true;
     state.queryCacheValid = true;
     state.selection.selected.push_back({.value = "7"});
@@ -52,11 +53,13 @@ TEST_CASE("assetWindowState_Should_ResetSelectionAndCachesForNewContext")
     state.selectionDragBase = state.selection;
     state.selectionDragActive = true;
     state.scrollPosition = 42.0F;
+    state.detailsCollapsed = true;
 
     uo_mule::gui::assets::resetContext(state);
 
     REQUIRE(state.queryCacheContext.empty());
     REQUIRE(state.queryCacheFilter.empty());
+    REQUIRE(state.query.filter.empty());
     REQUIRE_FALSE(state.searchItemsValid);
     REQUIRE_FALSE(state.queryCacheValid);
     REQUIRE(state.selection.selected.empty());
@@ -65,4 +68,5 @@ TEST_CASE("assetWindowState_Should_ResetSelectionAndCachesForNewContext")
     REQUIRE(state.selectionDragBase.selected.empty());
     REQUIRE_FALSE(state.selectionDragActive);
     REQUIRE(state.scrollPosition <= 0.0F);
+    REQUIRE_FALSE(state.detailsCollapsed);
 }

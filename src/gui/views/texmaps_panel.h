@@ -4,7 +4,7 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/persistence/preferences.h"
-#include "gui/profile/data_profile.h"
+#include "gui/providers/data_providers.h"
 #include "uomul/texmaps/texmaps.h"
 #include <array>
 #include <cstddef>
@@ -36,8 +36,6 @@ struct TexmapsPanelState
     assets::AssetWindowState assetView;
 };
 
-void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile);
-void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult & result);
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, Preferences & preferences);
+void drawTexmapsPanel(TexmapsPanelState & state, const TextureProvider & provider, bool & visible, Preferences & preferences);
 
 } // namespace uo_mule::gui

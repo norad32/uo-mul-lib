@@ -21,6 +21,7 @@
 #include "gui/views/panel_registry.h"
 #include "gui/views/radarcol_panel.h"
 #include "gui/views/texmaps_panel.h"
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -34,6 +35,17 @@ struct MenuBarState
     NewFileDialogState fileDialog;
     PreferencesDialogState preferencesDialog;
     bool windowCloseRequested = false;
+};
+
+enum class DocumentCloseDirtyPolicy : std::uint8_t
+{
+    prompt,
+};
+
+struct DocumentCloseRequest
+{
+    DocumentId id = 0;
+    DocumentCloseDirtyPolicy dirtyPolicy = DocumentCloseDirtyPolicy::prompt;
 };
 
 struct WorkbenchState
@@ -60,8 +72,7 @@ struct WorkbenchState
     bool fullscreenToggleRequested = false;
     bool workbenchLayoutApplied = false;
     std::optional<DocumentId> pendingDocumentActivation;
-    std::optional<DocumentId> pendingDocumentClose;
-    bool pendingDocumentCloseDirty = false;
+    std::optional<DocumentCloseRequest> pendingDocumentClose;
     MenuBarState menuBarState;
     DialogHostState dialogHost;
     FileBrowserState fileBrowser;

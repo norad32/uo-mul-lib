@@ -92,12 +92,7 @@ void parseSchemaVersion(DataProfileLoadResult & result,
     {
         addParseDiagnostic(result, path, key);
     }
-    else if (schema == 0)
-    {
-        result.profile.schemaVersion = DataProfile::currentSchemaVersion;
-        addDiagnostic(result, Diagnostic::Severity::info, "migrated data profile schema to version 1", path);
-    }
-    else if (schema <= DataProfile::currentSchemaVersion)
+    else if (schema == DataProfile::currentSchemaVersion)
     {
         result.profile.schemaVersion = DataProfile::currentSchemaVersion;
     }

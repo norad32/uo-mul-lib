@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <ios>
 #include <random>
 #include <string>
@@ -207,6 +208,25 @@ TEST_CASE("recentFileStore_Should_RoundTripAllRecentDocumentKinds")
     REQUIRE(loaded.files().at(0).companionPath == texmapsPath);
     REQUIRE(loaded.files().at(1).kind == uo_mule::gui::DocumentKind::radarcol);
     REQUIRE(loaded.files().at(1).companionPath.empty());
+}
+
+TEST_CASE("recentFiles_Should_RetainUnknownKindsAsUnavailable")
+{
+    const TemporaryDirectory directory;
+    const auto recentPath = directory.path() / "recent.conf";
+    const auto sourcePath = directory.path() / "future.mul";
+    std::ofstream(sourcePath) << "future";
+    std::ofstream file(recentPath);
+    file << "schema_version 0\n"
+         << "map " << std::quoted(sourcePath.string()) << " " << std::quoted("future") << " 0 " << std::quoted("") << " "
+         << std::quoted("") << " " << std::quoted("future_kind") << " 0 " << std::quoted("") << " 1 1\n";
+    file.close();
+
+    const auto loaded = uo_mule::gui::loadRecentFiles(recentPath);
+
+    REQUIRE(loaded.size() == 1);
+    REQUIRE(loaded.front().kind == uo_mule::gui::DocumentKind::unavailable);
+    REQUIRE(loaded.front().failure.find("future_kind") != std::string::npos);
 }
 
 TEST_CASE("welcomeGreeting_Should_SelectAConfiguredGreeting")

@@ -236,6 +236,7 @@ void clear(AssetSelection & selection) noexcept
 
 void resetContext(AssetWindowState & state) noexcept
 {
+    state.query = {};
     state.queryCacheContext.clear();
     state.queryCacheFilter.clear();
     state.searchItems.clear();
@@ -249,6 +250,7 @@ void resetContext(AssetWindowState & state) noexcept
     state.selectionDragStartY = 0.0F;
     state.selectionDragActive = false;
     state.scrollPosition = 0.0F;
+    state.detailsCollapsed = false;
 }
 
 } // namespace uo_mule::gui::assets

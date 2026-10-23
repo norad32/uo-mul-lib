@@ -4,7 +4,6 @@
 #include "gui/dialogs/dialog_presentation.h"
 #include "gui/frontend/theme.h"
 #include "gui/persistence/config_paths.h"
-#include "gui/strings/ui_strings.h"
 #include "gui/support/bounded_buffer.h"
 #include "gui/support/file_size.h"
 #include "uomul/map.h"

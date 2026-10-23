@@ -6,13 +6,11 @@
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/documents/document_identity.h"
 #include "gui/documents/radarcol_document.h"
-#include "gui/documents/document_contracts.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/strings/ui_strings.h"
-#include "gui/views/radarcol_panel.h"
-#include "gui/views/texmaps_panel.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include <filesystem>
@@ -197,8 +195,6 @@ bool routePairResult(WorkbenchState & state, const FileBrowserResult & result, c
     auto dataResult = result;
     dataResult.target = FileBrowserTarget::texmapsData;
     dataResult.path = pair.companionPath;
-    applyFileBrowserResult(state.texmapsState, indexResult);
-    applyFileBrowserResult(state.texmapsState, dataResult);
     applyFileBrowserResult(state.menuBarState.preferencesDialog, indexResult);
     applyFileBrowserResult(state.menuBarState.preferencesDialog, dataResult);
     return false;
@@ -219,11 +215,6 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
             });
         }
     }
-    else
-    {
-        applyFileBrowserResult(state.radarcolState, result);
-    }
-    applyFileBrowserResult(state.texmapsState, result);
 }
 
 [[nodiscard]] bool routeFileBrowserResult(WorkbenchState & state, const FileBrowserResult & result)

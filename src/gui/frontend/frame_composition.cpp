@@ -1,18 +1,19 @@
 #include "gui/frontend/frame_composition.h"
 #include "core/gui_log_sink.h"
 #include "gui/application/workbench_state.h"
+#include "gui/assets/asset_window_contracts.h"
 #include "gui/commands/command_registry.h"
 #include "gui/commands/menu_bar.h"
 #include "gui/context/map_context.h"
 #include "gui/context/notification_state.h"
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/documents/document_identity.h"
 #include "gui/documents/map_document.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/frontend/document_surface.h"
 #include "gui/frontend/theme.h"
 #include "gui/frontend/welcome_screen.h"
-#include "gui/documents/document_contracts.h"
 #include "gui/persistence/layout_store.h"
 #include "gui/persistence/preferences.h"
 #include "gui/profile/data_profile.h"
@@ -193,8 +194,6 @@ void drawMapPanels(WorkbenchState & state,
                    TexmapsPanelState & texmapsState)
 {
     state.providers.sync(activeProfile);
-    syncRadarcolPanel(radarcolState, activeProfile);
-    syncTexmapsPanel(texmapsState, activeProfile);
     MapWorkspace & workspace = state.workspace.active();
     const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
     const DocumentRecord * active = state.session.activeDocumentRecord();
@@ -218,11 +217,15 @@ void drawMapPanels(WorkbenchState & state,
     }
     if (state.panelRegistry.find(PanelId::radarcol)->visible)
     {
-        drawRadarcolPanel(radarcolState, state.panelRegistry.find(PanelId::radarcol)->visible, state.preferences.idFormat);
+        drawRadarcolPanel(radarcolState,
+                          state.providers.radarColors(),
+                          state.panelRegistry.find(PanelId::radarcol)->visible,
+                          state.preferences.idFormat);
     }
     if (state.panelRegistry.find(PanelId::texmaps)->visible)
     {
-        drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible, state.preferences);
+        drawTexmapsPanel(
+            texmapsState, state.providers.textures(), state.panelRegistry.find(PanelId::texmaps)->visible, state.preferences);
     }
 }
 
@@ -383,6 +386,11 @@ void activateDocumentOrNotify(WorkbenchState & state, DocumentId id)
     }
 }
 
+void requestDocumentActivation(WorkbenchState & state, DocumentId id)
+{
+    state.pendingDocumentActivation = id;
+}
+
 void dockDocumentWindow()
 {
     if (const ImGuiID centralNode = documentDockNodeId(); centralNode != 0U)
@@ -402,7 +410,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             state.workspace,
             state.providers.radarColors(),
             windowName,
-            [&state, id = document.summary.identity.id] { activateDocumentOrNotify(state, id); },
+            [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); },
             [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
             [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
             [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
@@ -423,7 +431,8 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
                                   visible,
                                   state.fileBrowser,
                                   state.preferences.idFormat,
-                                  [&state, id = document.summary.identity.id] { activateDocumentOrNotify(state, id); });
+                                  windowName,
+                                  [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
         if (!visible)
         {
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
@@ -435,7 +444,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
     dockDocumentWindow();
     if (ImGui::Begin(windowName.c_str(), &visible))
     {
-        activateDocumentOrNotify(state, document.summary.identity.id);
+        requestDocumentActivation(state, document.summary.identity.id);
         const std::string kindName(documentKindName(document.summary.identity.kind));
         ImGui::Text("%s is active, but has no view yet.", kindName.c_str());
         ImGui::TextUnformatted("This document type is represented as a placeholder until its view is implemented.");
@@ -478,8 +487,11 @@ void processDocumentIntents(WorkbenchState & state)
 
 void requestDocumentClose(WorkbenchState & state, DocumentId id, bool dirty)
 {
-    state.pendingDocumentClose = id;
-    state.pendingDocumentCloseDirty = dirty;
+    static_cast<void>(dirty);
+    if (!state.pendingDocumentClose)
+    {
+        state.pendingDocumentClose = DocumentCloseRequest{.id = id};
+    }
 }
 
 void applyPendingDocumentAction(WorkbenchState & state)
@@ -497,12 +509,25 @@ void applyPendingDocumentAction(WorkbenchState & state)
         return;
     }
 
-    const DocumentId id = *state.pendingDocumentClose;
-    const bool dirty = state.pendingDocumentCloseDirty;
+    const DocumentCloseRequest request = *state.pendingDocumentClose;
+    const DocumentId id = request.id;
     state.pendingDocumentClose.reset();
-    state.pendingDocumentCloseDirty = false;
 
-    if (dirty)
+    const DocumentRecord * requested = nullptr;
+    for (const auto & candidate : state.session.documents())
+    {
+        if (candidate.summary.identity.id == id)
+        {
+            requested = &candidate;
+            break;
+        }
+    }
+    if (requested == nullptr)
+    {
+        return;
+    }
+
+    if (requested->summary.dirty)
     {
         const auto activated = state.session.activateDocument(id, state.workspace);
         if (!activated)
@@ -510,7 +535,14 @@ void applyPendingDocumentAction(WorkbenchState & state)
             state.notifications.add(NotificationSeverity::error, activated.error().message);
             return;
         }
-        static_cast<void>(state.commands.execute(CommandId::fileClose, state));
+        if (requested->map)
+        {
+            static_cast<void>(state.commands.execute(CommandId::fileClose, state));
+        }
+        else
+        {
+            state.notifications.add(NotificationSeverity::warning, "Save or discard changes before closing this document");
+        }
         return;
     }
 
@@ -597,6 +629,8 @@ void applyProfileChange(WorkbenchState & state)
     savePreferences(state.preferences);
     state.session.updateProfile(state.activeProfile);
     state.workspace.invalidateProviderCaches();
+    assets::resetContext(state.radarcolState.assetView);
+    assets::resetContext(state.texmapsState.assetView);
     if (state.session.mapReady() && !state.preferences.showWelcomeOnStartup)
     {
         state.session.setStartupState(StartupState::workbench);
@@ -646,8 +680,8 @@ void drawWelcomeOrWorkbench(core::GuiLogSink & logSink, WorkbenchState & state, 
         state.welcomeGreetingSelected = false;
         state.welcomeGreeting.clear();
         drawDockSpace(state, bottomPanelHeight);
-        applyPendingDocumentAction(state);
         drawDocumentSurface(state);
+        applyPendingDocumentAction(state);
         processDocumentIntents(state);
         drawMapPanels(state, state.activeProfile, state.blockInspectorState, state.radarcolState, state.texmapsState);
         notifyRadarcolFallback(state);
@@ -666,7 +700,6 @@ void drawWelcomeOrWorkbench(core::GuiLogSink & logSink, WorkbenchState & state, 
 
 } // namespace
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
 {
     beginGuiFrame();

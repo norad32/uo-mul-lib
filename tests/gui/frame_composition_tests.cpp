@@ -20,3 +20,17 @@ TEST_CASE("documentWindow_Should_UseRadarcolAssetWindowIdentity")
     };
     REQUIRE(uo_mule::gui::documentWindowName(summary) == "Radarcol: radarcol.mul###document.9");
 }
+
+TEST_CASE("documentWindow_Should_KeepCentralIdentityWhenDisplayTitleChanges")
+{
+    uo_mule::gui::DocumentSummary summary{
+        .identity = {.id = 9, .kind = uo_mule::gui::DocumentKind::radarcol, .source = {}},
+        .displayName = "old.mul",
+    };
+    const auto first = uo_mule::gui::documentWindowName(summary);
+    summary.displayName = "new.mul";
+    summary.dirty = true;
+
+    REQUIRE(first.substr(first.find("###")) == uo_mule::gui::documentWindowName(summary).substr(
+                                                     uo_mule::gui::documentWindowName(summary).find("###")));
+}

@@ -26,7 +26,7 @@ constexpr std::size_t maximumSelectionPreviews = 9U;
 
 [[nodiscard]] std::string windowName(const AssetAdapterDescriptor & descriptor)
 {
-    return descriptor.title + "###" + descriptor.viewId;
+    return descriptor.windowIdentity.empty() ? descriptor.title + "###" + descriptor.viewId : descriptor.windowIdentity;
 }
 
 void drawActions(const std::vector<AssetAction> & actions)
@@ -753,6 +753,7 @@ void drawAssetContent(const AssetAdapter & adapter, const AssetAdapter & queryAd
     const float reservedDetailsHeight = std::min(detailsHeight, remainingHeight);
     const float contentHeight = std::max(0.0F, remainingHeight - reservedDetailsHeight);
     ImGui::BeginChild("AssetContent", ImVec2(-detailsPadding, contentHeight), ImGuiChildFlags_Borders);
+    ImGui::SetScrollY(state.scrollPosition);
     if (state.presentation == AssetPresentation::grid &&
         adapter.descriptor.capabilities.supports(AssetPresentationCapability::grid) && adapter.descriptor.fixedCellWidth > 0U)
     {
@@ -768,6 +769,7 @@ void drawAssetContent(const AssetAdapter & adapter, const AssetAdapter & queryAd
         ImGui::TextUnformatted(strings::assetViewUnavailable());
     }
     ImGui::EndChild();
+    state.scrollPosition = ImGui::GetScrollY();
     drawDetails(adapter, state);
 }
 

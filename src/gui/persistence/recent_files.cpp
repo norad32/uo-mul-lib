@@ -12,6 +12,7 @@
 #include <ios>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -21,8 +22,7 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::uint32_t recentFilesSchemaVersion = 5;
-constexpr std::uint32_t minimumSupportedSchemaVersion = 1;
+constexpr std::uint32_t recentFilesSchemaVersion = 0;
 
 [[nodiscard]] std::int64_t currentTimestamp() noexcept
 {
@@ -47,6 +47,23 @@ constexpr std::uint32_t minimumSupportedSchemaVersion = 1;
 {
     const std::string name = path.stem().string();
     return name.empty() ? path.filename().string() : name;
+}
+
+[[nodiscard]] std::optional<DocumentKind> documentKindFromStableName(std::string_view name)
+{
+    if (name == "map")
+    {
+        return DocumentKind::map;
+    }
+    if (name == "radarcol")
+    {
+        return DocumentKind::radarcol;
+    }
+    if (name == "texmap_pair")
+    {
+        return DocumentKind::texmapPair;
+    }
+    return std::nullopt;
 }
 
 void refreshEntryValidity(RecentFile & file)
@@ -80,13 +97,18 @@ void refreshEntryValidity(RecentFile & file)
         result.dimensions = uomul::Dimensions{.widthTiles = width, .heightTiles = height};
     }
     file >> std::quoted(result.facet) >> std::quoted(result.failure);
-    if (version >= recentFilesSchemaVersion)
+    if (version == recentFilesSchemaVersion)
     {
-        std::uint32_t kind = 0;
-        file >> kind >> result.itemCount >> std::quoted(companionPath);
-        if (kind <= static_cast<std::uint32_t>(DocumentKind::texmapPair))
+        std::string kind;
+        file >> std::quoted(kind) >> result.itemCount >> std::quoted(companionPath);
+        if (const auto parsedKind = documentKindFromStableName(kind))
         {
-            result.kind = static_cast<DocumentKind>(kind);
+            result.kind = *parsedKind;
+        }
+        else
+        {
+            result.kind = DocumentKind::unavailable;
+            result.failure = "Unsupported document kind: " + kind;
         }
         result.companionPath = companionPath;
         file >> result.lastOpened >> result.lastModified;
@@ -159,7 +181,7 @@ std::vector<RecentFile> loadRecentFiles(const std::filesystem::path & path)
         }
     }
 
-    if (version < minimumSupportedSchemaVersion || version > recentFilesSchemaVersion)
+    if (version != recentFilesSchemaVersion)
     {
         result.clear();
     }
@@ -192,9 +214,9 @@ void saveRecentFiles(const std::vector<RecentFile> & files, const std::filesyste
         {
             file << ' ' << map.dimensions->widthTiles << ' ' << map.dimensions->heightTiles;
         }
-        file << ' ' << std::quoted(map.facet) << ' ' << std::quoted(map.failure) << ' ' << static_cast<std::uint32_t>(map.kind)
-             << ' ' << map.itemCount << ' ' << std::quoted(map.companionPath.string()) << ' ' << map.lastOpened << ' '
-             << map.lastModified << '\n';
+        file << ' ' << std::quoted(map.facet) << ' ' << std::quoted(map.failure) << ' '
+             << std::quoted(std::string(documentKindStableName(map.kind))) << ' ' << map.itemCount << ' '
+             << std::quoted(map.companionPath.string()) << ' ' << map.lastOpened << ' ' << map.lastModified << '\n';
     }
     file.close();
     std::filesystem::rename(temporary, path);

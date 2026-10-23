@@ -8,7 +8,7 @@
 namespace uo_mule::gui
 {
 
-inline constexpr std::uint32_t currentLayoutSchemaVersion = 2;
+inline constexpr std::uint32_t currentLayoutSchemaVersion = 0;
 inline constexpr int defaultWindowWidth = 1280;
 inline constexpr int defaultWindowHeight = 800;
 

@@ -1,5 +1,6 @@
 #include "gui/providers/data_providers.h"
 #include "gui/context/color_conversion.h"
+#include "gui/documents/document_identity.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/profile/data_profile.h"
 #include "gui/providers/embedded_radarcol.h"
@@ -27,7 +28,12 @@ namespace
 
 ProviderStatus unavailableStatus(std::uint64_t revision, std::string message)
 {
-    return {.state = ProviderAssetState::unavailable, .message = std::move(message), .revision = revision};
+    return {
+        .state = ProviderAssetState::unavailable,
+        .message = std::move(message),
+        .sourceIdentity = emptyProviderSourceIdentity(),
+        .revision = revision,
+    };
 }
 
 class ProfileRadarColorProvider final : public RadarColorProvider
@@ -63,6 +69,7 @@ public:
             .state = ProviderAssetState::available,
             .source = ProviderSourceKind::externalConfigured,
             .message = {},
+            .sourceIdentity = makeDocumentSourceIdentity({path_}),
             .revision = revision_,
         };
     }
@@ -93,6 +100,7 @@ public:
                 .state = ProviderAssetState::empty,
                 .source = status_.source,
                 .message = "No radar color entry",
+                .sourceIdentity = status_.sourceIdentity,
                 .revision = revision_,
             };
         }
@@ -107,11 +115,27 @@ public:
         const auto color = reader_->readMapColor(id);
         return color ? std::optional<MapColor>(radarColorToMapColor(*color)) : std::nullopt;
     }
+    [[nodiscard]] std::uint32_t colorCount() const override { return reader_ ? reader_->colorCount() : uomul::radarColorCount; }
+    [[nodiscard]] std::optional<uomul::RadarColor> rawColor(std::uint32_t index) const override
+    {
+        if (!reader_)
+        {
+            return embeddedRadarcolColor(index);
+        }
+        const auto result = reader_->readRawColor(index);
+        return result ? std::optional<uomul::RadarColor>(*result) : std::nullopt;
+    }
 
 private:
     [[nodiscard]] ProviderStatus embeddedStatus(ProviderSourceKind source, std::string message) const
     {
-        return {.state = ProviderAssetState::available, .source = source, .message = std::move(message), .revision = revision_};
+        return {
+            .state = ProviderAssetState::available,
+            .source = source,
+            .message = std::move(message),
+            .sourceIdentity = emptyProviderSourceIdentity(),
+            .revision = revision_,
+        };
     }
 
     std::filesystem::path path_;
@@ -140,16 +164,27 @@ public:
         if (indexPath_.empty() || dataPath_.empty())
         {
             status_ = unavailableStatus(revision_, "Textures are not configured");
+            status_.sourceIdentity = makeDocumentSourceIdentity({indexPath_, dataPath_});
             return;
         }
         auto result = uomul::TexMapsReader::open(indexPath_, dataPath_);
         if (!result)
         {
-            status_ = {.state = ProviderAssetState::invalid, .message = result.error().message, .revision = revision_};
+            status_ = {
+                .state = ProviderAssetState::invalid,
+                .message = result.error().message,
+                .sourceIdentity = makeDocumentSourceIdentity({indexPath_, dataPath_}),
+                .revision = revision_,
+            };
             return;
         }
         reader_ = std::move(*result);
-        status_ = {.state = ProviderAssetState::available, .message = {}, .revision = revision_};
+        status_ = {
+            .state = ProviderAssetState::available,
+            .message = {},
+            .sourceIdentity = makeDocumentSourceIdentity({indexPath_, dataPath_}),
+            .revision = revision_,
+        };
     }
 
     void invalidate() noexcept
@@ -171,11 +206,21 @@ public:
         const auto hasTexture = reader_->hasTexture(id);
         if (!hasTexture)
         {
-            return {.state = ProviderAssetState::invalid, .message = hasTexture.error().message, .revision = revision_};
+            return {
+                .state = ProviderAssetState::invalid,
+                .message = hasTexture.error().message,
+                .sourceIdentity = status_.sourceIdentity,
+                .revision = revision_,
+            };
         }
         if (!*hasTexture)
         {
-            return {.state = ProviderAssetState::empty, .message = "No texture entry", .revision = revision_};
+            return {
+                .state = ProviderAssetState::empty,
+                .message = "No texture entry",
+                .sourceIdentity = status_.sourceIdentity,
+                .revision = revision_,
+            };
         }
         return status_;
     }
@@ -197,6 +242,16 @@ public:
             texture.pixels.push_back(texturePixelToMapColor(pixel));
         }
         return texture;
+    }
+    [[nodiscard]] std::uint32_t textureCount() const override { return reader_ ? reader_->textureCount() : 0U; }
+    [[nodiscard]] std::optional<bool> hasTexture(std::uint32_t id) const override
+    {
+        if (!reader_)
+        {
+            return std::nullopt;
+        }
+        const auto result = reader_->hasTexture(id);
+        return result ? std::optional<bool>(*result) : std::nullopt;
     }
 
 private:
@@ -223,6 +278,7 @@ public:
                                 : ProviderStatus{
                                       .state = ProviderAssetState::unsupported,
                                       .message = "Tile data reading is not supported yet",
+                                      .sourceIdentity = emptyProviderSourceIdentity(),
                                       .revision = revision_,
                                   };
     }

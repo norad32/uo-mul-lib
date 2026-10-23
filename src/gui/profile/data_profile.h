@@ -71,7 +71,7 @@ struct DataFileEntry
 
 struct DataProfile
 {
-    static constexpr std::uint32_t currentSchemaVersion = 1;
+    static constexpr std::uint32_t currentSchemaVersion = 0;
 
     std::uint32_t schemaVersion = currentSchemaVersion;
     std::string name;

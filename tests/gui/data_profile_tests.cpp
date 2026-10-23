@@ -83,7 +83,7 @@ TEST_CASE("DataProfileStore_Should_IgnoreUnknownKeysAndRejectUnsafeProfileNames"
 
     const auto loaded = uo_mule::gui::loadDataProfile(profilePath);
     REQUIRE(loaded.profile.files.empty());
-    REQUIRE(loaded.diagnostics.size() == 2);
+    REQUIRE(loaded.diagnostics.size() == 3);
 
     const auto safePath = uo_mule::gui::dataProfilePath("../secret/profile", directory.path());
     REQUIRE(safePath.parent_path() == directory.path());

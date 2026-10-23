@@ -1,8 +1,8 @@
 #include "gui/documents/map_document.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/documents/document_identity.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/documents/radarcol_document.h"
-#include "gui/documents/document_contracts.h"
 #include "gui/profile/data_profile.h"
 #include <algorithm>
 #include <optional>
@@ -86,6 +86,7 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
                 configured = configuredTexmapPairSource_.has_value() && identity.source == configuredTexmapPairSource_.value();
                 break;
             case DocumentKind::map :
+            case DocumentKind::unavailable :
                 break;
         }
         if (identity.kind == DocumentKind::radarcol)
@@ -130,6 +131,7 @@ DocumentId DocumentManager::open(DocumentSummary summary)
                 configuredTexmapPairSource_.has_value() && summary.identity.source == configuredTexmapPairSource_.value();
             break;
         case DocumentKind::map :
+        case DocumentKind::unavailable :
             break;
     }
     summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;

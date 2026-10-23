@@ -30,6 +30,7 @@ public:
             .state = ProviderAssetState::available,
             .source = ProviderSourceKind::embeddedDefault,
             .message = "Embedded Radarcol",
+            .sourceIdentity = emptyProviderSourceIdentity(),
             .revision = 1,
         };
     }
@@ -42,6 +43,7 @@ public:
                 .state = ProviderAssetState::invalid,
                 .source = ProviderSourceKind::embeddedDefault,
                 .message = "Map color ID is outside the radar table",
+                .sourceIdentity = emptyProviderSourceIdentity(),
                 .revision = 1,
             };
         }
@@ -55,6 +57,11 @@ public:
             return std::nullopt;
         }
         return radarColorToMapColor(colors.at(id));
+    }
+    [[nodiscard]] std::uint32_t colorCount() const override { return static_cast<std::uint32_t>(colors.size()); }
+    [[nodiscard]] std::optional<uomul::RadarColor> rawColor(std::uint32_t index) const override
+    {
+        return embeddedRadarcolColor(index);
     }
 };
 

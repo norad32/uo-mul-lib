@@ -1,7 +1,9 @@
 #pragma once
 
+#include "gui/documents/document_identity.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/profile/data_profile.h"
+#include "uomul/radarcol/radarcol.h"
 #include <cstdint>
 #include <expected>
 #include <memory>
@@ -37,8 +39,15 @@ struct ProviderStatus
     ProviderAssetState state = ProviderAssetState::unavailable;
     ProviderSourceKind source = ProviderSourceKind::none;
     std::string message;
+    DocumentSourceIdentity sourceIdentity;
     std::uint64_t revision = 0;
 };
+
+[[nodiscard]] inline const DocumentSourceIdentity & emptyProviderSourceIdentity() noexcept
+{
+    static const DocumentSourceIdentity empty;
+    return empty;
+}
 
 struct ProviderTexture
 {
@@ -60,6 +69,8 @@ public:
     [[nodiscard]] virtual ProviderStatus status() const = 0;
     [[nodiscard]] virtual ProviderStatus status(std::uint16_t id) const = 0;
     [[nodiscard]] virtual std::optional<MapColor> mapColor(std::uint16_t id) const = 0;
+    [[nodiscard]] virtual std::uint32_t colorCount() const = 0;
+    [[nodiscard]] virtual std::optional<uomul::RadarColor> rawColor(std::uint32_t index) const = 0;
 };
 
 class TextureProvider
@@ -69,6 +80,8 @@ public:
     [[nodiscard]] virtual ProviderStatus status() const = 0;
     [[nodiscard]] virtual ProviderStatus status(std::uint32_t id) const = 0;
     [[nodiscard]] virtual std::optional<ProviderTexture> texture(std::uint32_t id) const = 0;
+    [[nodiscard]] virtual std::uint32_t textureCount() const = 0;
+    [[nodiscard]] virtual std::optional<bool> hasTexture(std::uint32_t id) const = 0;
 };
 
 class TileDataProvider

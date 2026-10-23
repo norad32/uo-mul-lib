@@ -1,7 +1,7 @@
 #pragma once
 
-#include "gui/documents/document_identity.h"
 #include "gui/documents/document_contracts.h"
+#include "gui/documents/document_identity.h"
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -168,6 +168,7 @@ void resetContext(AssetWindowState & state) noexcept;
 struct AssetAdapterDescriptor
 {
     std::string viewId;
+    std::string windowIdentity;
     std::string title;
     std::string sourceTooltip;
     std::string cacheContext;

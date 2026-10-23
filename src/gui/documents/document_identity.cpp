@@ -75,6 +75,7 @@ std::optional<DocumentSourceIdentity> configuredDocumentSourceIdentity(const Dat
             return makeDocumentSourceIdentity({index, data});
         }
         case DocumentKind::map :
+        case DocumentKind::unavailable :
             return std::nullopt;
     }
     return std::nullopt;

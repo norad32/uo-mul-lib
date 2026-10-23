@@ -129,3 +129,17 @@ TEST_CASE("DataProviders_Should_IncrementRadarcolRevisionWhenEffectiveSourceChan
     REQUIRE(providers.radarColors().status().revision > externalRevision);
     REQUIRE(providers.radarColors().status().source == uo_mule::gui::ProviderSourceKind::embeddedDefault);
 }
+
+TEST_CASE("DataProviders_Should_ExposeEffectiveRadarcolSourceIdentity")
+{
+    const TemporaryDirectory directory;
+    const auto path = directory.path() / "radarcol.mul";
+    createRadarcol(path, 0x7FFFU);
+
+    uo_mule::gui::DataProviders providers;
+    providers.sync(profileWithRadarcol(path));
+
+    REQUIRE(providers.radarColors().status().sourceIdentity ==
+            uo_mule::gui::makeDocumentSourceIdentity({path}));
+    REQUIRE(providers.radarColors().rawColor(0U).has_value());
+}
