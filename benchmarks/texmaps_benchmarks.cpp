@@ -2,11 +2,11 @@
 #include <array>
 #include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -23,7 +23,9 @@ constexpr std::uint16_t largeTextureSample = 0xABCD;
 constexpr std::uint16_t editedTextureSample = 0x9876;
 constexpr std::uint32_t sampleTextureId = 5;
 constexpr std::uint32_t texturesPerBatch = 16;
-constexpr std::size_t fixtureBufferSize = 1U << 20U;
+constexpr std::uint32_t smallTextureFixtureCount = 32;
+constexpr std::uint32_t largeTextureFixtureCount = 16;
+constexpr std::uint32_t mixedTextureFixtureCount = 8;
 
 void writeWord(std::ofstream & output, std::uint16_t value)
 {
@@ -93,7 +95,7 @@ private:
         data.flush();
 
         std::ofstream index(smallIndex_, std::ios::binary | std::ios::trunc);
-        for (std::uint32_t id = 0; id < 32; id++)
+        for (std::uint32_t id = 0; id < smallTextureFixtureCount; id++)
         {
             writeIndexEntry(index, 0, static_cast<std::uint32_t>(uomul::textureSmallByteCount), 0);
         }
@@ -110,7 +112,7 @@ private:
         data.flush();
 
         std::ofstream index(largeIndex_, std::ios::binary | std::ios::trunc);
-        for (std::uint32_t id = 0; id < 16; id++)
+        for (std::uint32_t id = 0; id < largeTextureFixtureCount; id++)
         {
             writeIndexEntry(index, 0, static_cast<std::uint32_t>(uomul::textureLargeByteCount), 1);
         }
@@ -123,7 +125,7 @@ private:
         std::uint32_t offset = 0;
 
         // Write 8 small textures
-        for (std::uint32_t i = 0; i < 8; i++)
+        for (std::uint32_t i = 0; i < mixedTextureFixtureCount; i++)
         {
             for (std::uint32_t pixel = 0; pixel < uomul::textureSmallPixelCount; pixel++)
             {
@@ -133,7 +135,7 @@ private:
         }
 
         // Write 8 large textures
-        for (std::uint32_t i = 0; i < 8; i++)
+        for (std::uint32_t i = 0; i < mixedTextureFixtureCount; i++)
         {
             for (std::uint32_t pixel = 0; pixel < uomul::textureLargePixelCount; pixel++)
             {
@@ -145,7 +147,7 @@ private:
 
         std::ofstream index(mixedIndex_, std::ios::binary | std::ios::trunc);
         // 8 small
-        for (std::uint32_t i = 0; i < 8; i++)
+        for (std::uint32_t i = 0; i < mixedTextureFixtureCount; i++)
         {
             writeIndexEntry(index,
                             (i * static_cast<std::uint32_t>(uomul::textureSmallByteCount)),
@@ -153,8 +155,8 @@ private:
                             0);
         }
         // 8 large
-        offset = 8 * uomul::textureSmallByteCount;
-        for (std::uint32_t i = 0; i < 8; i++)
+        offset = mixedTextureFixtureCount * uomul::textureSmallByteCount;
+        for (std::uint32_t i = 0; i < mixedTextureFixtureCount; i++)
         {
             writeIndexEntry(index,
                             offset + (i * static_cast<std::uint32_t>(uomul::textureLargeByteCount)),
@@ -387,7 +389,7 @@ TEST_CASE("TexMapsEditor deduplication benchmarks", "[benchmark][texmaps]")
         image.pixels.resize(uomul::textureSmallPixelCount, editedTextureSample);
 
         // Add 8 identical textures
-        for (std::uint32_t id = 0; id < 8; id++)
+        for (std::uint32_t id = 0; id < mixedTextureFixtureCount; id++)
         {
             requireSuccess(editor->editTexture(id, image));
         }
