@@ -27,7 +27,7 @@ TEST_CASE("dataProviders_Should_ReportEmbeddedRadarcolAndUnavailableOptionalAsse
     REQUIRE(providers.radarColors().status().state == uo_mule::gui::ProviderAssetState::available);
     REQUIRE(providers.radarColors().status().source == uo_mule::gui::ProviderSourceKind::embeddedDefault);
     REQUIRE(providers.textures().status().state == uo_mule::gui::ProviderAssetState::unavailable);
-    REQUIRE(providers.tileData().status().state == uo_mule::gui::ProviderAssetState::unavailable);
+    REQUIRE(providers.tiledata().status().state == uo_mule::gui::ProviderAssetState::unavailable);
 }
 
 TEST_CASE("dataProviders_Should_InvalidateAllProviders")
@@ -40,7 +40,7 @@ TEST_CASE("dataProviders_Should_InvalidateAllProviders")
 
     REQUIRE(providers.radarColors().status().revision > firstRevision);
     REQUIRE(providers.textures().status().state == uo_mule::gui::ProviderAssetState::unavailable);
-    REQUIRE(providers.tileData().status().state == uo_mule::gui::ProviderAssetState::unavailable);
+    REQUIRE(providers.tiledata().status().state == uo_mule::gui::ProviderAssetState::unavailable);
 }
 
 TEST_CASE("MapCanvas_Should_UseTheEffectiveRadarColorProvider")

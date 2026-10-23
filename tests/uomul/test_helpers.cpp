@@ -1,4 +1,5 @@
 #include "test_helpers.h"
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <ios>

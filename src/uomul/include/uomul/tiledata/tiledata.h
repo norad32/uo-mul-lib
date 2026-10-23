@@ -10,11 +10,11 @@
 namespace uomul
 {
 
-inline constexpr std::uint32_t tiledataLandTileCount = 0x4000;
-inline constexpr std::uint32_t tiledataItemTileCount = 0x10000;
+inline constexpr std::uint32_t tiledataMapTileCount = 0x4000;
+inline constexpr std::uint32_t tiledataStaticTileCount = 0x10000;
 inline constexpr std::uint32_t tiledataTilesPerBlock = 32;
-inline constexpr std::uint32_t tiledataLandBlockCount = tiledataLandTileCount / tiledataTilesPerBlock;
-inline constexpr std::uint32_t tiledataItemBlockCount = tiledataItemTileCount / tiledataTilesPerBlock;
+inline constexpr std::uint32_t tiledataMapBlockCount = tiledataMapTileCount / tiledataTilesPerBlock;
+inline constexpr std::uint32_t tiledataStaticBlockCount = tiledataStaticTileCount / tiledataTilesPerBlock;
 inline constexpr std::size_t tiledataNameByteCount = 20;
 
 enum class TiledataLayout : std::uint8_t
@@ -157,31 +157,30 @@ public:
     /** @brief Opens and validates a tiledata.mul file for an explicit binary layout.
      *  @param path Tiledata file to open.
      *  @param layout Legacy 32-bit-flags or extended 64-bit-flags record layout.
-     *  @retval value Reader for 16,384 land and 65,536 item records.
+     *  @retval value Reader for 16,384 map and 65,536 static records.
      *  @retval error Inaccessible, size-mismatched, or malformed file details.
      */
-    [[nodiscard]] static std::expected<TiledataReader, Error> open(const std::filesystem::path & path,
-                                                                   TiledataLayout layout);
+    [[nodiscard]] static std::expected<TiledataReader, Error> open(const std::filesystem::path & path, TiledataLayout layout);
 
     /** @brief Returns the layout selected when the file was opened. */
     [[nodiscard]] TiledataLayout layout() const noexcept;
 
-    /** @brief Returns the fixed number of land records in the file. */
-    [[nodiscard]] std::uint32_t landTileCount() const noexcept;
+    /** @brief Returns the fixed number of map records in the file. */
+    [[nodiscard]] std::uint32_t mapTileCount() const noexcept;
 
-    /** @brief Returns the fixed number of item records in the file. */
-    [[nodiscard]] std::uint32_t itemTileCount() const noexcept;
+    /** @brief Returns the fixed number of static records in the file. */
+    [[nodiscard]] std::uint32_t staticTileCount() const noexcept;
 
     /** @brief Reads one land record by ID.
-     *  @param id Land tile ID in the range [0, 16,384).
-     *  @retval value Decoded land metadata.
+     *  @param id Map tile ID in the range [0, 16,384).
+     *  @retval value Decoded map metadata.
      *  @retval error ID out of range or file read failure details.
      */
     [[nodiscard]] std::expected<MapTileRecord, Error> readMapTile(std::uint16_t id) const;
 
     /** @brief Reads one item record by ID.
-     *  @param id Item tile ID in the range [0, 65,536).
-     *  @retval value Decoded item metadata.
+     *  @param id Static tile ID in the range [0, 65,536).
+     *  @retval value Decoded static metadata.
      *  @retval error ID out of range or file read failure details.
      */
     [[nodiscard]] std::expected<StaticTileRecord, Error> readStaticTile(std::uint32_t id) const;
@@ -223,9 +222,8 @@ public:
      *  @retval value Active staged editor.
      *  @retval error Invalid output path or staging I/O details.
      */
-    [[nodiscard]] static std::expected<TiledataEditor, Error> createEmpty(const std::filesystem::path & output,
-                                                                          TiledataLayout layout,
-                                                                          TiledataEditOptions options = {});
+    [[nodiscard]] static std::expected<TiledataEditor, Error>
+    createEmpty(const std::filesystem::path & output, TiledataLayout layout, TiledataEditOptions options = {});
 
     /** @brief Stages one land record replacement. */
     [[nodiscard]] std::expected<void, Error> editMapTile(std::uint16_t id, const MapTileRecord & record);

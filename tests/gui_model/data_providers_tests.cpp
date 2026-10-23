@@ -197,7 +197,7 @@ TEST_CASE("DataProviders_Should_ExposeStableUnavailableMetadataSourceStatus")
     providers.sync({});
 
     const auto textureStatus = providers.textures().status();
-    const auto tileDataStatus = providers.tileData().status();
+    const auto tileDataStatus = providers.tiledata().status();
 
     REQUIRE(textureStatus.state == uo_mule::gui::ProviderAssetState::unavailable);
     REQUIRE(textureStatus.sourceIdentity.roles.size() == 2U);

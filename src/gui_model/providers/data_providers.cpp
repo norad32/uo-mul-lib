@@ -292,7 +292,7 @@ private:
     bool synchronized_ = false;
 };
 
-class ProfileTileDataProvider final : public TileDataProvider
+class ProfileTiledataProvider final : public TiledataProvider
 {
 public:
     void sync(const DataProfile & profile) { sync(profile, false); }
@@ -353,7 +353,7 @@ class DataProviders::Impl
 public:
     ProfileRadarColorProvider radar;
     ProfileTextureProvider textures;
-    ProfileTileDataProvider tileData;
+    ProfileTiledataProvider tiledata;
 };
 
 DataProviders::DataProviders() : impl_(std::make_unique<Impl>())
@@ -367,7 +367,7 @@ void DataProviders::sync(const DataProfile & profile)
 {
     impl_->radar.sync(profile);
     impl_->textures.sync(profile);
-    impl_->tileData.sync(profile);
+    impl_->tiledata.sync(profile);
 }
 
 bool DataProviders::refresh(const DataProfile & profile)
@@ -375,7 +375,7 @@ bool DataProviders::refresh(const DataProfile & profile)
     const auto previous = revisions();
     impl_->radar.refresh(profile);
     impl_->textures.refresh(profile);
-    impl_->tileData.refresh(profile);
+    impl_->tiledata.refresh(profile);
     return revisions() != previous;
 }
 
@@ -383,7 +383,7 @@ void DataProviders::invalidate() noexcept
 {
     impl_->radar.invalidate();
     impl_->textures.invalidate();
-    impl_->tileData.invalidate();
+    impl_->tiledata.invalidate();
 }
 
 ProviderRevisions DataProviders::revisions() const noexcept
@@ -391,7 +391,7 @@ ProviderRevisions DataProviders::revisions() const noexcept
     return {
         .radarColors = impl_->radar.status().revision,
         .textures = impl_->textures.status().revision,
-        .tileData = impl_->tileData.status().revision,
+        .tiledata = impl_->tiledata.status().revision,
     };
 }
 
@@ -403,9 +403,9 @@ const TextureProvider & DataProviders::textures() const noexcept
 {
     return impl_->textures;
 }
-const TileDataProvider & DataProviders::tileData() const noexcept
+const TiledataProvider & DataProviders::tiledata() const noexcept
 {
-    return impl_->tileData;
+    return impl_->tiledata;
 }
 
 } // namespace uo_mule::gui

@@ -48,7 +48,7 @@ struct ProviderRevisions
 {
     std::uint64_t radarColors = 0;
     std::uint64_t textures = 0;
-    std::uint64_t tileData = 0;
+    std::uint64_t tiledata = 0;
 
     bool operator==(const ProviderRevisions &) const = default;
 };
@@ -94,10 +94,10 @@ public:
     [[nodiscard]] virtual std::optional<bool> hasTexture(std::uint32_t id) const = 0;
 };
 
-class TileDataProvider
+class TiledataProvider
 {
 public:
-    virtual ~TileDataProvider() = default;
+    virtual ~TiledataProvider() = default;
     [[nodiscard]] virtual ProviderStatus status() const = 0;
     [[nodiscard]] virtual ProviderStatus status(std::uint16_t id) const = 0;
     [[nodiscard]] virtual std::optional<ProviderTileData> tile(std::uint16_t id) const = 0;
@@ -120,7 +120,7 @@ public:
     [[nodiscard]] ProviderRevisions revisions() const noexcept;
     [[nodiscard]] const RadarColorProvider & radarColors() const noexcept;
     [[nodiscard]] const TextureProvider & textures() const noexcept;
-    [[nodiscard]] const TileDataProvider & tileData() const noexcept;
+    [[nodiscard]] const TiledataProvider & tiledata() const noexcept;
 
 private:
     class Impl;
