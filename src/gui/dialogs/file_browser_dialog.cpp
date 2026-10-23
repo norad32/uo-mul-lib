@@ -807,7 +807,7 @@ void drawBrowserToolbar(FileBrowserState & state)
     return entries;
 }
 
-void drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory_entry & entry)
+std::optional<DialogResult> drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory_entry & entry)
 {
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
@@ -824,7 +824,11 @@ void drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory
         }
         else if (state.request.mode == FileBrowserMode::openFile)
         {
-            complete(state);
+            const auto result = complete(state);
+            if (result)
+            {
+                return result;
+            }
         }
     }
     ImGui::TableNextColumn();
@@ -835,13 +839,14 @@ void drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory
     std::error_code timeError;
     const auto modified = entry.last_write_time(timeError);
     ImGui::TextUnformatted(timeError ? "Unknown" : formatModifiedTime(modified).c_str());
+    return std::nullopt;
 }
 
-void drawBrowserEntries(FileBrowserState & state)
+std::optional<DialogResult> drawBrowserEntries(FileBrowserState & state)
 {
     if (!ImGui::BeginTable("Entries", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH))
     {
-        return;
+        return std::nullopt;
     }
 
     ImGui::TableSetupColumn("Name");
@@ -850,12 +855,17 @@ void drawBrowserEntries(FileBrowserState & state)
     ImGui::TableHeadersRow();
     for (const auto & entry : browserEntries(state))
     {
-        drawBrowserEntry(state, entry);
+        if (const auto result = drawBrowserEntry(state, entry))
+        {
+            ImGui::EndTable();
+            return result;
+        }
     }
     ImGui::EndTable();
+    return std::nullopt;
 }
 
-void drawBrowserListing(FileBrowserState & state)
+std::optional<DialogResult> drawBrowserListing(FileBrowserState & state)
 {
     if (ImGui::BeginTable("BrowserBody", 3, ImGuiTableFlags_SizingStretchProp, ImVec2(0.0F, listingHeight)))
     {
@@ -867,12 +877,14 @@ void drawBrowserListing(FileBrowserState & state)
         drawPlaces(state);
         ImGui::TableNextColumn();
         ImGui::BeginChild("FileList", ImVec2(0.0F, listingHeight), ImGuiChildFlags_Borders, ImGuiWindowFlags_None);
-        drawBrowserEntries(state);
+        const auto result = drawBrowserEntries(state);
         ImGui::EndChild();
         ImGui::TableNextColumn();
         drawSummary(state);
         ImGui::EndTable();
+        return result;
     }
+    return std::nullopt;
 }
 
 std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
@@ -970,8 +982,11 @@ std::optional<DialogResult> drawFileBrowser(FileBrowserState & state)
     }
 
     drawBrowserToolbar(state);
-    drawBrowserListing(state);
-    auto result = drawBrowserFooter(state);
+    auto result = drawBrowserListing(state);
+    if (!result)
+    {
+        result = drawBrowserFooter(state);
+    }
     endDialog();
     if (!result && !state.visible)
     {

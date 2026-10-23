@@ -337,6 +337,12 @@ bool handleDialogResult(WorkbenchState & state, DialogResult result)
         cancelFileSelector(state.fileSelector);
         return routeFileBrowserResult(state, std::get<FileBrowserResult>(result.payload));
     }
+
+    if (result.id == DialogId::fileBrowser && result.action == DialogAction::accept &&
+        std::holds_alternative<FileBrowserResult>(result.payload))
+    {
+        return routeFileBrowserResult(state, std::get<FileBrowserResult>(result.payload));
+    }
     return false;
 }
 
