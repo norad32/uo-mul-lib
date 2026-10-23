@@ -201,6 +201,33 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
         }
         return items;
     };
+    adapter.queryItems = [&state, idFormat](const assets::AssetQuery & query) {
+        std::vector<assets::AssetItem> items;
+        if (!state.reader)
+        {
+            return items;
+        }
+        const auto count = static_cast<std::size_t>(state.reader->colorCount());
+        for (std::size_t index = 0U; index < count; index++)
+        {
+            const auto color = state.reader->readRawColor(static_cast<std::uint32_t>(index));
+            const auto formattedId = strings::formatId(static_cast<std::uint32_t>(index), idFormat);
+            std::vector<std::string> values{"ID: " + formattedId};
+            if (color)
+            {
+                values.push_back("Raw: " + strings::formatId(static_cast<std::uint32_t>(*color), idFormat));
+                values.push_back("Hex: " + colorToHex(*color));
+            }
+            if (filterMatches(query, values))
+            {
+                items.push_back({.id = {.value = std::to_string(index)},
+                                 .label = formattedId,
+                                 .state = color ? assets::AssetItemState::available : assets::AssetItemState::empty,
+                                 .stateMessage = {},});
+            }
+        }
+        return items;
+    };
     adapter.loadDetails = [&state, idFormat](const assets::AssetItemId & id) -> std::optional<assets::AssetDetails> {
         if (!state.reader)
         {
@@ -270,6 +297,33 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
                                           ? assets::AssetItemState::available
                                           : assets::AssetItemState::empty,
                              .stateMessage = {},});
+        }
+        return items;
+    };
+    adapter.queryItems = [&document, idFormat](const assets::AssetQuery & query) {
+        std::vector<assets::AssetItem> items;
+        if (!document.reader())
+        {
+            return items;
+        }
+        const auto count = static_cast<std::size_t>(document.reader()->colorCount());
+        for (std::size_t index = 0U; index < count; index++)
+        {
+            const auto color = document.reader()->readRawColor(static_cast<std::uint32_t>(index));
+            const auto formattedId = strings::formatId(static_cast<std::uint32_t>(index), idFormat);
+            std::vector<std::string> values{"ID: " + formattedId};
+            if (color)
+            {
+                values.push_back("Raw: " + strings::formatId(static_cast<std::uint32_t>(*color), idFormat));
+                values.push_back("Hex: " + colorToHex(*color));
+            }
+            if (filterMatches(query, values))
+            {
+                items.push_back({.id = {.value = std::to_string(index)},
+                                 .label = formattedId,
+                                 .state = color ? assets::AssetItemState::available : assets::AssetItemState::empty,
+                                 .stateMessage = {},});
+            }
         }
         return items;
     };

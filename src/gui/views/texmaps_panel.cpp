@@ -166,6 +166,37 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
         }
         return items;
     };
+    adapter.queryItems = [&state, idFormat](const assets::AssetQuery & query) {
+        std::vector<assets::AssetItem> items;
+        if (!state.reader)
+        {
+            return items;
+        }
+        const auto count = static_cast<std::size_t>(state.reader->textureCount());
+        for (std::size_t id = 0U; id < count; id++)
+        {
+            const auto present = state.reader->hasTexture(static_cast<std::uint32_t>(id));
+            const auto formattedId = strings::formatId(static_cast<std::uint32_t>(id), idFormat);
+            std::vector<std::string> values{"ID: " + formattedId};
+            if (present && *present)
+            {
+                const auto texture = state.reader->readTexture(static_cast<std::uint32_t>(id));
+                if (texture)
+                {
+                    values.push_back("Dimensions: " + std::to_string(texture->dimension) + "x" +
+                                     std::to_string(texture->dimension));
+                }
+            }
+            if (filterMatches(query, values))
+            {
+                items.push_back({.id = {.value = std::to_string(id)},
+                                 .label = formattedId,
+                                 .state = present && *present ? assets::AssetItemState::available : assets::AssetItemState::empty,
+                                 .stateMessage = {},});
+            }
+        }
+        return items;
+    };
     adapter.loadDetails = [&state, idFormat](const assets::AssetItemId & item) -> std::optional<assets::AssetDetails> {
         if (!state.reader)
         {
@@ -179,7 +210,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
         }
         return assets::AssetDetails{.item = item,
                                      .title = "ID: " + strings::formatId(id, idFormat),
-                                      .fields = {"Dimensions: " + std::to_string(texture->dimension) + " x " +
+                                      .fields = {"Dimensions: " + std::to_string(texture->dimension) + "x" +
                                                  std::to_string(texture->dimension),},};
     };
     adapter.renderItem = [&state](const assets::AssetItem & item, bool) {

@@ -73,6 +73,10 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
         {
             state.query.filter.assign(filterBuffer.data());
         }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Words, \"phrases\", or /regex/. Spaces mean OR, commas mean AND.");
+        }
     }
     if (adapter.descriptor.capabilities.supports(AssetQueryCapability::sort))
     {
@@ -103,9 +107,8 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
 
 [[nodiscard]] bool supportsPresentation(const AssetAdapter & adapter, AssetPresentation presentation) noexcept
 {
-    return adapter.descriptor.capabilities.supports(presentation == AssetPresentation::grid
-                                                        ? AssetPresentationCapability::grid
-                                                        : AssetPresentationCapability::table);
+    return adapter.descriptor.capabilities.supports(
+        presentation == AssetPresentation::grid ? AssetPresentationCapability::grid : AssetPresentationCapability::table);
 }
 
 void syncPresentation(const AssetAdapter & adapter, AssetWindowState & state)
@@ -115,7 +118,8 @@ void syncPresentation(const AssetAdapter & adapter, AssetWindowState & state)
     {
         state.presentationContext = key;
         const auto stored = state.presentations.find(key);
-        state.presentation = stored == state.presentations.end() ? defaultPresentation(adapter.descriptor.capabilities) : stored->second;
+        state.presentation =
+            stored == state.presentations.end() ? defaultPresentation(adapter.descriptor.capabilities) : stored->second;
     }
     if (!supportsPresentation(adapter, state.presentation))
     {
@@ -206,7 +210,8 @@ void appendLabeledValue(std::vector<SelectionFieldValues> & fields, const std::s
         return;
     }
     const std::string label = text.substr(0U, separator);
-    const auto field = std::ranges::find_if(fields, [&label](const SelectionFieldValues & value) { return value.label == label; });
+    const auto field =
+        std::ranges::find_if(fields, [&label](const SelectionFieldValues & value) { return value.label == label; });
     if (field == fields.end())
     {
         fields.push_back({.label = label, .values = {text.substr(separator + 1U)}});
@@ -231,7 +236,8 @@ void drawSelectionSummary(const AssetAdapter & adapter, const AssetWindowState &
     for (std::size_t index = 0; index < displayedCount; index++)
     {
         const auto & selected = state.selection.selected.at(index);
-        const std::string formattedId = adapter.descriptor.formatSelectionId ? adapter.descriptor.formatSelectionId(selected) : selected.value;
+        const std::string formattedId =
+            adapter.descriptor.formatSelectionId ? adapter.descriptor.formatSelectionId(selected) : selected.value;
         values.front().values.push_back(formattedId);
         if (!adapter.loadDetails)
         {
@@ -268,9 +274,7 @@ void drawSelectionSummary(const AssetAdapter & adapter, const AssetWindowState &
 
 void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state)
 {
-    ImGui::BeginChild("AssetDetails",
-                      ImVec2(-detailsPadding, -detailsPadding),
-                      ImGuiChildFlags_Borders);
+    ImGui::BeginChild("AssetDetails", ImVec2(-detailsPadding, -detailsPadding), ImGuiChildFlags_Borders);
     if (state.detailsCollapsed)
     {
         ImGui::TextUnformatted(strings::detailsCollapsed());
@@ -296,12 +300,14 @@ void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state)
             {
                 const std::size_t column = index % previewColumns;
                 const std::size_t row = index / previewColumns;
-                const float cellMinX = std::round(previewOrigin.x + (fullSize * static_cast<float>(column) / static_cast<float>(previewColumns)));
-                const float cellMinY = std::round(previewOrigin.y + (fullSize * static_cast<float>(row) / static_cast<float>(previewColumns)));
-                const float cellMaxX = std::round(previewOrigin.x +
-                                                  (fullSize * static_cast<float>(column + 1U) / static_cast<float>(previewColumns)));
-                const float cellMaxY = std::round(previewOrigin.y +
-                                                  (fullSize * static_cast<float>(row + 1U) / static_cast<float>(previewColumns)));
+                const float cellMinX =
+                    std::round(previewOrigin.x + (fullSize * static_cast<float>(column) / static_cast<float>(previewColumns)));
+                const float cellMinY =
+                    std::round(previewOrigin.y + (fullSize * static_cast<float>(row) / static_cast<float>(previewColumns)));
+                const float cellMaxX = std::round(
+                    previewOrigin.x + (fullSize * static_cast<float>(column + 1U) / static_cast<float>(previewColumns)));
+                const float cellMaxY = std::round(
+                    previewOrigin.y + (fullSize * static_cast<float>(row + 1U) / static_cast<float>(previewColumns)));
                 ImGui::SetCursorScreenPos(ImVec2(cellMinX, cellMinY));
                 cellSize = std::min(cellMaxX - cellMinX, cellMaxY - cellMinY);
             }
@@ -338,7 +344,11 @@ void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state)
     ImGui::EndChild();
 }
 
-void appendDragSelection(AssetWindowState & state, const AssetItem & item, std::size_t index, const ImVec2 & itemMin, const ImVec2 & itemMax)
+void appendDragSelection(AssetWindowState & state,
+                         const AssetItem & item,
+                         std::size_t index,
+                         const ImVec2 & itemMin,
+                         const ImVec2 & itemMax)
 {
     if (!state.selectionDragActive)
     {
@@ -410,12 +420,7 @@ void updateSelectionOnClick(const AssetAdapter & adapter, AssetWindowState & sta
 
 void drawSelectionOutline(const ImVec2 & itemMin, const ImVec2 & itemMax)
 {
-    ImGui::GetWindowDrawList()->AddRect(itemMin,
-                                        itemMax,
-                                        theme::packedColor(theme::selection),
-                                        0.0F,
-                                        ImDrawFlags_None,
-                                        2.0F);
+    ImGui::GetWindowDrawList()->AddRect(itemMin, itemMax, theme::packedColor(theme::selection), 0.0F, ImDrawFlags_None, 2.0F);
 }
 
 void drawItem(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
@@ -613,7 +618,8 @@ void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
         const std::size_t first = static_cast<std::size_t>(clipper.DisplayStart);
         const std::size_t count = static_cast<std::size_t>(clipper.DisplayEnd - clipper.DisplayStart);
         const AssetRangeRequest request{.first = first, .count = count, .presentation = AssetPresentation::table};
-        const std::vector<AssetItem> items = adapter.loadRange ? adapter.loadRange(request, state.query) : std::vector<AssetItem>{};
+        const std::vector<AssetItem> items =
+            adapter.loadRange ? adapter.loadRange(request, state.query) : std::vector<AssetItem>{};
         for (std::size_t index = 0; index < count; index++)
         {
             if (index < items.size())
@@ -665,6 +671,19 @@ void drawAssetWindow(const AssetAdapter & adapter,
     }
 
     syncPresentation(adapter, state);
+    AssetAdapter queryAdapter = adapter;
+    if (adapter.queryItems)
+    {
+        const std::vector<AssetItem> filteredItems = adapter.queryItems(state.query);
+        queryAdapter.descriptor.itemCount = filteredItems.size();
+        queryAdapter.loadRange = [filteredItems](const AssetRangeRequest & request, const AssetQuery &)
+        {
+            const std::size_t first = std::min(request.first, filteredItems.size());
+            const std::size_t last = std::min(first + request.count, filteredItems.size());
+            return std::vector<AssetItem>(filteredItems.begin() + static_cast<std::ptrdiff_t>(first),
+                                          filteredItems.begin() + static_cast<std::ptrdiff_t>(last));
+        };
+    }
     if (!adapter.descriptor.sourceTooltip.empty())
     {
         const ImVec2 windowMin = ImGui::GetWindowPos();
@@ -684,14 +703,15 @@ void drawAssetWindow(const AssetAdapter & adapter,
     const float reservedDetailsHeight = std::min(detailsHeight, remainingHeight);
     const float contentHeight = std::max(0.0F, remainingHeight - reservedDetailsHeight);
     ImGui::BeginChild("AssetContent", ImVec2(-detailsPadding, contentHeight), ImGuiChildFlags_Borders);
-    if (state.presentation == AssetPresentation::grid && adapter.descriptor.capabilities.supports(AssetPresentationCapability::grid) &&
-        adapter.descriptor.fixedCellWidth > 0U)
+    if (state.presentation == AssetPresentation::grid &&
+        adapter.descriptor.capabilities.supports(AssetPresentationCapability::grid) && adapter.descriptor.fixedCellWidth > 0U)
     {
-        drawGrid(adapter, state);
+        drawGrid(queryAdapter, state);
     }
-    else if (state.presentation == AssetPresentation::table && adapter.descriptor.capabilities.supports(AssetPresentationCapability::table))
+    else if (state.presentation == AssetPresentation::table &&
+             adapter.descriptor.capabilities.supports(AssetPresentationCapability::table))
     {
-        drawTable(adapter, state);
+        drawTable(queryAdapter, state);
     }
     else
     {

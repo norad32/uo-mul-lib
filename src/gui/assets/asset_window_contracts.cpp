@@ -1,10 +1,81 @@
 #include "gui/assets/asset_window_contracts.h"
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
+#include <regex>
+#include <string_view>
 #include <utility>
 
 namespace uo_mule::gui::assets
 {
+namespace
+{
+
+struct FilterTerm
+{
+    std::string value;
+    bool regex = false;
+};
+
+[[nodiscard]] std::vector<std::vector<FilterTerm>> parseFilter(std::string_view filter)
+{
+    std::vector<std::vector<FilterTerm>> groups(1U);
+    std::size_t index = 0U;
+    while (index < filter.size())
+    {
+        while (index < filter.size() &&
+               (std::isspace(static_cast<unsigned char>(filter.at(index))) != 0 || filter.at(index) == ','))
+        {
+            if (filter.at(index) == ',' && !groups.back().empty())
+            {
+                groups.emplace_back();
+            }
+            index++;
+        }
+        if (index == filter.size())
+        {
+            break;
+        }
+
+        const char delimiter = filter.at(index) == '"' || filter.at(index) == '/' ? filter.at(index) : '\0';
+        if (delimiter != '\0')
+        {
+            const bool regex = delimiter == '/';
+            const std::size_t start = ++index;
+            while (index < filter.size() && filter.at(index) != delimiter)
+            {
+                index++;
+            }
+            groups.back().push_back({.value = std::string(filter.substr(start, index - start)), .regex = regex});
+            if (index < filter.size())
+            {
+                index++;
+            }
+            continue;
+        }
+
+        const std::size_t start = index;
+        while (index < filter.size() && std::isspace(static_cast<unsigned char>(filter.at(index))) == 0 && filter.at(index) != ',')
+        {
+            index++;
+        }
+        groups.back().push_back({.value = std::string(filter.substr(start, index - start)), .regex = false});
+    }
+    if (groups.size() == 1U && groups.front().empty())
+    {
+        groups.clear();
+    }
+    return groups;
+}
+
+[[nodiscard]] bool containsInsensitive(std::string_view value, std::string_view term)
+{
+    return std::ranges::search(value, term, [](char first, char second) {
+               return std::tolower(static_cast<unsigned char>(first)) == std::tolower(static_cast<unsigned char>(second));
+           }).begin() != value.end();
+}
+
+} // namespace
 
 bool AssetCapabilitySet::supports(AssetPresentationCapability capability) const noexcept
 {
@@ -14,6 +85,50 @@ bool AssetCapabilitySet::supports(AssetPresentationCapability capability) const 
 bool AssetCapabilitySet::supports(AssetQueryCapability capability) const noexcept
 {
     return (queries & static_cast<std::uint8_t>(capability)) != 0U;
+}
+
+bool filterMatches(const AssetQuery & query, std::span<const std::string> values)
+{
+    for (const auto & group : parseFilter(query.filter))
+    {
+        bool groupMatched = false;
+        for (const auto & term : group)
+        {
+            for (const auto & value : values)
+            {
+                bool matched = false;
+                if (term.regex)
+                {
+                    try
+                    {
+                        matched = std::regex_search(value, std::regex(term.value, std::regex_constants::icase));
+                    }
+                    catch (const std::regex_error &)
+                    {
+                        matched = containsInsensitive(value, term.value);
+                    }
+                }
+                else
+                {
+                    matched = containsInsensitive(value, term.value);
+                }
+                if (matched)
+                {
+                    groupMatched = true;
+                    break;
+                }
+            }
+            if (groupMatched)
+            {
+                break;
+            }
+        }
+        if (!group.empty() && !groupMatched)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool contains(const AssetSelection & selection, const AssetItemId & item)

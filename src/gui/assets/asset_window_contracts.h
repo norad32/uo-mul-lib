@@ -7,6 +7,7 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -159,6 +160,7 @@ struct AssetAdapterDescriptor
     float selectionPreviewSize = 0.0F;
     AssetSourceContext source;
     AssetCapabilitySet capabilities;
+    std::function<std::size_t(const AssetQuery &)> queryItemCount;
     std::size_t itemCount = 0;
     std::size_t fixedCellWidth = 0;
     std::size_t fixedCellHeight = 0;
@@ -167,6 +169,7 @@ struct AssetAdapterDescriptor
 };
 
 using AssetRangeLoader = std::function<std::vector<AssetItem>(const AssetRangeRequest &, const AssetQuery &)>;
+using AssetQueryItemLoader = std::function<std::vector<AssetItem>(const AssetQuery &)>;
 using AssetDetailsLoader = std::function<std::optional<AssetDetails>(const AssetItemId &)>;
 using AssetDragPayloadBuilder = std::function<std::optional<AssetDragPayload>(const AssetSelection &)>;
 using AssetItemRenderer = std::function<void(const AssetItem &, bool)>;
@@ -175,12 +178,14 @@ struct AssetAdapter
 {
     AssetAdapterDescriptor descriptor;
     AssetRangeLoader loadRange;
+    AssetQueryItemLoader queryItems;
     AssetDetailsLoader loadDetails;
     AssetDragPayloadBuilder makeDragPayload;
     AssetItemRenderer renderItem;
 };
 
 [[nodiscard]] bool contains(const AssetSelection & selection, const AssetItemId & item);
+[[nodiscard]] bool filterMatches(const AssetQuery & query, std::span<const std::string> values);
 void selectSingle(AssetSelection & selection, AssetItemId item);
 void selectSingleAt(AssetSelection & selection, AssetItemId item, std::size_t index);
 void toggleAt(AssetSelection & selection, AssetItemId item, std::size_t index);
