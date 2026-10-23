@@ -5,6 +5,7 @@
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_color.h"
 #include "uomul/radarcol/radarcol.h"
+#include "uomul/tiledata/tiledata.h"
 #include <cstdint>
 #include <expected>
 #include <memory>
@@ -66,6 +67,18 @@ struct ProviderTexture
     std::vector<MapColor> pixels;
 };
 
+struct ProviderMapTile
+{
+    std::uint16_t id = 0;
+    uomul::MapTileRecord record;
+};
+
+struct ProviderStaticTile
+{
+    std::uint32_t id = 0;
+    uomul::StaticTileRecord record;
+};
+
 struct ProviderTileData
 {
     std::uint16_t id = 0;
@@ -100,7 +113,10 @@ public:
     virtual ~TiledataProvider() = default;
     [[nodiscard]] virtual ProviderStatus status() const = 0;
     [[nodiscard]] virtual ProviderStatus status(std::uint16_t id) const = 0;
-    [[nodiscard]] virtual std::optional<ProviderTileData> tile(std::uint16_t id) const = 0;
+    [[nodiscard]] virtual ProviderStatus staticStatus(std::uint32_t id) const = 0;
+    [[nodiscard]] virtual std::optional<uomul::TiledataLayout> layout() const = 0;
+    [[nodiscard]] virtual std::optional<ProviderMapTile> mapTile(std::uint16_t id) const = 0;
+    [[nodiscard]] virtual std::optional<ProviderStaticTile> staticTile(std::uint32_t id) const = 0;
 };
 
 class DataProviders

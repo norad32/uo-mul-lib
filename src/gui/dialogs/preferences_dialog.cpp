@@ -217,6 +217,26 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
     ImGui::TextDisabled("Status: %s",
                         validation == nullptr ? "Missing"
                                               : std::string(strings::dataFileStatusLabel(validation->status)).c_str());
+    if (role == DataFileRole::tiledata)
+    {
+        ImGui::SameLine();
+        const std::string selected(tiledataLayoutSelectionName(state.workingProfile.tiledataLayout));
+        if (ImGui::BeginCombo("##TiledataLayout", selected.c_str()))
+        {
+            for (const auto layout :
+                 {TiledataLayoutSelection::autoDetect, TiledataLayoutSelection::legacy32, TiledataLayoutSelection::extended64})
+            {
+                const bool active = state.workingProfile.tiledataLayout == layout;
+                const std::string layoutLabel(tiledataLayoutSelectionName(layout));
+                if (ImGui::Selectable(layoutLabel.c_str(), active))
+                {
+                    state.workingProfile.tiledataLayout = layout;
+                    validateWorkingProfile(state);
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
     ImGui::PopID();
 }
 

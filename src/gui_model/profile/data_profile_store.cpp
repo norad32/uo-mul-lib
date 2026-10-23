@@ -127,6 +127,19 @@ void addParseDiagnostic(DataProfileLoadResult & result, const std::filesystem::p
         return true;
     }
 
+    if (key == "tiledata_layout" && readQuoted(line, value))
+    {
+        if (const auto layout = tiledataLayoutSelectionFromName(value))
+        {
+            result.profile.tiledataLayout = *layout;
+        }
+        else
+        {
+            addParseDiagnostic(result, path, key);
+        }
+        return true;
+    }
+
     return false;
 }
 
@@ -212,6 +225,7 @@ void parseProfileLine(DataProfileLoadResult & result,
     contents << "discovery_mode " << std::quoted(std::string(discoveryModeName(profile.discoveryMode))) << '\n';
     contents << "output_collision_policy " << std::quoted(std::string(outputCollisionPolicyName(profile.outputCollisionPolicy)))
              << '\n';
+    contents << "tiledata_layout " << std::quoted(std::string(tiledataLayoutSelectionName(profile.tiledataLayout))) << '\n';
     return contents.str();
 }
 

@@ -10,6 +10,7 @@
 #include "uomul/map/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
+#include "uomul/tiledata/tiledata.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -48,6 +49,8 @@ constexpr int radarcolFilenameScore = 80;
 constexpr int radarcolClassicSizeScore = 60;
 constexpr int radarcolStructuralScore = 20;
 constexpr int texmapsPairScore = 90;
+constexpr int tiledataNamedScore = 100;
+constexpr int tiledataSizeScore = 60;
 constexpr int filenameHintScoreBonus = 10;
 constexpr std::uintmax_t classicRadarcolByteCount = static_cast<std::uintmax_t>(uomul::radarColorCount) * 2U;
 constexpr std::array<const char *, 7> standardPlaceNames{
@@ -606,6 +609,37 @@ void appendTexmapsCandidate(FileBrowserSummary & summary, const std::filesystem:
     });
 }
 
+void appendTiledataCandidate(FileBrowserSummary & summary, const std::filesystem::path & path, std::string_view filename)
+{
+    if (!summary.readable || !summary.size)
+    {
+        return;
+    }
+    const auto extended = uomul::TiledataReader::open(path, uomul::TiledataLayout::extended64);
+    const auto legacy = uomul::TiledataReader::open(path, uomul::TiledataLayout::legacy32);
+    if (!extended && !legacy)
+    {
+        return;
+    }
+    const auto layout = extended ? uomul::TiledataLayout::extended64 : uomul::TiledataLayout::legacy32;
+    const bool named = filename == "tiledata.mul";
+    summary.assetCandidates.push_back(FileBrowserAssetCandidate{
+        .kind = MulAssetKind::tiledata,
+        .path = path,
+        .companionPath = {},
+        .label = "Tiledata",
+        .facet = {},
+        .reason = layout == uomul::TiledataLayout::extended64 ? "Extended64 MapTileRecord and StaticTileRecord catalog"
+                                                              : "Legacy32 MapTileRecord and StaticTileRecord catalog",
+        .warning = named ? std::string{} : "Unexpected filename",
+        .score = named ? tiledataNamedScore : tiledataSizeScore,
+        .itemCount = uomul::tiledataMapTileCount + uomul::tiledataStaticTileCount,
+        .dimensions = std::nullopt,
+        .validated = true,
+        .openable = true,
+    });
+}
+
 } // namespace
 
 void sortFileBrowserCandidates(std::vector<FileBrowserAssetCandidate> & candidates)
@@ -653,6 +687,7 @@ FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & pat
     appendMapCandidates(summary, path);
     appendRadarcolCandidate(summary, path, filename);
     appendTexmapsCandidate(summary, path, filename);
+    appendTiledataCandidate(summary, path, filename);
     sortAssetCandidates(summary.assetCandidates);
     if (summary.mapCandidates.empty() && summary.assetCandidates.empty())
     {

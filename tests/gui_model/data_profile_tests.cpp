@@ -173,7 +173,7 @@ TEST_CASE("DataDiscovery_Should_FindRootAndKnownChildFilesCaseInsensitively")
     REQUIRE(result.find(uo_mule::gui::DataFileRole::radarcol)->status == uo_mule::gui::DataFileStatus::invalid);
     REQUIRE(result.find(uo_mule::gui::DataFileRole::texidx)->status == uo_mule::gui::DataFileStatus::found);
     REQUIRE(result.find(uo_mule::gui::DataFileRole::texmaps)->status == uo_mule::gui::DataFileStatus::found);
-    REQUIRE(result.find(uo_mule::gui::DataFileRole::tiledata)->status == uo_mule::gui::DataFileStatus::unsupported);
+    REQUIRE(result.find(uo_mule::gui::DataFileRole::tiledata)->status == uo_mule::gui::DataFileStatus::invalid);
 }
 
 TEST_CASE("DataDiscovery_Should_NotRecognizeMapFilesAsDataPaths")

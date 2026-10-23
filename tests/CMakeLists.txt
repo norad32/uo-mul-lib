@@ -103,6 +103,7 @@ if(BUILD_GUI_TESTS)
                 logger
                 uomul
                 options)
+    target_compile_definitions(gui_model_tests PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     apply_common_compile_options(gui_model_tests)
     apply_unit_test_compile_options(gui_model_tests)
     catch_discover_tests(gui_model_tests)

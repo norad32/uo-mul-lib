@@ -116,6 +116,7 @@ struct AssetDetails
     AssetItemId item;
     std::string title;
     std::vector<std::string> fields;
+    std::vector<std::string> fieldTooltips;
 };
 
 struct AssetSelection
@@ -164,6 +165,7 @@ struct AssetWindowState
     AssetSelection selection;
     AssetSelection selectionDragBase;
     float scrollPosition = 0.0F;
+    bool scrollPositionRestorePending = true;
     float selectionDragStartX = 0.0F;
     float selectionDragStartY = 0.0F;
     bool selectionDragActive = false;

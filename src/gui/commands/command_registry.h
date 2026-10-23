@@ -29,6 +29,7 @@ enum class CommandId : std::uint8_t
     panelBlockInspector,
     panelRadarcol,
     panelTexmaps,
+    panelTiledata,
     selectionTiles,
     selectionBlocks,
     dataPaths,

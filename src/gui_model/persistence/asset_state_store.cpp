@@ -219,6 +219,7 @@ void restoreAssetState(const AssetStateRecord & record, AssetWindowState & state
     state.query = record.state.query;
     state.detailsCollapsed = record.state.detailsCollapsed;
     state.scrollPosition = record.state.scrollPosition;
+    state.scrollPositionRestorePending = true;
     state.selection = record.state.selection;
 }
 

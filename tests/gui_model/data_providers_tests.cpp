@@ -4,6 +4,7 @@
 #include "gui_model/providers/embedded_radarcol.h"
 #include "gui_model/source/source_identity.h"
 #include "uomul/radarcol/radarcol.h"
+#include "uomul/tiledata/tiledata.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <filesystem>
@@ -207,4 +208,25 @@ TEST_CASE("DataProviders_Should_ExposeStableUnavailableMetadataSourceStatus")
     REQUIRE(tileDataStatus.state == uo_mule::gui::ProviderAssetState::unavailable);
     REQUIRE(tileDataStatus.sourceIdentity.roles.empty());
     REQUIRE(tileDataStatus.revision > 0U);
+}
+
+TEST_CASE("DataProviders_Should_ReadConfiguredTiledataMapAndStaticRecords")
+{
+    const auto path = std::filesystem::path(UOMUL_SOURCE_DIR) / "testfiles" / "tiledata.mul";
+    REQUIRE(std::filesystem::is_regular_file(path));
+
+    uo_mule::gui::DataProfile profile;
+    profile.sourceRoot = path.parent_path();
+    profile.files[uo_mule::gui::DataFileRole::tiledata] = uo_mule::gui::DataFileEntry{.path = path.filename()};
+
+    uo_mule::gui::DataProviders providers;
+    providers.sync(profile);
+
+    const auto & tiledata = providers.tiledata();
+    REQUIRE(tiledata.status().state == uo_mule::gui::ProviderAssetState::available);
+    REQUIRE(tiledata.layout() == uomul::TiledataLayout::extended64);
+    REQUIRE(tiledata.mapTile(3U)->record.name == "grass");
+    REQUIRE(tiledata.staticTile(0U).has_value());
+    REQUIRE(tiledata.status(3U).state == uo_mule::gui::ProviderAssetState::available);
+    REQUIRE(tiledata.staticStatus(0U).state == uo_mule::gui::ProviderAssetState::available);
 }

@@ -1,5 +1,6 @@
 #include "gui_model/profile/data_validation.h"
 #include "gui_model/profile/data_profile.h"
+#include "gui_model/source/tiledata_source.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include <algorithm>
@@ -18,7 +19,8 @@ namespace
 
 [[nodiscard]] constexpr bool isSupportedDataFileRole(DataFileRole role) noexcept
 {
-    return role != DataFileRole::tiledata;
+    static_cast<void>(role);
+    return true;
 }
 
 void addDiagnostic(DataProfileValidation & result,
@@ -179,6 +181,32 @@ void validateTexmaps(const DataProfile & profile, DataProfileValidation & result
                   {"Configure both texidx.mul and texmaps.mul."});
 }
 
+void validateTiledata(const DataProfile & profile, DataProfileValidation & result)
+{
+    auto * file = result.find(DataFileRole::tiledata);
+    if (file == nullptr || file->status == DataFileStatus::missing || file->status == DataFileStatus::invalid)
+    {
+        return;
+    }
+
+    if (!resolveTiledataLayout(file->path, profile.tiledataLayout))
+    {
+        file->status = DataFileStatus::invalid;
+        addDiagnostic(result,
+                      Diagnostic::Severity::error,
+                      DataFileRole::tiledata,
+                      file->path,
+                      "Tiledata file does not match the selected layout",
+                      {"Choose auto, legacy32, or extended64, or provide a complete Tiledata file."});
+        return;
+    }
+
+    if (!profile.files.at(DataFileRole::tiledata).userOverride)
+    {
+        file->status = DataFileStatus::foundAndValidated;
+    }
+}
+
 } // namespace
 
 DataFileValidation * DataProfileValidation::find(DataFileRole role) noexcept
@@ -217,6 +245,7 @@ DataProfileValidation validateDataProfile(const DataProfile & profile)
     validateKnownFiles(profile, result);
     validateRadarcol(profile, result);
     validateTexmaps(profile, result);
+    validateTiledata(profile, result);
     return result;
 }
 

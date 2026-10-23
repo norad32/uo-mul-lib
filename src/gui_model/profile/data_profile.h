@@ -20,6 +20,13 @@ enum class DataFileRole : std::uint8_t
     tiledata,
 };
 
+enum class TiledataLayoutSelection : std::uint8_t
+{
+    autoDetect,
+    legacy32,
+    extended64,
+};
+
 enum class DataFileStatus : std::uint8_t
 {
     found,
@@ -78,6 +85,7 @@ struct DataProfile
     std::filesystem::path sourceRoot;
     DiscoveryMode discoveryMode = DiscoveryMode::none;
     OutputCollisionPolicy outputCollisionPolicy = OutputCollisionPolicy::confirm;
+    TiledataLayoutSelection tiledataLayout = TiledataLayoutSelection::autoDetect;
     std::map<DataFileRole, DataFileEntry> files;
 };
 
@@ -89,7 +97,8 @@ struct DataProfile
 [[nodiscard]] std::optional<DiscoveryMode> discoveryModeFromName(std::string_view name) noexcept;
 [[nodiscard]] std::string_view outputCollisionPolicyName(OutputCollisionPolicy policy) noexcept;
 [[nodiscard]] std::optional<OutputCollisionPolicy> outputCollisionPolicyFromName(std::string_view name) noexcept;
-
+[[nodiscard]] std::string_view tiledataLayoutSelectionName(TiledataLayoutSelection layout) noexcept;
+[[nodiscard]] std::optional<TiledataLayoutSelection> tiledataLayoutSelectionFromName(std::string_view name) noexcept;
 [[nodiscard]] std::filesystem::path resolvedDataFilePath(const DataProfile & profile, DataFileRole role);
 
 } // namespace uo_mule::gui

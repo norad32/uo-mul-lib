@@ -8,6 +8,7 @@
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/panels/radarcol_panel.h"
 #include "gui/panels/texmap_panel.h"
+#include "gui/panels/tiledata_panel.h"
 #include "gui/persistence/layout_store.h"
 #include "gui/state/notification_state.h"
 #include "gui/views/world/map_canvas_view.h"
@@ -87,6 +88,7 @@ struct WorkbenchState
     BlockInspectorPanelState blockInspectorState;
     RadarcolPanelState radarcolState;
     TexmapsPanelState texmapsState;
+    TiledataPanelState tiledataState;
     std::vector<logger::GuiLogEntry> logEntries;
     bool followLogScroll = true;
     bool shouldClose = false;

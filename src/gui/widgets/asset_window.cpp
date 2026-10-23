@@ -170,9 +170,13 @@ void drawPresentationControls(const AssetAdapter & adapter, AssetWindowState & s
 
 void drawItemDetails(const AssetDetails & details, bool wrap = true)
 {
-    ImGui::TextUnformatted(details.title.c_str());
-    for (const auto & field : details.fields)
+    if (!details.title.empty())
     {
+        ImGui::TextUnformatted(details.title.c_str());
+    }
+    for (std::size_t index = 0; index < details.fields.size(); index++)
+    {
+        const auto & field = details.fields.at(index);
         if (wrap)
         {
             ImGui::TextWrapped("%s", field.c_str());
@@ -180,6 +184,10 @@ void drawItemDetails(const AssetDetails & details, bool wrap = true)
         else
         {
             ImGui::TextUnformatted(field.c_str());
+        }
+        if (index < details.fieldTooltips.size() && !details.fieldTooltips.at(index).empty() && ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", details.fieldTooltips.at(index).c_str());
         }
     }
 }
@@ -754,7 +762,11 @@ void drawAssetContent(const AssetAdapter & adapter, const AssetAdapter & queryAd
     const float reservedDetailsHeight = std::min(detailsHeight, remainingHeight);
     const float contentHeight = std::max(0.0F, remainingHeight - reservedDetailsHeight);
     ImGui::BeginChild("AssetContent", ImVec2(-detailsPadding, contentHeight), ImGuiChildFlags_Borders);
-    ImGui::SetScrollY(state.scrollPosition);
+    if (state.scrollPositionRestorePending)
+    {
+        ImGui::SetScrollY(state.scrollPosition);
+        state.scrollPositionRestorePending = false;
+    }
     if (state.presentation == AssetPresentation::grid &&
         adapter.descriptor.capabilities.supports(AssetPresentationCapability::grid) && adapter.descriptor.fixedCellWidth > 0U)
     {

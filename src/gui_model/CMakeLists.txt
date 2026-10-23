@@ -5,6 +5,7 @@ set(GUI_MODEL_SOURCES
     documents/document_descriptors.cpp
     documents/map_document.cpp
     documents/radarcol_document.cpp
+    documents/tiledata_document.cpp
     persistence/config_paths.cpp
     persistence/asset_state_store.cpp
     persistence/preferences.cpp
@@ -22,6 +23,7 @@ set(GUI_MODEL_SOURCES
     source/source_identity.cpp
     source/source_locks.cpp
     source/source_validation.cpp
+    source/tiledata_source.cpp
     session/workbench_session.cpp
     input/coordinate_parser.cpp
     model/assets/asset_window_contracts.cpp
@@ -30,6 +32,8 @@ set(GUI_MODEL_SOURCES
     world/combine_contracts.cpp
     workspaces/map_workspace.cpp
     workspaces/map_workspace_manager.cpp)
+    
+list(APPEND GUI_MODEL_SOURCES tile_sources/tile_source_contracts.cpp)
 
 add_library(gui_model ${GUI_MODEL_SOURCES})
 set_target_properties(gui_model PROPERTIES EXPORT_NAME gui_model)

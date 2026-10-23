@@ -13,6 +13,7 @@ DocumentDescriptorRegistry::DocumentDescriptorRegistry() :
         {.kind = DocumentKind::map, .stableId = "map", .requiredRoles = {SourceRole::primary}},
         {.kind = DocumentKind::radarcol, .stableId = "radarcol", .requiredRoles = {SourceRole::primary}},
         {.kind = DocumentKind::texmapPair, .stableId = "texmap_pair", .requiredRoles = {SourceRole::index, SourceRole::data}},
+        {.kind = DocumentKind::tiledata, .stableId = "tiledata", .requiredRoles = {SourceRole::primary}},
     }
 {
 }

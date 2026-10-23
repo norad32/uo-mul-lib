@@ -2,6 +2,7 @@
 #include "gui_model/profile/data_profile.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
+#include "uomul/tiledata/tiledata.h"
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
@@ -41,7 +42,8 @@ constexpr int validCandidateScore = 10;
 
 [[nodiscard]] bool isSupportedRole(DataFileRole role) noexcept
 {
-    return role != DataFileRole::tiledata;
+    static_cast<void>(role);
+    return true;
 }
 
 [[nodiscard]] std::filesystem::path normalizedRoot(const std::filesystem::path & root, std::vector<Diagnostic> & diagnostics)
@@ -239,6 +241,17 @@ void validateCandidate(DataFileRole role, bool validate, DiscoveryCandidate & ca
         {
             candidate.valid = false;
             candidate.validationMessage = reader.error().message;
+        }
+    }
+
+    if (validate && role == DataFileRole::tiledata)
+    {
+        const auto extended = uomul::TiledataReader::open(candidate.path, uomul::TiledataLayout::extended64);
+        const auto legacy = uomul::TiledataReader::open(candidate.path, uomul::TiledataLayout::legacy32);
+        if (!extended && !legacy)
+        {
+            candidate.valid = false;
+            candidate.validationMessage = "Tiledata size does not match a supported layout";
         }
     }
 

@@ -33,6 +33,7 @@ add_library(
     panels/log_panel.cpp
     panels/radarcol_panel.cpp
     panels/texmap_panel.cpp
+    panels/tiledata_panel.cpp
     shell/welcome_greetings.cpp
     shell/welcome_screen.cpp
     widgets/asset_window.cpp
