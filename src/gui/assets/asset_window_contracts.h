@@ -108,6 +108,7 @@ struct AssetSelection
 {
     std::vector<AssetItemId> selected;
     std::optional<AssetItemId> anchor;
+    std::optional<std::size_t> anchorIndex;
 };
 
 struct AssetAction
@@ -140,7 +141,11 @@ struct AssetWindowState
     std::map<std::string, AssetPresentation> presentations;
     AssetQuery query;
     AssetSelection selection;
+    AssetSelection selectionDragBase;
     float scrollPosition = 0.0F;
+    float selectionDragStartX = 0.0F;
+    float selectionDragStartY = 0.0F;
+    bool selectionDragActive = false;
     bool detailsCollapsed = false;
 };
 
@@ -149,6 +154,9 @@ struct AssetAdapterDescriptor
     std::string viewId;
     std::string title;
     std::string sourceTooltip;
+    std::function<std::string(const AssetItemId &)> formatSelectionId;
+    std::function<void(const AssetItemId &, float)> renderSelectionPreview;
+    float selectionPreviewSize = 0.0F;
     AssetSourceContext source;
     AssetCapabilitySet capabilities;
     std::size_t itemCount = 0;
@@ -174,6 +182,8 @@ struct AssetAdapter
 
 [[nodiscard]] bool contains(const AssetSelection & selection, const AssetItemId & item);
 void selectSingle(AssetSelection & selection, AssetItemId item);
+void selectSingleAt(AssetSelection & selection, AssetItemId item, std::size_t index);
+void toggleAt(AssetSelection & selection, AssetItemId item, std::size_t index);
 void clear(AssetSelection & selection) noexcept;
 
 } // namespace uo_mule::gui::assets

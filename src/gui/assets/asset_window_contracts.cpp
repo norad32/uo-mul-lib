@@ -26,12 +26,35 @@ void selectSingle(AssetSelection & selection, AssetItemId item)
     selection.selected.clear();
     selection.selected.push_back(std::move(item));
     selection.anchor = selection.selected.front();
+    selection.anchorIndex.reset();
+}
+
+void selectSingleAt(AssetSelection & selection, AssetItemId item, std::size_t index)
+{
+    selectSingle(selection, std::move(item));
+    selection.anchorIndex = index;
+}
+
+void toggleAt(AssetSelection & selection, AssetItemId item, std::size_t index)
+{
+    const auto found = std::ranges::find(selection.selected, item);
+    if (found == selection.selected.end())
+    {
+        selection.selected.push_back(item);
+    }
+    else
+    {
+        selection.selected.erase(found);
+    }
+    selection.anchor = item;
+    selection.anchorIndex = index;
 }
 
 void clear(AssetSelection & selection) noexcept
 {
     selection.selected.clear();
     selection.anchor.reset();
+    selection.anchorIndex.reset();
 }
 
 } // namespace uo_mule::gui::assets

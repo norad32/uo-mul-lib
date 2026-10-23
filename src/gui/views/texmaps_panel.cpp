@@ -59,27 +59,28 @@ void loadSource(TexmapsPanelState & state)
     state.reader.emplace(std::move(*result));
 }
 
-void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id, bool selected)
+void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
 {
     const ImVec2 min = ImGui::GetCursorScreenPos();
-    const ImVec2 max(min.x + thumbnailSize, min.y + thumbnailSize);
+    const ImVec2 max(min.x + size, min.y + size);
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     constexpr float checkerSize = 4.0F;
     constexpr ImU32 checkerA = IM_COL32(64, 64, 64, 255);
     constexpr ImU32 checkerB = IM_COL32(128, 128, 128, 255);
-    for (int y = 0; static_cast<float>(y) * checkerSize < thumbnailSize; y++)
+    for (int y = 0; static_cast<float>(y) * checkerSize < size; y++)
     {
-        for (int x = 0; static_cast<float>(x) * checkerSize < thumbnailSize; x++)
+        for (int x = 0; static_cast<float>(x) * checkerSize < size; x++)
         {
             const ImU32 color = ((x % 2) != (y % 2)) ? checkerA : checkerB;
             const ImVec2 cellMin(min.x + (static_cast<float>(x) * checkerSize), min.y + (static_cast<float>(y) * checkerSize));
-            drawList->AddRectFilled(cellMin, ImVec2(cellMin.x + checkerSize, cellMin.y + checkerSize), color);
+            const ImVec2 cellMax(std::min(cellMin.x + checkerSize, max.x), std::min(cellMin.y + checkerSize, max.y));
+            drawList->AddRectFilled(cellMin, cellMax, color);
         }
     }
     if (!texture.pixels.empty() && texture.width > 0U && texture.height > 0U)
     {
-        const float scaleX = thumbnailSize / static_cast<float>(texture.width);
-        const float scaleY = thumbnailSize / static_cast<float>(texture.height);
+        const float scaleX = size / static_cast<float>(texture.width);
+        const float scaleY = size / static_cast<float>(texture.height);
         for (std::uint32_t y = 0; y < texture.height; y++)
         {
             for (std::uint32_t x = 0; x < texture.width; x++)
@@ -88,19 +89,19 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
                 if (index < texture.pixels.size())
                 {
                     const MapColor color = texture.pixels.at(index);
-                    drawList->AddRectFilled(ImVec2(min.x + (static_cast<float>(x) * scaleX),
-                                                    min.y + (static_cast<float>(y) * scaleY)),
-                                                  ImVec2(min.x + (static_cast<float>(x + 1U) * scaleX),
-                                                         min.y + (static_cast<float>(y + 1U) * scaleY)),
+                    const float pixelMinX = min.x + std::round(static_cast<float>(x) * scaleX);
+                    const float pixelMinY = min.y + std::round(static_cast<float>(y) * scaleY);
+                    const float pixelMaxX = x + 1U == texture.width ? max.x : min.x + std::round(static_cast<float>(x + 1U) * scaleX);
+                    const float pixelMaxY = y + 1U == texture.height ? max.y : min.y + std::round(static_cast<float>(y + 1U) * scaleY);
+                    drawList->AddRectFilled(ImVec2(pixelMinX, pixelMinY),
+                                                  ImVec2(pixelMaxX, pixelMaxY),
                                                   IM_COL32(color.red, color.green, color.blue, 255));
                 }
             }
         }
     }
-    drawList->AddRect(min, max, selected ? theme::packedColor(theme::selection) : theme::packedColor(theme::border), 0.0F,
-                      ImDrawFlags_None, borderThickness);
-    ImGui::Dummy(ImVec2(thumbnailSize, thumbnailSize));
-    static_cast<void>(id);
+    drawList->AddRect(min, max, theme::packedColor(theme::border), 0.0F, ImDrawFlags_None, borderThickness);
+    ImGui::Dummy(ImVec2(size, size));
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -111,6 +112,28 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
     adapter.descriptor.title = "Texmaps";
     adapter.descriptor.sourceTooltip = "Index: " + std::string(state.sourceIndexPath.data()) +
                                       "\nData: " + std::string(state.sourceDataPath.data());
+    adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item) {
+        return strings::formatId(static_cast<std::uint32_t>(std::stoul(item.value)), idFormat);
+    };
+    adapter.descriptor.renderSelectionPreview = [&state](const assets::AssetItemId & item, float size) {
+        TexmapsTexturePreview preview;
+        if (state.reader)
+        {
+            const auto texture = state.reader->readTexture(static_cast<std::uint32_t>(std::stoul(item.value)));
+            if (texture)
+            {
+                preview.width = texture->dimension;
+                preview.height = texture->dimension;
+                preview.pixels.reserve(texture->pixels.size());
+                for (const auto pixel : texture->pixels)
+                {
+                    preview.pixels.push_back(texturePixelToMapColor(pixel));
+                }
+            }
+        }
+        drawTexturePreview(preview, size);
+    };
+    adapter.descriptor.selectionPreviewSize = thumbnailSize;
     if (!state.error.empty())
     {
         adapter.descriptor.sourceTooltip += "\nError: " + state.error;
@@ -122,7 +145,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
     adapter.descriptor.capabilities = {.presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
                                                        static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
                                        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
-                                       .selection = assets::AssetSelectionMode::single,};
+                                        .selection = assets::AssetSelectionMode::multiple,};
     adapter.descriptor.itemCount = state.reader ? state.reader->textureCount() : 0U;
     adapter.descriptor.fixedCellWidth = assetCellWidth;
     adapter.descriptor.fixedCellHeight = assetCellHeight;
@@ -155,11 +178,11 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
             return std::nullopt;
         }
         return assets::AssetDetails{.item = item,
-                                     .title = "Texture " + strings::formatId(id, idFormat),
-                                    .fields = {"Dimensions: " + std::to_string(texture->dimension) + " x " +
-                                                std::to_string(texture->dimension),},};
+                                     .title = "ID: " + strings::formatId(id, idFormat),
+                                      .fields = {"Dimensions: " + std::to_string(texture->dimension) + " x " +
+                                                 std::to_string(texture->dimension),},};
     };
-    adapter.renderItem = [&state](const assets::AssetItem & item, bool selected) {
+    adapter.renderItem = [&state](const assets::AssetItem & item, bool) {
         const auto id = static_cast<std::uint32_t>(std::stoul(item.id.value));
         TexmapsTexturePreview preview;
         if (state.reader)
@@ -176,7 +199,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, std::uint32_t id,
                 }
             }
         }
-        drawTexturePreview(preview, id, selected);
+        drawTexturePreview(preview, thumbnailSize);
     };
     return adapter;
 }

@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <format>
 #include <functional>
 #include <imgui.h>
 #include <optional>
@@ -45,6 +46,18 @@ constexpr std::size_t assetCellHeight = 44U;
             static_cast<float>((packed >> greenShift) & channelMask) * channelScale,
             static_cast<float>(packed & channelMask) * channelScale,
             1.0F};
+}
+
+[[nodiscard]] std::string colorToHex(uomul::RadarColor color)
+{
+    const auto packed = static_cast<std::uint32_t>(color);
+    const auto toByte = [](std::uint32_t channel) {
+        return (channel * 255U + 15U) / 31U;
+    };
+    return std::format("#{:02X}{:02X}{:02X}",
+                       toByte((packed >> redShift) & channelMask),
+                       toByte((packed >> greenShift) & channelMask),
+                       toByte(packed & channelMask));
 }
 
 void setPath(std::array<char, radarcolPathBufferSize> & buffer, const std::filesystem::path & path)
@@ -132,12 +145,11 @@ void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
     }
 }
 
-void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem & item, bool selected)
+void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem & item)
 {
     const auto index = static_cast<std::uint32_t>(std::stoul(item.id.value));
     const auto color = state.reader ? state.reader->readRawColor(index).value_or(0) : uomul::RadarColor{};
     ImGui::ColorButton("##RadarcolColor", colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(swatchSize, swatchSize));
-    static_cast<void>(selected);
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -149,6 +161,15 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
     adapter.descriptor.viewId = std::move(viewId);
     adapter.descriptor.title = "Radarcol";
     adapter.descriptor.sourceTooltip = "Source: " + std::string(state.sourcePath.data());
+    adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item) {
+        return strings::formatId(static_cast<std::uint32_t>(std::stoul(item.value)), idFormat);
+    };
+    adapter.descriptor.renderSelectionPreview = [&state](const assets::AssetItemId & item, float size) {
+        const auto index = static_cast<std::uint32_t>(std::stoul(item.value));
+        const auto color = state.reader ? state.reader->readRawColor(index).value_or(0) : uomul::RadarColor{};
+        ImGui::ColorButton("##RadarcolSelectionColor", colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(size, size));
+    };
+    adapter.descriptor.selectionPreviewSize = swatchSize;
     if (!state.error.empty())
     {
         adapter.descriptor.sourceTooltip += "\nError: " + state.error;
@@ -159,7 +180,7 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
     adapter.descriptor.capabilities = {.presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
                                                        static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
                                        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
-                                       .selection = assets::AssetSelectionMode::single,};
+                                        .selection = assets::AssetSelectionMode::multiple,};
     adapter.descriptor.itemCount = state.reader ? state.reader->colorCount() : 0U;
     adapter.descriptor.fixedCellWidth = assetCellWidth;
     adapter.descriptor.fixedCellHeight = assetCellHeight;
@@ -192,11 +213,12 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
             return std::nullopt;
         }
         return assets::AssetDetails{.item = id,
-                                     .title = "Radarcol color " + strings::formatId(index, idFormat),
-                                     .fields = std::vector<std::string>{"Raw value: " +
-                                                                       strings::formatId(static_cast<std::uint32_t>(*color), idFormat),},};
+                                      .title = "ID: " + strings::formatId(index, idFormat),
+                                      .fields = std::vector<std::string>{"Raw: " +
+                                                                        strings::formatId(static_cast<std::uint32_t>(*color), idFormat),
+                                                                        "Hex: " + colorToHex(*color),},};
     };
-    adapter.renderItem = [&state](const assets::AssetItem & item, bool selected) { drawRadarcolItem(state, item, selected); };
+    adapter.renderItem = [&state](const assets::AssetItem & item, bool) { drawRadarcolItem(state, item); };
     return adapter;
 }
 
@@ -212,13 +234,22 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
     adapter.descriptor.viewId = std::move(viewId);
     adapter.descriptor.title = "Radarcol";
     adapter.descriptor.sourceTooltip = "Source: " + document.sourcePath().string();
+    adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item) {
+        return strings::formatId(static_cast<std::uint32_t>(std::stoul(item.value)), idFormat);
+    };
+    adapter.descriptor.renderSelectionPreview = [&document](const assets::AssetItemId & item, float size) {
+        const auto index = static_cast<std::uint32_t>(std::stoul(item.value));
+        const auto color = document.reader() ? document.reader()->readRawColor(index).value_or(0) : uomul::RadarColor{};
+        ImGui::ColorButton("##RadarcolSelectionColor", colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(size, size));
+    };
+    adapter.descriptor.selectionPreviewSize = swatchSize;
     adapter.descriptor.source = {.kind = DocumentKind::radarcol,
                                  .source = makeDocumentSourceIdentity({document.sourcePath()}),
                                  .contextId = adapter.descriptor.viewId,};
     adapter.descriptor.capabilities = {.presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
                                                        static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
                                        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
-                                       .selection = assets::AssetSelectionMode::single,};
+                                        .selection = assets::AssetSelectionMode::multiple,};
     adapter.descriptor.itemCount = document.reader() ? document.reader()->colorCount() : 0U;
     adapter.descriptor.fixedCellWidth = assetCellWidth;
     adapter.descriptor.fixedCellHeight = assetCellHeight;
@@ -254,15 +285,15 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
             return std::nullopt;
         }
         return assets::AssetDetails{.item = id,
-                                      .title = "Radarcol color " + strings::formatId(index, idFormat),
-                                      .fields = std::vector<std::string>{"Raw value: " +
-                                                                        strings::formatId(static_cast<std::uint32_t>(*color), idFormat),},};
+                                       .title = "ID: " + strings::formatId(index, idFormat),
+                                       .fields = std::vector<std::string>{"Raw: " +
+                                                                         strings::formatId(static_cast<std::uint32_t>(*color), idFormat),
+                                                                         "Hex: " + colorToHex(*color),},};
     };
-    adapter.renderItem = [&document](const assets::AssetItem & item, bool selected) {
+    adapter.renderItem = [&document](const assets::AssetItem & item, bool) {
         const auto index = static_cast<std::uint32_t>(std::stoul(item.id.value));
         const auto color = document.reader() ? document.reader()->readRawColor(index).value_or(0) : uomul::RadarColor{};
         ImGui::ColorButton("##RadarcolColor", colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(swatchSize, swatchSize));
-        static_cast<void>(selected);
     };
     assets::drawAssetWindow(adapter, assetView, visible, becameVisible);
 }

@@ -1,5 +1,6 @@
 #include "gui/assets/asset_window.h"
 #include "gui/assets/asset_window_contracts.h"
+#include "gui/frontend/theme.h"
 #include "gui/strings/ui_strings.h"
 #include <algorithm>
 #include <array>
@@ -18,6 +19,7 @@ namespace
 constexpr std::size_t filterBufferSize = 256;
 constexpr float detailsHeight = 140.0F;
 constexpr float detailsPadding = 12.0F;
+constexpr std::size_t maximumSelectionPreviews = 9U;
 
 [[nodiscard]] std::string windowName(const AssetAdapterDescriptor & descriptor)
 {
@@ -149,12 +151,118 @@ void drawPresentationControls(const AssetAdapter & adapter, AssetWindowState & s
     }
 }
 
-void drawItemDetails(const AssetDetails & details)
+void drawItemDetails(const AssetDetails & details, bool wrap = true)
 {
     ImGui::TextUnformatted(details.title.c_str());
     for (const auto & field : details.fields)
     {
-        ImGui::TextWrapped("%s", field.c_str());
+        if (wrap)
+        {
+            ImGui::TextWrapped("%s", field.c_str());
+        }
+        else
+        {
+            ImGui::TextUnformatted(field.c_str());
+        }
+    }
+}
+
+void drawItemTooltip(const AssetAdapter & adapter, const AssetItem & item)
+{
+    if (!ImGui::IsItemHovered())
+    {
+        return;
+    }
+
+    if (item.state == AssetItemState::available && adapter.loadDetails)
+    {
+        const auto details = adapter.loadDetails(item.id);
+        if (details)
+        {
+            ImGui::BeginTooltip();
+            drawItemDetails(*details, false);
+            ImGui::EndTooltip();
+            return;
+        }
+    }
+
+    if (item.state != AssetItemState::available && !item.stateMessage.empty())
+    {
+        ImGui::SetTooltip("%s", item.stateMessage.c_str());
+    }
+}
+
+struct SelectionFieldValues
+{
+    std::string label;
+    std::vector<std::string> values;
+};
+
+void appendLabeledValue(std::vector<SelectionFieldValues> & fields, const std::string & text)
+{
+    const std::size_t separator = text.find(":");
+    if (separator == std::string::npos)
+    {
+        return;
+    }
+    const std::string label = text.substr(0U, separator);
+    const auto field = std::ranges::find_if(fields, [&label](const SelectionFieldValues & value) { return value.label == label; });
+    if (field == fields.end())
+    {
+        fields.push_back({.label = label, .values = {text.substr(separator + 1U)}});
+    }
+    else
+    {
+        field->values.push_back(text.substr(separator + 1U));
+    }
+}
+
+void drawSelectionSummary(const AssetAdapter & adapter, const AssetWindowState & state)
+{
+    const std::size_t selectedCount = state.selection.selected.size();
+    if (selectedCount == 0U)
+    {
+        return;
+    }
+
+    const std::size_t displayedCount = std::min(selectedCount, maximumSelectionPreviews);
+    std::vector<SelectionFieldValues> values;
+    values.push_back({.label = "ID", .values = {}});
+    for (std::size_t index = 0; index < displayedCount; index++)
+    {
+        const auto & selected = state.selection.selected.at(index);
+        const std::string formattedId = adapter.descriptor.formatSelectionId ? adapter.descriptor.formatSelectionId(selected) : selected.value;
+        values.front().values.push_back(formattedId);
+        if (!adapter.loadDetails)
+        {
+            continue;
+        }
+        const auto details = adapter.loadDetails(selected);
+        if (details)
+        {
+            for (const auto & field : details->fields)
+            {
+                appendLabeledValue(values, field);
+            }
+        }
+    }
+
+    for (const auto & field : values)
+    {
+        std::string line = field.label + ": ";
+        for (std::size_t index = 0; index < field.values.size(); index++)
+        {
+            if (index > 0U)
+            {
+                line += ", ";
+            }
+            line += field.values.at(index);
+        }
+        if (selectedCount > displayedCount)
+        {
+            line += " and " + std::to_string(selectedCount - displayedCount) + " more";
+        }
+        ImGui::TextWrapped("%s", line.c_str());
     }
 }
 
@@ -170,56 +278,200 @@ void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state)
         return;
     }
 
+    const std::size_t selectedCount = state.selection.selected.size();
+    const std::size_t previewCount = std::min(selectedCount, maximumSelectionPreviews);
+    const float previewSpacing = ImGui::GetStyle().ItemSpacing.x;
+
+    if (previewCount > 0U && adapter.descriptor.renderSelectionPreview && adapter.descriptor.selectionPreviewSize > 0.0F)
+    {
+        const float fullSize = adapter.descriptor.selectionPreviewSize;
+        const float previewSize = previewCount == 1U ? fullSize : fullSize / (previewCount <= 4U ? 2.0F : 3.0F);
+        const std::size_t previewColumns = previewCount > 4U ? 3U : 2U;
+        ImGui::BeginGroup();
+        const ImVec2 previewOrigin = ImGui::GetCursorScreenPos();
+        for (std::size_t index = 0; index < previewCount; index++)
+        {
+            float cellSize = previewSize;
+            if (previewCount > 1U)
+            {
+                const std::size_t column = index % previewColumns;
+                const std::size_t row = index / previewColumns;
+                const float cellMinX = std::round(previewOrigin.x + (fullSize * static_cast<float>(column) / static_cast<float>(previewColumns)));
+                const float cellMinY = std::round(previewOrigin.y + (fullSize * static_cast<float>(row) / static_cast<float>(previewColumns)));
+                const float cellMaxX = std::round(previewOrigin.x +
+                                                  (fullSize * static_cast<float>(column + 1U) / static_cast<float>(previewColumns)));
+                const float cellMaxY = std::round(previewOrigin.y +
+                                                  (fullSize * static_cast<float>(row + 1U) / static_cast<float>(previewColumns)));
+                ImGui::SetCursorScreenPos(ImVec2(cellMinX, cellMinY));
+                cellSize = std::min(cellMaxX - cellMinX, cellMaxY - cellMinY);
+            }
+            ImGui::PushID(static_cast<int>(index));
+            adapter.descriptor.renderSelectionPreview(state.selection.selected.at(index), cellSize);
+            ImGui::PopID();
+        }
+        ImGui::EndGroup();
+        ImGui::SameLine(0.0F, previewSpacing);
+    }
+
+    ImGui::BeginChild("SelectionDetailsText", ImVec2(0.0F, -1.0F), ImGuiChildFlags_None);
+    if (state.selection.selected.size() > 1U)
+    {
+        drawSelectionSummary(adapter, state);
+    }
     if (state.selection.selected.empty() || !adapter.loadDetails)
     {
         ImGui::TextUnformatted(strings::noItemSelected());
-        ImGui::EndChild();
-        return;
     }
-
-    const auto details = adapter.loadDetails(state.selection.selected.front());
-    if (!details)
+    else if (state.selection.selected.size() == 1U)
     {
-        ImGui::TextUnformatted(strings::itemDetailsUnavailable());
-        ImGui::EndChild();
-        return;
+        const auto details = adapter.loadDetails(state.selection.selected.front());
+        if (details)
+        {
+            drawItemDetails(*details);
+        }
+        else
+        {
+            ImGui::TextUnformatted(strings::itemDetailsUnavailable());
+        }
     }
-
-    drawItemDetails(*details);
+    ImGui::EndChild();
     ImGui::EndChild();
 }
 
-void drawItem(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item)
+void appendDragSelection(AssetWindowState & state, const AssetItem & item, std::size_t index, const ImVec2 & itemMin, const ImVec2 & itemMax)
+{
+    if (!state.selectionDragActive)
+    {
+        return;
+    }
+
+    const ImVec2 selectionMin(std::min(state.selectionDragStartX, ImGui::GetIO().MousePos.x),
+                              std::min(state.selectionDragStartY, ImGui::GetIO().MousePos.y));
+    const ImVec2 selectionMax(std::max(state.selectionDragStartX, ImGui::GetIO().MousePos.x),
+                              std::max(state.selectionDragStartY, ImGui::GetIO().MousePos.y));
+    if (itemMax.x < selectionMin.x || itemMin.x > selectionMax.x || itemMax.y < selectionMin.y || itemMin.y > selectionMax.y)
+    {
+        return;
+    }
+
+    if (!contains(state.selection, item.id))
+    {
+        state.selection.selected.push_back(item.id);
+    }
+    if (!state.selection.anchor)
+    {
+        state.selection.anchor = item.id;
+        state.selection.anchorIndex = index;
+    }
+}
+
+void updateSelectionOnClick(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
+{
+    const ImGuiIO & io = ImGui::GetIO();
+    const bool multiple = adapter.descriptor.capabilities.selection == AssetSelectionMode::multiple;
+    if (!multiple)
+    {
+        selectSingleAt(state.selection, item.id, index);
+        return;
+    }
+
+    if (io.KeyShift && state.selection.anchorIndex && adapter.loadRange)
+    {
+        const std::size_t anchorIndex = *state.selection.anchorIndex;
+        const std::size_t first = std::min(anchorIndex, index);
+        const std::size_t count = std::max(anchorIndex, index) - first + 1U;
+        const auto range = adapter.loadRange({.first = first, .count = count, .presentation = state.presentation}, state.query);
+        const auto anchor = state.selection.anchor;
+        if (!io.KeyCtrl)
+        {
+            clear(state.selection);
+        }
+        state.selection.anchor = anchor;
+        state.selection.anchorIndex = anchorIndex;
+        for (const auto & rangeItem : range)
+        {
+            if (!contains(state.selection, rangeItem.id) && rangeItem.state == AssetItemState::available)
+            {
+                state.selection.selected.push_back(rangeItem.id);
+            }
+        }
+        return;
+    }
+
+    if (io.KeyCtrl)
+    {
+        toggleAt(state.selection, item.id, index);
+    }
+    else
+    {
+        selectSingleAt(state.selection, item.id, index);
+    }
+}
+
+void drawSelectionOutline(const ImVec2 & itemMin, const ImVec2 & itemMax)
+{
+    ImGui::GetWindowDrawList()->AddRect(itemMin,
+                                        itemMax,
+                                        theme::packedColor(theme::selection),
+                                        0.0F,
+                                        ImDrawFlags_None,
+                                        2.0F);
+}
+
+void drawItem(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
 {
     ImGui::PushID(item.id.value.c_str());
     const bool selected = contains(state.selection, item.id);
     ImGui::BeginDisabled(item.state != AssetItemState::available);
+    ImVec2 itemMin;
+    ImVec2 itemMax;
     if (adapter.renderItem)
     {
         adapter.renderItem(item, selected);
+        itemMin = ImGui::GetItemRectMin();
+        itemMax = ImGui::GetItemRectMax();
         if (ImGui::IsItemClicked())
         {
-            selectSingle(state.selection, item.id);
+            updateSelectionOnClick(adapter, state, item, index);
         }
     }
     else if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F)))
     {
-        selectSingle(state.selection, item.id);
+        updateSelectionOnClick(adapter, state, item, index);
     }
     ImGui::EndDisabled();
-    if (ImGui::IsItemHovered() && !item.label.empty())
+    if (adapter.renderItem)
     {
-        ImGui::SetTooltip("%s", item.label.c_str());
+        appendDragSelection(state, item, index, itemMin, itemMax);
+        if (contains(state.selection, item.id))
+        {
+            drawSelectionOutline(itemMin, itemMax);
+        }
     }
-    if (item.state != AssetItemState::available && !item.stateMessage.empty() && ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("%s", item.stateMessage.c_str());
-    }
+    drawItemTooltip(adapter, item);
     ImGui::PopID();
 }
 
 void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
 {
+    const ImGuiIO & io = ImGui::GetIO();
+    if (state.selectionDragActive && !io.MouseDown[ImGuiMouseButton_Left])
+    {
+        state.selectionDragActive = false;
+    }
+    if (!state.selectionDragActive && adapter.descriptor.capabilities.selection == AssetSelectionMode::multiple &&
+        ImGui::IsMouseDragging(ImGuiMouseButton_Left) && ImGui::IsWindowHovered())
+    {
+        state.selectionDragActive = true;
+        state.selectionDragStartX = io.MouseClickedPos[ImGuiMouseButton_Left].x;
+        state.selectionDragStartY = io.MouseClickedPos[ImGuiMouseButton_Left].y;
+        state.selectionDragBase = io.KeyCtrl ? state.selection : AssetSelection{};
+    }
+    if (state.selectionDragActive)
+    {
+        state.selection = state.selectionDragBase;
+    }
+
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
     const float availableWidth = ImGui::GetContentRegionAvail().x;
     const float cellWidth = static_cast<float>(adapter.descriptor.fixedCellWidth);
@@ -259,7 +511,7 @@ void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
                 const std::size_t loadedIndex = itemIndex - first;
                 if (loadedIndex < items.size())
                 {
-                    drawItem(adapter, state, items.at(loadedIndex));
+                    drawItem(adapter, state, items.at(loadedIndex), itemIndex);
                 }
                 else
                 {
@@ -268,20 +520,49 @@ void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
             }
         }
     }
+
+    if (state.selectionDragActive)
+    {
+        const ImVec2 selectionMin(std::min(state.selectionDragStartX, io.MousePos.x),
+                                  std::min(state.selectionDragStartY, io.MousePos.y));
+        const ImVec2 selectionMax(std::max(state.selectionDragStartX, io.MousePos.x),
+                                  std::max(state.selectionDragStartY, io.MousePos.y));
+        ImGui::GetWindowDrawList()->AddRectFilled(selectionMin, selectionMax, IM_COL32(137, 180, 250, 35));
+        ImGui::GetWindowDrawList()->AddRect(selectionMin, selectionMax, theme::packedColor(theme::selection));
+    }
 }
 
-void drawTableRow(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item)
+void drawTableRow(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
 {
     ImGui::PushID(item.id.value.c_str());
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
     const bool selected = contains(state.selection, item.id);
     ImGui::BeginDisabled(item.state != AssetItemState::available);
+    bool itemHovered = false;
     if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
     {
-        selectSingle(state.selection, item.id);
+        updateSelectionOnClick(adapter, state, item, index);
     }
+    itemHovered = ImGui::IsItemHovered();
     ImGui::EndDisabled();
+    if (itemHovered)
+    {
+        ImGui::BeginTooltip();
+        if (item.state == AssetItemState::available && adapter.loadDetails)
+        {
+            const auto details = adapter.loadDetails(item.id);
+            if (details)
+            {
+                drawItemDetails(*details, false);
+            }
+        }
+        else if (!item.stateMessage.empty())
+        {
+            ImGui::TextUnformatted(item.stateMessage.c_str());
+        }
+        ImGui::EndTooltip();
+    }
     ImGui::TableNextColumn();
     if (item.state != AssetItemState::available)
     {
@@ -337,7 +618,7 @@ void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
         {
             if (index < items.size())
             {
-                drawTableRow(adapter, state, items.at(index));
+                drawTableRow(adapter, state, items.at(index), first + index);
             }
             else
             {
