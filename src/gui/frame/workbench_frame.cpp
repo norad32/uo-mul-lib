@@ -9,6 +9,7 @@
 #include "gui/panels/texmap_panel.h"
 #include "gui/panels/tile_inspector_panel.h"
 #include "gui/panels/tiledata_panel.h"
+#include "gui/panels/tool_palette_panel.h"
 #include "gui/persistence/layout_store.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
@@ -111,13 +112,16 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         ImGuiID rightNode = 0;
         ImGuiID leftBottomNode = 0;
         ImGuiID leftTopNode = 0;
+        ImGuiID toolNode = 0;
         ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, dockLeftWidthRatio, &leftNode, &centerNode);
         ImGui::DockBuilderSplitNode(centerNode, ImGuiDir_Right, dockRightWidthRatio, &rightNode, &centerNode);
         ImGui::DockBuilderSplitNode(leftNode, ImGuiDir_Down, dockLeftBottomRatio, &leftBottomNode, &leftTopNode);
+        ImGui::DockBuilderSplitNode(leftTopNode, ImGuiDir_Up, 0.38F, &toolNode, &leftTopNode);
         for (const auto & document : state.session.documents())
         {
             ImGui::DockBuilderDockWindow(documentWindowName(document.summary).c_str(), centerNode);
         }
+        ImGui::DockBuilderDockWindow("Tool Palette###view.tool-palette", toolNode);
         ImGui::DockBuilderDockWindow("Tile Inspector###view.tile-inspector", leftBottomNode);
         ImGui::DockBuilderDockWindow("Block Inspector###view.block-inspector", leftTopNode);
         ImGui::DockBuilderDockWindow("Texmaps###view.texmaps", rightNode);
@@ -199,6 +203,11 @@ void drawMapPanels(WorkbenchState & state,
                    RadarcolPanelState & radarcolState,
                    TexmapsPanelState & texmapsState)
 {
+    if (state.panelRegistry.find(PanelId::toolPalette)->visible)
+    {
+        drawToolPalettePanel(state, state.panelRegistry.find(PanelId::toolPalette)->visible);
+    }
+
     MapWorkspace & workspace = state.workspace.active();
     const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
     const DocumentRecord * active = state.session.activeDocumentRecord();

@@ -65,6 +65,7 @@ void drawViewMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::viewToggleFullscreen, state.preferences.workspaceFullscreen);
 
     ImGui::Separator();
+    drawCommandItem(state, CommandId::panelToolPalette, state.panelRegistry.find(PanelId::toolPalette)->visible);
     drawCommandItem(state, CommandId::panelTileInspector, state.panelRegistry.find(PanelId::tileInspector)->visible);
     drawCommandItem(state, CommandId::panelBlockInspector, state.panelRegistry.find(PanelId::blockInspector)->visible);
     drawCommandItem(state, CommandId::panelRadarcol, state.panelRegistry.find(PanelId::radarcol)->visible);

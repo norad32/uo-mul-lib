@@ -49,6 +49,11 @@ TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")
     REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
     REQUIRE(state.commands.execute(CommandId::panelTexmaps, state));
     REQUIRE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
+
+    REQUIRE(state.commands.execute(CommandId::panelToolPalette, state));
+    REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::toolPalette)->visible);
+    REQUIRE(state.commands.execute(CommandId::panelToolPalette, state));
+    REQUIRE(state.panelRegistry.find(uo_mule::gui::PanelId::toolPalette)->visible);
 }
 
 TEST_CASE("commandRegistry_Should_DispatchRegisteredShortcuts")

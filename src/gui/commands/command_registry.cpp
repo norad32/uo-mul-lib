@@ -415,6 +415,15 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state) { state.fullscreenToggleRequested = true; });
 
     add(registry,
+        CommandId::panelToolPalette,
+        "view.panel.tool-palette",
+        "Tool Palette",
+        "View",
+        "Show or hide the tool palette",
+        "",
+        enabled,
+        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::toolPalette)); });
+    add(registry,
         CommandId::panelTileInspector,
         "view.panel.tile-inspector",
         "Tile Inspector",

@@ -25,6 +25,7 @@ enum class CommandId : std::uint8_t
     viewCombined,
     viewToggleLogPanel,
     viewToggleFullscreen,
+    panelToolPalette,
     panelTileInspector,
     panelBlockInspector,
     panelRadarcol,

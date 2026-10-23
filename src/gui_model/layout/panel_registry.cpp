@@ -7,6 +7,13 @@ namespace uo_mule::gui
 PanelRegistry::PanelRegistry() :
     panels_({
         {
+            .id = PanelId::toolPalette,
+            .stableId = "panel.tool-palette",
+            .title = "Tool Palette",
+            .defaultVisible = true,
+            .visible = true,
+        },
+        {
             .id = PanelId::tileInspector,
             .stableId = "panel.tile-inspector",
             .title = "Tile Inspector",
