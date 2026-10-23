@@ -17,8 +17,6 @@ struct Color
 
 inline constexpr float maximumColorChannel = 255.0F;
 inline constexpr std::uint32_t colorChannelMask = 0xFFU;
-inline constexpr int buttonColorStackDepth = 3;
-
 inline constexpr std::uint32_t redChannelShift = 24U;
 inline constexpr std::uint32_t greenChannelShift = 16U;
 inline constexpr std::uint32_t blueChannelShift = 8U;

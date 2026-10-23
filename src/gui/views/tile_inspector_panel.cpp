@@ -5,9 +5,8 @@
 #include "gui/persistence/preferences.h"
 #include "gui/providers/data_providers.h"
 #include "gui/strings/ui_strings.h"
+#include "gui/views/texture_preview.h"
 #include "uomul/map.h"
-#include <cstddef>
-#include <cstdint>
 #include <imgui.h>
 #include <optional>
 #include <string>
@@ -27,59 +26,6 @@ void drawColorPreview(MapColor color)
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(color.red, color.green, color.blue, 255));
     drawList->AddRect(cellMinimum, cellMaximum, theme::packedColor(theme::border), 0.0F, ImDrawFlags_None, 1.0F);
-    ImGui::Dummy(ImVec2(assetPreviewSize, assetPreviewSize));
-}
-
-void drawTexturePreview(const ProviderTexture & texturePreview)
-{
-    const float scaleX = assetPreviewSize / static_cast<float>(texturePreview.width);
-    const float scaleY = assetPreviewSize / static_cast<float>(texturePreview.height);
-
-    ImDrawList * drawList = ImGui::GetWindowDrawList();
-    const ImVec2 cellMin = ImGui::GetCursorScreenPos();
-    const ImVec2 cellMax(cellMin.x + assetPreviewSize, cellMin.y + assetPreviewSize);
-
-    // Draw checkerboard background
-    constexpr float checkerSize = 4.0F;
-    const ImU32 checkerColor1 = theme::packedColor(theme::checkerboardDark);
-    const ImU32 checkerColor2 = theme::packedColor(theme::checkerboardLight);
-
-    for (int checkerY = 0; (static_cast<float>(checkerY) * checkerSize) < assetPreviewSize; checkerY++)
-    {
-        for (int checkerX = 0; (static_cast<float>(checkerX) * checkerSize) < assetPreviewSize; checkerX++)
-        {
-            const bool oddX = checkerX % 2 == 1;
-            const bool oddY = checkerY % 2 == 1;
-            const ImU32 pixelColor = (oddX != oddY) ? checkerColor1 : checkerColor2;
-            const ImVec2 checkerMin(cellMin.x + (static_cast<float>(checkerX) * checkerSize),
-                                    cellMin.y + (static_cast<float>(checkerY) * checkerSize));
-            const ImVec2 checkerMax(checkerMin.x + checkerSize, checkerMin.y + checkerSize);
-            drawList->AddRectFilled(checkerMin, checkerMax, pixelColor);
-        }
-    }
-
-    // Draw texture
-    for (std::uint32_t ty = 0; ty < texturePreview.height; ty++)
-    {
-        for (std::uint32_t tx = 0; tx < texturePreview.width; tx++)
-        {
-            const std::size_t pixelIndex = (ty * texturePreview.width) + tx;
-            if (pixelIndex < texturePreview.pixels.size())
-            {
-                const MapColor & pixelColor = texturePreview.pixels.at(pixelIndex);
-                const ImU32 imColor = IM_COL32(pixelColor.red, pixelColor.green, pixelColor.blue, 255);
-
-                const ImVec2 pixelMin(cellMin.x + (static_cast<float>(tx) * scaleX),
-                                      cellMin.y + (static_cast<float>(ty) * scaleY));
-                const ImVec2 pixelMax(cellMin.x + (static_cast<float>(tx + 1) * scaleX),
-                                      cellMin.y + (static_cast<float>(ty + 1) * scaleY));
-
-                drawList->AddRectFilled(pixelMin, pixelMax, imColor);
-            }
-        }
-    }
-
-    drawList->AddRect(cellMin, cellMax, theme::packedColor(theme::border), 0.0F, ImDrawFlags_None, 1.0F);
     ImGui::Dummy(ImVec2(assetPreviewSize, assetPreviewSize));
 }
 
@@ -105,7 +51,9 @@ void drawTileDetails(const MapContextSnapshot & context, const DataProviders & p
         ImGui::BeginGroup();
         if (hasTexturePreview)
         {
-            drawTexturePreview(*texturePreview);
+            drawTexturePreview(
+                {.width = texturePreview->width, .height = texturePreview->height, .pixels = texturePreview->pixels},
+                assetPreviewSize);
         }
         else
         {

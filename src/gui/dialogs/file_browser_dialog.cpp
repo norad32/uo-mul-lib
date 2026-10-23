@@ -4,6 +4,8 @@
 #include "gui/dialogs/dialog_presentation.h"
 #include "gui/dialogs/file_size.h"
 #include "gui/frontend/theme.h"
+#include "gui/persistence/config_paths.h"
+#include "gui/support/bounded_buffer.h"
 #include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
@@ -14,7 +16,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -60,16 +61,7 @@ constexpr std::array<const char *, 7> standardPlaceNames{
 
 [[nodiscard]] std::filesystem::path recentFoldersPath()
 {
-    const char * config = std::getenv("XDG_CONFIG_HOME");
-    std::filesystem::path directory;
-    if (config != nullptr && std::filesystem::path(config).is_absolute())
-    {
-        directory = config;
-    }
-    else if (const char * home = std::getenv("HOME"); home != nullptr)
-    {
-        directory = std::filesystem::path(home) / ".config";
-    }
+    const std::filesystem::path directory = configDirectory();
     if (directory.empty())
     {
         return {};
@@ -113,19 +105,6 @@ void saveRecentFolders(const FileBrowserState & state)
     {
         output << folder.string() << '\n';
     }
-}
-
-void copyBuffer(std::array<char, fileBrowserBufferSize> & buffer, std::string_view value)
-{
-    const auto length = std::min(value.size(), buffer.size() - 1U);
-    std::memcpy(buffer.data(), value.data(), length);
-    buffer.at(length) = '\0';
-}
-
-void copyBuffer(std::array<char, fileBrowserBufferSize> & buffer, const std::filesystem::path & value)
-{
-    const std::string text = value.string();
-    copyBuffer(buffer, std::string_view(text));
 }
 
 [[nodiscard]] bool isDirectory(const std::filesystem::path & path)
@@ -210,7 +189,7 @@ void navigate(FileBrowserState & state, const std::filesystem::path & path, bool
     state.selectedPath.clear();
     state.summary = {};
     state.error.clear();
-    copyBuffer(state.location, directory);
+    copyToBuffer(state.location, directory);
 
     if (addHistory)
     {
@@ -285,7 +264,7 @@ void selectPath(FileBrowserState & state, const std::filesystem::path & path)
     state.selectedPath = path;
     if (state.request.mode == FileBrowserMode::saveFile)
     {
-        copyBuffer(state.filename, path.filename());
+        copyToBuffer(state.filename, path.filename());
     }
     updateSummary(state);
 }
@@ -733,7 +712,7 @@ void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
         state.directory = absoluteDirectory(initial.parent_path());
         if (state.request.mode == FileBrowserMode::saveFile)
         {
-            copyBuffer(state.filename, initial.filename());
+            copyToBuffer(state.filename, initial.filename());
         }
     }
     else
@@ -761,25 +740,11 @@ std::optional<FileBrowserResult> consumeFileBrowserResult(FileBrowserState & sta
     return result;
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void drawFileBrowser(FileBrowserState & state)
+namespace
 {
-    if (!state.visible)
-    {
-        return;
-    }
 
-    const std::string title =
-        state.request.title.empty() ? "Open File###dialog.file-browser" : state.request.title + "###dialog.file-browser";
-    if (!beginDialog(title.c_str(),
-                     &state.visible,
-                     browserDialogSpec(),
-                     static_cast<ImGuiWindowFlags>(ImGuiWindowFlags_NoResize + ImGuiWindowFlags_NoScrollbar +
-                                                   ImGuiWindowFlags_NoScrollWithMouse)))
-    {
-        return;
-    }
-
+void drawBrowserToolbar(FileBrowserState & state)
+{
     if (ImGui::Button("Back") && state.historyIndex > 0U)
     {
         --state.historyIndex;
@@ -809,7 +774,91 @@ void drawFileBrowser(FileBrowserState & state)
     {
         navigate(state, state.location.data(), true);
     }
+}
 
+[[nodiscard]] std::vector<std::filesystem::directory_entry> browserEntries(const FileBrowserState & state)
+{
+    std::vector<std::filesystem::directory_entry> entries;
+    std::error_code error;
+    for (const auto & entry : std::filesystem::directory_iterator(state.directory, error))
+    {
+        const auto name = entry.path().filename().string();
+        if (!state.showHidden && !name.empty() && name.front() == '.')
+        {
+            continue;
+        }
+        if (selectableEntry(state, entry))
+        {
+            entries.push_back(entry);
+        }
+    }
+
+    std::ranges::sort(entries,
+                      [](const auto & left, const auto & right)
+                      {
+                          std::error_code leftError;
+                          std::error_code rightError;
+                          const bool leftDirectory = left.is_directory(leftError);
+                          const bool rightDirectory = right.is_directory(rightError);
+                          if (leftDirectory != rightDirectory)
+                          {
+                              return leftDirectory > rightDirectory;
+                          }
+                          return lowercase(left.path().filename().string()) < lowercase(right.path().filename().string());
+                      });
+    return entries;
+}
+
+void drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory_entry & entry)
+{
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    const bool selected = state.selectedPath == entry.path();
+    if (ImGui::Selectable(entry.path().filename().string().c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
+    {
+        selectPath(state, entry.path());
+    }
+    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+    {
+        if (isDirectory(entry.path()))
+        {
+            navigate(state, entry.path(), true);
+        }
+        else if (state.request.mode == FileBrowserMode::openFile)
+        {
+            complete(state);
+        }
+    }
+    ImGui::TableNextColumn();
+    std::error_code sizeError;
+    const auto size = entry.is_regular_file(sizeError) ? formatFileSize(entry.file_size(sizeError)) : "";
+    ImGui::TextUnformatted(size.c_str());
+    ImGui::TableNextColumn();
+    std::error_code timeError;
+    const auto modified = entry.last_write_time(timeError);
+    ImGui::TextUnformatted(timeError ? "Unknown" : formatModifiedTime(modified).c_str());
+}
+
+void drawBrowserEntries(FileBrowserState & state)
+{
+    if (!ImGui::BeginTable("Entries", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH))
+    {
+        return;
+    }
+
+    ImGui::TableSetupColumn("Name");
+    ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 100.0F);
+    ImGui::TableSetupColumn("Date", ImGuiTableColumnFlags_WidthFixed, dateColumnWidth);
+    ImGui::TableHeadersRow();
+    for (const auto & entry : browserEntries(state))
+    {
+        drawBrowserEntry(state, entry);
+    }
+    ImGui::EndTable();
+}
+
+void drawBrowserListing(FileBrowserState & state)
+{
     if (ImGui::BeginTable("BrowserBody", 3, ImGuiTableFlags_SizingStretchProp, ImVec2(0.0F, listingHeight)))
     {
         ImGui::TableSetupColumn("Places", ImGuiTableColumnFlags_WidthFixed, placesWidth);
@@ -820,79 +869,16 @@ void drawFileBrowser(FileBrowserState & state)
         drawPlaces(state);
         ImGui::TableNextColumn();
         ImGui::BeginChild("FileList", ImVec2(0.0F, listingHeight), ImGuiChildFlags_Borders, ImGuiWindowFlags_None);
-        if (ImGui::BeginTable("Entries", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH))
-        {
-            ImGui::TableSetupColumn("Name");
-            ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 100.0F);
-            ImGui::TableSetupColumn("Date", ImGuiTableColumnFlags_WidthFixed, dateColumnWidth);
-            ImGui::TableHeadersRow();
-
-            std::vector<std::filesystem::directory_entry> entries;
-            std::error_code error;
-            for (const auto & entry : std::filesystem::directory_iterator(state.directory, error))
-            {
-                const auto name = entry.path().filename().string();
-                if (!state.showHidden && !name.empty() && name.front() == '.')
-                {
-                    continue;
-                }
-                if (selectableEntry(state, entry))
-                {
-                    entries.push_back(entry);
-                }
-            }
-            std::ranges::sort(entries,
-                              [](const auto & left, const auto & right)
-                              {
-                                  std::error_code leftError;
-                                  std::error_code rightError;
-                                  const bool leftDirectory = left.is_directory(leftError);
-                                  const bool rightDirectory = right.is_directory(rightError);
-                                  if (leftDirectory != rightDirectory)
-                                  {
-                                      return leftDirectory > rightDirectory;
-                                  }
-                                  return lowercase(left.path().filename().string()) <
-                                         lowercase(right.path().filename().string());
-                              });
-
-            for (const auto & entry : entries)
-            {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                const bool selected = state.selectedPath == entry.path();
-                if (ImGui::Selectable(entry.path().filename().string().c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
-                {
-                    selectPath(state, entry.path());
-                }
-                if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                {
-                    if (isDirectory(entry.path()))
-                    {
-                        navigate(state, entry.path(), true);
-                    }
-                    else if (state.request.mode == FileBrowserMode::openFile)
-                    {
-                        complete(state);
-                    }
-                }
-                ImGui::TableNextColumn();
-                std::error_code sizeError;
-                const auto size = entry.is_regular_file(sizeError) ? formatFileSize(entry.file_size(sizeError)) : "";
-                ImGui::TextUnformatted(size.c_str());
-                ImGui::TableNextColumn();
-                std::error_code timeError;
-                const auto modified = entry.last_write_time(timeError);
-                ImGui::TextUnformatted(timeError ? "Unknown" : formatModifiedTime(modified).c_str());
-            }
-            ImGui::EndTable();
-        }
+        drawBrowserEntries(state);
         ImGui::EndChild();
         ImGui::TableNextColumn();
         drawSummary(state);
         ImGui::EndTable();
     }
+}
 
+void drawBrowserFooter(FileBrowserState & state)
+{
     if (!state.error.empty())
     {
         ImGui::SameLine();
@@ -952,6 +938,31 @@ void drawFileBrowser(FileBrowserState & state)
     {
         ImGui::CloseCurrentPopup();
     }
+}
+
+} // namespace
+
+void drawFileBrowser(FileBrowserState & state)
+{
+    if (!state.visible)
+    {
+        return;
+    }
+
+    const std::string title =
+        state.request.title.empty() ? "Open File###dialog.file-browser" : state.request.title + "###dialog.file-browser";
+    if (!beginDialog(title.c_str(),
+                     &state.visible,
+                     browserDialogSpec(),
+                     static_cast<ImGuiWindowFlags>(ImGuiWindowFlags_NoResize + ImGuiWindowFlags_NoScrollbar +
+                                                   ImGuiWindowFlags_NoScrollWithMouse)))
+    {
+        return;
+    }
+
+    drawBrowserToolbar(state);
+    drawBrowserListing(state);
+    drawBrowserFooter(state);
     endDialog();
 }
 

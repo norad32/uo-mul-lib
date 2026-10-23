@@ -10,13 +10,12 @@
 #include "gui/frontend/theme.h"
 #include "gui/profile/data_profile.h"
 #include "gui/strings/ui_strings.h"
+#include "gui/support/bounded_buffer.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <expected>
 #include <filesystem>
 #include <imgui.h>
@@ -384,6 +383,17 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
     ImGui::EndCombo();
 }
 
+[[nodiscard]] bool validDimensions(std::uint32_t width, std::uint32_t height) noexcept
+{
+    return width >= minimumDimension && height >= minimumDimension && width % dimensionMultiple == 0U &&
+           height % dimensionMultiple == 0U;
+}
+
+[[nodiscard]] bool validInitialTile(int tileId, int tileZ) noexcept
+{
+    return tileId >= 0 && tileId <= maximumTileId && tileZ >= minimumTileZ && tileZ <= maximumTileZ;
+}
+
 [[nodiscard]] bool drawCustomDimensions(std::uint32_t & width, std::uint32_t & height)
 {
     dialogFieldLabel("Width");
@@ -392,8 +402,7 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
     dialogFieldLabel("Height");
     dialogFieldWidth(dimensionFieldWidth);
     ImGui::InputScalar("##Height", ImGuiDataType_U32, &height, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
-    return width >= minimumDimension && height >= minimumDimension && width % dimensionMultiple == 0U &&
-           height % dimensionMultiple == 0U;
+    return validDimensions(width, height);
 }
 
 [[nodiscard]] bool drawDimensionsFields(const char * id, int & preset, std::uint32_t & width, std::uint32_t & height)
@@ -403,14 +412,6 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
     const bool valid = preset != customFacetIndex || drawCustomDimensions(width, height);
     ImGui::PopID();
     return valid;
-}
-
-void copyPathToBuffer(std::array<char, mapDialogPathBufferSize> & buffer, const std::filesystem::path & path)
-{
-    const std::string value = path.string();
-    const std::size_t length = std::min(value.size(), buffer.size() - 1U);
-    std::memcpy(buffer.data(), value.data(), length);
-    buffer.at(length) = '\0';
 }
 
 void applyMapCandidateDimensions(NewFileDialogState & state, const FileBrowserAssetCandidate & candidate)
@@ -569,8 +570,7 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewFileDialogState & state)
     dialogFieldLabel("Elevation");
     dialogFieldWidth(dimensionFieldWidth);
     ImGui::InputScalar("##Elevation", ImGuiDataType_S32, &state.initialTileZ, nullptr, nullptr, "%d");
-    const bool validTile = state.initialTileId >= 0 && state.initialTileId <= maximumTileId &&
-                           state.initialTileZ >= minimumTileZ && state.initialTileZ <= maximumTileZ;
+    const bool validTile = validInitialTile(state.initialTileId, state.initialTileZ);
     if (!validTile)
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "ID must be 0-65535 and Z must be -128 to 127.");
@@ -612,7 +612,68 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewFileDialogState & state)
     endDialogFooter();
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+[[nodiscard]] bool
+finishPendingSave(MapWorkspaceManager & workspace, NewFileDialogState & state, const std::filesystem::path & path)
+{
+    if (state.controller != nullptr)
+    {
+        const auto transition = state.controller->completeSave(true);
+        if (transition.kind == OperationTransitionKind::rejected)
+        {
+            showError(state,
+                      uomul::Error{
+                          .code = uomul::ErrorCode::io,
+                          .path = path,
+                          .offset = 0,
+                          .message = transition.error,
+                      });
+            return false;
+        }
+    }
+
+    const PendingMapOperationKind operation = state.operation.kind;
+    if (operation == PendingMapOperationKind::close || operation == PendingMapOperationKind::quit)
+    {
+        const bool quit = operation == PendingMapOperationKind::quit;
+        const auto closed = workspace.closeMap();
+        if (!closed)
+        {
+            showError(state, closed.error());
+            return false;
+        }
+        state.shouldClose = quit;
+        state.operation = {};
+        state.saveForPendingOperation = false;
+        closeDialog(state);
+        return true;
+    }
+
+    const bool overwriteOperation = state.operationOverwriteOutput;
+    state.overwriteKind = MapOverwriteKind::none;
+    continueOperation(workspace, state, overwriteOperation);
+    ImGui::CloseCurrentPopup();
+    return true;
+}
+
+[[nodiscard]] bool saveAs(MapWorkspaceManager & workspace, NewFileDialogState & state, const std::filesystem::path & path)
+{
+    const auto saved = workspace.save(path, false);
+    if (!saved)
+    {
+        showError(state, saved.error());
+        return false;
+    }
+    if (state.saveForPendingOperation && !finishPendingSave(workspace, state, path))
+    {
+        return false;
+    }
+    if (!state.saveForPendingOperation)
+    {
+        closeDialog(state);
+    }
+    return true;
+}
+
 void drawSaveAsDialog(MapWorkspaceManager & workspace, NewFileDialogState & state)
 {
     dialogFieldLabel("Commit path");
@@ -646,60 +707,11 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewFileDialogState & stat
             return;
         }
 
-        const auto saved = workspace.save(path, false);
-
-        if (!saved)
+        if (!saveAs(workspace, state, path))
         {
-            showError(state, saved.error());
             endDialogFooter();
             return;
         }
-
-        if (state.saveForPendingOperation)
-        {
-            if (state.controller != nullptr)
-            {
-                const auto transition = state.controller->completeSave(true);
-                if (transition.kind == OperationTransitionKind::rejected)
-                {
-                    showError(state,
-                              uomul::Error{
-                                  .code = uomul::ErrorCode::io,
-                                  .path = path,
-                                  .offset = 0,
-                                  .message = transition.error,
-                              });
-                    endDialogFooter();
-                    return;
-                }
-            }
-            const PendingMapOperationKind operation = state.operation.kind;
-            if (operation == PendingMapOperationKind::close || operation == PendingMapOperationKind::quit)
-            {
-                const bool quit = operation == PendingMapOperationKind::quit;
-                const auto closed = workspace.closeMap();
-                if (!closed)
-                {
-                    showError(state, closed.error());
-                    endDialogFooter();
-                    return;
-                }
-                state.shouldClose = quit;
-                state.operation = {};
-                state.saveForPendingOperation = false;
-                closeDialog(state);
-            }
-            else
-            {
-                const bool overwriteOperation = state.operationOverwriteOutput;
-                state.overwriteKind = MapOverwriteKind::none;
-                continueOperation(workspace, state, overwriteOperation);
-                ImGui::CloseCurrentPopup();
-            }
-            endDialogFooter();
-            return;
-        }
-        closeDialog(state);
     }
 
     ImGui::SameLine();
@@ -976,7 +988,7 @@ void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult 
     switch (result.target)
     {
         case FileBrowserTarget::mapOpen :
-            copyPathToBuffer(state.openPath, result.path);
+            copyToBuffer(state.openPath, result.path);
             state.openCandidates = result.mapCandidates;
             state.openFacet = 0;
             if (result.assetCandidate)
@@ -1010,10 +1022,10 @@ void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult 
             state.activePopup = MapFileDialogMode::none;
             break;
         case FileBrowserTarget::newMapOutput :
-            copyPathToBuffer(state.newMapPath, result.path);
+            copyToBuffer(state.newMapPath, result.path);
             break;
         case FileBrowserTarget::mapSaveAs :
-            copyPathToBuffer(state.savePath, result.path);
+            copyToBuffer(state.savePath, result.path);
             break;
         default :
             return;

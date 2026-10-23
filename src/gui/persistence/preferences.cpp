@@ -1,12 +1,12 @@
 #include "gui/persistence/preferences.h"
 #include "core/app_info.h"
+#include "gui/persistence/config_paths.h"
 #include "gui/persistence/preferences_store.h"
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
@@ -50,18 +50,12 @@ constexpr std::uint32_t maximumTemporaryFileAttempts = 128;
 
 [[nodiscard]] std::optional<std::filesystem::path> preferencesPath()
 {
-    if (const char * configDirectory = std::getenv("XDG_CONFIG_HOME");
-        configDirectory != nullptr && std::filesystem::path(configDirectory).is_absolute())
+    const auto config = configDirectory();
+    if (config.empty())
     {
-        return std::filesystem::path(configDirectory) / std::string(core::applicationName()) / "preferences.conf";
+        return std::nullopt;
     }
-
-    if (const char * homeDirectory = std::getenv("HOME"); homeDirectory != nullptr && !std::string_view(homeDirectory).empty())
-    {
-        return std::filesystem::path(homeDirectory) / ".config" / std::string(core::applicationName()) / "preferences.conf";
-    }
-
-    return std::nullopt;
+    return config / std::string(core::applicationName()) / "preferences.conf";
 }
 
 class TemporaryPreferencesFile

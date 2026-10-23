@@ -1,6 +1,6 @@
 #include "../map_test_helpers.h"
-#include "uomul/texmaps/texmaps.h"
 #include "uomul/mul_common/mul_common.h"
+#include "uomul/texmaps/texmaps.h"
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
@@ -52,8 +52,7 @@ void writeTexture(const std::filesystem::path & indexPath,
                   std::uint16_t dimension,
                   std::uint16_t value)
 {
-    const auto byteCount =
-        static_cast<std::uint32_t>(static_cast<std::size_t>(dimension) * dimension * sizeof(std::uint16_t));
+    const auto byteCount = static_cast<std::uint32_t>(static_cast<std::size_t>(dimension) * dimension * sizeof(std::uint16_t));
     {
         std::ofstream data(dataPath, std::ios::binary | std::ios::trunc);
         for (std::uint32_t index = 0; index < byteCount / sizeof(std::uint16_t); index++)
@@ -316,7 +315,7 @@ TEST_CASE("TexMapsReader_moveConstructor_Should_LeaveMovedFromReaderInert")
     REQUIRE(opened);
 
     const uomul::TexMapsReader moved(std::move(*opened));
-    (void)moved; // Use moved to avoid unused variable warning
+    (void) moved; // Use moved to avoid unused variable warning
 
     REQUIRE(opened->textureCount() == 0);
     REQUIRE_FALSE(opened->hasTexture(0));

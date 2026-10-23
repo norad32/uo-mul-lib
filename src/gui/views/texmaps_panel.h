@@ -9,7 +9,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -19,9 +18,6 @@ namespace uo_mule::gui
 {
 
 inline constexpr std::size_t texmapsPathBufferSize = 1024;
-inline constexpr std::size_t texmapsPageTextureCount = 256;
-inline constexpr std::uint32_t unloadedTexmapsPage = std::numeric_limits<std::uint32_t>::max();
-
 struct TexmapsTexturePreview
 {
     std::uint32_t width = 0;
@@ -36,13 +32,7 @@ struct TexmapsPanelState
     std::optional<uomul::TexMapsReader> reader;
     std::unordered_map<std::uint32_t, TexmapsTexturePreview> texturePreviews;
     bool hideUnused = false;
-    std::vector<TexmapsTexturePreview> pageTextures;
-    std::uint32_t selectedTextureId = 0;
     std::string error;
-    std::uint32_t page = 0;
-    std::uint32_t pageCount = 0;
-    std::uint32_t loadedPageIndex = unloadedTexmapsPage;
-    bool previewVisible = false;
     assets::AssetWindowState assetView;
 };
 

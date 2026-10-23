@@ -9,9 +9,9 @@
 #include "gui/profile/data_validation.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/strings/ui_strings.h"
+#include "gui/support/bounded_buffer.h"
 #include <algorithm>
 #include <array>
-#include <cstring>
 #include <filesystem>
 #include <functional>
 #include <imgui.h>
@@ -27,22 +27,6 @@ namespace
 
 constexpr float pathInputWidth = 480.0F;
 constexpr float contentHeight = 560.0F;
-
-void copyToBuffer(std::array<char, preferencesDialogBufferSize> & buffer, const std::filesystem::path & value)
-{
-    const auto text = value.string();
-    const auto length = std::min(text.size(), buffer.size() - 1U);
-    std::memcpy(buffer.data(), text.data(), length);
-    buffer.at(length) = '\0';
-}
-
-void copyToBuffer(std::array<char, preferencesDialogBufferSize> & buffer, std::string_view value)
-{
-    const auto length = std::min(value.size(), buffer.size() - 1U);
-    const std::string text(value);
-    std::memcpy(buffer.data(), text.data(), length);
-    buffer.at(length) = '\0';
-}
 
 [[nodiscard]] std::filesystem::path bufferPath(const std::array<char, preferencesDialogBufferSize> & buffer)
 {

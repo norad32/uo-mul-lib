@@ -41,6 +41,7 @@ add_library(
     dialogs/dialog_contracts.cpp
     dialogs/dialog_host.cpp
     dialogs/dialog_presentation.cpp
+    persistence/config_paths.cpp
     documents/document_identity.cpp
     documents/map_document.cpp
     documents/radarcol_document.cpp
@@ -57,6 +58,7 @@ add_library(
     views/radarcol_panel.cpp
     views/texmaps_panel.cpp
     views/tile_inspector_panel.cpp
+    views/texture_preview.cpp
     dialogs/new_file_dialog.cpp
     frontend/frame_composition.cpp
     frontend/welcome_greetings.cpp

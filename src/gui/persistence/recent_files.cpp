@@ -1,11 +1,11 @@
 #include "gui/persistence/recent_files.h"
 #include "core/app_info.h"
 #include "gui/metadata/document_contracts.h"
+#include "gui/persistence/config_paths.h"
 #include "uomul/map.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -41,19 +41,6 @@ constexpr std::uint32_t minimumSupportedSchemaVersion = 1;
     const auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
         fileTime - decltype(fileTime)::clock::now() + std::chrono::system_clock::now());
     return std::chrono::duration_cast<std::chrono::seconds>(systemTime.time_since_epoch()).count();
-}
-
-[[nodiscard]] std::filesystem::path configDirectory()
-{
-    if (const char * config = std::getenv("XDG_CONFIG_HOME"); config != nullptr && std::filesystem::path(config).is_absolute())
-    {
-        return config;
-    }
-    if (const char * home = std::getenv("HOME"); home != nullptr && *home != '\0')
-    {
-        return std::filesystem::path(home) / ".config";
-    }
-    return {};
 }
 
 [[nodiscard]] std::string defaultDisplayName(const std::filesystem::path & path)

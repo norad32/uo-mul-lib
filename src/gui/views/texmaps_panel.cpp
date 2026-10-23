@@ -4,18 +4,17 @@
 #include "gui/context/color_conversion.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/documents/document_identity.h"
-#include "gui/frontend/theme.h"
 #include "gui/metadata/document_contracts.h"
 #include "gui/persistence/preferences.h"
 #include "gui/profile/data_profile.h"
 #include "gui/strings/ui_strings.h"
+#include "gui/support/bounded_buffer.h"
+#include "gui/views/texture_preview.h"
 #include "uomul/texmaps/texmaps.h"
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <filesystem>
 #include <imgui.h>
 #include <optional>
@@ -32,14 +31,6 @@ constexpr float thumbnailSize = 64.0F;
 constexpr float borderThickness = 2.0F;
 constexpr std::size_t assetCellWidth = 72U;
 constexpr std::size_t assetCellHeight = 72U;
-
-void setPath(std::array<char, texmapsPathBufferSize> & buffer, const std::filesystem::path & path)
-{
-    const std::string value = path.string();
-    const std::size_t length = std::min(value.size(), buffer.size() - 1U);
-    std::memcpy(buffer.data(), value.data(), length);
-    buffer.at(length) = '\0';
-}
 
 void loadSource(TexmapsPanelState & state)
 {
@@ -81,64 +72,6 @@ void loadSource(TexmapsPanelState & state)
     return iterator->second;
 }
 
-void drawCheckerboard(ImDrawList & drawList, ImVec2 min, ImVec2 max, float size)
-{
-    constexpr float checkerSize = 4.0F;
-    const ImU32 checkerA = theme::packedColor(theme::checkerboardDark);
-    const ImU32 checkerB = theme::packedColor(theme::checkerboardLight);
-    for (int y = 0; static_cast<float>(y) * checkerSize < size; y++)
-    {
-        for (int x = 0; static_cast<float>(x) * checkerSize < size; x++)
-        {
-            const ImU32 color = ((x % 2) != (y % 2)) ? checkerA : checkerB;
-            const ImVec2 cellMin(min.x + (static_cast<float>(x) * checkerSize), min.y + (static_cast<float>(y) * checkerSize));
-            const ImVec2 cellMax(std::min(cellMin.x + checkerSize, max.x), std::min(cellMin.y + checkerSize, max.y));
-            drawList.AddRectFilled(cellMin, cellMax, color);
-        }
-    }
-}
-
-void drawTexturePixels(ImDrawList & drawList, const TexmapsTexturePreview & texture, ImVec2 min, ImVec2 max, float size)
-{
-    if (texture.pixels.empty() || texture.width == 0U || texture.height == 0U)
-    {
-        return;
-    }
-
-    const float scaleX = size / static_cast<float>(texture.width);
-    const float scaleY = size / static_cast<float>(texture.height);
-    for (std::uint32_t y = 0; y < texture.height; y++)
-    {
-        for (std::uint32_t x = 0; x < texture.width; x++)
-        {
-            const std::size_t index = (y * texture.width) + x;
-            if (index >= texture.pixels.size())
-            {
-                continue;
-            }
-
-            const MapColor color = texture.pixels.at(index);
-            const float pixelMinX = min.x + std::round(static_cast<float>(x) * scaleX);
-            const float pixelMinY = min.y + std::round(static_cast<float>(y) * scaleY);
-            const float pixelMaxX = x + 1U == texture.width ? max.x : min.x + std::round(static_cast<float>(x + 1U) * scaleX);
-            const float pixelMaxY = y + 1U == texture.height ? max.y : min.y + std::round(static_cast<float>(y + 1U) * scaleY);
-            drawList.AddRectFilled(
-                ImVec2(pixelMinX, pixelMinY), ImVec2(pixelMaxX, pixelMaxY), IM_COL32(color.red, color.green, color.blue, 255));
-        }
-    }
-}
-
-void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
-{
-    const ImVec2 min = ImGui::GetCursorScreenPos();
-    const ImVec2 max(min.x + size, min.y + size);
-    ImDrawList * drawList = ImGui::GetWindowDrawList();
-    drawCheckerboard(*drawList, min, max, size);
-    drawTexturePixels(*drawList, texture, min, max, size);
-    drawList->AddRect(min, max, theme::packedColor(theme::border), 0.0F, ImDrawFlags_None, borderThickness);
-    ImGui::Dummy(ImVec2(size, size));
-}
-
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 [[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state, Preferences & preferences)
 {
@@ -162,7 +95,10 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
     { return strings::formatId(static_cast<std::uint32_t>(std::stoul(item.value)), idFormat); };
     adapter.descriptor.renderSelectionPreview = [&state](const assets::AssetItemId & item, float size)
-    { drawTexturePreview(texturePreview(state, static_cast<std::uint32_t>(std::stoul(item.value))), size); };
+    {
+        const auto & preview = texturePreview(state, static_cast<std::uint32_t>(std::stoul(item.value)));
+        drawTexturePreview({.width = preview.width, .height = preview.height, .pixels = preview.pixels}, size, borderThickness);
+    };
     adapter.descriptor.selectionPreviewSize = thumbnailSize;
     adapter.descriptor.inlinePresentationControl = [&state, &preferences]
     {
@@ -278,7 +214,9 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
     adapter.renderItem = [&state](const assets::AssetItem & item, bool)
     {
         const auto id = static_cast<std::uint32_t>(std::stoul(item.id.value));
-        drawTexturePreview(texturePreview(state, id), thumbnailSize);
+        const auto & preview = texturePreview(state, id);
+        drawTexturePreview(
+            {.width = preview.width, .height = preview.height, .pixels = preview.pixels}, thumbnailSize, borderThickness);
     };
     return adapter;
 }
@@ -293,8 +231,8 @@ void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile)
     {
         return;
     }
-    setPath(state.sourceIndexPath, index);
-    setPath(state.sourceDataPath, data);
+    copyToBuffer(state.sourceIndexPath, index);
+    copyToBuffer(state.sourceDataPath, data);
     loadSource(state);
 }
 
@@ -302,11 +240,11 @@ void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult &
 {
     if (result.target == FileBrowserTarget::texmapsIndex)
     {
-        setPath(state.sourceIndexPath, result.path);
+        copyToBuffer(state.sourceIndexPath, result.path);
     }
     else if (result.target == FileBrowserTarget::texmapsData)
     {
-        setPath(state.sourceDataPath, result.path);
+        copyToBuffer(state.sourceDataPath, result.path);
     }
 }
 

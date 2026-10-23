@@ -95,7 +95,7 @@ void drawBlock(const uomul::MapBlock & block,
     const ImVec2 gridOrigin = ImGui::GetCursorScreenPos();
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     const float axisTextY = gridOrigin.y;
-    drawList->AddText(ImVec2(gridOrigin.x, axisTextY), ImGui::GetColorU32(ImGuiCol_Text), "Y/X");
+    drawList->AddText(ImVec2(gridOrigin.x, axisTextY), theme::packedColor(theme::primaryText), "Y/X");
 
     for (std::size_t column = 0; column < uomul::mapBlockDimension; column++)
     {
@@ -104,7 +104,7 @@ void drawBlock(const uomul::MapBlock & block,
         const ImVec2 textSize = ImGui::CalcTextSize(coordinate.c_str());
         const float x = gridOrigin.x + coordinateColumnWidth + (static_cast<float>(column) * tileCellSize) +
                         ((tileCellSize - textSize.x) * 0.5F);
-        drawList->AddText(ImVec2(x, axisTextY), ImGui::GetColorU32(ImGuiCol_Text), coordinate.c_str());
+        drawList->AddText(ImVec2(x, axisTextY), theme::packedColor(theme::primaryText), coordinate.c_str());
     }
 
     for (std::size_t row = 0; row < uomul::mapBlockDimension; row++)
@@ -115,7 +115,7 @@ void drawBlock(const uomul::MapBlock & block,
         const float y = gridOrigin.y + ImGui::GetTextLineHeightWithSpacing() + (static_cast<float>(row) * tileCellSize) +
                         ((tileCellSize - textSize.y) * 0.5F);
         drawList->AddText(ImVec2(gridOrigin.x + coordinateColumnWidth - textSize.x - ImGui::GetStyle().ItemSpacing.x, y),
-                          ImGui::GetColorU32(ImGuiCol_Text),
+                          theme::packedColor(theme::primaryText),
                           coordinate.c_str());
         for (std::size_t column = 0; column < uomul::mapBlockDimension; column++)
         {

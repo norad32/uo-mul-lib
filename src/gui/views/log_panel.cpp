@@ -41,7 +41,7 @@ void drawLogEntries(const std::vector<core::GuiLogEntry> & entries,
     for (const auto & entry : entries)
     {
         const theme::Color color = theme::logLevelColor(entry.level);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(color.red, color.green, color.blue, color.alpha));
+        ImGui::PushStyleColor(ImGuiCol_Text, theme::imguiColor(color));
         ImGui::TextWrapped("%s", entry.formattedMessage.c_str());
         ImGui::PopStyleColor();
     }

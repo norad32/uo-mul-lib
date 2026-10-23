@@ -1,8 +1,9 @@
 #include "gui/persistence/layout_store.h"
 #include "core/app_info.h"
+#include "gui/persistence/config_paths.h"
 #include "gui/views/panel_registry.h"
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -57,19 +58,6 @@ void loadDockingIni(std::ifstream & file, WorkspaceLayout & layout, bool validSc
     {
         layout.dockingIni = std::move(dockingIni);
     }
-}
-
-[[nodiscard]] std::filesystem::path configDirectory()
-{
-    if (const char * config = std::getenv("XDG_CONFIG_HOME"); config != nullptr && std::filesystem::path(config).is_absolute())
-    {
-        return config;
-    }
-    if (const char * home = std::getenv("HOME"); home != nullptr && *home != '\0')
-    {
-        return std::filesystem::path(home) / ".config";
-    }
-    return {};
 }
 
 } // namespace

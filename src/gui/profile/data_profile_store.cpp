@@ -1,11 +1,11 @@
 #include "gui/profile/data_profile_store.h"
 #include "core/app_info.h"
+#include "gui/persistence/config_paths.h"
 #include "gui/profile/data_profile.h"
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -26,20 +26,6 @@ namespace
 {
 
 std::atomic<std::uint64_t> temporaryFileCounter = 0;
-
-[[nodiscard]] std::filesystem::path defaultConfigDirectory()
-{
-    if (const char * config = std::getenv("XDG_CONFIG_HOME"); config != nullptr && std::filesystem::path(config).is_absolute())
-    {
-        return config;
-    }
-
-    if (const char * home = std::getenv("HOME"); home != nullptr && *home != '\0')
-    {
-        return std::filesystem::path(home) / ".config";
-    }
-    return {};
-}
 
 [[nodiscard]] std::string safeProfileFileStem(std::string_view name)
 {
@@ -329,7 +315,7 @@ void writeProfileAtomically(const std::filesystem::path & path, std::string_view
 
 std::filesystem::path dataProfilesDirectory()
 {
-    const auto config = defaultConfigDirectory();
+    const auto config = configDirectory();
     return config.empty() ? std::filesystem::path{} : config / std::string(core::applicationName()) / "profiles";
 }
 

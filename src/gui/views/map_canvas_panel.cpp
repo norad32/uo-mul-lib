@@ -93,6 +93,35 @@ constexpr double noMapButtonOffset = 28.0;
     return static_cast<std::uint32_t>(std::clamp(tile, 0.0, static_cast<double>(limit)));
 }
 
+[[nodiscard]] ImVec2
+tileScreenPosition(ImVec2 canvasOrigin, const MapCanvasPanelState & state, std::uint32_t tileX, std::uint32_t tileY) noexcept
+{
+    return {canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tileX) * state.zoom)),
+            canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tileY) * state.zoom))};
+}
+
+struct ScreenRect
+{
+    ImVec2 minimum;
+    ImVec2 maximum;
+};
+
+[[nodiscard]] ScreenRect
+tileScreenRect(ImVec2 canvasOrigin, const MapCanvasPanelState & state, std::uint32_t tileX, std::uint32_t tileY) noexcept
+{
+    const ImVec2 minimum = tileScreenPosition(canvasOrigin, state, tileX, tileY);
+    return {
+        .minimum = minimum,
+        .maximum = ImVec2(minimum.x + static_cast<float>(state.zoom), minimum.y + static_cast<float>(state.zoom)),
+    };
+}
+
+[[nodiscard]] bool hasPendingNavigation(const MapCanvasPanelState & state) noexcept
+{
+    return state.navigationRequest.request != MapCanvasViewRequest::none || state.navigationRequest.coordinate.has_value() ||
+           state.scrollResetPending;
+}
+
 [[nodiscard]] const MapCanvasCachedBlock &
 cachedBlock(const MapWorkspace & workspace, MapCanvasPanelState & state, uomul::BlockCoord coordinate)
 {
@@ -544,10 +573,8 @@ void drawCanvasContents(const MapWorkspace & workspace,
                     visibleReadError = cached->error;
                 }
 
-                const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tileX) * tileSize)),
-                                     canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tileY) * tileSize)));
-                const ImVec2 maximum(minimum.x + static_cast<float>(tileSize), minimum.y + static_cast<float>(tileSize));
-                drawList->AddRectFilled(minimum, maximum, color);
+                const ScreenRect tile = tileScreenRect(canvasOrigin, state, tileColumn, tileRow);
+                drawList->AddRectFilled(tile.minimum, tile.maximum, color);
             }
         }
     }
@@ -557,19 +584,21 @@ void drawCanvasContents(const MapWorkspace & workspace,
     if (!currentTile && workspace.selectedTile())
     {
         const uomul::TileCoord tile = *workspace.selectedTile();
-        const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tile.x) * tileSize)),
-                             canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tile.y) * tileSize)));
-        const ImVec2 maximum(minimum.x + static_cast<float>(tileSize), minimum.y + static_cast<float>(tileSize));
-        drawList->AddRect(minimum, maximum, theme::packedColor(theme::selection), 0.0F, ImDrawFlags_None, 1.0F);
+        const ScreenRect selectedTile = tileScreenRect(canvasOrigin, state, tile.x, tile.y);
+        drawList->AddRect(
+            selectedTile.minimum, selectedTile.maximum, theme::packedColor(theme::selection), 0.0F, ImDrawFlags_None, 1.0F);
     }
 
     if (currentTile)
     {
         const uomul::TileCoord tile = *currentTile;
-        const ImVec2 minimum(canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tile.x) * tileSize)),
-                             canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tile.y) * tileSize)));
-        const ImVec2 maximum(minimum.x + static_cast<float>(tileSize), minimum.y + static_cast<float>(tileSize));
-        drawList->AddRect(minimum, maximum, theme::packedColor(theme::primaryText), 0.0F, ImDrawFlags_None, 1.0F);
+        const ScreenRect currentTileRect = tileScreenRect(canvasOrigin, state, tile.x, tile.y);
+        drawList->AddRect(currentTileRect.minimum,
+                          currentTileRect.maximum,
+                          theme::packedColor(theme::primaryText),
+                          0.0F,
+                          ImDrawFlags_None,
+                          1.0F);
     }
 
     const uomul::MapReader * reader = workspace.reader();
@@ -740,11 +769,6 @@ void applyNavigationRequest(MapCanvasPanelState & state, const MapWorkspace & wo
                          coordinateCenterDivisor;
         }
     }
-    else if (request == MapCanvasViewRequest::none)
-    {
-        return;
-    }
-
     if (state.navigationRequest.coordinate)
     {
         const auto coordinate = *state.navigationRequest.coordinate;
@@ -1037,8 +1061,7 @@ void drawMapCanvasPanel(MapWorkspaceManager & workspaceManager,
     const ImVec2 canvasSize = ImGui::GetContentRegionAvail();
     const double minimumZoom = hasDocument ? minimumZoomForCanvas(dimensions, canvasSize) : minimumCanvasZoom;
     state.zoom = std::clamp(state.zoom, minimumZoom, maximumCanvasZoom);
-    if (state.navigationRequest.request == MapCanvasViewRequest::none && !state.navigationRequest.coordinate &&
-        !state.scrollResetPending)
+    if (!hasPendingNavigation(state))
     {
         state.panX = -static_cast<double>(ImGui::GetScrollX());
         state.panY = -static_cast<double>(ImGui::GetScrollY());
