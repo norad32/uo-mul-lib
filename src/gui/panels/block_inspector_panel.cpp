@@ -1,8 +1,10 @@
 #include "gui/panels/block_inspector_panel.h"
-#include "gui/map_workspace.h"
-#include "gui/panels/common.h"
-#include "gui/panels/radarcol_panel.h"
-#include "gui/theme.h"
+#include "gui/presentation/theme/theme.h"
+#include "gui/views/world/tile_labels.h"
+#include "gui_model/providers/data_providers.h"
+#include "gui_model/workspaces/map_workspace.h"
+#include "gui_model/world/map_color.h"
+#include "gui_model/world/map_context.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <cstddef>
@@ -26,7 +28,7 @@ constexpr float gridLineThickness = 1.0F;
 void drawTileCell(const uomul::MapBlock & block,
                   uomul::BlockCoord blockCoordinate,
                   MapWorkspace & workspace,
-                  RadarcolPanelState & radarcolState,
+                  const RadarColorProvider & radarColors,
                   std::size_t row,
                   std::size_t column,
                   ImVec2 gridOrigin)
@@ -39,7 +41,7 @@ void drawTileCell(const uomul::MapBlock & block,
     };
     const bool selected = workspace.selectedTile() && workspace.selectedTile()->x == tileCoordinate.x &&
                           workspace.selectedTile()->y == tileCoordinate.y;
-    const MapColor mapColor = tileDisplayColor(workspace.displayMode(), tile, radarMapDisplayColor(radarcolState, tile.id));
+    const MapColor mapColor = tileDisplayColor(workspace.displayMode(), tile, radarColors.mapColor(tile.id));
     const ImVec2 cellMinimum(gridOrigin.x + coordinateColumnWidth + (static_cast<float>(column) * tileCellSize),
                              gridOrigin.y + ImGui::GetTextLineHeightWithSpacing() + (static_cast<float>(row) * tileCellSize));
     const ImVec2 cellMaximum(cellMinimum.x + tileCellSize, cellMinimum.y + tileCellSize);
@@ -51,16 +53,12 @@ void drawTileCell(const uomul::MapBlock & block,
 
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
-    drawList->AddRect(cellMinimum,
-                      cellMaximum,
-                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::stoneBorder)),
-                      0.0F,
-                      ImDrawFlags_None,
-                      gridLineThickness);
+    drawList->AddRect(
+        cellMinimum, cellMaximum, theme::packedOpaqueColor(theme::border), 0.0F, ImDrawFlags_None, gridLineThickness);
     if (selected)
     {
         drawList->AddRect(
-            cellMinimum, cellMaximum, theme::packedColor(theme::brightBrass), 0.0F, ImDrawFlags_None, selectedBorderThickness);
+            cellMinimum, cellMaximum, theme::packedColor(theme::selection), 0.0F, ImDrawFlags_None, selectedBorderThickness);
     }
 
     const std::string label = tileLabel(workspace.displayMode(), tile);
@@ -89,24 +87,24 @@ void drawTileCell(const uomul::MapBlock & block,
 void drawBlock(const uomul::MapBlock & block,
                uomul::BlockCoord blockCoordinate,
                MapWorkspace & workspace,
-               RadarcolPanelState & radarcolState)
+               const RadarColorProvider & radarColors)
 {
     const ImVec2 gridOrigin = ImGui::GetCursorScreenPos();
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     const float axisTextY = gridOrigin.y;
-    drawList->AddText(ImVec2(gridOrigin.x, axisTextY), ImGui::GetColorU32(ImGuiCol_Text), "Y/X");
+    drawList->AddText(ImVec2(gridOrigin.x, axisTextY), theme::packedColor(theme::primaryText), "Y/X");
 
-    for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
+    for (std::size_t column = 0; column < uomul::mapBlockDimension; column++)
     {
         const std::string coordinate =
             std::to_string((blockCoordinate.x * uomul::mapBlockDimension) + static_cast<std::uint32_t>(column));
         const ImVec2 textSize = ImGui::CalcTextSize(coordinate.c_str());
         const float x = gridOrigin.x + coordinateColumnWidth + (static_cast<float>(column) * tileCellSize) +
                         ((tileCellSize - textSize.x) * 0.5F);
-        drawList->AddText(ImVec2(x, axisTextY), ImGui::GetColorU32(ImGuiCol_Text), coordinate.c_str());
+        drawList->AddText(ImVec2(x, axisTextY), theme::packedColor(theme::primaryText), coordinate.c_str());
     }
 
-    for (std::size_t row = 0; row < uomul::mapBlockDimension; ++row)
+    for (std::size_t row = 0; row < uomul::mapBlockDimension; row++)
     {
         const std::string coordinate =
             std::to_string((blockCoordinate.y * uomul::mapBlockDimension) + static_cast<std::uint32_t>(row));
@@ -114,11 +112,11 @@ void drawBlock(const uomul::MapBlock & block,
         const float y = gridOrigin.y + ImGui::GetTextLineHeightWithSpacing() + (static_cast<float>(row) * tileCellSize) +
                         ((tileCellSize - textSize.y) * 0.5F);
         drawList->AddText(ImVec2(gridOrigin.x + coordinateColumnWidth - textSize.x - ImGui::GetStyle().ItemSpacing.x, y),
-                          ImGui::GetColorU32(ImGuiCol_Text),
+                          theme::packedColor(theme::primaryText),
                           coordinate.c_str());
-        for (std::size_t column = 0; column < uomul::mapBlockDimension; ++column)
+        for (std::size_t column = 0; column < uomul::mapBlockDimension; column++)
         {
-            drawTileCell(block, blockCoordinate, workspace, radarcolState, row, column, gridOrigin);
+            drawTileCell(block, blockCoordinate, workspace, radarColors, row, column, gridOrigin);
         }
     }
 
@@ -152,13 +150,14 @@ void refreshBlock(const uomul::MapReader & reader,
 
 void drawBlockError(const uomul::Error & error)
 {
-    ImGui::TextColored(theme::imguiColor(theme::coral), "Block read error: %s", error.message.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::error), "Block read error: %s", error.message.c_str());
 }
 
 } // namespace
 
 void drawBlockInspectorPanel(MapWorkspace & workspace,
-                             RadarcolPanelState & radarcolState,
+                             const MapContextSnapshot & context,
+                             const DataProviders & providers,
                              BlockInspectorPanelState & state,
                              bool & visible)
 {
@@ -171,8 +170,7 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
         state.blockCoordinate.reset();
     }
 
-    const std::optional<uomul::TileCoord> inspectedTile =
-        workspace.hoveredTile() ? workspace.hoveredTile() : workspace.selectedTile();
+    const std::optional<uomul::TileCoord> inspectedTile = context.activeTile;
 
     if (reader != nullptr && inspectedTile)
     {
@@ -185,7 +183,7 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
         }
     }
 
-    const bool contentsVisible = ImGui::Begin("Block Inspector", &visible);
+    const bool contentsVisible = ImGui::Begin("Block Inspector###view.block-inspector", &visible);
     if (contentsVisible)
     {
         if (reader == nullptr)
@@ -207,11 +205,11 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
                         (blockCoordinate.y * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U);
             if (state.block)
             {
-                drawBlock(*state.block, blockCoordinate, workspace, radarcolState);
-                if (workspace.selectedTile() && workspace.selectedValue())
+                drawBlock(*state.block, blockCoordinate, workspace, providers.radarColors());
+                if (context.selectedTile && context.selectedValue)
                 {
-                    const uomul::TileCoord tileCoordinate = *workspace.selectedTile();
-                    const uomul::MapTile tile = *workspace.selectedValue();
+                    const uomul::TileCoord tileCoordinate = *context.selectedTile;
+                    const uomul::MapTile tile = *context.selectedValue;
                     ImGui::Text("Selected tile (%u, %u): ID %u, Z %d",
                                 tileCoordinate.x,
                                 tileCoordinate.y,
@@ -228,7 +226,7 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
         if (workspace.error())
         {
             const std::string message = "Workspace error: " + workspace.error()->message;
-            ImGui::TextColored(theme::imguiColor(theme::coral), "%s", message.c_str());
+            ImGui::TextColored(theme::imguiColor(theme::error), "%s", message.c_str());
         }
     }
 

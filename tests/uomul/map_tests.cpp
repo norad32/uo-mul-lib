@@ -1,5 +1,6 @@
 #include "map_test_helpers.h"
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <algorithm>
 #include <array>
 #include <catch2/catch_test_macros.hpp>
@@ -360,7 +361,7 @@ TEST_CASE("blockBatchReading_Should_ReadPastMaximumBatchSize")
         {.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = batchBoundaryBlockCount}},
         [&callbackCount](uomul::BlockCoord, const uomul::MapBlockBytes &) -> std::expected<void, uomul::Error>
         {
-            ++callbackCount;
+            callbackCount++;
             return {};
         });
 

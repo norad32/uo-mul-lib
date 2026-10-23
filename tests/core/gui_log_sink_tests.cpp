@@ -1,4 +1,4 @@
-#include "core/gui_log_sink.h"
+#include "logger/gui_log_sink.h"
 #include <catch2/catch_message.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
@@ -8,7 +8,7 @@
 
 TEST_CASE("GuiLogSink_Should_KeepNewestEntriesWhenCapacityIsReached")
 {
-    const auto sink = std::make_shared<uo_mule::core::GuiLogSink>(2);
+    const auto sink = std::make_shared<uo_mule::logger::GuiLogSink>(2);
     sink->set_formatter(std::make_unique<spdlog::pattern_formatter>("%Y-%m-%d %H:%M:%S.%e [%l] [%n] [%#] %v"));
     spdlog::logger logger("gui-sink-test", sink);
     SPDLOG_LOGGER_INFO(&logger, "first");
@@ -25,7 +25,7 @@ TEST_CASE("GuiLogSink_Should_KeepNewestEntriesWhenCapacityIsReached")
 
 TEST_CASE("GuiLogSink_Should_ClearBufferedEntries")
 {
-    const auto sink = std::make_shared<uo_mule::core::GuiLogSink>();
+    const auto sink = std::make_shared<uo_mule::logger::GuiLogSink>();
     sink->set_formatter(std::make_unique<spdlog::pattern_formatter>("%Y-%m-%d %H:%M:%S.%e [%l] [%n] [%#] %v"));
     spdlog::logger logger("gui-sink-clear-test", sink);
 

@@ -13,20 +13,33 @@ include(GuiDependencies)
 
 add_library(
     gui
-    application.cpp
-    log_panel.cpp
-    map_workspace.cpp
-    menu_bar.cpp
-    new_map_dialog.cpp
+    application/application.cpp
+    commands/command_registry.cpp
+    commands/menu_bar.cpp
+    presentation/dialog/dialog_presentation.cpp
+    dialogs/file_browser_dialog.cpp
+    dialogs/file_selector_dialog.cpp
+    dialogs/map_facet_dialog.cpp
+    dialogs/map_workflow_dialog.cpp
+    dialogs/preferences_dialog.cpp
+    persistence/layout_store.cpp
+    presentation/strings/ui_strings.cpp
+    state/workbench_state.cpp
+    documents/document_window.cpp
+    frame/workbench_frame.cpp
+    presentation/formatting/file_size.cpp
     panels/block_inspector_panel.cpp
-    panels/common.cpp
-    panels/edit_tools_panel.cpp
-    panels/map_canvas_panel.cpp
-    panels/map_info_panel.cpp
-    panels/radarcol_panel.cpp
-    panels/selection_stats_panel.cpp
     panels/tile_inspector_panel.cpp
-    preferences.cpp)
+    panels/log_panel.cpp
+    panels/radarcol_panel.cpp
+    panels/texmap_panel.cpp
+    shell/welcome_greetings.cpp
+    shell/welcome_screen.cpp
+    widgets/asset_window.cpp
+    widgets/texture_preview.cpp
+    views/world/map_canvas_view.cpp
+    views/world/tile_labels.cpp
+    workflows/file_operations.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(
@@ -41,9 +54,9 @@ target_link_libraries(
     PUBLIC imgui
            glfw
            OpenGL::GL
-           core
-           uomul
-           application_options)
+           gui_model
+           logger
+           options)
 file(
     RELATIVE_PATH
     APPLICATION_ICON_INSTALL_RELATIVE_PATH
@@ -71,7 +84,7 @@ if(BUILD_GUI_RUNTIME)
     target_link_libraries(
         ${GUI_EXECUTABLE_NAME}
         PRIVATE app
-                application_options
+                options
                 gui
                 CLI11::CLI11)
     target_compile_definitions(${GUI_EXECUTABLE_NAME} PRIVATE HAS_GUI=1)

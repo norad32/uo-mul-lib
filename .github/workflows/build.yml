@@ -10,6 +10,38 @@ permissions:
   contents: read
 
 jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install quality dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format cmake-format git
+
+      - name: Check formatting
+        run: scripts/check-format.sh
+
+      - name: Check whitespace
+        run: git diff --check
+
+  tidy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install tidy dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential catch2 clang-tidy g++-14 libglfw3-dev libgl1-mesa-dev libspdlog-dev ninja-build pkg-config
+
+      - name: Configure
+        run: cmake --preset debug-gui-tidy -DCMAKE_CXX_COMPILER=g++-14
+
+      - name: Build production targets with clang-tidy
+        run: cmake --build --preset debug-gui-tidy --target gui uo-mule --parallel 2
+
   build-and-test:
     runs-on: ubuntu-24.04
     strategy:

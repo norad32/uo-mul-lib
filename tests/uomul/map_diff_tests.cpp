@@ -1,5 +1,7 @@
 #include "map_test_helpers.h"
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <filesystem>
@@ -42,17 +44,19 @@ void writeIndex(const std::filesystem::path & path, std::initializer_list<std::u
     std::ofstream output(path, std::ios::binary | std::ios::trunc);
     for (const auto id : ids)
     {
-        const char bytes[]{static_cast<char>(id & 0xffU),
-                           static_cast<char>((id >> 8U) & 0xffU),
-                           static_cast<char>((id >> 16U) & 0xffU),
-                           static_cast<char>((id >> 24U) & 0xffU)};
-        output.write(bytes, sizeof(bytes));
+        const std::array<char, sizeof(id)> bytes{
+            static_cast<char>(id & 0xffU),
+            static_cast<char>((id >> 8U) & 0xffU),
+            static_cast<char>((id >> 16U) & 0xffU),
+            static_cast<char>((id >> 24U) & 0xffU),
+        };
+        output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
     }
 }
 
 [[nodiscard]] bool createChangedMap(const std::filesystem::path & source,
                                     const std::filesystem::path & target,
-                                    std::vector<std::pair<uomul::TileCoord, uomul::MapTile>> edits)
+                                    const std::vector<std::pair<uomul::TileCoord, uomul::MapTile>> & edits)
 {
     auto editor = uomul::MapEditor::create(source, target, dimensions);
     if (!editor)
@@ -61,12 +65,36 @@ void writeIndex(const std::filesystem::path & path, std::initializer_list<std::u
     }
     for (const auto & [coordinate, tile] : edits)
     {
-        if (auto result = editor->editTile(coordinate, tile); !result)
+        if (const auto result = editor->editTile(coordinate, tile); !result)
         {
             return false;
         }
     }
     return static_cast<bool>(editor->commit());
+}
+
+void requirePatchedTilesMatchRegion(const std::filesystem::path & output,
+                                    const std::filesystem::path & base,
+                                    const std::filesystem::path & target,
+                                    uomul::TileRegion region)
+{
+    const auto result = uomul::MapReader::open(output, dimensions);
+    const auto original = uomul::MapReader::open(base, dimensions);
+    const auto targetReader = uomul::MapReader::open(target, dimensions);
+    REQUIRE(result);
+    REQUIRE(original);
+    REQUIRE(targetReader);
+    for (std::uint32_t x = 0; x < dimensions.widthTiles; x++)
+    {
+        for (std::uint32_t y = 0; y < dimensions.heightTiles; y++)
+        {
+            const uomul::TileCoord tile{.x = x, .y = y};
+            const bool selected =
+                x >= region.min.x && x < region.maxExclusive.x && y >= region.min.y && y < region.maxExclusive.y;
+            const auto expected = selected ? targetReader->readTile(tile).value() : original->readTile(tile).value();
+            REQUIRE(result->readTile(tile).value() == expected);
+        }
+    }
 }
 
 } // namespace
@@ -286,7 +314,7 @@ TEST_CASE("generateTilesAndApply_Should_OnlyPatchSelectedTiles_If_RegionCutsAcro
                               {{7, 7}, {.id = 5002, .z = 12}},
                               {{8, 8}, {.id = 5003, .z = 13}}}));
     std::filesystem::rename(directory.path() / "edited.mul", target);
-    const uomul::TileRegion region{.min = {1, 1}, .maxExclusive = {4, 4}};
+    const uomul::TileRegion region{.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 4, .y = 4}};
 
     const auto generated = uomul::MapDiff::generateTiles(base, target, diffDirectory, mapIndex, dimensions, region);
 
@@ -297,23 +325,7 @@ TEST_CASE("generateTilesAndApply_Should_OnlyPatchSelectedTiles_If_RegionCutsAcro
     REQUIRE(std::filesystem::file_size(diffIndexPath(diffDirectory)) == sizeof(std::uint32_t));
     REQUIRE(uomul::MapDiff::apply(base, diffDirectory, output, mapIndex, dimensions));
 
-    const auto result = uomul::MapReader::open(output, dimensions);
-    const auto original = uomul::MapReader::open(base, dimensions);
-    const auto targetReader = uomul::MapReader::open(target, dimensions);
-    REQUIRE(result);
-    REQUIRE(original);
-    REQUIRE(targetReader);
-    for (std::uint32_t x = 0; x < dimensions.widthTiles; ++x)
-    {
-        for (std::uint32_t y = 0; y < dimensions.heightTiles; ++y)
-        {
-            const uomul::TileCoord tile{.x = x, .y = y};
-            const bool selected =
-                x >= region.min.x && x < region.maxExclusive.x && y >= region.min.y && y < region.maxExclusive.y;
-            const auto expected = selected ? targetReader->readTile(tile).value() : original->readTile(tile).value();
-            REQUIRE(result->readTile(tile).value() == expected);
-        }
-    }
+    requirePatchedTilesMatchRegion(output, base, target, region);
 }
 
 TEST_CASE("generateTilesAndApply_Should_FastPathWholeBlocks_If_RegionIsBlockAligned")
@@ -329,7 +341,7 @@ TEST_CASE("generateTilesAndApply_Should_FastPathWholeBlocks_If_RegionIsBlockAlig
     REQUIRE(createChangedMap(
         target, directory.path() / "edited.mul", {{{1, 1}, {.id = 5000, .z = 10}}, {{9, 9}, {.id = 5001, .z = 11}}}));
     std::filesystem::rename(directory.path() / "edited.mul", target);
-    const uomul::TileRegion region{.min = {0, 0}, .maxExclusive = {8, 8}};
+    const uomul::TileRegion region{.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 8, .y = 8}};
 
     const auto generated = uomul::MapDiff::generateTiles(base, target, diffDirectory, mapIndex, dimensions, region);
 
@@ -361,7 +373,7 @@ TEST_CASE("generateBlocksAndApply_Should_OnlyPatchSelectedBlocks")
     std::filesystem::rename(directory.path() / "edited.mul", target);
 
     const auto generated = uomul::MapDiff::generateBlocks(
-        base, target, diffDirectory, mapIndex, dimensions, {.min = {0, 0}, .maxExclusive = {1, 1}});
+        base, target, diffDirectory, mapIndex, dimensions, {.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}});
 
     REQUIRE(generated);
     REQUIRE(generated->blocksChanged == 1);
@@ -698,6 +710,9 @@ TEST_CASE("facetDimensions_Should_ReturnKnownPresets_If_NameUsesAnySupportedAlia
 {
     REQUIRE(uomul::facetDimensions("felucca") == uomul::Dimensions{.widthTiles = 6144, .heightTiles = 4096});
     REQUIRE(uomul::facetDimensions("TRAMMEL") == uomul::Dimensions{.widthTiles = 6144, .heightTiles = 4096});
+    REQUIRE(uomul::facetDimensions("ML") == uomul::Dimensions{.widthTiles = 7168, .heightTiles = 4096});
+    REQUIRE(uomul::facetDimensions("Mondain's Legacy") == uomul::Dimensions{.widthTiles = 7168, .heightTiles = 4096});
+    REQUIRE(uomul::facetDimensions("Legacy") == uomul::Dimensions{.widthTiles = 6144, .heightTiles = 4096});
     REQUIRE(uomul::facetDimensions("IlShEnAr") == uomul::Dimensions{.widthTiles = 2304, .heightTiles = 1600});
     REQUIRE(uomul::facetDimensions("malas") == uomul::Dimensions{.widthTiles = 2560, .heightTiles = 2048});
     REQUIRE(uomul::facetDimensions("Tokuno") == uomul::Dimensions{.widthTiles = 1448, .heightTiles = 1448});

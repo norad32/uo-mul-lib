@@ -1,4 +1,5 @@
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <algorithm>
 #include <array>
 #include <catch2/benchmark/catch_benchmark.hpp>
@@ -8,6 +9,7 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -24,6 +26,19 @@ constexpr std::size_t headerBytes = 4;
 constexpr std::size_t tileBytes = 3;
 constexpr std::uint32_t fixtureIdStride = 251;
 constexpr std::size_t fixtureBufferSize = 1U << 20U;
+constexpr std::uint32_t tileIdMask = 0xffffU;
+constexpr std::uint32_t byteMask = 0xffU;
+constexpr std::uint32_t byteShift = 8U;
+constexpr std::uint16_t tileIdBenchmarkValue = 42;
+constexpr std::uint16_t firstFillTileId = 7;
+constexpr std::uint16_t secondFillTileId = 9;
+constexpr std::int8_t tileBenchmarkElevation = 7;
+constexpr std::int8_t firstFillElevation = 2;
+constexpr std::int8_t secondFillElevation = 3;
+constexpr uomul::TileCoord benchmarkTileCoordinate{
+    .x = mapDimensions.widthTiles / 2,
+    .y = mapDimensions.heightTiles / 2,
+};
 
 class BenchmarkFiles
 {
@@ -32,7 +47,7 @@ public:
     {
         static std::uint64_t sequence = 0;
         directory_ = std::filesystem::temp_directory_path() /
-                     ("uomul-map-benchmark-" + std::to_string(::getpid()) + "-" + std::to_string(++sequence));
+                     ("uomul-map-benchmark-" + std::to_string(::getpid()) + "-" + std::to_string(sequence++));
         std::filesystem::create_directories(directory_);
         base_ = directory_ / "base.mul";
         changed_ = directory_ / "changed.mul";
@@ -44,6 +59,8 @@ public:
 
     BenchmarkFiles(const BenchmarkFiles &) = delete;
     BenchmarkFiles & operator=(const BenchmarkFiles &) = delete;
+    BenchmarkFiles(BenchmarkFiles &&) = delete;
+    BenchmarkFiles & operator=(BenchmarkFiles &&) = delete;
 
     ~BenchmarkFiles()
     {
@@ -51,13 +68,13 @@ public:
         std::filesystem::remove_all(directory_, error);
     }
 
-    const std::filesystem::path & directory() const { return directory_; }
-    const std::filesystem::path & base() const { return base_; }
-    const std::filesystem::path & changed() const { return changed_; }
-    const std::filesystem::path & dense() const { return dense_; }
+    [[nodiscard]] const std::filesystem::path & directory() const { return directory_; }
+    [[nodiscard]] const std::filesystem::path & base() const { return base_; }
+    [[nodiscard]] const std::filesystem::path & changed() const { return changed_; }
+    [[nodiscard]] const std::filesystem::path & dense() const { return dense_; }
 
 private:
-    void writeMap(const std::filesystem::path & path, bool changeOneBlock, bool changeAllTiles) const
+    static void writeMap(const std::filesystem::path & path, bool changeOneBlock, bool changeAllTiles)
     {
         std::ofstream output(path, std::ios::binary | std::ios::trunc);
         if (!output)
@@ -66,23 +83,24 @@ private:
         }
         std::array<char, fixtureBufferSize> buffer{};
         std::size_t buffered = 0;
-        for (std::uint64_t block = 0; block < blockCount; ++block)
+        for (std::uint64_t block = 0; block < blockCount; block++)
         {
             const std::array<char, headerBytes> header{
-                static_cast<char>(block & 0xffU),
-                static_cast<char>((block >> 8U) & 0xffU),
-                static_cast<char>((block >> 16U) & 0xffU),
-                static_cast<char>((block >> 24U) & 0xffU),
+                static_cast<char>(block & byteMask),
+                static_cast<char>((block >> byteShift) & byteMask),
+                static_cast<char>((block >> (2U * byteShift)) & byteMask),
+                static_cast<char>((block >> (3U * byteShift)) & byteMask),
             };
             append(output, buffer, buffered, header.data(), header.size());
-            for (std::uint32_t tile = 0; tile < uomul::mapBlockTileCount; ++tile)
+            for (std::uint32_t tile = 0; tile < uomul::mapBlockTileCount; tile++)
             {
-                const auto id = static_cast<std::uint16_t>((block * fixtureIdStride + tile) & 0xffffU);
+                const auto id = static_cast<std::uint16_t>(((block * fixtureIdStride) + tile) & tileIdMask);
                 const bool changedTile = changeAllTiles || (changeOneBlock && block == 0 && tile == 0);
                 const auto tileId = static_cast<std::uint16_t>(id + (changedTile ? 1U : 0U));
+                const auto unsignedTileId = static_cast<std::uint32_t>(tileId);
                 const std::array<char, tileBytes> record{
-                    static_cast<char>(tileId & 0xffU),
-                    static_cast<char>((tileId >> 8U) & 0xffU),
+                    static_cast<char>(unsignedTileId & byteMask),
+                    static_cast<char>((unsignedTileId >> byteShift) & byteMask),
                     static_cast<char>(static_cast<std::int8_t>(static_cast<std::int32_t>(tile % 127U) - 63)),
                 };
                 append(output, buffer, buffered, record.data(), record.size());
@@ -158,6 +176,15 @@ const BenchmarkFiles & benchmarkFiles()
     return files;
 }
 
+uomul::MapBlock readReferenceBlock(const BenchmarkFiles & files)
+{
+    const auto readerResult = uomul::MapReader::open(files.base(), mapDimensions);
+    REQUIRE(readerResult);
+    const auto reference = readerResult->readBlock({.x = 0, .y = 0});
+    REQUIRE(reference);
+    return *reference;
+}
+
 } // namespace
 
 TEST_CASE("MapReader Trammel benchmarks", "[benchmark][map]")
@@ -183,7 +210,7 @@ TEST_CASE("MapReader Trammel benchmarks", "[benchmark][map]")
 
     BENCHMARK("Trammel/one-tile/read")
     {
-        auto result = reader.readTile({.x = 3072, .y = 2048});
+        auto result = reader.readTile(benchmarkTileCoordinate);
         requireSuccess(result);
         return result->id;
     };
@@ -202,7 +229,7 @@ TEST_CASE("MapReader Trammel benchmarks", "[benchmark][map]")
             reader.readBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 16, .y = 16}},
                               [&visited](uomul::BlockCoord, const uomul::MapBlock &) -> std::expected<void, uomul::Error>
                               {
-                                  ++visited;
+                                  visited++;
                                   return {};
                               });
         requireSuccess(result);
@@ -212,11 +239,11 @@ TEST_CASE("MapReader Trammel benchmarks", "[benchmark][map]")
     BENCHMARK("Trammel/full/read-raw-blocks")
     {
         std::uint64_t visited = 0;
-        auto result = reader.readRawBlocks(
+        const auto result = reader.readRawBlocks(
             fullBlocks,
             [&visited](uomul::BlockCoord, const uomul::MapBlockBytes &) -> std::expected<void, uomul::Error>
             {
-                ++visited;
+                visited++;
                 return {};
             });
         requireSuccess(result);
@@ -226,11 +253,11 @@ TEST_CASE("MapReader Trammel benchmarks", "[benchmark][map]")
     BENCHMARK("Trammel/full/read-decoded-blocks")
     {
         std::uint64_t visited = 0;
-        auto result =
+        const auto result =
             reader.readBlocks(fullBlocks,
                               [&visited](uomul::BlockCoord, const uomul::MapBlock &) -> std::expected<void, uomul::Error>
                               {
-                                  ++visited;
+                                  visited++;
                                   return {};
                               });
         requireSuccess(result);
@@ -240,12 +267,13 @@ TEST_CASE("MapReader Trammel benchmarks", "[benchmark][map]")
     BENCHMARK("Trammel/full/read-tiles")
     {
         std::uint64_t visited = 0;
-        auto result = reader.readTiles(fullTiles,
-                                       [&visited](uomul::TileCoord, const uomul::MapTile &) -> std::expected<void, uomul::Error>
-                                       {
-                                           ++visited;
-                                           return {};
-                                       });
+        const auto result =
+            reader.readTiles(fullTiles,
+                             [&visited](uomul::TileCoord, const uomul::MapTile &) -> std::expected<void, uomul::Error>
+                             {
+                                 visited++;
+                                 return {};
+                             });
         requireSuccess(result);
         return visited;
     };
@@ -257,7 +285,7 @@ TEST_CASE("MapReader Trammel benchmarks", "[benchmark][map]")
             reader.readTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 64, .y = 64}},
                              [&visited](uomul::TileCoord, const uomul::MapTile &) -> std::expected<void, uomul::Error>
                              {
-                                 ++visited;
+                                 visited++;
                                  return {};
                              });
         requireSuccess(result);
@@ -267,12 +295,13 @@ TEST_CASE("MapReader Trammel benchmarks", "[benchmark][map]")
     BENCHMARK("Trammel/quarter/read-tiles")
     {
         std::uint64_t visited = 0;
-        auto result = reader.readTiles(quarterTiles,
-                                       [&visited](uomul::TileCoord, const uomul::MapTile &) -> std::expected<void, uomul::Error>
-                                       {
-                                           ++visited;
-                                           return {};
-                                       });
+        const auto result =
+            reader.readTiles(quarterTiles,
+                             [&visited](uomul::TileCoord, const uomul::MapTile &) -> std::expected<void, uomul::Error>
+                             {
+                                 visited++;
+                                 return {};
+                             });
         requireSuccess(result);
         return visited;
     };
@@ -317,10 +346,7 @@ TEST_CASE("MapReader Trammel benchmarks", "[benchmark][map]")
 TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
 {
     const auto & files = benchmarkFiles();
-    const auto referenceResult = uomul::MapReader::open(files.base(), mapDimensions);
-    REQUIRE(referenceResult);
-    const auto reference = referenceResult->readBlock({.x = 0, .y = 0});
-    REQUIRE(reference);
+    const auto reference = readReferenceBlock(files);
 
     BENCHMARK("Trammel/full/create-and-stage-copy")
     {
@@ -336,7 +362,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "write-tile-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->editTile({.x = 0, .y = 0}, {.id = 42, .z = 7}));
+        requireSuccess(editor->editTile({.x = 0, .y = 0}, {.id = tileIdBenchmarkValue, .z = tileBenchmarkElevation}));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -351,7 +377,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
             [](uomul::BlockCoord, const uomul::MapBlock & current) -> std::expected<uomul::MapBlock, uomul::Error>
             {
                 auto changed = current;
-                ++changed.front().id;
+                changed.front().id++;
                 return changed;
             }));
         editor->abort();
@@ -376,7 +402,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "write-block-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->editBlock({.x = 0, .y = 0}, *reference));
+        requireSuccess(editor->editBlock({.x = 0, .y = 0}, reference));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -386,7 +412,8 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "fill-tile-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->fillTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, {.id = 7, .z = 2}));
+        requireSuccess(editor->fillTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}},
+                                         {.id = firstFillTileId, .z = firstFillElevation}));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -396,7 +423,8 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "fill-block-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->fillBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, {.id = 9, .z = 3}));
+        requireSuccess(editor->fillBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}},
+                                          {.id = secondFillTileId, .z = secondFillElevation}));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -406,7 +434,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "fill-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->fill({.id = 7, .z = 2}));
+        requireSuccess(editor->fill({.id = firstFillTileId, .z = firstFillElevation}));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -416,7 +444,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "fill-tile-region-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->fillTiles(quarterTiles, {.id = 7, .z = 2}));
+        requireSuccess(editor->fillTiles(quarterTiles, {.id = firstFillTileId, .z = firstFillElevation}));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -426,7 +454,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "fill-block-region-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->fillBlocks(quarterBlocks, {.id = 9, .z = 3}));
+        requireSuccess(editor->fillBlocks(quarterBlocks, {.id = secondFillTileId, .z = secondFillElevation}));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -436,7 +464,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "replace-ids-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->replaceIds(0, 42));
+        requireSuccess(editor->replaceIds(0, tileIdBenchmarkValue));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -456,7 +484,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "replace-block-ids-full-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->replaceIdsBlocks(fullBlocks, 0, 42));
+        requireSuccess(editor->replaceIdsBlocks(fullBlocks, 0, tileIdBenchmarkValue));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -476,7 +504,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "replace-tile-ids-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->replaceIdsTiles(quarterTiles, 0, 42));
+        requireSuccess(editor->replaceIdsTiles(quarterTiles, 0, tileIdBenchmarkValue));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -486,7 +514,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
         const auto output = files.directory() / "replace-block-ids-output.mul";
         auto editor = uomul::MapEditor::create(files.base(), output, mapDimensions, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->replaceIdsBlocks(quarterBlocks, 0, 42));
+        requireSuccess(editor->replaceIdsBlocks(quarterBlocks, 0, tileIdBenchmarkValue));
         editor->abort();
         return std::filesystem::file_size(files.base());
     };
@@ -521,7 +549,7 @@ TEST_CASE("MapEditor Trammel benchmarks", "[benchmark][map]")
             [](uomul::BlockCoord, const uomul::MapBlock & current) -> std::expected<uomul::MapBlock, uomul::Error>
             {
                 auto changed = current;
-                ++changed.front().id;
+                changed.front().id++;
                 return changed;
             }));
         editor->abort();

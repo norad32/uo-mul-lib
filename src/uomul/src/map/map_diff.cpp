@@ -1,0 +1,1153 @@
+#include "map_common.h"
+#include "uomul/facet_sizes.h"
+#include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
+#include <algorithm>
+#include <array>
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <expected>
+#include <fcntl.h>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <ios>
+#include <istream>
+#include <iterator>
+#include <limits>
+#include <optional>
+#include <ostream>
+#include <span>
+#include <string>
+#include <system_error>
+#include <unistd.h>
+#include <utility>
+#include <vector>
+
+namespace uomul
+{
+
+using detail::MapCommon;
+
+namespace
+{
+
+constexpr std::uint32_t mapBlockIdByteCount = 4;
+
+[[nodiscard]] inline bool isRegularFile(const std::filesystem::path & path)
+{
+    std::error_code filesystemError;
+    return std::filesystem::is_regular_file(path, filesystemError) && !filesystemError;
+}
+
+[[nodiscard]] inline bool reportDirectoryExists(const std::filesystem::path & path)
+{
+    return path.empty() || std::filesystem::is_directory(path);
+}
+
+[[nodiscard]] inline bool hasConsistentDiffLengths(std::uint64_t dataBytes, std::uint64_t indexBytes)
+{
+    return indexBytes % mapBlockIdByteCount == 0 && dataBytes % MapCommon::mapBlockByteSize == 0 &&
+           dataBytes / MapCommon::mapBlockByteSize == indexBytes / mapBlockIdByteCount;
+}
+
+[[nodiscard]] inline bool isOutOfRangeDiffBlockId(std::uint32_t id, std::uint64_t expectedBlockCount)
+{
+    return static_cast<std::uint64_t>(id) >= expectedBlockCount;
+}
+
+[[nodiscard]] inline bool hasAlreadySeenDiffBlockId(std::uint32_t id, const std::vector<bool> & seen)
+{
+    return seen.at(id);
+}
+
+[[nodiscard]] inline bool isRepresentableDiffBlockId(std::uint64_t id)
+{
+    return id <= std::numeric_limits<std::uint32_t>::max();
+}
+
+std::uint64_t countChangedTiles(std::span<const std::byte> left, std::span<const std::byte> right)
+{
+    const auto tileDataOffset = static_cast<std::size_t>(MapCommon::mapHeaderByteSize);
+    const auto tileDataSize = static_cast<std::size_t>(MapCommon::mapBlockByteSize) - tileDataOffset;
+    const auto leftTiles = left.subspan(tileDataOffset, tileDataSize);
+    const auto rightTiles = right.subspan(tileDataOffset, tileDataSize);
+    if (std::memcmp(leftTiles.data(), rightTiles.data(), tileDataSize) == 0)
+    {
+        return 0;
+    }
+
+    std::uint64_t changedTiles = 0;
+    auto leftTile = leftTiles.begin();
+    auto rightTile = rightTiles.begin();
+
+    for (std::size_t tile = 0; tile < mapBlockTileCount; tile++)
+    {
+        changedTiles += *leftTile != *rightTile || *std::next(leftTile) != *std::next(rightTile) ||
+                                *std::next(leftTile, 2) != *std::next(rightTile, 2)
+                            ? 1U
+                            : 0U;
+        std::ranges::advance(leftTile, 3);
+        std::ranges::advance(rightTile, 3);
+    }
+
+    return changedTiles;
+}
+
+class TargetBlockBatchReader
+{
+public:
+    TargetBlockBatchReader(int descriptor, std::filesystem::path path, Dimensions dimensions, BlockRegion region) :
+        descriptor_(descriptor),
+        path_(std::move(path)),
+        dimensions_(dimensions),
+        region_(region),
+        buffer_(std::min(detail::maximumBlocksPerIoBatch, static_cast<std::size_t>(region.maxExclusive.y - region.min.y)) *
+                static_cast<std::size_t>(MapCommon::mapBlockByteSize))
+    {
+    }
+
+    [[nodiscard]] std::expected<void, Error> read(BlockCoord coordinate, std::span<const std::byte> & raw)
+    {
+        if (needsBatchReload(coordinate))
+        {
+            cachedX_ = coordinate.x;
+            cachedStartY_ = coordinate.y;
+            const auto blocksRemaining = static_cast<std::size_t>(region_.maxExclusive.y - coordinate.y);
+            const auto blockCount = std::min(detail::maximumBlocksPerIoBatch, blocksRemaining);
+            cachedEndY_ = coordinate.y + static_cast<std::uint32_t>(blockCount);
+            const BlockCoord first{.x = coordinate.x, .y = coordinate.y};
+            const auto offset = MapCommon::blockOffset(first, dimensions_);
+            if (!MapCommon::readBlockBatch(descriptor_, first, blockCount, dimensions_, buffer_))
+            {
+                return std::unexpected(
+                    detail::MulCommon::makeError(ErrorCode::truncatedInput, path_, offset, "could not read target block"));
+            }
+        }
+
+        const auto blockOffset =
+            static_cast<std::size_t>(coordinate.y - cachedStartY_) * static_cast<std::size_t>(MapCommon::mapBlockByteSize);
+        raw = std::span<const std::byte>(buffer_).subspan(blockOffset, static_cast<std::size_t>(MapCommon::mapBlockByteSize));
+        return {};
+    }
+
+private:
+    [[nodiscard]] bool needsBatchReload(BlockCoord coordinate) const
+    {
+        return coordinate.x != cachedX_ || coordinate.y < cachedStartY_ || coordinate.y >= cachedEndY_;
+    }
+
+    int descriptor_;
+    std::filesystem::path path_;
+    Dimensions dimensions_;
+    BlockRegion region_;
+    std::vector<std::byte> buffer_;
+    std::uint32_t cachedX_ = std::numeric_limits<std::uint32_t>::max();
+    std::uint32_t cachedStartY_ = 0;
+    std::uint32_t cachedEndY_ = 0;
+};
+
+struct BlockTileSelection
+{
+    std::uint32_t minX = 0;
+    std::uint32_t maxExclusiveX = mapBlockDimension;
+    std::uint32_t minY = 0;
+    std::uint32_t maxExclusiveY = mapBlockDimension;
+
+    [[nodiscard]] bool coversWholeBlock() const noexcept
+    {
+        return minX == 0 && maxExclusiveX == mapBlockDimension && minY == 0 && maxExclusiveY == mapBlockDimension;
+    }
+
+    [[nodiscard]] bool includesRow(std::uint32_t y) const noexcept { return minY <= y && y < maxExclusiveY; }
+};
+
+BlockTileSelection selectTilesInBlock(BlockCoord coordinate, TileRegion region)
+{
+    const auto clipped = detail::clipTilesToBlock(region, coordinate);
+    const auto blockMinX = coordinate.x * mapBlockDimension;
+    const auto blockMinY = coordinate.y * mapBlockDimension;
+    return {
+        .minX = clipped.min.x - blockMinX,
+        .maxExclusiveX = clipped.maxExclusive.x - blockMinX,
+        .minY = clipped.min.y - blockMinY,
+        .maxExclusiveY = clipped.maxExclusive.y - blockMinY,
+    };
+}
+
+std::uint64_t
+compareBlocks(BlockTileSelection selection, std::span<const std::byte> sourceRaw, std::span<const std::byte> targetRaw)
+{
+    if (selection.coversWholeBlock())
+    {
+        return countChangedTiles(sourceRaw, targetRaw);
+    }
+
+    std::uint64_t changedTiles = 0;
+    for (auto y = selection.minY; y < selection.maxExclusiveY; y++)
+    {
+        for (auto x = selection.minX; x < selection.maxExclusiveX; x++)
+        {
+            const auto tileOffset = static_cast<std::size_t>(MapCommon::mapHeaderByteSize) +
+                                    (((static_cast<std::size_t>(y) * mapBlockDimension) + x) * 3U);
+            const auto sourceTile = sourceRaw.subspan(tileOffset, 3);
+            const auto targetTile = targetRaw.subspan(tileOffset, 3);
+            changedTiles += !std::ranges::equal(sourceTile, targetTile) ? 1U : 0U;
+        }
+    }
+    return changedTiles;
+}
+
+bool writeLe32(std::ostream & stream, std::uint32_t value)
+{
+    const auto encoded = detail::encodeLittleEndian<std::uint32_t, mapBlockIdByteCount>(value);
+    std::array<char, mapBlockIdByteCount> bytes{};
+    std::ranges::transform(
+        encoded, bytes.begin(), [](std::byte byte) { return static_cast<char>(std::to_integer<unsigned char>(byte)); });
+    stream.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    return stream.good();
+}
+
+struct DiffOutputPaths
+{
+    std::filesystem::path data;
+    std::filesystem::path index;
+};
+
+struct DiffTemporaryFiles
+{
+    DiffOutputPaths outputs;
+    std::filesystem::path data;
+    std::filesystem::path index;
+    int dataDescriptor = -1;
+    int indexDescriptor = -1;
+};
+
+struct DiffBackups
+{
+    std::filesystem::path data;
+    std::filesystem::path index;
+};
+
+struct DiffGenerationState
+{
+    std::filesystem::path dataTemporary;
+    std::filesystem::path indexTemporary;
+    Dimensions dimensions{};
+    std::ofstream * data;
+    std::ofstream * index;
+    DiffReport * report;
+    std::optional<TileRegion> tileRegion;
+};
+
+void closeDiffDescriptors(DiffTemporaryFiles & files)
+{
+    if (files.dataDescriptor >= 0)
+    {
+        static_cast<void>(::close(files.dataDescriptor));
+        files.dataDescriptor = -1;
+    }
+    if (files.indexDescriptor >= 0)
+    {
+        static_cast<void>(::close(files.indexDescriptor));
+        files.indexDescriptor = -1;
+    }
+}
+
+void removeDiffTemporaries(DiffTemporaryFiles & files)
+{
+    closeDiffDescriptors(files);
+    if (!files.data.empty())
+    {
+        static_cast<void>(::unlink(files.data.c_str()));
+    }
+    if (!files.index.empty())
+    {
+        static_cast<void>(::unlink(files.index.c_str()));
+    }
+}
+
+class DiffTemporaryCleanup
+{
+public:
+    explicit DiffTemporaryCleanup(DiffTemporaryFiles & files) : files_(files) {}
+
+    DiffTemporaryCleanup(const DiffTemporaryCleanup &) = delete;
+    DiffTemporaryCleanup & operator=(const DiffTemporaryCleanup &) = delete;
+    DiffTemporaryCleanup(DiffTemporaryCleanup &&) = delete;
+    DiffTemporaryCleanup & operator=(DiffTemporaryCleanup &&) = delete;
+
+    ~DiffTemporaryCleanup()
+    {
+        if (active_)
+        {
+            removeDiffTemporaries(files_);
+        }
+    }
+
+    void release() noexcept { active_ = false; }
+
+private:
+    DiffTemporaryFiles & files_;
+    bool active_ = true;
+};
+
+std::expected<DiffTemporaryFiles, Error>
+prepareDiffTemporaries(const std::filesystem::path & directory, std::uint32_t mapIndex, bool overwrite)
+{
+    std::error_code filesystemError;
+    if (!std::filesystem::is_directory(directory, filesystemError) || filesystemError)
+    {
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, directory, 0, "diff output directory does not exist"));
+    }
+
+    DiffTemporaryFiles files{};
+    files.outputs.data = directory / ("mapdif" + std::to_string(mapIndex) + ".mul");
+    files.outputs.index = directory / ("mapdifl" + std::to_string(mapIndex) + ".mul");
+    if (auto result = detail::MulCommon::checkOutputPath(files.outputs.data, overwrite); !result)
+    {
+        return std::unexpected(result.error());
+    }
+    if (auto result = detail::MulCommon::checkOutputPath(files.outputs.index, overwrite); !result)
+    {
+        return std::unexpected(result.error());
+    }
+
+    auto dataDescriptor = detail::MulCommon::createTemporary(files.outputs.data, files.data);
+    if (!dataDescriptor)
+    {
+        return std::unexpected(dataDescriptor.error());
+    }
+    files.dataDescriptor = *dataDescriptor;
+    auto indexDescriptor = detail::MulCommon::createTemporary(files.outputs.index, files.index);
+    if (!indexDescriptor)
+    {
+        removeDiffTemporaries(files);
+        return std::unexpected(indexDescriptor.error());
+    }
+    files.indexDescriptor = *indexDescriptor;
+    return files;
+}
+
+bool readLe32(std::istream & stream, std::uint32_t & value)
+{
+    std::array<char, mapBlockIdByteCount> bytes{};
+    stream.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    if (!stream)
+    {
+        return false;
+    }
+
+    std::array<std::byte, mapBlockIdByteCount> encoded{};
+    std::ranges::transform(
+        bytes, encoded.begin(), [](char byte) { return static_cast<std::byte>(static_cast<unsigned char>(byte)); });
+    value = detail::decodeLittleEndian<std::uint32_t, mapBlockIdByteCount>(encoded);
+    return true;
+}
+
+MapBlockBytes makeDiffBlockOutput(const DiffGenerationState & state,
+                                  BlockTileSelection selection,
+                                  const MapBlockBytes & sourceRaw,
+                                  std::span<const std::byte> targetRaw)
+{
+    MapBlockBytes outputRaw{};
+    std::ranges::copy(targetRaw, outputRaw.begin());
+    if (!state.tileRegion)
+    {
+        return outputRaw;
+    }
+
+    std::ranges::copy_n(sourceRaw.begin(), static_cast<std::size_t>(MapCommon::mapHeaderByteSize), outputRaw.begin());
+    if (selection.coversWholeBlock())
+    {
+        return outputRaw;
+    }
+
+    constexpr auto tileByteSize = static_cast<std::size_t>(MapCommon::mapTileByteSize);
+    for (auto y = 0U; y < mapBlockDimension; y++)
+    {
+        const auto rowOffset = static_cast<std::size_t>(MapCommon::mapHeaderByteSize) +
+                               (static_cast<std::size_t>(y) * mapBlockDimension * tileByteSize);
+        if (!selection.includesRow(y))
+        {
+            const auto rowBytes = static_cast<std::size_t>(mapBlockDimension) * tileByteSize;
+            std::ranges::copy_n(std::next(sourceRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)),
+                                rowBytes,
+                                std::next(outputRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)));
+            continue;
+        }
+
+        const auto leftBytes = static_cast<std::ptrdiff_t>(static_cast<std::size_t>(selection.minX) * tileByteSize);
+        std::ranges::copy_n(std::next(sourceRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)),
+                            leftBytes,
+                            std::next(outputRaw.begin(), static_cast<std::ptrdiff_t>(rowOffset)));
+        const auto rightOffset = rowOffset + (static_cast<std::size_t>(selection.maxExclusiveX) * tileByteSize);
+        const auto rightBytes =
+            static_cast<std::ptrdiff_t>(static_cast<std::size_t>(mapBlockDimension - selection.maxExclusiveX) * tileByteSize);
+        std::ranges::copy_n(std::next(sourceRaw.begin(), static_cast<std::ptrdiff_t>(rightOffset)),
+                            rightBytes,
+                            std::next(outputRaw.begin(), static_cast<std::ptrdiff_t>(rightOffset)));
+    }
+
+    return outputRaw;
+}
+
+std::expected<void, Error>
+writeDiffBlock(const DiffGenerationState & state, BlockCoord coordinate, const MapBlockBytes & outputRaw)
+{
+    const auto id = MapCommon::blockId(coordinate, state.dimensions);
+    if (!isRepresentableDiffBlockId(id))
+    {
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
+    }
+    if (!writeLe32(*state.index, static_cast<std::uint32_t>(id)))
+    {
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, state.indexTemporary, 0, "could not write diff index"));
+    }
+
+    std::array<char, MapCommon::mapBlockByteSize> bytes{};
+    std::ranges::transform(
+        outputRaw, bytes.begin(), [](std::byte byte) { return static_cast<char>(std::to_integer<unsigned char>(byte)); });
+
+    state.data->write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    if (!*state.data)
+    {
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, state.dataTemporary, 0, "could not write diff block data"));
+    }
+
+    return {};
+}
+
+void recordChangedBlock(DiffReport & report, std::uint64_t changedTiles)
+{
+    report.blocksChanged++;
+    report.tilesChanged += changedTiles;
+}
+
+std::expected<void, Error> appendChangedDiffBlock(const DiffGenerationState & state,
+                                                  BlockCoord coordinate,
+                                                  const MapBlockBytes & sourceRaw,
+                                                  std::span<const std::byte> targetRaw)
+{
+    const auto selection = state.tileRegion ? selectTilesInBlock(coordinate, *state.tileRegion) : BlockTileSelection{};
+    const auto changedTiles = compareBlocks(selection, sourceRaw, targetRaw);
+    if (changedTiles == 0)
+    {
+        return {};
+    }
+
+    const auto outputRaw = makeDiffBlockOutput(state, selection, sourceRaw, targetRaw);
+    if (auto written = writeDiffBlock(state, coordinate, outputRaw); !written)
+    {
+        return std::unexpected(written.error());
+    }
+
+    recordChangedBlock(*state.report, changedTiles);
+    return {};
+}
+
+template <typename OnBlock>
+std::expected<void, Error> scanDiffBlocks(MapReader & source,
+                                          int targetDescriptor,
+                                          const std::filesystem::path & targetMap,
+                                          Dimensions dimensions,
+                                          BlockRegion region,
+                                          OnBlock onBlock)
+{
+    TargetBlockBatchReader targetBlocks(targetDescriptor, targetMap, dimensions, region);
+    return source.readRawBlocks(
+        region,
+        [&targetBlocks, &onBlock](BlockCoord coordinate, const MapBlockBytes & sourceRaw) -> std::expected<void, Error>
+        {
+            std::span<const std::byte> targetRaw;
+            if (auto loaded = targetBlocks.read(coordinate, targetRaw); !loaded)
+            {
+                return std::unexpected(loaded.error());
+            }
+
+            return onBlock(coordinate, sourceRaw, targetRaw);
+        });
+}
+
+template <typename Region>
+std::expected<void, Error> validateDiffRegion(const std::filesystem::path & baseMap, Dimensions dimensions, Region region)
+{
+    if (auto base = MapReader::open(baseMap, dimensions); !base)
+    {
+        return std::unexpected(base.error());
+    }
+
+    return MapCommon::validateRegion(region, dimensions, baseMap);
+}
+
+std::expected<DiffReport, Error> scanDiffTemporaries(const std::filesystem::path & baseMap,
+                                                     const std::filesystem::path & targetMap,
+                                                     Dimensions dimensions,
+                                                     DiffTemporaryFiles & files,
+                                                     BlockRegion region,
+                                                     std::optional<TileRegion> tileRegion = std::nullopt)
+{
+    DiffTemporaryCleanup cleanup(files);
+    std::ofstream data(files.data, std::ios::binary | std::ios::trunc);
+    std::ofstream index(files.index, std::ios::binary | std::ios::trunc);
+    if (!data || !index)
+    {
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not create diff files"));
+    }
+
+    auto source = MapReader::open(baseMap, dimensions);
+    if (!source)
+    {
+        return std::unexpected(source.error());
+    }
+
+    auto target = MapReader::open(targetMap, dimensions);
+    if (!target)
+    {
+        return std::unexpected(target.error());
+    }
+
+    const detail::ScopedDescriptor targetDescriptor(::open(targetMap.c_str(), O_RDONLY | O_CLOEXEC));
+    if (targetDescriptor.get() < 0 || !detail::MulCommon::isRegularFileDescriptor(targetDescriptor.get()))
+    {
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, targetMap, 0, std::strerror(errno)));
+    }
+
+    DiffReport report{};
+    DiffGenerationState state{
+        .dataTemporary = files.data,
+        .indexTemporary = files.index,
+        .dimensions = dimensions,
+        .data = &data,
+        .index = &index,
+        .report = &report,
+        .tileRegion = tileRegion,
+    };
+
+    auto compared =
+        scanDiffBlocks(*source,
+                       targetDescriptor.get(),
+                       targetMap,
+                       dimensions,
+                       region,
+                       [&state](BlockCoord coordinate, const MapBlockBytes & sourceRaw, std::span<const std::byte> targetRaw)
+                       { return appendChangedDiffBlock(state, coordinate, sourceRaw, targetRaw); });
+    if (!compared)
+    {
+        return std::unexpected(compared.error());
+    }
+
+    data.close();
+    index.close();
+
+    if (!data || !index)
+    {
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, files.outputs.data.parent_path(), 0, "could not write diff files"));
+    }
+
+    closeDiffDescriptors(files);
+    cleanup.release();
+
+    return report;
+}
+
+void restoreDiffBackups(const DiffBackups & backups, const DiffOutputPaths & outputs)
+{
+    if (!backups.data.empty())
+    {
+        static_cast<void>(::rename(backups.data.c_str(), outputs.data.c_str()));
+    }
+
+    if (!backups.index.empty())
+    {
+        static_cast<void>(::rename(backups.index.c_str(), outputs.index.c_str()));
+    }
+}
+
+std::expected<DiffBackups, Error> backupDiffOutputs(const DiffOutputPaths & outputs, DiffTemporaryFiles & files)
+{
+    DiffBackups backups{};
+    if (std::filesystem::exists(outputs.data))
+    {
+        backups.data = detail::MulCommon::temporaryPath(outputs.data);
+        if (::rename(outputs.data.c_str(), backups.data.c_str()) != 0)
+        {
+            const auto error = detail::MulCommon::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno));
+            removeDiffTemporaries(files);
+            return std::unexpected(error);
+        }
+    }
+
+    if (std::filesystem::exists(outputs.index))
+    {
+        backups.index = detail::MulCommon::temporaryPath(outputs.index);
+        if (::rename(outputs.index.c_str(), backups.index.c_str()) != 0)
+        {
+            const auto error = detail::MulCommon::makeError(ErrorCode::commitFailed, outputs.index, 0, std::strerror(errno));
+            restoreDiffBackups(backups, outputs);
+            removeDiffTemporaries(files);
+            return std::unexpected(error);
+        }
+    }
+
+    return backups;
+}
+
+void removeDiffBackups(const DiffBackups & backups)
+{
+    if (!backups.data.empty())
+    {
+        static_cast<void>(::unlink(backups.data.c_str()));
+    }
+
+    if (!backups.index.empty())
+    {
+        static_cast<void>(::unlink(backups.index.c_str()));
+    }
+}
+
+class DiffBackupCleanup
+{
+public:
+    DiffBackupCleanup(const DiffBackups & backups, const DiffOutputPaths & outputs) : backups_(backups), outputs_(outputs) {}
+
+    DiffBackupCleanup(const DiffBackupCleanup &) = delete;
+    DiffBackupCleanup & operator=(const DiffBackupCleanup &) = delete;
+    DiffBackupCleanup(DiffBackupCleanup &&) = delete;
+    DiffBackupCleanup & operator=(DiffBackupCleanup &&) = delete;
+
+    ~DiffBackupCleanup()
+    {
+        if (active_)
+        {
+            restoreDiffBackups(backups_, outputs_);
+        }
+    }
+
+    void release() noexcept { active_ = false; }
+
+private:
+    const DiffBackups & backups_;
+    const DiffOutputPaths & outputs_;
+    bool active_ = true;
+};
+
+std::expected<void, Error> installDiffPair(const DiffOutputPaths & outputs, const DiffTemporaryFiles & files)
+{
+    if (::link(files.data.c_str(), outputs.data.c_str()) != 0)
+    {
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::commitFailed, outputs.data, 0, std::strerror(errno)));
+    }
+
+    static_cast<void>(::unlink(files.data.c_str()));
+    if (::link(files.index.c_str(), outputs.index.c_str()) != 0)
+    {
+        const int savedErrno = errno;
+        static_cast<void>(::unlink(outputs.data.c_str()));
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::commitFailed, outputs.index, 0, std::strerror(savedErrno)));
+    }
+
+    static_cast<void>(::unlink(files.index.c_str()));
+    return {};
+}
+
+std::expected<DiffReport, Error>
+publishDiffWithoutOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles & files, DiffReport report)
+{
+    auto installed = installDiffPair(outputs, files);
+    if (!installed)
+    {
+        removeDiffTemporaries(files);
+        return std::unexpected(installed.error());
+    }
+
+    return report;
+}
+
+std::expected<DiffReport, Error>
+publishDiffWithOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles & files, DiffReport report)
+{
+    auto backups = backupDiffOutputs(outputs, files);
+    if (!backups)
+    {
+        return std::unexpected(backups.error());
+    }
+
+    DiffBackupCleanup rollback(*backups, outputs);
+
+    auto installed = installDiffPair(outputs, files);
+    if (!installed)
+    {
+        removeDiffTemporaries(files);
+        return std::unexpected(installed.error());
+    }
+
+    rollback.release();
+    removeDiffBackups(*backups);
+
+    return report;
+}
+
+std::expected<DiffReport, Error>
+publishDiffFiles(const DiffOutputPaths & outputs, DiffTemporaryFiles & files, bool overwrite, DiffReport report)
+{
+    if (overwrite)
+    {
+        return publishDiffWithOverwrite(outputs, files, report);
+    }
+
+    return publishDiffWithoutOverwrite(outputs, files, report);
+}
+
+struct DiffLengths
+{
+    std::uint64_t blockCount = 0;
+};
+
+std::expected<DiffLengths, Error> validateDiffLengths(std::istream & data,
+                                                      std::istream & index,
+                                                      const std::filesystem::path & dataPath,
+                                                      const std::filesystem::path & diffDirectory)
+{
+    data.seekg(0, std::ios::end);
+    index.seekg(0, std::ios::end);
+    const auto dataLength = data.tellg();
+    const auto indexLength = index.tellg();
+    if (dataLength < 0 || indexLength < 0)
+    {
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, diffDirectory, 0, "could not determine diff file sizes"));
+    }
+
+    const auto dataBytes = static_cast<std::uint64_t>(dataLength);
+    const auto indexBytes = static_cast<std::uint64_t>(indexLength);
+    if (!hasConsistentDiffLengths(dataBytes, indexBytes))
+    {
+        return std::unexpected(detail::MulCommon::makeError(
+            ErrorCode::truncatedInput, dataPath, 0, "diff data and index lengths are inconsistent"));
+    }
+
+    data.seekg(0);
+    index.seekg(0);
+
+    return DiffLengths{.blockCount = indexBytes / mapBlockIdByteCount};
+}
+
+std::expected<std::pair<BlockCoord, MapBlock>, Error>
+readDiffReplacement(std::istream & data, const std::filesystem::path & dataPath, Dimensions dimensions, std::uint32_t id)
+{
+    MapBlockBytes raw{};
+    for (auto & byte : raw)
+    {
+        const auto value = data.get();
+        if (value == std::char_traits<char>::eof())
+        {
+            break;
+        }
+        byte = static_cast<std::byte>(static_cast<unsigned char>(value));
+    }
+
+    if (!data)
+    {
+        return std::unexpected(detail::MulCommon::makeError(
+            ErrorCode::truncatedInput, dataPath, static_cast<std::uint64_t>(data.tellg()), "diff block is truncated"));
+    }
+
+    const auto blockHeight = dimensions.heightTiles / mapBlockDimension;
+    const BlockCoord coordinate{.x = id / blockHeight, .y = id % blockHeight};
+    return std::pair{coordinate, MapCommon::decodeBlock(raw)};
+}
+
+std::expected<std::vector<std::pair<BlockCoord, MapBlock>>, Error> readDiffReplacements(std::istream & data,
+                                                                                        std::istream & index,
+                                                                                        const std::filesystem::path & dataPath,
+                                                                                        const std::filesystem::path & indexPath,
+                                                                                        Dimensions dimensions,
+                                                                                        std::uint64_t expectedBlockCount,
+                                                                                        std::uint64_t replacementCount)
+{
+    std::vector<bool> seen(static_cast<std::size_t>(expectedBlockCount));
+    std::vector<std::pair<BlockCoord, MapBlock>> replacements;
+    replacements.reserve(static_cast<std::size_t>(replacementCount));
+    std::uint32_t id = 0;
+    while (readLe32(index, id))
+    {
+        if (isOutOfRangeDiffBlockId(id, expectedBlockCount) || hasAlreadySeenDiffBlockId(id, seen))
+        {
+            return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidBlockCount,
+                                                                indexPath,
+                                                                static_cast<std::uint64_t>(index.tellg()) - mapBlockIdByteCount,
+                                                                "diff contains an out-of-range or duplicate block ID"));
+        }
+
+        seen.at(id) = true;
+        auto replacement = readDiffReplacement(data, dataPath, dimensions, id);
+
+        if (!replacement)
+        {
+            return std::unexpected(replacement.error());
+        }
+
+        replacements.push_back(std::move(*replacement));
+    }
+
+    if (!index.eof())
+    {
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, indexPath, 0, "failed while reading diff index"));
+    }
+
+    return replacements;
+}
+
+std::expected<void, Error> writeDiffReplacements(MapEditor & editor,
+                                                 const std::vector<std::pair<BlockCoord, MapBlock>> & replacements)
+{
+    for (const auto & [coordinate, block] : replacements)
+    {
+        if (auto written = editor.editBlock(coordinate, block); !written)
+        {
+            return written;
+        }
+    }
+
+    return {};
+}
+
+std::expected<void, Error> validateDiffFiles(const std::filesystem::path & dataPath,
+                                             const std::filesystem::path & indexPath,
+                                             const std::filesystem::path & diffDirectory)
+{
+    const std::array paths{dataPath, indexPath};
+    for (const auto & path : paths)
+    {
+        if (!isRegularFile(path))
+        {
+            return std::unexpected(
+                detail::MulCommon::makeError(ErrorCode::io, diffDirectory, 0, "both map diff files are required"));
+        }
+    }
+
+    return {};
+}
+
+std::expected<std::uint64_t, Error> validateDiffBlockCount(Dimensions dimensions, const std::filesystem::path & baseMap)
+{
+    auto blockCount = MapCommon::blockCount(dimensions, baseMap);
+    if (!blockCount)
+    {
+        return std::unexpected(blockCount.error());
+    }
+
+    if (*blockCount > std::numeric_limits<std::uint32_t>::max())
+    {
+        return std::unexpected(detail::MulCommon::makeError(
+            ErrorCode::invalidDimensions, baseMap, 0, "map has more blocks than diff indices can address"));
+    }
+
+    return *blockCount;
+}
+
+std::expected<std::vector<std::pair<BlockCoord, MapBlock>>, Error>
+loadDiffReplacements(const std::filesystem::path & baseMap,
+                     const std::filesystem::path & diffDirectory,
+                     std::uint32_t mapIndex,
+                     Dimensions dimensions)
+{
+    if (auto base = MapReader::open(baseMap, dimensions); !base)
+    {
+        return std::unexpected(base.error());
+    }
+
+    const auto dataPath = diffDirectory / ("mapdif" + std::to_string(mapIndex) + ".mul");
+    const auto indexPath = diffDirectory / ("mapdifl" + std::to_string(mapIndex) + ".mul");
+    if (auto valid = validateDiffFiles(dataPath, indexPath, diffDirectory); !valid)
+    {
+        return std::unexpected(valid.error());
+    }
+
+    std::ifstream data(dataPath, std::ios::binary);
+    std::ifstream index(indexPath, std::ios::binary);
+    if (!data || !index)
+    {
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, diffDirectory, 0, "could not open diff files"));
+    }
+
+    auto lengths = validateDiffLengths(data, index, dataPath, diffDirectory);
+    if (!lengths)
+    {
+        return std::unexpected(lengths.error());
+    }
+
+    auto expectedBlockCount = validateDiffBlockCount(dimensions, baseMap);
+    if (!expectedBlockCount)
+    {
+        return std::unexpected(expectedBlockCount.error());
+    }
+
+    return readDiffReplacements(data, index, dataPath, indexPath, dimensions, *expectedBlockCount, lengths->blockCount);
+}
+
+std::expected<DiffReport, Error> compareMaps(const std::filesystem::path & sourcePath,
+                                             const std::filesystem::path & targetPath,
+                                             Dimensions dimensions,
+                                             const std::function<void(std::uint64_t, BlockCoord, std::uint64_t)> & onChange)
+{
+    auto source = MapReader::open(sourcePath, dimensions);
+    if (!source)
+    {
+        return std::unexpected(source.error());
+    }
+
+    auto target = MapReader::open(targetPath, dimensions);
+    if (!target)
+    {
+        return std::unexpected(target.error());
+    }
+
+    const detail::ScopedDescriptor targetDescriptor(::open(targetPath.c_str(), O_RDONLY | O_CLOEXEC));
+    if (targetDescriptor.get() < 0)
+    {
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, targetPath, 0, std::strerror(errno)));
+    }
+
+    DiffReport report{};
+    const auto fullRegion = detail::fullBlockRegion(dimensions);
+    auto scan =
+        scanDiffBlocks(*source,
+                       targetDescriptor.get(),
+                       targetPath,
+                       dimensions,
+                       fullRegion,
+                       [&report, &onChange, dimensions](BlockCoord coordinate,
+                                                        const MapBlockBytes & sourceRaw,
+                                                        std::span<const std::byte> targetRaw) -> std::expected<void, Error>
+                       {
+                           const auto changedTiles = compareBlocks(BlockTileSelection(), sourceRaw, targetRaw);
+                           if (changedTiles == 0)
+                           {
+                               return {};
+                           }
+
+                           recordChangedBlock(report, changedTiles);
+                           if (!onChange)
+                           {
+                               return {};
+                           }
+
+                           onChange(MapCommon::blockId(coordinate, dimensions), coordinate, changedTiles);
+                           return {};
+                       });
+    if (!scan)
+    {
+        return std::unexpected(scan.error());
+    }
+
+    return report;
+}
+
+std::expected<DiffReport, Error> writeMapCsv(const std::filesystem::path & sourceMap,
+                                             const std::filesystem::path & targetMap,
+                                             const std::filesystem::path & reportFile,
+                                             Dimensions dimensions,
+                                             bool overwrite)
+{
+    if (auto result = detail::MulCommon::checkOutputPath(reportFile, overwrite); !result)
+    {
+        return std::unexpected(result.error());
+    }
+
+    const auto parent = reportFile.parent_path();
+    if (!reportDirectoryExists(parent))
+    {
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, parent, 0, "report directory does not exist"));
+    }
+
+    std::filesystem::path temporary;
+    auto descriptor = detail::MulCommon::createTemporary(reportFile, temporary);
+    if (!descriptor)
+    {
+        return std::unexpected(descriptor.error());
+    }
+
+    detail::ScopedDescriptor temporaryDescriptor(*descriptor);
+    detail::TemporaryPath temporaryCleanup(temporary);
+    std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+    if (!output)
+    {
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, temporary, 0, "could not create report"));
+    }
+
+    output << "blockId,blockX,blockY,changedTiles\n";
+    auto compared = compareMaps(sourceMap,
+                                targetMap,
+                                dimensions,
+                                [&output](std::uint64_t id, BlockCoord coordinate, std::uint64_t changed)
+                                { output << id << ',' << coordinate.x << ',' << coordinate.y << ',' << changed << '\n'; });
+    output.flush();
+    output.close();
+    static_cast<void>(temporaryDescriptor.close());
+    if (!compared)
+    {
+        return std::unexpected(compared.error());
+    }
+
+    if (!output)
+    {
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, temporary, 0, "could not write report"));
+    }
+
+    auto published = detail::MulCommon::publishFile(temporary, reportFile, overwrite);
+    if (!published)
+    {
+        return std::unexpected(published.error());
+    }
+
+    temporaryCleanup.release();
+    return *compared;
+}
+
+std::expected<DiffReport, Error> generateDiffForRegion(const std::filesystem::path & baseMap,
+                                                       const std::filesystem::path & targetMap,
+                                                       const std::filesystem::path & diffDirectory,
+                                                       std::uint32_t mapIndex,
+                                                       Dimensions dimensions,
+                                                       BlockRegion blockRegion,
+                                                       std::optional<TileRegion> tileRegion,
+                                                       bool overwrite)
+{
+    auto filesResult = prepareDiffTemporaries(diffDirectory, mapIndex, overwrite);
+    if (!filesResult)
+    {
+        return std::unexpected(filesResult.error());
+    }
+
+    auto files = std::move(*filesResult);
+    auto report = scanDiffTemporaries(baseMap, targetMap, dimensions, files, blockRegion, tileRegion);
+    if (!report)
+    {
+        return std::unexpected(report.error());
+    }
+
+    return publishDiffFiles(files.outputs, files, overwrite, *report);
+}
+
+} // namespace
+
+std::expected<DiffReport, Error> MapDiff::generate(const std::filesystem::path & baseMap,
+                                                   const std::filesystem::path & targetMap,
+                                                   const std::filesystem::path & diffDirectory,
+                                                   std::uint32_t mapIndex,
+                                                   Dimensions dimensions,
+                                                   bool overwrite)
+{
+    return generateBlocks(
+        baseMap, targetMap, diffDirectory, mapIndex, dimensions, detail::fullBlockRegion(dimensions), overwrite);
+}
+
+std::expected<DiffReport, Error> MapDiff::generateTiles(const std::filesystem::path & baseMap,
+                                                        const std::filesystem::path & targetMap,
+                                                        const std::filesystem::path & diffDirectory,
+                                                        std::uint32_t mapIndex,
+                                                        Dimensions dimensions,
+                                                        TileRegion region,
+                                                        bool overwrite)
+{
+    if (auto valid = validateDiffRegion(baseMap, dimensions, region); !valid)
+    {
+        return std::unexpected(valid.error());
+    }
+
+    return generateDiffForRegion(
+        baseMap, targetMap, diffDirectory, mapIndex, dimensions, detail::blockRegionForTiles(region), region, overwrite);
+}
+
+std::expected<DiffReport, Error> MapDiff::generateBlocks(const std::filesystem::path & baseMap,
+                                                         const std::filesystem::path & targetMap,
+                                                         const std::filesystem::path & diffDirectory,
+                                                         std::uint32_t mapIndex,
+                                                         Dimensions dimensions,
+                                                         BlockRegion region,
+                                                         bool overwrite)
+{
+    if (auto valid = validateDiffRegion(baseMap, dimensions, region); !valid)
+    {
+        return std::unexpected(valid.error());
+    }
+
+    return generateDiffForRegion(baseMap, targetMap, diffDirectory, mapIndex, dimensions, region, std::nullopt, overwrite);
+}
+
+std::expected<void, Error> MapDiff::apply(const std::filesystem::path & baseMap,
+                                          const std::filesystem::path & diffDirectory,
+                                          const std::filesystem::path & outputMap,
+                                          std::uint32_t mapIndex,
+                                          Dimensions dimensions,
+                                          bool overwrite)
+{
+    auto replacements = loadDiffReplacements(baseMap, diffDirectory, mapIndex, dimensions);
+    if (!replacements)
+    {
+        return std::unexpected(replacements.error());
+    }
+
+    auto editor = MapEditor::create(baseMap, outputMap, dimensions, EditOptions{.overwriteOutput = overwrite});
+    if (!editor)
+    {
+        return std::unexpected(editor.error());
+    }
+
+    if (auto written = writeDiffReplacements(*editor, *replacements); !written)
+    {
+        return std::unexpected(written.error());
+    }
+
+    return editor->commit();
+}
+
+std::expected<DiffReport, Error> MapDiff::report(const std::filesystem::path & sourceMap,
+                                                 const std::filesystem::path & targetMap,
+                                                 const std::filesystem::path & reportFile,
+                                                 Dimensions dimensions,
+                                                 bool overwrite)
+{
+    return writeMapCsv(sourceMap, targetMap, reportFile, dimensions, overwrite);
+}
+
+std::expected<Dimensions, Error> facetDimensions(const std::string & name)
+{
+    const auto facet = uomul::facetSize(name);
+    if (facet)
+    {
+        return Dimensions{.widthTiles = facet->widthTiles, .heightTiles = facet->heightTiles};
+    }
+
+    return std::unexpected(detail::MulCommon::makeError(ErrorCode::invalidDimensions, {}, 0, "unknown facet preset"));
+}
+
+std::expected<void, Error> writeCsvReport(const std::filesystem::path & sourceMap,
+                                          const std::filesystem::path & targetMap,
+                                          const std::filesystem::path & reportFile,
+                                          Dimensions dimensions,
+                                          bool overwrite)
+{
+    auto report = writeMapCsv(sourceMap, targetMap, reportFile, dimensions, overwrite);
+
+    if (!report)
+    {
+        return std::unexpected(report.error());
+    }
+
+    return {};
+}
+
+} // namespace uomul

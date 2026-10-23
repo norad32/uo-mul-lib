@@ -1,10 +1,12 @@
 #include "../map_test_helpers.h"
+#include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <limits>
 #include <utility>
 
 namespace
@@ -12,14 +14,17 @@ namespace
 
 using uomul::test::TestDirectory;
 
+constexpr std::uint16_t colorByteMask = std::numeric_limits<std::uint8_t>::max();
+constexpr unsigned colorBitsPerByte = std::numeric_limits<unsigned char>::digits;
+
 void writeColors(const std::filesystem::path & path, std::uint32_t count)
 {
     std::ofstream output(path, std::ios::binary | std::ios::trunc);
-    for (std::uint32_t index = 0; index < count; ++index)
+    for (std::uint32_t index = 0; index < count; index++)
     {
         const auto value = static_cast<std::uint16_t>((index * 17U) & 0x7FFFU);
-        output.put(static_cast<char>(value & 0xFF));
-        output.put(static_cast<char>(value >> 8));
+        output.put(static_cast<char>(value & colorByteMask));
+        output.put(static_cast<char>(value >> colorBitsPerByte));
     }
 }
 
@@ -197,7 +202,7 @@ TEST_CASE("RadarColReader_moveConstructor_Should_KeepReaderUsable_If_ReaderIsMov
     auto opened = uomul::RadarColReader::open(path);
     REQUIRE(opened);
 
-    uomul::RadarColReader reader(std::move(*opened));
+    const uomul::RadarColReader reader(std::move(*opened));
 
     REQUIRE(reader.colorCount() == 2);
     REQUIRE(reader.readRawColor(1) == 17);
@@ -228,7 +233,7 @@ TEST_CASE("RadarColReader_readRawColor_Should_ReportInactiveReader_If_ReaderWasM
     writeColors(path, 1);
     auto opened = uomul::RadarColReader::open(path);
     REQUIRE(opened);
-    uomul::RadarColReader reader(std::move(*opened));
+    const uomul::RadarColReader reader(std::move(*opened));
 
     const auto color = opened->readRawColor(0);
 

@@ -1,6 +1,6 @@
 #include "core/app_info.h"
-#include "gui/preferences.h"
-#include "gui/preferences_store.h"
+#include "gui_model/persistence/preferences.h"
+#include "gui_model/persistence/preferences_store.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <filesystem>
@@ -27,6 +27,10 @@ TEST_CASE("loadPreferences_Should_UseDefaultsWhenFileIsMissing")
     REQUIRE(preferences.autoScroll);
     REQUIRE_FALSE(preferences.logPanelCollapsed);
     REQUIRE(std::abs(preferences.logPanelHeight) < heightTolerance);
+    REQUIRE(preferences.showWelcomeOnStartup);
+    REQUIRE(preferences.idFormat == uo_mule::gui::IdFormat::hexadecimal);
+    REQUIRE(preferences.texmapsHideUnused);
+    REQUIRE_FALSE(preferences.texmapsTablePresentation);
     std::filesystem::remove_all(preferencesFile.parent_path());
 }
 
@@ -40,6 +44,12 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
         .autoScroll = false,
         .logPanelCollapsed = true,
         .logPanelHeight = expectedLogPanelHeight,
+        .activeDataProfile = "Classic UO Felucca",
+        .showWelcomeOnStartup = false,
+        .idFormat = uo_mule::gui::IdFormat::decimal,
+        .texmapsHideUnused = true,
+        .texmapsTablePresentation = true,
+        .workspaceFullscreen = true,
     };
 
     uo_mule::gui::savePreferences(expected, preferencesFile);
@@ -51,6 +61,12 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
     REQUIRE_FALSE(actual.autoScroll);
     REQUIRE(actual.logPanelCollapsed);
     REQUIRE(std::abs(actual.logPanelHeight - expectedLogPanelHeight) < heightTolerance);
+    REQUIRE_FALSE(actual.showWelcomeOnStartup);
+    REQUIRE(actual.idFormat == uo_mule::gui::IdFormat::decimal);
+    REQUIRE(actual.texmapsHideUnused);
+    REQUIRE(actual.texmapsTablePresentation);
+    REQUIRE(actual.workspaceFullscreen);
+    REQUIRE(actual.activeDataProfile == "Classic UO Felucca");
     std::filesystem::remove_all(configDirectory);
 }
 
@@ -69,7 +85,7 @@ TEST_CASE("savePreferences_Should_ReplaceSymlinkWithoutWritingToItsTarget")
     }
     std::filesystem::create_symlink(externalFile, preferencesFile);
 
-    uo_mule::gui::savePreferences(uo_mule::gui::Preferences{.showLogPanel = true}, preferencesFile);
+    uo_mule::gui::savePreferences(uo_mule::gui::Preferences{.showLogPanel = true, .activeDataProfile = {}}, preferencesFile);
 
     std::ifstream target(externalFile);
     const std::string targetContents((std::istreambuf_iterator<char>(target)), std::istreambuf_iterator<char>());
@@ -85,10 +101,23 @@ TEST_CASE("savePreferences_Should_ReplaceExistingPreferences")
     const auto preferencesFile = preferencesDirectory / "preferences.conf";
     std::filesystem::remove_all(preferencesDirectory);
 
-    uo_mule::gui::savePreferences(uo_mule::gui::Preferences{.showLogPanel = true}, preferencesFile);
+    uo_mule::gui::savePreferences(uo_mule::gui::Preferences{.showLogPanel = true, .activeDataProfile = {}}, preferencesFile);
     const auto loaded = uo_mule::gui::loadPreferences(preferencesFile);
 
     REQUIRE(std::filesystem::is_regular_file(preferencesFile));
     REQUIRE(loaded.showLogPanel);
     std::filesystem::remove_all(preferencesDirectory);
+}
+
+TEST_CASE("preferences_Should_PersistLastActiveProfile")
+{
+    const auto preferencesFile = std::filesystem::temp_directory_path() / "pref-active-profile" / "preferences.conf";
+    std::filesystem::remove_all(preferencesFile.parent_path());
+
+    uo_mule::gui::Preferences preferences;
+    preferences.activeDataProfile = "Classic UO Felucca";
+    uo_mule::gui::savePreferences(preferences, preferencesFile);
+
+    REQUIRE(uo_mule::gui::loadPreferences(preferencesFile).activeDataProfile == "Classic UO Felucca");
+    std::filesystem::remove_all(preferencesFile.parent_path());
 }

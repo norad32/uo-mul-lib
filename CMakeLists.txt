@@ -31,9 +31,13 @@ option(ENABLE_CLANG_TIDY
 option(BUILD_TESTS "Build and register unit tests" OFF)
 option(BUILD_BENCHMARKS "Build Catch2 map and radarcol benchmarks" OFF)
 option(ENABLE_COVERAGE "Instrument project code for Debug gcovr reports" OFF)
+option(BUILD_CLI "Build the CLI application and executable" ON)
 option(BUILD_GUI "Build the ImGui GLFW/OpenGL desktop GUI" ON)
 option(BUILD_GUI_RUNTIME "Build the separately packaged GUI runtime executable"
        OFF)
+option(BUILD_CORE_TESTS "Build core and uomul unit tests" ${BUILD_TESTS})
+option(BUILD_CLI_TESTS "Build CLI unit tests" ${BUILD_TESTS})
+option(BUILD_GUI_TESTS "Build GUI unit tests" ${BUILD_TESTS})
 option(INSTALL_GUI
        "Install GUI desktop integration with the runtime executable" OFF)
 if(BUILD_GUI_RUNTIME AND NOT BUILD_GUI)
@@ -65,16 +69,16 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/app_metadata.h.in"
 set(OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/packaging")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/GeneratePackagingMetadata.cmake")
 
-add_library(application_options INTERFACE)
+add_library(options INTERFACE)
 
-set_target_properties(application_options PROPERTIES EXPORT_NAME options)
-target_compile_features(application_options
-                        INTERFACE cxx_std_${PROJECT_CXX_STANDARD})
-set_target_properties(application_options PROPERTIES CXX_EXTENSIONS OFF)
+set_target_properties(options PROPERTIES EXPORT_NAME options)
+target_compile_features(options INTERFACE cxx_std_${PROJECT_CXX_STANDARD})
+set_target_properties(options PROPERTIES CXX_EXTENSIONS OFF)
 target_include_directories(
-    application_options
+    options
     INTERFACE
         $<BUILD_INTERFACE:${APPLICATION_SOURCE_DIR}/src>
+        $<BUILD_INTERFACE:${APPLICATION_SOURCE_DIR}/src/uomul/include>
         $<BUILD_INTERFACE:${GENERATED_INCLUDE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}>)
 
@@ -91,57 +95,68 @@ if(NOT spdlog_FOUND)
     set(SPDLOG_BUILD_EXAMPLE
         OFF
         CACHE BOOL "Disable spdlog examples" FORCE)
-    set(SPDLOG_BUILD_TESTS
-        OFF
-        CACHE BOOL "Disable spdlog tests" FORCE)
-    set(SPDLOG_BUILD_EXAMPLE
-        OFF
-        CACHE BOOL "Disable spdlog examples" FORCE)
     application_pin_fetchcontent_dependency(
         spdlog https://github.com/gabime/spdlog.git
         79524ddd08a4ec981b7fea76afd08ee05f83755d) # spdlog v1.17.0
     FetchContent_MakeAvailable(spdlog)
 endif()
 
-find_package(
-    CLI11
-    ${CLI11_PACKAGE_VERSION}
-    EXACT
-    CONFIG
-    QUIET)
-if(NOT CLI11_FOUND)
-    include(FetchContent)
-    set(CLI11_BUILD_TESTS
-        OFF
-        CACHE BOOL "Disable CLI11 tests" FORCE)
-    application_pin_fetchcontent_dependency(
-        CLI11 https://github.com/CLIUtils/CLI11.git
-        6c7b07a878ad834957b98d0f9ce1dbe0cb204fc9) # CLI11 v2.4.2
-    set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
-    FetchContent_MakeAvailable(CLI11)
-    unset(CMAKE_POLICY_VERSION_MINIMUM)
+if(BUILD_CLI
+   OR BUILD_GUI
+   OR BUILD_CLI_TESTS)
+    find_package(
+        CLI11
+        ${CLI11_PACKAGE_VERSION}
+        EXACT
+        CONFIG
+        QUIET)
+    if(NOT CLI11_FOUND)
+        include(FetchContent)
+        set(CLI11_BUILD_TESTS
+            OFF
+            CACHE BOOL "Disable CLI11 tests" FORCE)
+        application_pin_fetchcontent_dependency(
+            CLI11 https://github.com/CLIUtils/CLI11.git
+            6c7b07a878ad834957b98d0f9ce1dbe0cb204fc9) # CLI11 v2.4.2
+        set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
+        FetchContent_MakeAvailable(CLI11)
+        unset(CMAKE_POLICY_VERSION_MINIMUM)
+    endif()
 endif()
 
 add_subdirectory(src/core)
+add_subdirectory(src/logger)
 add_subdirectory(src/uomul)
-add_subdirectory(src/app)
-
-add_executable(${EXECUTABLE_NAME} "${APPLICATION_SOURCE_DIR}/src/main.cpp")
-target_link_libraries(${EXECUTABLE_NAME} PRIVATE app)
-if(BUILD_GUI)
-    add_subdirectory(src/gui)
-    target_link_libraries(${EXECUTABLE_NAME} PRIVATE gui)
-    target_compile_definitions(${EXECUTABLE_NAME} PRIVATE HAS_GUI=1)
-else()
-    target_compile_definitions(${EXECUTABLE_NAME} PRIVATE HAS_GUI=0)
+add_subdirectory(src/gui_model)
+if(BUILD_CLI
+   OR BUILD_GUI
+   OR BUILD_CLI_TESTS)
+    add_subdirectory(src/app)
 endif()
 
-set(compile_targets
-    core
-    uomul
-    app
-    ${EXECUTABLE_NAME})
+if(BUILD_CLI OR BUILD_GUI)
+    add_executable(${EXECUTABLE_NAME} "${APPLICATION_SOURCE_DIR}/src/main.cpp")
+    target_link_libraries(${EXECUTABLE_NAME} PRIVATE app)
+    if(BUILD_GUI)
+        add_subdirectory(src/gui)
+        target_link_libraries(${EXECUTABLE_NAME} PRIVATE gui)
+        target_compile_definitions(${EXECUTABLE_NAME} PRIVATE HAS_GUI=1)
+    else()
+        target_compile_definitions(${EXECUTABLE_NAME} PRIVATE HAS_GUI=0)
+    endif()
+endif()
 
+set(compile_targets core logger uomul)
+if(BUILD_CLI
+   OR BUILD_GUI
+   OR BUILD_CLI_TESTS)
+    list(APPEND compile_targets app)
+endif()
+if(BUILD_CLI OR BUILD_GUI)
+    list(APPEND compile_targets ${EXECUTABLE_NAME})
+endif()
+
+list(APPEND compile_targets gui_model)
 if(BUILD_GUI)
     list(APPEND compile_targets gui)
     if(BUILD_GUI_RUNTIME)
@@ -152,10 +167,17 @@ foreach(target IN LISTS compile_targets)
     apply_common_compile_options(${target})
 endforeach()
 
-if(BUILD_TESTS OR BUILD_BENCHMARKS)
+if(BUILD_TESTS
+   OR BUILD_BENCHMARKS
+   OR BUILD_CORE_TESTS
+   OR BUILD_CLI_TESTS
+   OR BUILD_GUI_TESTS)
     find_package(Catch2 CONFIG REQUIRED COMPONENTS Catch2WithMain)
 endif()
-if(BUILD_TESTS)
+if(BUILD_TESTS
+   OR BUILD_CORE_TESTS
+   OR BUILD_CLI_TESTS
+   OR BUILD_GUI_TESTS)
     include(CTest)
     add_subdirectory(tests "${PROJECT_BINARY_DIR}/unit-tests")
 endif()
@@ -165,17 +187,35 @@ endif()
 
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
-    set(clang_tidy_targets
-        core
-        uomul
-        app
-        ${EXECUTABLE_NAME})
+    set(clang_tidy_targets core logger uomul)
+    if(BUILD_CLI
+       OR BUILD_GUI
+       OR BUILD_CLI_TESTS)
+        list(APPEND clang_tidy_targets app)
+    endif()
+    if(BUILD_CLI OR BUILD_GUI)
+        list(APPEND clang_tidy_targets ${EXECUTABLE_NAME})
+    endif()
+    list(APPEND clang_tidy_targets gui_model)
     if(BUILD_GUI)
         list(APPEND clang_tidy_targets gui)
         if(BUILD_GUI_RUNTIME)
             list(APPEND clang_tidy_targets ${GUI_EXECUTABLE_NAME})
         endif()
     endif()
+    foreach(
+        target IN
+        ITEMS uomul_tests
+              cli_tests
+              gui_tests
+              gui_model_tests
+              map_benchmarks
+              radarcol_benchmarks
+              texmaps_benchmarks)
+        if(TARGET ${target})
+            list(APPEND clang_tidy_targets ${target})
+        endif()
+    endforeach()
     foreach(target IN LISTS clang_tidy_targets)
         set_target_properties(${target} PROPERTIES CXX_CLANG_TIDY
                                                    "${CLANG_TIDY_EXECUTABLE}")

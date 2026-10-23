@@ -223,7 +223,7 @@ runMapInspect(const MapCommandOptions & options, uomul::Dimensions dimensionsVal
         for (const auto & tile : *block)
         {
             output << index << ' ' << tile.id << ' ' << static_cast<int>(tile.z) << '\n';
-            ++index;
+            index++;
         }
         return 0;
     }

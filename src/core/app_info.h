@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/app_metadata.h"
+#include <string_view>
 
 namespace uo_mule::core
 {

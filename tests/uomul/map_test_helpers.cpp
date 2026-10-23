@@ -13,7 +13,7 @@ namespace
 {
 
 constexpr std::size_t landHeaderByteCount = 4;
-constexpr std::size_t TileRecordByteCount = 3;
+constexpr std::size_t tileRecordByteCount = 3;
 constexpr std::uint32_t tilesPerBlock = uomul::mapBlockDimension * uomul::mapBlockDimension;
 constexpr std::uint32_t fixtureBlockIdStride = 100;
 constexpr std::uint32_t lowByteMask = 0xffU;
@@ -26,7 +26,7 @@ namespace uomul::test
 TestDirectory::TestDirectory()
 {
     static std::uint64_t sequence = 0;
-    path_ = std::filesystem::temp_directory_path() / ("uomul-test-" + std::to_string(++sequence));
+    path_ = std::filesystem::temp_directory_path() / ("uomul-test-" + std::to_string(sequence++));
     std::filesystem::remove_all(path_);
     std::filesystem::create_directories(path_);
 }
@@ -44,7 +44,7 @@ const std::filesystem::path & TestDirectory::path() const
 void writeFixture(const std::filesystem::path & path, std::uint32_t blocks)
 {
     std::ofstream output(path, std::ios::binary);
-    for (std::uint32_t block = 0; block < blocks; ++block)
+    for (std::uint32_t block = 0; block < blocks; block++)
     {
         const std::array<char, landHeaderByteCount> header{
             static_cast<char>(block + 1),
@@ -53,10 +53,10 @@ void writeFixture(const std::filesystem::path & path, std::uint32_t blocks)
             static_cast<char>(block + 4),
         };
         output.write(header.data(), static_cast<std::streamsize>(header.size()));
-        for (std::uint32_t tile = 0; tile < tilesPerBlock; ++tile)
+        for (std::uint32_t tile = 0; tile < tilesPerBlock; tile++)
         {
             const auto id = static_cast<std::uint16_t>((block * fixtureBlockIdStride) + tile);
-            const std::array<char, TileRecordByteCount> record{
+            const std::array<char, tileRecordByteCount> record{
                 static_cast<char>(id & lowByteMask),
                 static_cast<char>(static_cast<std::uint16_t>(id / 256)),
                 static_cast<char>(tile == 0 ? lowByteMask : tile),

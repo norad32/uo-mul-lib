@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -15,6 +16,14 @@ namespace
 {
 
 constexpr std::size_t fixtureByteCount = static_cast<std::size_t>(uomul::radarColorCount) * sizeof(uomul::RadarColor);
+constexpr std::size_t radarColorByteCount = sizeof(uomul::RadarColor);
+constexpr std::uint32_t byteMask = 0xFFU;
+constexpr std::uint32_t byteShift = 8U;
+constexpr std::uint32_t rgb24ChannelPattern = 0x010101U;
+constexpr std::uint32_t packedColorSuffix = 0xA5U;
+constexpr std::uint32_t sampleMapColorIndex = 0x1234;
+constexpr uomul::RadarColor sampleEditedColor = 0x2345;
+constexpr std::uint32_t colorsPerBatch = 256;
 
 class BenchmarkFiles
 {
@@ -23,7 +32,7 @@ public:
     {
         static std::uint64_t sequence = 0;
         directory_ = std::filesystem::temp_directory_path() /
-                     ("uomul-radarcol-benchmark-" + std::to_string(::getpid()) + "-" + std::to_string(++sequence));
+                     ("uomul-radarcol-benchmark-" + std::to_string(::getpid()) + "-" + std::to_string(sequence++));
         std::filesystem::create_directories(directory_);
         base_ = directory_ / "base.mul";
         writeTable();
@@ -31,6 +40,8 @@ public:
 
     BenchmarkFiles(const BenchmarkFiles &) = delete;
     BenchmarkFiles & operator=(const BenchmarkFiles &) = delete;
+    BenchmarkFiles(BenchmarkFiles &&) = delete;
+    BenchmarkFiles & operator=(BenchmarkFiles &&) = delete;
 
     ~BenchmarkFiles()
     {
@@ -38,18 +49,19 @@ public:
         std::filesystem::remove_all(directory_, error);
     }
 
-    const std::filesystem::path & directory() const { return directory_; }
-    const std::filesystem::path & base() const { return base_; }
+    [[nodiscard]] const std::filesystem::path & directory() const { return directory_; }
+    [[nodiscard]] const std::filesystem::path & base() const { return base_; }
 
 private:
     void writeTable() const
     {
         std::array<char, fixtureByteCount> bytes{};
-        for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
+        for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
         {
-            const auto value = static_cast<std::uint16_t>((index * 17U) & uomul::RadarColorConverter::colorMask);
-            bytes[static_cast<std::size_t>(index) * 2] = static_cast<char>(value & 0xFFU);
-            bytes[static_cast<std::size_t>(index) * 2 + 1] = static_cast<char>(value >> 8U);
+            const auto value = static_cast<std::uint32_t>((index * 17U) & uomul::RadarColorConverter::colorMask);
+            const auto offset = static_cast<std::size_t>(index) * radarColorByteCount;
+            bytes.at(offset) = static_cast<char>(value & byteMask);
+            bytes.at(offset + 1) = static_cast<char>((value >> byteShift) & byteMask);
         }
         std::ofstream output(base_, std::ios::binary | std::ios::trunc);
         output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
@@ -78,6 +90,79 @@ const BenchmarkFiles & benchmarkFiles()
     return files;
 }
 
+std::uint64_t rgb888Checksum()
+{
+    std::uint64_t checksum = 0;
+    for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
+    {
+        const auto red = static_cast<std::uint8_t>(index);
+        const auto green = static_cast<std::uint8_t>(index >> 3U);
+        const auto blue = static_cast<std::uint8_t>(index >> 7U);
+        checksum += uomul::RadarColorConverter::fromRgb888(red, green, blue);
+    }
+    return checksum;
+}
+
+std::uint64_t rgb24Checksum()
+{
+    std::uint64_t checksum = 0;
+    for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
+    {
+        checksum += uomul::RadarColorConverter::fromRgb24(index * rgb24ChannelPattern);
+    }
+    return checksum;
+}
+
+std::uint64_t argb8888Checksum()
+{
+    std::uint64_t checksum = 0;
+    for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
+    {
+        checksum += uomul::RadarColorConverter::fromArgb8888((index << byteShift) | packedColorSuffix);
+    }
+    return checksum;
+}
+
+std::uint64_t rgba8888Checksum()
+{
+    std::uint64_t checksum = 0;
+    for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
+    {
+        checksum += uomul::RadarColorConverter::fromRgba8888((index << byteShift) | packedColorSuffix);
+    }
+    return checksum;
+}
+
+std::uint64_t rgb565Checksum()
+{
+    std::uint64_t checksum = 0;
+    for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
+    {
+        checksum += uomul::RadarColorConverter::fromRgb565(static_cast<std::uint16_t>(index * 2U));
+    }
+    return checksum;
+}
+
+std::uint64_t argb1555Checksum()
+{
+    std::uint64_t checksum = 0;
+    for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
+    {
+        checksum += uomul::RadarColorConverter::fromArgb1555(static_cast<std::uint16_t>(index * 3U));
+    }
+    return checksum;
+}
+
+std::uint64_t rgb555Checksum()
+{
+    std::uint64_t checksum = 0;
+    for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
+    {
+        checksum += uomul::RadarColorConverter::fromRgb555(static_cast<std::uint16_t>(index * 3U));
+    }
+    return checksum;
+}
+
 } // namespace
 
 TEST_CASE("RadarColReader benchmarks", "[benchmark][radarcol]")
@@ -101,21 +186,21 @@ TEST_CASE("RadarColReader benchmarks", "[benchmark][radarcol]")
 
     BENCHMARK("RadarCol/one-map-color/read")
     {
-        const auto result = reader.readMapColor(0x1234);
+        const auto result = reader.readMapColor(sampleMapColorIndex);
         requireSuccess(result);
         return *result;
     };
 
     BENCHMARK("RadarCol/one-static-color/read")
     {
-        const auto result = reader.readStaticColor(0x1234);
+        const auto result = reader.readStaticColor(sampleMapColorIndex);
         requireSuccess(result);
         return *result;
     };
 
     BENCHMARK("RadarCol/one-raw-color/read")
     {
-        const auto result = reader.readRawColor(uomul::radarStaticColorOffset + 0x1234);
+        const auto result = reader.readRawColor(uomul::radarStaticColorOffset + sampleMapColorIndex);
         requireSuccess(result);
         return *result;
     };
@@ -123,7 +208,7 @@ TEST_CASE("RadarColReader benchmarks", "[benchmark][radarcol]")
     BENCHMARK("RadarCol/full/read-map-colors")
     {
         std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarMapColorCount; ++index)
+        for (std::uint32_t index = 0; index < uomul::radarMapColorCount; index++)
         {
             const auto result = reader.readMapColor(static_cast<std::uint16_t>(index));
             requireSuccess(result);
@@ -135,7 +220,7 @@ TEST_CASE("RadarColReader benchmarks", "[benchmark][radarcol]")
     BENCHMARK("RadarCol/full/read-static-colors")
     {
         std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarMapColorCount; ++index)
+        for (std::uint32_t index = 0; index < uomul::radarMapColorCount; index++)
         {
             const auto result = reader.readStaticColor(static_cast<std::uint16_t>(index));
             requireSuccess(result);
@@ -147,7 +232,7 @@ TEST_CASE("RadarColReader benchmarks", "[benchmark][radarcol]")
     BENCHMARK("RadarCol/full/read-raw-colors")
     {
         std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
+        for (std::uint32_t index = 0; index < uomul::radarColorCount; index++)
         {
             const auto result = reader.readRawColor(index);
             requireSuccess(result);
@@ -184,7 +269,7 @@ TEST_CASE("RadarColEditor benchmarks", "[benchmark][radarcol]")
         const auto output = files.directory() / "one-map-color-output.mul";
         auto editor = uomul::RadarColEditor::create(files.base(), output, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->editMapColor(0x1234, 0x2345));
+        requireSuccess(editor->editMapColor(sampleMapColorIndex, sampleEditedColor));
         editor->abort();
         return fixtureByteCount;
     };
@@ -194,7 +279,7 @@ TEST_CASE("RadarColEditor benchmarks", "[benchmark][radarcol]")
         const auto output = files.directory() / "one-static-color-output.mul";
         auto editor = uomul::RadarColEditor::create(files.base(), output, {.overwriteOutput = true});
         requireSuccess(editor);
-        requireSuccess(editor->editStaticColor(0x1234, 0x2345));
+        requireSuccess(editor->editStaticColor(sampleMapColorIndex, sampleEditedColor));
         editor->abort();
         return fixtureByteCount;
     };
@@ -204,12 +289,12 @@ TEST_CASE("RadarColEditor benchmarks", "[benchmark][radarcol]")
         const auto output = files.directory() / "batch-edit-output.mul";
         auto editor = uomul::RadarColEditor::create(files.base(), output, {.overwriteOutput = true});
         requireSuccess(editor);
-        for (std::uint32_t index = 0; index < 256; ++index)
+        for (std::uint32_t index = 0; index < colorsPerBatch; index++)
         {
             requireSuccess(editor->editRawColor(index, static_cast<uomul::RadarColor>(index)));
         }
         editor->abort();
-        return 256;
+        return colorsPerBatch;
     };
 
     BENCHMARK("RadarCol/full/commit-staged-copy")
@@ -226,74 +311,36 @@ TEST_CASE("RadarColorConverter benchmarks", "[benchmark][radarcol]")
 {
     BENCHMARK("RadarCol/full/convert-rgb888")
     {
-        std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
-        {
-            const auto red = static_cast<std::uint8_t>(index);
-            const auto green = static_cast<std::uint8_t>(index >> 3U);
-            const auto blue = static_cast<std::uint8_t>(index >> 7U);
-            checksum += uomul::RadarColorConverter::fromRgb888(red, green, blue);
-        }
-        return checksum;
+        return rgb888Checksum();
     };
 
     BENCHMARK("RadarCol/full/convert-rgb24")
     {
-        std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
-        {
-            checksum += uomul::RadarColorConverter::fromRgb24(index * 0x010101U);
-        }
-        return checksum;
+        return rgb24Checksum();
     };
 
     BENCHMARK("RadarCol/full/convert-argb8888")
     {
-        std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
-        {
-            checksum += uomul::RadarColorConverter::fromArgb8888((index << 8U) | 0xA5U);
-        }
-        return checksum;
+        return argb8888Checksum();
     };
 
     BENCHMARK("RadarCol/full/convert-rgba8888")
     {
-        std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
-        {
-            checksum += uomul::RadarColorConverter::fromRgba8888((index << 8U) | 0xA5U);
-        }
-        return checksum;
+        return rgba8888Checksum();
     };
 
     BENCHMARK("RadarCol/full/convert-rgb565")
     {
-        std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
-        {
-            checksum += uomul::RadarColorConverter::fromRgb565(static_cast<std::uint16_t>(index * 2U));
-        }
-        return checksum;
+        return rgb565Checksum();
     };
 
     BENCHMARK("RadarCol/full/convert-argb1555")
     {
-        std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
-        {
-            checksum += uomul::RadarColorConverter::fromArgb1555(static_cast<std::uint16_t>(index * 3U));
-        }
-        return checksum;
+        return argb1555Checksum();
     };
 
     BENCHMARK("RadarCol/full/convert-rgb555")
     {
-        std::uint64_t checksum = 0;
-        for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
-        {
-            checksum += uomul::RadarColorConverter::fromRgb555(static_cast<std::uint16_t>(index * 3U));
-        }
-        return checksum;
+        return rgb555Checksum();
     };
 }

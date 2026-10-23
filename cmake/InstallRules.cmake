@@ -1,21 +1,35 @@
 include(CMakePackageConfigHelpers)
 
 install(
-    TARGETS application_options
+    TARGETS options
             core
+            logger
             uomul
-            app
     EXPORT ${CMAKE_PACKAGE_NAME}Targets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)
+if(BUILD_CLI OR BUILD_GUI)
+    install(
+        TARGETS app
+        EXPORT ${CMAKE_PACKAGE_NAME}Targets
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)
+endif()
 
 if(BUILD_GUI)
     install(
-        TARGETS gui imgui
+        TARGETS gui_model gui imgui
         EXPORT ${CMAKE_PACKAGE_NAME}Targets
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
         LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)
 
+    install(
+        DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/gui_model/"
+        DESTINATION
+            "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/gui_model"
+        COMPONENT Development
+        FILES_MATCHING
+        PATTERN "*.h")
     install(
         DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/"
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/gui"
@@ -63,8 +77,10 @@ if(DEFINED spdlog_SOURCE_DIR AND EXISTS "${spdlog_SOURCE_DIR}/LICENSE")
         RENAME spdlog-LICENSE.txt
         COMPONENT Runtime)
 endif()
-install(TARGETS ${EXECUTABLE_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-                                           COMPONENT Runtime)
+if(BUILD_CLI OR BUILD_GUI)
+    install(TARGETS ${EXECUTABLE_NAME}
+            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Runtime)
+endif()
 if(BUILD_GUI_RUNTIME)
     install(TARGETS ${GUI_EXECUTABLE_NAME}
             RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Gui)
@@ -104,14 +120,26 @@ if(BUILD_GUI_RUNTIME)
 endif()
 
 install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/uomul/"
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/uomul/include/uomul/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/uomul"
     COMPONENT Development
     FILES_MATCHING
     PATTERN "*.h")
 install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/"
-    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}"
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/core/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/core"
+    COMPONENT Development
+    FILES_MATCHING
+    PATTERN "*.h")
+install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/logger/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/logger"
+    COMPONENT Development
+    FILES_MATCHING
+    PATTERN "*.h")
+install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/app/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/app"
     COMPONENT Development
     FILES_MATCHING
     PATTERN "*.h")

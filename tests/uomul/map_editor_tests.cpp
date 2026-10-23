@@ -1,5 +1,6 @@
 #include "map_test_helpers.h"
 #include "uomul/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <expected>
@@ -20,20 +21,74 @@ using uomul::test::writeFixture;
 
 constexpr std::uint32_t blockGridSize = dimensions.widthTiles / uomul::mapBlockDimension;
 constexpr std::uint32_t testRegionEnd = 2;
+constexpr std::uint32_t callbackFailureTileInvocation = 5;
 constexpr std::uint16_t stagedTileId = 777;
 constexpr std::uint16_t editedTileId = 778;
 constexpr std::uint16_t stagedBlockTileId = 999;
 constexpr std::int8_t stagedTileElevation = -12;
 constexpr uomul::TileRegion smallTileRegion{.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 2, .y = 2}};
 
-[[nodiscard]] std::expected<uomul::MapBlock, uomul::Error> acceptEditedBlock(uomul::BlockCoord, const uomul::MapBlock & block)
+[[nodiscard]] std::expected<uomul::MapBlock, uomul::Error> acceptEditedBlock(uomul::BlockCoord coordinate,
+                                                                             const uomul::MapBlock & block)
 {
+    static_cast<void>(coordinate);
     return block;
 }
 
-[[nodiscard]] std::expected<uomul::MapTile, uomul::Error> acceptEditedTile(uomul::TileCoord, const uomul::MapTile & tile)
+[[nodiscard]] std::expected<uomul::MapTile, uomul::Error> acceptEditedTile(uomul::TileCoord coordinate,
+                                                                           const uomul::MapTile & tile)
 {
+    static_cast<void>(coordinate);
     return tile;
+}
+
+[[nodiscard]] std::vector<std::filesystem::path> stagingFilesFor(const std::filesystem::path & directory,
+                                                                 const std::string & outputName)
+{
+    std::vector<std::filesystem::path> stagingFiles;
+    for (const auto & entry : std::filesystem::directory_iterator(directory))
+    {
+        if (entry.path().filename().string().starts_with(outputName + ".uomul-tmp-"))
+        {
+            stagingFiles.push_back(entry.path());
+        }
+    }
+    return stagingFiles;
+}
+
+[[nodiscard]] std::expected<uomul::MapBlock, uomul::Error>
+failEditedBlockAfterThreeCalls(std::uint32_t & callbackCount, uomul::BlockCoord coordinate, const uomul::MapBlock & current)
+{
+    callbackCount++;
+    if (callbackCount == 3)
+    {
+        return std::unexpected(
+            uomul::Error{.code = uomul::ErrorCode::io, .path = {}, .offset = 0, .message = "callback failure"});
+    }
+    auto changed = current;
+    changed.at(0).id = static_cast<std::uint16_t>(stagedBlockTileId + coordinate.x + coordinate.y);
+    return changed;
+}
+
+[[nodiscard]] std::expected<uomul::MapTile, uomul::Error>
+failEditedTileAfterFiveCalls(std::uint32_t & callbackCount, uomul::TileCoord coordinate, const uomul::MapTile & current)
+{
+    callbackCount++;
+    if (callbackCount == callbackFailureTileInvocation)
+    {
+        return std::unexpected(
+            uomul::Error{.code = uomul::ErrorCode::io, .path = {}, .offset = 0, .message = "callback failure"});
+    }
+    return uomul::MapTile{.id = static_cast<std::uint16_t>(current.id + coordinate.x + 1), .z = current.z};
+}
+
+void requireCallbackFailure(const std::expected<void, uomul::Error> & result,
+                            std::uint32_t callbackCount,
+                            std::uint32_t expectedCallbackCount)
+{
+    REQUIRE_FALSE(result);
+    REQUIRE(result.error().message == "callback failure");
+    REQUIRE(callbackCount == expectedCallbackCount);
 }
 
 class CurrentPathGuard
@@ -45,6 +100,10 @@ public:
     }
 
     ~CurrentPathGuard() { std::filesystem::current_path(original_); }
+    CurrentPathGuard(const CurrentPathGuard &) = delete;
+    CurrentPathGuard & operator=(const CurrentPathGuard &) = delete;
+    CurrentPathGuard(CurrentPathGuard &&) = delete;
+    CurrentPathGuard & operator=(CurrentPathGuard &&) = delete;
 
 private:
     std::filesystem::path original_;
@@ -152,16 +211,20 @@ TEST_CASE("create_Should_RejectInvalidDimensions_If_DimensionsAreNotBlockAligned
     REQUIRE(editor.error().code == uomul::ErrorCode::invalidDimensions);
 }
 
-TEST_CASE("create_Should_RejectInPlaceEditing_If_OutputNamesTheSource")
+TEST_CASE("create_Should_EditInPlace_If_OutputNamesTheSource")
 {
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
     writeFixture(source);
 
-    const auto editor = uomul::MapEditor::create(source, source, dimensions, {.overwriteOutput = true});
+    auto editor = uomul::MapEditor::create(source, source, dimensions);
+    REQUIRE(editor);
+    REQUIRE(editor->fillTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, {.id = 2, .z = 1}));
+    REQUIRE(editor->commit());
 
-    REQUIRE_FALSE(editor);
-    REQUIRE(editor.error().code == uomul::ErrorCode::io);
+    const auto reader = uomul::MapReader::open(source, dimensions);
+    REQUIRE(reader);
+    REQUIRE(reader->readTile({.x = 0, .y = 0}) == uomul::MapTile{.id = 2, .z = 1});
 }
 
 TEST_CASE("create_Should_RejectAliasedPaths_If_OutputIsHardLinkToSource")
@@ -247,7 +310,7 @@ TEST_CASE("editBlocks_Should_ProcessJournalAcrossReadChunks_If_RegionExceedsChun
                                [&callbackCount](uomul::BlockCoord coordinate,
                                                 const uomul::MapBlock & current) -> std::expected<uomul::MapBlock, uomul::Error>
                                {
-                                   ++callbackCount;
+                                   callbackCount++;
                                    auto changed = current;
                                    changed.at(0).id = static_cast<std::uint16_t>(stagedBlockTileId + coordinate.y);
                                    return changed;
@@ -335,14 +398,7 @@ TEST_CASE("moveAssignment_Should_DiscardDestinationStaging_If_DestinationIsActiv
     auto second = uomul::MapEditor::create(source, secondOutput, dimensions);
     REQUIRE(first);
     REQUIRE(second);
-    std::vector<std::filesystem::path> firstStagingFiles;
-    for (const auto & entry : std::filesystem::directory_iterator(directory.path()))
-    {
-        if (entry.path().filename().string().starts_with("first.mul.uomul-tmp-"))
-        {
-            firstStagingFiles.push_back(entry.path());
-        }
-    }
+    const auto firstStagingFiles = stagingFilesFor(directory.path(), "first.mul");
     REQUIRE(firstStagingFiles.size() == 1);
 
     *first = std::move(*second);
@@ -431,7 +487,7 @@ TEST_CASE("editTile_Should_RejectReadFailure_If_StagingFileIsTruncated")
         }
     }
 
-    const auto result = editor->editTile({0, 0}, {.id = 1, .z = 0});
+    const auto result = editor->editTile({.x = 0, .y = 0}, {.id = 1, .z = 0});
 
     REQUIRE_FALSE(result);
     REQUIRE(result.error().code == uomul::ErrorCode::truncatedInput);
@@ -471,7 +527,7 @@ TEST_CASE("editBlock_Should_RejectReadFailure_If_StagingFileIsTruncated")
         }
     }
 
-    const auto result = editor->editBlock({0, 0}, uomul::MapBlock{});
+    const auto result = editor->editBlock({.x = 0, .y = 0}, uomul::MapBlock{});
 
     REQUIRE_FALSE(result);
     REQUIRE(result.error().code == uomul::ErrorCode::io);
@@ -486,8 +542,8 @@ TEST_CASE("editBlock_Should_RejectCoordinates_If_BlockIsOutsideMap")
     auto editor = uomul::MapEditor::create(source, output, dimensions);
     REQUIRE(editor);
 
-    const auto outsideX = editor->editBlock({blockGridSize, 0}, uomul::MapBlock{});
-    const auto outsideY = editor->editBlock({0, blockGridSize}, uomul::MapBlock{});
+    const auto outsideX = editor->editBlock({.x = blockGridSize, .y = 0}, uomul::MapBlock{});
+    const auto outsideY = editor->editBlock({.x = 0, .y = blockGridSize}, uomul::MapBlock{});
 
     REQUIRE_FALSE(outsideX);
     REQUIRE(outsideX.error().code == uomul::ErrorCode::invalidCoordinate);
@@ -506,10 +562,10 @@ TEST_CASE("editBlocks_Should_ChangeRegion_If_CallbackSucceeds")
     std::uint32_t callbackCount = 0;
 
     REQUIRE(editor->editBlocks(
-        {.min = {0, 0}, .maxExclusive = {1, testRegionEnd}},
+        {.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = testRegionEnd}},
         [&callbackCount](uomul::BlockCoord, const uomul::MapBlock & current) -> std::expected<uomul::MapBlock, uomul::Error>
         {
-            ++callbackCount;
+            callbackCount++;
             auto changed = current;
             changed.at(0) = {.id = stagedBlockTileId, .z = stagedTileElevation};
             return changed;
@@ -535,23 +591,12 @@ TEST_CASE("editBlocks_Should_DiscardWholeEdit_If_CallbackFails")
     std::uint32_t callbackCount = 0;
 
     const auto result =
-        editor->editBlocks({.min = {0, 0}, .maxExclusive = {testRegionEnd, testRegionEnd}},
+        editor->editBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = testRegionEnd, .y = testRegionEnd}},
                            [&callbackCount](uomul::BlockCoord coordinate,
                                             const uomul::MapBlock & current) -> std::expected<uomul::MapBlock, uomul::Error>
-                           {
-                               if (++callbackCount == 3)
-                               {
-                                   return std::unexpected(uomul::Error{
-                                       .code = uomul::ErrorCode::io, .path = {}, .offset = 0, .message = "callback failure"});
-                               }
-                               auto changed = current;
-                               changed.at(0).id = static_cast<std::uint16_t>(stagedBlockTileId + coordinate.x + coordinate.y);
-                               return changed;
-                           });
+                           { return failEditedBlockAfterThreeCalls(callbackCount, coordinate, current); });
 
-    REQUIRE_FALSE(result);
-    REQUIRE(result.error().message == "callback failure");
-    REQUIRE(callbackCount == 3);
+    requireCallbackFailure(result, callbackCount, 3);
     REQUIRE(editor->commit());
     const auto reader = uomul::MapReader::open(output, dimensions);
     REQUIRE(reader);
@@ -602,22 +647,13 @@ TEST_CASE("editTiles_Should_DiscardWholeEdit_If_CallbackFails")
     REQUIRE(editor);
     std::uint32_t callbackCount = 0;
 
-    const auto result = editor->editTiles(
-        {.min = {0, 0}, .maxExclusive = {3, 3}},
-        [&callbackCount](uomul::TileCoord coordinate,
-                         const uomul::MapTile & current) -> std::expected<uomul::MapTile, uomul::Error>
-        {
-            if (++callbackCount == 5)
-            {
-                return std::unexpected(
-                    uomul::Error{.code = uomul::ErrorCode::io, .path = {}, .offset = 0, .message = "callback failure"});
-            }
-            return uomul::MapTile{.id = static_cast<std::uint16_t>(current.id + coordinate.x + 1), .z = current.z};
-        });
+    const auto result =
+        editor->editTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 3, .y = 3}},
+                          [&callbackCount](uomul::TileCoord coordinate,
+                                           const uomul::MapTile & current) -> std::expected<uomul::MapTile, uomul::Error>
+                          { return failEditedTileAfterFiveCalls(callbackCount, coordinate, current); });
 
-    REQUIRE_FALSE(result);
-    REQUIRE(result.error().message == "callback failure");
-    REQUIRE(callbackCount == 5);
+    requireCallbackFailure(result, callbackCount, callbackFailureTileInvocation);
     REQUIRE(editor->commit());
     const auto reader = uomul::MapReader::open(output, dimensions);
     REQUIRE(reader);
@@ -639,7 +675,7 @@ TEST_CASE("editBlocks_Should_AcceptEmptyRegion_If_CallbackIsValid")
         {.min = {0, 0}, .maxExclusive = {0, testRegionEnd}},
         [&callbackCount](uomul::BlockCoord, const uomul::MapBlock & block) -> std::expected<uomul::MapBlock, uomul::Error>
         {
-            ++callbackCount;
+            callbackCount++;
             return block;
         }));
 
@@ -662,7 +698,7 @@ TEST_CASE("editTiles_Should_AcceptEmptyRegion_If_CallbackIsValid")
          .maxExclusive = {dimensions.widthTiles, dimensions.heightTiles}},
         [&callbackCount](uomul::TileCoord, const uomul::MapTile & tile) -> std::expected<uomul::MapTile, uomul::Error>
         {
-            ++callbackCount;
+            callbackCount++;
             return tile;
         }));
 
@@ -679,11 +715,13 @@ TEST_CASE("editBlocks_Should_RejectRequest_If_RegionIsInvalidOrCallbackIsEmpty")
     auto editor = uomul::MapEditor::create(source, output, dimensions);
     REQUIRE(editor);
 
-    const auto reversedX = editor->editBlocks({.min = {1, 0}, .maxExclusive = {0, 1}}, acceptEditedBlock);
-    const auto reversedY = editor->editBlocks({.min = {0, 1}, .maxExclusive = {1, 0}}, acceptEditedBlock);
-    const auto outsideX = editor->editBlocks({.min = {0, 0}, .maxExclusive = {blockGridSize + 1, 0}}, acceptEditedBlock);
-    const auto outsideY = editor->editBlocks({.min = {0, 0}, .maxExclusive = {0, blockGridSize + 1}}, acceptEditedBlock);
-    const auto emptyCallback = editor->editBlocks({.min = {0, 0}, .maxExclusive = {1, 1}}, {});
+    const auto reversedX = editor->editBlocks({.min = {.x = 1, .y = 0}, .maxExclusive = {.x = 0, .y = 1}}, acceptEditedBlock);
+    const auto reversedY = editor->editBlocks({.min = {.x = 0, .y = 1}, .maxExclusive = {.x = 1, .y = 0}}, acceptEditedBlock);
+    const auto outsideX =
+        editor->editBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = blockGridSize + 1, .y = 0}}, acceptEditedBlock);
+    const auto outsideY =
+        editor->editBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 0, .y = blockGridSize + 1}}, acceptEditedBlock);
+    const auto emptyCallback = editor->editBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, {});
 
     REQUIRE_FALSE(reversedX);
     REQUIRE(reversedX.error().code == uomul::ErrorCode::invalidCoordinate);
@@ -706,10 +744,12 @@ TEST_CASE("editTiles_Should_RejectRequest_If_RegionIsInvalidOrCallbackIsEmpty")
     auto editor = uomul::MapEditor::create(source, output, dimensions);
     REQUIRE(editor);
 
-    const auto reversedX = editor->editTiles({.min = {1, 0}, .maxExclusive = {0, 1}}, acceptEditedTile);
-    const auto reversedY = editor->editTiles({.min = {0, 1}, .maxExclusive = {1, 0}}, acceptEditedTile);
-    const auto outsideX = editor->editTiles({.min = {0, 0}, .maxExclusive = {dimensions.widthTiles + 1, 0}}, acceptEditedTile);
-    const auto outsideY = editor->editTiles({.min = {0, 0}, .maxExclusive = {0, dimensions.heightTiles + 1}}, acceptEditedTile);
+    const auto reversedX = editor->editTiles({.min = {.x = 1, .y = 0}, .maxExclusive = {.x = 0, .y = 1}}, acceptEditedTile);
+    const auto reversedY = editor->editTiles({.min = {.x = 0, .y = 1}, .maxExclusive = {.x = 1, .y = 0}}, acceptEditedTile);
+    const auto outsideX = editor->editTiles({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = dimensions.widthTiles + 1, .y = 0}},
+                                            acceptEditedTile);
+    const auto outsideY = editor->editTiles(
+        {.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 0, .y = dimensions.heightTiles + 1}}, acceptEditedTile);
     const auto emptyCallback = editor->editTiles(smallTileRegion, {});
 
     REQUIRE_FALSE(reversedX);
@@ -839,7 +879,7 @@ TEST_CASE("abort_Should_DiscardChanges_If_EditorIsActive")
     REQUIRE(sourceReader->readTile({0, 0})->id == 0);
     REQUIRE_FALSE(editor->editTile({0, 0}, {.id = 1, .z = 0}));
     REQUIRE_FALSE(editor->editBlock({0, 0}, uomul::MapBlock{}));
-    const auto blockEdit = editor->editBlocks({{0, 0}, {1, 1}}, acceptEditedBlock);
+    const auto blockEdit = editor->editBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, acceptEditedBlock);
     const auto tileEdit = editor->editTiles(smallTileRegion, acceptEditedTile);
     const auto fillResult = editor->fillTiles(smallTileRegion, {.id = 1, .z = 0});
     const auto replaceIdResult = editor->replaceIdsTiles(smallTileRegion, 0, 1);
@@ -871,7 +911,7 @@ TEST_CASE("commit_Should_RejectRepeatedOperations_If_EditorHasAlreadyCommitted")
 
     REQUIRE_FALSE(editor->editBlock({0, 0}, uomul::MapBlock{}));
     REQUIRE_FALSE(editor->editTile({0, 0}, {.id = 1, .z = 0}));
-    const auto blockEdit = editor->editBlocks({{0, 0}, {1, 1}}, acceptEditedBlock);
+    const auto blockEdit = editor->editBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, acceptEditedBlock);
     const auto tileEdit = editor->editTiles(smallTileRegion, acceptEditedTile);
     const auto fillResult = editor->fillTiles(smallTileRegion, {.id = 1, .z = 0});
     const auto replaceIdResult = editor->replaceIdsTiles(smallTileRegion, 0, 1);

@@ -64,6 +64,7 @@ PointerAlignment: Middle
 ReferenceAlignment: Middle
 ReflowComments: true
 SortIncludes: true
+IncludeBlocks: Merge
 SpaceAfterCStyleCast: true
 SpaceAfterLogicalNot: false
 SpaceBeforeAssignmentOperators: true

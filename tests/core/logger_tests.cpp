@@ -1,6 +1,6 @@
 #include "core/app_info.h"
-#include "core/log_level.h"
-#include "core/logger.h"
+#include "logger/log_level.h"
+#include "logger/logger.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
 #include <filesystem>
@@ -18,38 +18,41 @@ TEST_CASE("Logger_Should_IgnoreRelativeXdgStateHome")
     const auto relative_directory = working_directory / "relative-state-home";
     std::filesystem::remove_all(log_directory);
     std::filesystem::remove_all(relative_directory);
-    const char * previous_home_value = std::getenv("HOME");
-    const char * previous_state_value = std::getenv("XDG_STATE_HOME");
-    const bool had_previous_home = previous_home_value != nullptr;
-    const bool had_previous_state = previous_state_value != nullptr;
-    const std::string previous_home = had_previous_home ? previous_home_value : "";
-    const std::string previous_state = had_previous_state ? previous_state_value : "";
+    const char * previousHomeValue = std::getenv("HOME");
+    const char * previousStateValue = std::getenv("XDG_STATE_HOME");
+    const bool hadPreviousHome = previousHomeValue != nullptr;
+    const bool hadPreviousState = previousStateValue != nullptr;
+    const std::string previousHome = hadPreviousHome ? previousHomeValue : "";
+    const std::string previousState = hadPreviousState ? previousStateValue : "";
+    // NOLINTNEXTLINE(misc-include-cleaner)
     setenv("HOME", log_directory.c_str(), 1);
     setenv("XDG_STATE_HOME", "relative-state-home", 1);
 
-    uo_mule::core::Logger logger("relative-state-test");
-    logger.setup(uo_mule::core::defaultLogLevel());
+    uo_mule::logger::Logger logger("relative-state-test");
+    logger.setup(uo_mule::logger::defaultLogLevel());
     const auto expected_path =
         log_directory / ".local" / "state" / uo_mule::core::applicationName() / "logs" / "relative-state-test.log";
     const auto actual_path = logger.logFilePath();
     logger.shutdown();
     REQUIRE(actual_path == expected_path);
 
-    if (!had_previous_home)
+    if (!hadPreviousHome)
     {
+        // NOLINTNEXTLINE(misc-include-cleaner)
         unsetenv("HOME");
     }
     else
     {
-        setenv("HOME", previous_home.c_str(), 1);
+        setenv("HOME", previousHome.c_str(), 1);
     }
-    if (!had_previous_state)
+    if (!hadPreviousState)
     {
+        // NOLINTNEXTLINE(misc-include-cleaner)
         unsetenv("XDG_STATE_HOME");
     }
     else
     {
-        setenv("XDG_STATE_HOME", previous_state.c_str(), 1);
+        setenv("XDG_STATE_HOME", previousState.c_str(), 1);
     }
     std::filesystem::remove_all(log_directory);
     std::filesystem::remove_all(relative_directory);
@@ -60,8 +63,8 @@ TEST_CASE("Logger_Should_WriteLogToRotatingFile")
     const auto log_directory = std::filesystem::temp_directory_path() / "logger-tests";
     std::filesystem::remove_all(log_directory);
 
-    uo_mule::core::Logger logger("test");
-    logger.setup(uo_mule::core::defaultLogLevel(), log_directory);
+    uo_mule::logger::Logger logger("test");
+    logger.setup(uo_mule::logger::defaultLogLevel(), log_directory);
     const auto guiSink = logger.attachGuiSink();
     SPDLOG_LOGGER_INFO(logger.get(), "test log message");
     logger.shutdown();
@@ -72,7 +75,7 @@ TEST_CASE("Logger_Should_WriteLogToRotatingFile")
     REQUIRE(contents.contains("test log message"));
     REQUIRE(guiEntries.size() == 1);
 #ifdef DEBUG_BUILD
-    constexpr std::string_view expectedLogSuffix{" [info] [logger_tests.cpp] [66] test log message\n"};
+    constexpr std::string_view expectedLogSuffix{" [info] [logger_tests.cpp] [69] test log message\n"};
 #else
     constexpr std::string_view expectedLogSuffix{" [info] test log message\n"};
 #endif
@@ -87,10 +90,10 @@ TEST_CASE("Logger_Should_UseSourceFilenameForDebugAndTraceAndDisableThemInReleas
     const auto log_directory = std::filesystem::temp_directory_path() / "logger-level-tests";
     std::filesystem::remove_all(log_directory);
 
-    uo_mule::core::Logger logger("level-test");
-    logger.setup(uo_mule::core::LogLevel::trace, log_directory);
+    uo_mule::logger::Logger logger("level-test");
+    logger.setup(uo_mule::logger::LogLevel::trace, log_directory);
     const auto guiSink = logger.attachGuiSink();
-    logger.setLevel(uo_mule::core::LogLevel::trace);
+    logger.setLevel(uo_mule::logger::LogLevel::trace);
     const auto activeLogger = logger.get();
     constexpr int debugSourceLine = 42;
     constexpr int traceSourceLine = 43;
