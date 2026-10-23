@@ -480,11 +480,11 @@ TEST_CASE("readBlocks_Should_PropagateCallbackError_If_CallbackFails")
     const auto result =
         reader->readBlocks({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = testRegionEnd, .y = testRegionEnd}},
                            [&callbackCount](uomul::BlockCoord, const uomul::MapBlock &) -> std::expected<void, uomul::Error>
-                            {
-                                callbackCount++;
-                                if (callbackCount == callbackFailureInvocation)
-                                {
-                                    return std::unexpected(uomul::Error{
+                           {
+                               callbackCount++;
+                               if (callbackCount == callbackFailureInvocation)
+                               {
+                                   return std::unexpected(uomul::Error{
                                        .code = uomul::ErrorCode::io,
                                        .path = {},
                                        .offset = 0,

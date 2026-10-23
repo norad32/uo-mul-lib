@@ -1,6 +1,6 @@
 #include "../map_test_helpers.h"
-#include "uomul/texmaps/texmaps.h"
 #include "uomul/mul_common/mul_common.h"
+#include "uomul/texmaps/texmaps.h"
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <csignal> // NOLINT(misc-include-cleaner): sighandler_t and SIGXFSZ defined here
@@ -58,8 +58,7 @@ void writeTexture(const std::filesystem::path & indexPath,
                   std::uint16_t dimension,
                   std::uint16_t value)
 {
-    const auto byteCount =
-        static_cast<std::uint32_t>(static_cast<std::size_t>(dimension) * dimension * sizeof(std::uint16_t));
+    const auto byteCount = static_cast<std::uint32_t>(static_cast<std::size_t>(dimension) * dimension * sizeof(std::uint16_t));
     {
         std::ofstream data(dataPath, std::ios::binary | std::ios::trunc);
         for (std::uint32_t index = 0; index < byteCount / sizeof(std::uint16_t); index++)
@@ -99,8 +98,7 @@ class FileSizeLimitGuard
 {
 public:
     // NOLINTBEGIN(misc-include-cleaner)
-    explicit FileSizeLimitGuard(std::uint64_t limitBytes)
-        : original_{}, originalHandler_(::signal(SIGXFSZ, SIG_IGN))
+    explicit FileSizeLimitGuard(std::uint64_t limitBytes) : original_{}, originalHandler_(::signal(SIGXFSZ, SIG_IGN))
     // NOLINTEND(misc-include-cleaner)
     {
         CHECK(::getrlimit(RLIMIT_FSIZE, &original_) == 0);
@@ -828,7 +826,7 @@ TEST_CASE("TexMapsEditor_editTexture_Should_ReturnInactiveError_If_EditorWasMove
     REQUIRE(opened);
 
     const uomul::TexMapsEditor moved(std::move(*opened));
-    (void)moved; // Use moved to avoid unused variable warning
+    (void) moved; // Use moved to avoid unused variable warning
 
     uomul::TextureImage image;
     image.dimension = uomul::textureSmallDimension;

@@ -82,9 +82,9 @@ struct PairInPlaceState
 };
 
 std::expected<PairInPlaceState, Error> determinePairInPlaceState(const std::filesystem::path & outputIndex,
-                                                                  const std::filesystem::path & outputData,
-                                                                  const std::filesystem::path * sourceIndex,
-                                                                  const std::filesystem::path * sourceData)
+                                                                 const std::filesystem::path & outputData,
+                                                                 const std::filesystem::path * sourceIndex,
+                                                                 const std::filesystem::path * sourceData)
 {
     if (sourceIndex == nullptr || sourceData == nullptr)
     {
@@ -136,9 +136,8 @@ std::expected<void, Error> validatePairOutputs(const std::filesystem::path & out
     return {};
 }
 
-std::expected<void, Error> validateSourceOutputAlias(const std::filesystem::path & source,
-                                                     const std::filesystem::path & output,
-                                                     bool allowInPlace)
+std::expected<void, Error>
+validateSourceOutputAlias(const std::filesystem::path & source, const std::filesystem::path & output, bool allowInPlace)
 {
     auto alias = detail::MulCommon::pathsAlias(source, output);
     if (!alias)

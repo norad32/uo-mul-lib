@@ -136,8 +136,10 @@ readTexMapsTexture(int descriptor, const std::filesystem::path & path, TexMapsIn
 
     for (std::size_t index = 0; index < image.pixels.size(); index++)
     {
-        const std::array<std::byte, sizeof(std::uint16_t)> word{bytes.at(index * sizeof(std::uint16_t)),
-                                                                bytes.at((index * sizeof(std::uint16_t)) + 1),};
+        const std::array<std::byte, sizeof(std::uint16_t)> word{
+            bytes.at(index * sizeof(std::uint16_t)),
+            bytes.at((index * sizeof(std::uint16_t)) + 1),
+        };
         image.pixels.at(index) = decodeLittleEndian<std::uint16_t>(word);
     }
 

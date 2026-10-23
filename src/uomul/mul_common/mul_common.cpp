@@ -180,8 +180,8 @@ std::filesystem::path MulCommon::temporaryPath(const std::filesystem::path & pat
            (path.filename().string() + ".uomul-tmp-" + std::to_string(::getpid()) + "-" + std::to_string(sequence));
 }
 
-std::expected<bool, Error>
-MulCommon::pathsExactlyMatch(const std::filesystem::path & first, const std::filesystem::path & second)
+std::expected<bool, Error> MulCommon::pathsExactlyMatch(const std::filesystem::path & first,
+                                                        const std::filesystem::path & second)
 {
     std::error_code error;
     const auto firstAbsolute = std::filesystem::absolute(first, error).lexically_normal();
@@ -199,8 +199,7 @@ MulCommon::pathsExactlyMatch(const std::filesystem::path & first, const std::fil
     return firstAbsolute == secondAbsolute;
 }
 
-std::expected<bool, Error> MulCommon::pathsAlias(const std::filesystem::path & first,
-                                                 const std::filesystem::path & second)
+std::expected<bool, Error> MulCommon::pathsAlias(const std::filesystem::path & first, const std::filesystem::path & second)
 {
     auto exact = pathsExactlyMatch(first, second);
     if (!exact)

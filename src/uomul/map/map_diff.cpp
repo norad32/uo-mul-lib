@@ -1,5 +1,5 @@
-#include "map_common.h"
 #include "core/facet_sizes.h"
+#include "map_common.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <algorithm>

@@ -1,5 +1,5 @@
-#include <uomul/map.h>
 #include <cstdint>
+#include <uomul/map.h>
 
 namespace
 {
