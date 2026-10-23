@@ -13,6 +13,12 @@ enum class IdFormat : unsigned char
     decimal,
 };
 
+enum class MapViewTileSource : unsigned char
+{
+    textures,
+    radarcol,
+};
+
 struct Preferences
 {
     bool showLogPanel = false;
@@ -25,6 +31,7 @@ struct Preferences
     bool texmapsHideUnused = true;
     bool texmapsTablePresentation = false;
     bool workspaceFullscreen = false;
+    MapViewTileSource mapViewTileSource = MapViewTileSource::textures;
 
     [[nodiscard]] bool operator==(const Preferences & other) const noexcept
     {
@@ -33,7 +40,8 @@ struct Preferences
                std::bit_cast<std::uint32_t>(logPanelHeight) == std::bit_cast<std::uint32_t>(other.logPanelHeight) &&
                activeDataProfile == other.activeDataProfile && showWelcomeOnStartup == other.showWelcomeOnStartup &&
                idFormat == other.idFormat && texmapsHideUnused == other.texmapsHideUnused &&
-               texmapsTablePresentation == other.texmapsTablePresentation && workspaceFullscreen == other.workspaceFullscreen;
+                texmapsTablePresentation == other.texmapsTablePresentation && workspaceFullscreen == other.workspaceFullscreen &&
+                mapViewTileSource == other.mapViewTileSource;
     }
 };
 

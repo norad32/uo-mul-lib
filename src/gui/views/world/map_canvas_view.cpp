@@ -2,6 +2,7 @@
 #include "gui/presentation/theme/theme.h"
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/providers/data_providers.h"
+#include "gui_model/persistence/preferences.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/workspaces/map_workspace_manager.h"
 #include "gui_model/world/map_canvas_state.h"
@@ -71,10 +72,135 @@ constexpr double noMapButtonOffset = 28.0;
     return std::clamp(std::min(widthZoom, heightZoom), minimumCanvasZoom, maximumCanvasZoom);
 }
 
-[[nodiscard]] ImU32 colorForTile(MapDisplayMode mode, uomul::MapTile tile, const RadarColorProvider & radarColors)
+[[nodiscard]] ImU32 packedMapColor(MapColor color) noexcept
 {
-    const MapColor color = mapCanvasTileColor(mode, tile, radarColors);
     return IM_COL32(color.red, color.green, color.blue, std::numeric_limits<std::uint8_t>::max());
+}
+
+[[nodiscard]] ImU32 textureTint(MapDisplayMode mode, uomul::MapTile tile) noexcept
+{
+    if (mode != MapDisplayMode::combined)
+    {
+        return IM_COL32(255, 255, 255, 255);
+    }
+
+    constexpr double combinedBrightnessMinimum = 0.5;
+    constexpr double combinedBrightnessRange = 1.0;
+    const double brightness = combinedBrightnessMinimum +
+                              ((static_cast<double>(zGrayscale(tile.z)) / 255.0) * combinedBrightnessRange);
+    const auto channel = static_cast<std::uint8_t>(std::clamp(static_cast<int>(brightness * 255.0), 0, 255));
+    return IM_COL32(channel, channel, channel, 255);
+}
+
+[[nodiscard]] MapCanvasCachedTexture & cachedTexture(MapCanvasViewState & state,
+                                                     const TextureProvider & textures,
+                                                     std::uint32_t id)
+{
+    const auto existing = state.textureCache.find(id);
+    if (existing != state.textureCache.end())
+    {
+        return existing->second;
+    }
+
+    MapCanvasCachedTexture entry;
+    if (const auto texture = textures.texture(id); texture && texture->width != 0U && texture->height != 0U &&
+                                                       !texture->pixels.empty())
+    {
+        entry.width = texture->width;
+        entry.height = texture->height;
+        entry.pixels = texture->pixels;
+        entry.rgbaPixels.reserve(entry.pixels.size() * 4U);
+        for (const MapColor pixel : entry.pixels)
+        {
+            entry.rgbaPixels.push_back(pixel.red);
+            entry.rgbaPixels.push_back(pixel.green);
+            entry.rgbaPixels.push_back(pixel.blue);
+            entry.rgbaPixels.push_back(std::numeric_limits<std::uint8_t>::max());
+        }
+    }
+
+    return state.textureCache.emplace(id, std::move(entry)).first->second;
+}
+
+void uploadTileTexture(MapCanvasCachedTexture & texture)
+{
+    if (texture.pixels.empty())
+    {
+        return;
+    }
+
+    if (texture.gpuTexture == 0U)
+    {
+        GLuint handle = 0;
+        glGenTextures(1, &handle);
+        texture.gpuTexture = handle;
+    }
+    if (texture.gpuTexture == 0U)
+    {
+        return;
+    }
+
+    GLint previousTexture = 0;
+    GLint previousUnpackAlignment = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+    glBindTexture(GL_TEXTURE_2D, texture.gpuTexture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,
+                 GL_RGBA,
+                 static_cast<GLsizei>(texture.width),
+                 static_cast<GLsizei>(texture.height),
+                 0,
+                 GL_RGBA,
+                 GL_UNSIGNED_BYTE,
+                 texture.rgbaPixels.data());
+    glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
+}
+
+[[nodiscard]] std::optional<MapColor> texturePixelColor(const MapCanvasCachedTexture & texture,
+                                                         double localX,
+                                                         double localY) noexcept
+{
+    if (texture.pixels.empty() || texture.width == 0U || texture.height == 0U)
+    {
+        return std::nullopt;
+    }
+    const auto pixelX = std::min(texture.width - 1U,
+                                 static_cast<std::uint32_t>(std::max(0.0, std::floor(localX * texture.width))));
+    const auto pixelY = std::min(texture.height - 1U,
+                                 static_cast<std::uint32_t>(std::max(0.0, std::floor(localY * texture.height))));
+    const std::size_t index = (static_cast<std::size_t>(pixelY) * texture.width) + pixelX;
+    return index < texture.pixels.size() ? std::optional<MapColor>(texture.pixels.at(index)) : std::nullopt;
+}
+
+[[nodiscard]] std::optional<MapColor> selectedTexturePixel(const MapCanvasCachedTexture & texture,
+                                                           MapViewTileSource tileSource,
+                                                           double localX,
+                                                           double localY) noexcept
+{
+    return tileSource == MapViewTileSource::textures ? texturePixelColor(texture, localX, localY) : std::nullopt;
+}
+
+void clearTextureCache(MapCanvasViewState & state)
+{
+    if (state.releaseTexture)
+    {
+        for (auto & [id, texture] : state.textureCache)
+        {
+            static_cast<void>(id);
+            if (texture.gpuTexture != 0U)
+            {
+                state.releaseTexture(texture.gpuTexture);
+            }
+        }
+    }
+    state.textureCache.clear();
 }
 
 [[nodiscard]] ImU32 unavailableColor(std::uint32_t tileX, std::uint32_t tileY) noexcept
@@ -116,6 +242,41 @@ tileScreenRect(ImVec2 canvasOrigin, const MapCanvasViewState & state, std::uint3
         .minimum = minimum,
         .maximum = ImVec2(minimum.x + static_cast<float>(state.zoom), minimum.y + static_cast<float>(state.zoom)),
     };
+}
+
+void drawCanvasTile(ImDrawList & drawList,
+                    MapCanvasViewState & state,
+                    const TextureProvider & textures,
+                    const RadarColorProvider & radarColors,
+                    MapViewTileSource tileSource,
+                    MapDisplayMode mode,
+                    uomul::MapTile tile,
+                    ScreenRect screenRect)
+{
+    if (mode != MapDisplayMode::z && tileSource == MapViewTileSource::textures)
+    {
+        MapCanvasCachedTexture & texture = cachedTexture(state, textures, tile.id);
+        if (!texture.pixels.empty())
+        {
+            if (texture.gpuTexture == 0U)
+            {
+                uploadTileTexture(texture);
+            }
+            if (texture.gpuTexture != 0U)
+            {
+                drawList.AddImage(static_cast<ImTextureID>(texture.gpuTexture),
+                                  screenRect.minimum,
+                                  screenRect.maximum,
+                                  ImVec2(0.0F, 0.0F),
+                                  ImVec2(1.0F, 1.0F),
+                                  textureTint(mode, tile));
+                return;
+            }
+        }
+    }
+
+    drawList.AddRectFilled(
+        screenRect.minimum, screenRect.maximum, packedMapColor(tileDisplayColor(mode, tile, radarColors.mapColor(tile.id))));
 }
 
 [[nodiscard]] bool hasPendingNavigation(const MapCanvasViewState & state) noexcept
@@ -279,7 +440,9 @@ void writeLodPixel(std::vector<std::uint8_t> & pixels, std::size_t pixelIndex, I
 }
 
 void rasterizeLodRow(const MapWorkspace & workspace,
+                     const TextureProvider & textures,
                      const RadarColorProvider & radarColors,
+                      MapViewTileSource tileSource,
                      MapCanvasViewState & state,
                      std::vector<std::uint8_t> & pixels,
                      std::uint32_t rasterWidth,
@@ -327,7 +490,15 @@ void rasterizeLodRow(const MapWorkspace & workspace,
         if (loadedBlock->block)
         {
             const std::uint32_t localIndex = (localY * uomul::mapBlockDimension) + (tileX % uomul::mapBlockDimension);
-            color = colorForTile(mode, loadedBlock->block->at(static_cast<std::size_t>(localIndex)), radarColors);
+            const uomul::MapTile tile = loadedBlock->block->at(static_cast<std::size_t>(localIndex));
+            const double localX = mapX - static_cast<double>(tileX);
+            const double localTileY = mapY - static_cast<double>(tileY);
+            const MapCanvasCachedTexture & texture = cachedTexture(state, textures, tile.id);
+            const auto texturePixel = mode == MapDisplayMode::z
+                                          ? std::nullopt
+                                          : selectedTexturePixel(texture, tileSource, localX, localTileY);
+            const auto fallback = radarColors.mapColor(tile.id);
+            color = packedMapColor(tileDisplayColor(mode, tile, texturePixel ? texturePixel : fallback));
         }
         else if (loadedBlock->error && !state.lodReadError)
         {
@@ -339,7 +510,9 @@ void rasterizeLodRow(const MapWorkspace & workspace,
 }
 
 void rasterizeLod(const MapWorkspace & workspace,
+                  const TextureProvider & textures,
                   const RadarColorProvider & radarColors,
+                  MapViewTileSource tileSource,
                   MapCanvasViewState & state,
                   std::uint32_t rasterWidth,
                   std::uint32_t rasterHeight,
@@ -360,7 +533,17 @@ void rasterizeLod(const MapWorkspace & workspace,
 
     for (std::uint32_t pixelY = 0; pixelY < rasterHeight; pixelY++)
     {
-        rasterizeLodRow(workspace, radarColors, state, state.lodPixels, rasterWidth, pixelY, scaleX, scaleY, mode);
+        rasterizeLodRow(workspace,
+                        textures,
+                        radarColors,
+                        tileSource,
+                        state,
+                        state.lodPixels,
+                        rasterWidth,
+                        pixelY,
+                        scaleX,
+                        scaleY,
+                        mode);
     }
 }
 
@@ -422,7 +605,9 @@ void uploadLodTexture(MapCanvasViewState & state, std::uint32_t rasterWidth, std
 }
 
 [[nodiscard]] bool lodCacheMatches(const MapCanvasViewState & state,
-                                   const RadarColorProvider & radarColors,
+                                    const TextureProvider & textures,
+                                    const RadarColorProvider & radarColors,
+                                     MapViewTileSource tileSource,
                                    std::uint32_t rasterWidth,
                                    std::uint32_t rasterHeight,
                                    ImVec2 canvasSize,
@@ -436,11 +621,14 @@ void uploadLodTexture(MapCanvasViewState & state, std::uint32_t rasterWidth, std
            std::abs(state.lodPanX - state.panX) < floatCacheTolerance &&
            std::abs(state.lodPanY - state.panY) < floatCacheTolerance &&
            std::abs(state.lodZoom - state.zoom) < floatCacheTolerance && state.lodDisplayMode == mode &&
-           state.lodRadarColorRevision == radarColors.status().revision;
+           state.lodTextureRevision == textures.status().revision && state.lodRadarColorRevision == radarColors.status().revision &&
+            state.lodTileSource == tileSource;
 }
 
 void saveLodCacheKey(MapCanvasViewState & state,
+                     const TextureProvider & textures,
                      const RadarColorProvider & radarColors,
+                     MapViewTileSource tileSource,
                      std::uint32_t rasterWidth,
                      std::uint32_t rasterHeight,
                      ImVec2 canvasSize,
@@ -455,12 +643,16 @@ void saveLodCacheKey(MapCanvasViewState & state,
     state.lodPanX = state.panX;
     state.lodPanY = state.panY;
     state.lodZoom = state.zoom;
+    state.lodTextureRevision = textures.status().revision;
     state.lodRadarColorRevision = radarColors.status().revision;
+    state.lodTileSource = tileSource;
     state.lodCacheValid = true;
 }
 
 [[nodiscard]] bool drawScreenSpaceLod(const MapWorkspace & workspace,
+                                      const TextureProvider & textures,
                                       const RadarColorProvider & radarColors,
+                                      MapViewTileSource tileSource,
                                       MapCanvasViewState & state,
                                       ImDrawList & drawList,
                                       ImVec2 canvasOrigin,
@@ -489,9 +681,9 @@ void saveLodCacheKey(MapCanvasViewState & state,
     }
 
     const MapDisplayMode mode = workspace.displayMode();
-    if (!lodCacheMatches(state, radarColors, rasterWidth, rasterHeight, canvasSize, framebufferScale, mode))
+    if (!lodCacheMatches(state, textures, radarColors, tileSource, rasterWidth, rasterHeight, canvasSize, framebufferScale, mode))
     {
-        rasterizeLod(workspace, radarColors, state, rasterWidth, rasterHeight, scaleX, scaleY, mode);
+        rasterizeLod(workspace, textures, radarColors, tileSource, state, rasterWidth, rasterHeight, scaleX, scaleY, mode);
         uploadLodTexture(state, rasterWidth, rasterHeight);
 
         if (state.lodTexture == 0U)
@@ -499,7 +691,7 @@ void saveLodCacheKey(MapCanvasViewState & state,
             return false;
         }
 
-        saveLodCacheKey(state, radarColors, rasterWidth, rasterHeight, canvasSize, framebufferScale);
+        saveLodCacheKey(state, textures, radarColors, tileSource, rasterWidth, rasterHeight, canvasSize, framebufferScale);
         state.lodDisplayMode = mode;
     }
 
@@ -514,7 +706,9 @@ void saveLodCacheKey(MapCanvasViewState & state,
 }
 
 void drawCanvasContents(const MapWorkspace & workspace,
+                        const TextureProvider & textures,
                         const RadarColorProvider & radarColors,
+                        MapViewTileSource tileSource,
                         MapCanvasViewState & state,
                         ImVec2 canvasOrigin,
                         ImVec2 canvasSize,
@@ -538,7 +732,8 @@ void drawCanvasContents(const MapWorkspace & workspace,
         lodZoomThreshold;
 
     if (!useScreenSpaceLod ||
-        !drawScreenSpaceLod(workspace, radarColors, state, *drawList, canvasOrigin, canvasSize, visibleReadError))
+        !drawScreenSpaceLod(
+            workspace, textures, radarColors, tileSource, state, *drawList, canvasOrigin, canvasSize, visibleReadError))
     {
         state.lodCacheValid = false;
         state.lodReadError.reset();
@@ -562,21 +757,29 @@ void drawCanvasContents(const MapWorkspace & workspace,
                     cachedBlockX = blockX;
                 }
 
-                ImU32 color = unavailableColor(tileColumn, tileRow);
-
                 if (cached->block)
                 {
                     const std::uint32_t localIndex =
                         (localY * uomul::mapBlockDimension) + (tileColumn % uomul::mapBlockDimension);
-                    color = colorForTile(mode, cached->block->at(static_cast<std::size_t>(localIndex)), radarColors);
+                    const uomul::MapTile tile = cached->block->at(static_cast<std::size_t>(localIndex));
+                    drawCanvasTile(*drawList,
+                                   state,
+                                   textures,
+                                   radarColors,
+                                   tileSource,
+                                   mode,
+                                   tile,
+                                   tileScreenRect(canvasOrigin, state, tileColumn, tileRow));
                 }
                 else if (cached->error && !visibleReadError)
                 {
                     visibleReadError = cached->error;
                 }
-
-                const ScreenRect tile = tileScreenRect(canvasOrigin, state, tileColumn, tileRow);
-                drawList->AddRectFilled(tile.minimum, tile.maximum, color);
+                else
+                {
+                    const ScreenRect tileRect = tileScreenRect(canvasOrigin, state, tileColumn, tileRow);
+                    drawList->AddRectFilled(tileRect.minimum, tileRect.maximum, unavailableColor(tileColumn, tileRow));
+                }
             }
         }
     }
@@ -656,7 +859,7 @@ void drawLayerButton(MapWorkspace & workspace, MapDisplayMode mode, const char *
 
 void drawLayerControls(MapWorkspace & workspace, MapCanvasViewState & state)
 {
-    drawLayerButton(workspace, MapDisplayMode::tileIds, "Tile IDs");
+    drawLayerButton(workspace, MapDisplayMode::tileIds, "Textures");
     ImGui::SameLine();
     drawLayerButton(workspace, MapDisplayMode::z, "Z");
     ImGui::SameLine();
@@ -1014,7 +1217,9 @@ MapColor mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const Rada
 }
 
 void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
+                       const TextureProvider & textures,
                        const RadarColorProvider & radarColors,
+                       MapViewTileSource tileSource,
                        const std::string & windowName,
                        const std::function<void()> & activateDocument,
                        const std::function<void()> & openMap,
@@ -1030,6 +1235,12 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
             const GLuint handle = texture;
             glDeleteTextures(1, &handle);
         };
+    }
+    if (state.textureProviderRevision != textures.status().revision)
+    {
+        clearTextureCache(state);
+        state.textureProviderRevision = textures.status().revision;
+        state.lodCacheValid = false;
     }
     const bool contentsVisible = ImGui::Begin(windowName.c_str(), &visible);
 
@@ -1121,7 +1332,8 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
         }
         else
         {
-            drawCanvasContents(workspace, radarColors, state, canvasOrigin, canvasSize, currentTile, visibleReadError);
+            drawCanvasContents(
+                workspace, textures, radarColors, tileSource, state, canvasOrigin, canvasSize, currentTile, visibleReadError);
         }
     }
 

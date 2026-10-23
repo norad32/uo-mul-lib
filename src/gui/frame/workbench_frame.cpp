@@ -217,6 +217,7 @@ void drawMapPanels(WorkbenchState & state,
         drawBlockInspectorPanel(workspace,
                                 context,
                                 state.providers,
+                                state.preferences.mapViewTileSource,
                                 blockInspectorState,
                                 state.panelRegistry.find(PanelId::blockInspector)->visible);
     }
@@ -443,7 +444,9 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         dockDocumentWindow();
         drawMapCanvasView(
             state.workspace,
+            state.providers.textures(),
             state.providers.radarColors(),
+            state.preferences.mapViewTileSource,
             windowName,
             [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); },
             [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },

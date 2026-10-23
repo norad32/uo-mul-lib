@@ -282,6 +282,46 @@ void drawMetadataSection(PreferencesDialogState & state)
     }
 }
 
+void drawSettingsSection(PreferencesDialogState & state)
+{
+    if (!ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        return;
+    }
+
+    dialogFieldLabel("Show Welcome screen at startup");
+    ImGui::Checkbox("##ShowWelcomeScreen", &state.showWelcomeOnStartup);
+    dialogFieldLabel("ID Format");
+    const char * idFormatLabel = state.idFormat == IdFormat::decimal ? "Decimal" : "Hexadecimal";
+    if (ImGui::BeginCombo("##IdFormat", idFormatLabel))
+    {
+        if (ImGui::Selectable("Hexadecimal", state.idFormat == IdFormat::hexadecimal))
+        {
+            state.idFormat = IdFormat::hexadecimal;
+        }
+        if (ImGui::Selectable("Decimal", state.idFormat == IdFormat::decimal))
+        {
+            state.idFormat = IdFormat::decimal;
+        }
+        ImGui::EndCombo();
+    }
+    dialogFieldLabel("Map view tiles");
+    const char * mapViewTileSourceLabel =
+        state.mapViewTileSource == MapViewTileSource::textures ? "Textures (Radarcol fallback)" : "Radarcol";
+    if (ImGui::BeginCombo("##MapViewTileSource", mapViewTileSourceLabel))
+    {
+        if (ImGui::Selectable("Textures (Radarcol fallback)", state.mapViewTileSource == MapViewTileSource::textures))
+        {
+            state.mapViewTileSource = MapViewTileSource::textures;
+        }
+        if (ImGui::Selectable("Radarcol", state.mapViewTileSource == MapViewTileSource::radarcol))
+        {
+            state.mapViewTileSource = MapViewTileSource::radarcol;
+        }
+        ImGui::EndCombo();
+    }
+}
+
 } // namespace
 
 void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile & profile, const Preferences & preferences)
@@ -293,6 +333,7 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
     state.browser = nullptr;
     state.showWelcomeOnStartup = preferences.showWelcomeOnStartup;
     state.idFormat = preferences.idFormat;
+    state.mapViewTileSource = preferences.mapViewTileSource;
     state.closeRequested = false;
     state.validationRequested = false;
     state.profileSaveRequested = false;
@@ -361,25 +402,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
     ImGui::BeginChild(
         "PreferencesContent", ImVec2(0.0F, contentHeight), ImGuiChildFlags_None, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     drawProfileSection(state);
-    if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        dialogFieldLabel("Show Welcome screen at startup");
-        ImGui::Checkbox("##ShowWelcomeScreen", &state.showWelcomeOnStartup);
-        dialogFieldLabel("ID Format");
-        const char * idFormatLabel = state.idFormat == IdFormat::decimal ? "Decimal" : "Hexadecimal";
-        if (ImGui::BeginCombo("##IdFormat", idFormatLabel))
-        {
-            if (ImGui::Selectable("Hexadecimal", state.idFormat == IdFormat::hexadecimal))
-            {
-                state.idFormat = IdFormat::hexadecimal;
-            }
-            if (ImGui::Selectable("Decimal", state.idFormat == IdFormat::decimal))
-            {
-                state.idFormat = IdFormat::decimal;
-            }
-            ImGui::EndCombo();
-        }
-    }
+    drawSettingsSection(state);
     drawMetadataSection(state);
     ImGui::EndChild();
 
@@ -394,6 +417,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         validateWorkingProfile(state);
         preferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
         preferences.idFormat = state.idFormat;
+        preferences.mapViewTileSource = state.mapViewTileSource;
         state.message = "Changes applied for this dialog session";
     }
 
@@ -406,6 +430,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         activeProfile = state.workingProfile;
         preferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
         preferences.idFormat = state.idFormat;
+        preferences.mapViewTileSource = state.mapViewTileSource;
         state.profileSaveRequested = true;
         profileChanged = true;
         state.visible = false;

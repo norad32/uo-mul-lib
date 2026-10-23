@@ -25,6 +25,7 @@ struct PreferencesDialogState
     bool closeRequested = false;
     bool showWelcomeOnStartup = true;
     IdFormat idFormat = IdFormat::hexadecimal;
+    MapViewTileSource mapViewTileSource = MapViewTileSource::textures;
     std::array<char, preferencesDialogBufferSize> profileName{};
     std::array<char, preferencesDialogBufferSize> sourceRoot{};
     std::map<DataFileRole, std::array<char, preferencesDialogBufferSize>> overrides;
