@@ -70,7 +70,6 @@ void drawViewMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::panelBlockInspector, state.panelRegistry.find(PanelId::blockInspector)->visible);
     drawCommandItem(state, CommandId::panelSelectionStatistics, state.panelRegistry.find(PanelId::selectionStatistics)->visible);
     drawCommandItem(state, CommandId::panelMapInformation, state.panelRegistry.find(PanelId::mapInformation)->visible);
-    drawCommandItem(state, CommandId::panelEditTools, state.panelRegistry.find(PanelId::editTools)->visible);
     drawCommandItem(state, CommandId::panelRadarcol, state.panelRegistry.find(PanelId::radarcol)->visible);
     drawCommandItem(state, CommandId::panelTexmaps, state.panelRegistry.find(PanelId::texmaps)->visible);
     drawCommandItem(state, CommandId::viewToggleLogPanel, state.preferences.showLogPanel);

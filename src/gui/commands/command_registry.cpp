@@ -357,8 +357,6 @@ void registerDefaultCommands(CommandRegistry & registry)
         enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::selectionStatistics)); });
     add(registry, CommandId::panelMapInformation, "view.panel.map-information", "Map Information", "View", "Show or hide map information", "",
         enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::mapInformation)); });
-    add(registry, CommandId::panelEditTools, "view.panel.edit-tools", "Edit Tools", "View", "Show or hide edit tools", "",
-        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::editTools)); });
     add(registry, CommandId::panelRadarcol, "view.panel.radarcol", "Radarcol", "View", "Show or hide radar colors", "",
         enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
     add(registry, CommandId::panelTexmaps, "view.panel.texmaps", "Texmaps", "View", "Show or hide textures", "",

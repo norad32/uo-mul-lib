@@ -53,7 +53,6 @@ const char * tileInspector() noexcept { return "Tile Inspector"; }
 const char * blockInspector() noexcept { return "Block Inspector"; }
 const char * selectionStatistics() noexcept { return "Selection Statistics"; }
 const char * mapInformation() noexcept { return "Map Information"; }
-const char * editTools() noexcept { return "Edit Tools"; }
 const char * radarcol() noexcept { return "Radarcol"; }
 const char * texmaps() noexcept { return "Texmaps"; }
 

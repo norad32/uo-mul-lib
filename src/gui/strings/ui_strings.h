@@ -43,7 +43,6 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * blockInspector() noexcept;
 [[nodiscard]] const char * selectionStatistics() noexcept;
 [[nodiscard]] const char * mapInformation() noexcept;
-[[nodiscard]] const char * editTools() noexcept;
 [[nodiscard]] const char * radarcol() noexcept;
 [[nodiscard]] const char * texmaps() noexcept;
 

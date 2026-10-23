@@ -75,37 +75,48 @@ std::expected<void, Error> validateOutput(const std::filesystem::path & path, bo
     return {};
 }
 
-std::expected<void, Error> validatePairPaths(const std::filesystem::path & outputIndex,
-                                             const std::filesystem::path & outputData,
-                                             bool overwrite,
-                                             const std::filesystem::path * sourceIndex = nullptr,
-                                             const std::filesystem::path * sourceData = nullptr)
+struct PairInPlaceState
 {
-    bool indexInPlace = false;
-    bool dataInPlace = false;
-    if (sourceIndex != nullptr && sourceData != nullptr)
-    {
-        auto exactIndex = detail::MulCommon::pathsExactlyMatch(*sourceIndex, outputIndex);
-        if (!exactIndex)
-        {
-            return std::unexpected(exactIndex.error());
-        }
-        indexInPlace = *exactIndex;
+    bool index = false;
+    bool data = false;
+};
 
-        auto exactData = detail::MulCommon::pathsExactlyMatch(*sourceData, outputData);
-        if (!exactData)
-        {
-            return std::unexpected(exactData.error());
-        }
-        dataInPlace = *exactData;
+std::expected<PairInPlaceState, Error> determinePairInPlaceState(const std::filesystem::path & outputIndex,
+                                                                  const std::filesystem::path & outputData,
+                                                                  const std::filesystem::path * sourceIndex,
+                                                                  const std::filesystem::path * sourceData)
+{
+    if (sourceIndex == nullptr || sourceData == nullptr)
+    {
+        return PairInPlaceState{};
     }
 
-    if (auto valid = validateOutput(outputIndex, overwrite || indexInPlace); !valid)
+    auto exactIndex = detail::MulCommon::pathsExactlyMatch(*sourceIndex, outputIndex);
+    if (!exactIndex)
+    {
+        return std::unexpected(exactIndex.error());
+    }
+
+    auto exactData = detail::MulCommon::pathsExactlyMatch(*sourceData, outputData);
+    if (!exactData)
+    {
+        return std::unexpected(exactData.error());
+    }
+
+    return PairInPlaceState{.index = *exactIndex, .data = *exactData};
+}
+
+std::expected<void, Error> validatePairOutputs(const std::filesystem::path & outputIndex,
+                                               const std::filesystem::path & outputData,
+                                               bool overwrite,
+                                               const PairInPlaceState & inPlace)
+{
+    if (auto valid = validateOutput(outputIndex, overwrite || inPlace.index); !valid)
     {
         return valid;
     }
 
-    if (auto valid = validateOutput(outputData, overwrite || dataInPlace); !valid)
+    if (auto valid = validateOutput(outputData, overwrite || inPlace.data); !valid)
     {
         return valid;
     }
@@ -122,30 +133,72 @@ std::expected<void, Error> validatePairPaths(const std::filesystem::path & outpu
             detail::MulCommon::makeError(ErrorCode::io, outputData, 0, "index and data outputs must be different files"));
     }
 
-    if (sourceIndex != nullptr && sourceData != nullptr)
-    {
-        for (const auto * source : {sourceIndex, sourceData})
-        {
-            for (const auto * output : {&outputIndex, &outputData})
-            {
-                alias = detail::MulCommon::pathsAlias(*source, *output);
-                if (!alias)
-                {
-                    return std::unexpected(alias.error());
-                }
+    return {};
+}
 
-                const bool isMatchingInPlaceOutput = (source == sourceIndex && output == &outputIndex && indexInPlace) ||
-                                                     (source == sourceData && output == &outputData && dataInPlace);
-                if (*alias && !isMatchingInPlaceOutput)
-                {
-                    return std::unexpected(detail::MulCommon::makeError(
-                        ErrorCode::io, *output, 0, "texture outputs must not alias either source file"));
-                }
-            }
-        }
+std::expected<void, Error> validateSourceOutputAlias(const std::filesystem::path & source,
+                                                     const std::filesystem::path & output,
+                                                     bool allowInPlace)
+{
+    auto alias = detail::MulCommon::pathsAlias(source, output);
+    if (!alias)
+    {
+        return std::unexpected(alias.error());
+    }
+
+    if (*alias && !allowInPlace)
+    {
+        return std::unexpected(
+            detail::MulCommon::makeError(ErrorCode::io, output, 0, "texture outputs must not alias either source file"));
     }
 
     return {};
+}
+
+std::expected<void, Error> validateSourceOutputAliases(const std::filesystem::path & outputIndex,
+                                                       const std::filesystem::path & outputData,
+                                                       const std::filesystem::path * sourceIndex,
+                                                       const std::filesystem::path * sourceData,
+                                                       const PairInPlaceState & inPlace)
+{
+    if (sourceIndex == nullptr || sourceData == nullptr)
+    {
+        return {};
+    }
+
+    if (auto valid = validateSourceOutputAlias(*sourceIndex, outputIndex, inPlace.index); !valid)
+    {
+        return valid;
+    }
+    if (auto valid = validateSourceOutputAlias(*sourceIndex, outputData, false); !valid)
+    {
+        return valid;
+    }
+    if (auto valid = validateSourceOutputAlias(*sourceData, outputIndex, false); !valid)
+    {
+        return valid;
+    }
+    return validateSourceOutputAlias(*sourceData, outputData, inPlace.data);
+}
+
+std::expected<void, Error> validatePairPaths(const std::filesystem::path & outputIndex,
+                                             const std::filesystem::path & outputData,
+                                             bool overwrite,
+                                             const std::filesystem::path * sourceIndex = nullptr,
+                                             const std::filesystem::path * sourceData = nullptr)
+{
+    auto inPlace = determinePairInPlaceState(outputIndex, outputData, sourceIndex, sourceData);
+    if (!inPlace)
+    {
+        return std::unexpected(inPlace.error());
+    }
+
+    if (auto valid = validatePairOutputs(outputIndex, outputData, overwrite, *inPlace); !valid)
+    {
+        return valid;
+    }
+
+    return validateSourceOutputAliases(outputIndex, outputData, sourceIndex, sourceData, *inPlace);
 }
 
 std::expected<void, Error> syncDescriptor(int descriptor, const std::filesystem::path & path, ErrorCode code)

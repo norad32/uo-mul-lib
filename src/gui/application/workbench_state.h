@@ -14,7 +14,6 @@
 #include "gui/context/notification_state.h"
 #include "gui/commands/operation_controller.h"
 #include "gui/views/block_inspector_panel.h"
-#include "gui/tools/edit_tools_panel.h"
 #include "gui/views/map_canvas_panel.h"
 #include "gui/views/radarcol_panel.h"
 #include "gui/views/selection_stats_panel.h"
@@ -69,7 +68,6 @@ struct WorkbenchState
     std::string pendingClipboardText;
     BlockInspectorPanelState blockInspectorState;
     SelectionStatsPanelState selectionStatsState;
-    EditToolsPanelState editToolsState;
     RadarcolPanelState radarcolState;
     TexmapsPanelState texmapsState;
     std::vector<core::GuiLogEntry> logEntries;

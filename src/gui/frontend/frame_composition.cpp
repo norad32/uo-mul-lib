@@ -18,7 +18,6 @@
 #include "gui/persistence/preferences.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/providers/data_providers.h"
-#include "gui/tools/edit_tools_panel.h"
 #include "gui/views/block_inspector_panel.h"
 #include "gui/views/log_panel.h"
 #include "gui/views/map_canvas_panel.h"
@@ -105,7 +104,6 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         ImGui::DockBuilderDockWindow("Block Inspector###view.block-inspector", leftNode);
         ImGui::DockBuilderDockWindow("Selection Statistics###view.selection-statistics", leftNode);
         ImGui::DockBuilderDockWindow("Map Information###view.map-information", leftNode);
-        ImGui::DockBuilderDockWindow("Edit Tools###view.edit-tools", rightNode);
         ImGui::DockBuilderDockWindow("Texmaps###view.texmaps", rightNode);
         ImGui::DockBuilderDockWindow("Radarcol###view.radarcol", rightNode);
         ImGui::DockBuilderFinish(dockSpaceId);
@@ -118,7 +116,6 @@ void drawMapPanels(WorkbenchState & state,
                    const DataProfile & activeProfile,
                    BlockInspectorPanelState & blockInspectorState,
                    SelectionStatsPanelState & selectionStatsState,
-                   EditToolsPanelState & editToolsState,
                    RadarcolPanelState & radarcolState,
                    TexmapsPanelState & texmapsState)
 {
@@ -145,10 +142,6 @@ void drawMapPanels(WorkbenchState & state,
     if (mapActive && state.panelRegistry.find(PanelId::mapInformation)->visible)
     {
         drawMapInfoPanel(workspace, state.panelRegistry.find(PanelId::mapInformation)->visible);
-    }
-    if (mapActive && state.panelRegistry.find(PanelId::editTools)->visible)
-    {
-        drawEditToolsPanel(workspace, editToolsState, state.preferences.idFormat, state.panelRegistry.find(PanelId::editTools)->visible);
     }
     if (state.panelRegistry.find(PanelId::radarcol)->visible)
     {
@@ -591,12 +584,11 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         drawDocumentSurface(state);
         processDocumentIntents(state);
         drawMapPanels(state,
-                      state.activeProfile,
-                      state.blockInspectorState,
-                      state.selectionStatsState,
-                      state.editToolsState,
-                      state.radarcolState,
-                      state.texmapsState);
+                       state.activeProfile,
+                       state.blockInspectorState,
+                       state.selectionStatsState,
+                       state.radarcolState,
+                       state.texmapsState);
         notifyRadarcolFallback(state);
         if (state.workspace.reader() != nullptr && state.recentMapRecordedPath != state.workspace.mapPath())
         {

@@ -13,7 +13,6 @@ enum class PanelId : std::uint8_t
     blockInspector,
     selectionStatistics,
     mapInformation,
-    editTools,
     radarcol,
     texmaps,
 };
