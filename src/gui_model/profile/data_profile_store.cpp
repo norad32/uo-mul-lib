@@ -82,26 +82,6 @@ void addParseDiagnostic(DataProfileLoadResult & result, const std::filesystem::p
     return std::string(dataFileRoleName(role)) + ".path";
 }
 
-void parseSchemaVersion(DataProfileLoadResult & result,
-                        const std::filesystem::path & path,
-                        std::istringstream & line,
-                        std::string_view key)
-{
-    std::uint32_t schema = 0;
-    if (!(line >> schema))
-    {
-        addParseDiagnostic(result, path, key);
-    }
-    else if (schema == DataProfile::currentSchemaVersion)
-    {
-        result.profile.schemaVersion = DataProfile::currentSchemaVersion;
-    }
-    else
-    {
-        addDiagnostic(result, Diagnostic::Severity::error, "data profile schema is newer than this application", path);
-    }
-}
-
 [[nodiscard]] bool parseGeneralField(DataProfileLoadResult & result,
                                      const std::filesystem::path & path,
                                      std::string_view key,
@@ -216,12 +196,8 @@ void parseProfileLine(DataProfileLoadResult & result,
 {
     std::istringstream line{std::string(rawValue)};
     std::string value;
-    if (key == "schema_version")
-    {
-        parseSchemaVersion(result, path, line, key);
-    }
-    else if (!parseGeneralField(result, path, key, line, value) && !parseRolePath(result, path, key, line, value) &&
-             !parseRoleOverride(result, path, key, line))
+    if (key != "schema_version" && !parseGeneralField(result, path, key, line, value) &&
+        !parseRolePath(result, path, key, line, value) && !parseRoleOverride(result, path, key, line))
     {
         addDiagnostic(result, Diagnostic::Severity::info, "ignored unknown profile key '" + std::string(key) + "'", path);
     }
@@ -308,6 +284,11 @@ DataProfileLoadResult DataProfileStore::load(std::string_view profileName) const
 void DataProfileStore::save(const DataProfile & profile) const
 {
     saveDataProfile(profile, path(profile.name));
+}
+
+void DataProfileStore::remove(std::string_view profileName) const
+{
+    std::filesystem::remove(path(profileName));
 }
 
 std::filesystem::path DataProfileStore::path(std::string_view profileName) const

@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -36,6 +37,7 @@ struct PreferencesDialogState
     DiscoveryMode discoveryMode = DiscoveryMode::folder;
     bool validationRequested = false;
     bool profileSaveRequested = false;
+    std::optional<std::string> profileDeleteRequested;
     std::string message;
 };
 

@@ -44,7 +44,7 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
         .autoScroll = false,
         .logPanelCollapsed = true,
         .logPanelHeight = expectedLogPanelHeight,
-        .activeDataProfile = {},
+        .activeDataProfile = "Classic UO Felucca",
         .showWelcomeOnStartup = false,
         .idFormat = uo_mule::gui::IdFormat::decimal,
         .texmapsHideUnused = true,
@@ -66,6 +66,7 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
     REQUIRE(actual.texmapsHideUnused);
     REQUIRE(actual.texmapsTablePresentation);
     REQUIRE(actual.workspaceFullscreen);
+    REQUIRE(actual.activeDataProfile == "Classic UO Felucca");
     std::filesystem::remove_all(configDirectory);
 }
 
@@ -106,4 +107,17 @@ TEST_CASE("savePreferences_Should_ReplaceExistingPreferences")
     REQUIRE(std::filesystem::is_regular_file(preferencesFile));
     REQUIRE(loaded.showLogPanel);
     std::filesystem::remove_all(preferencesDirectory);
+}
+
+TEST_CASE("preferences_Should_PersistLastActiveProfile")
+{
+    const auto preferencesFile = std::filesystem::temp_directory_path() / "pref-active-profile" / "preferences.conf";
+    std::filesystem::remove_all(preferencesFile.parent_path());
+
+    uo_mule::gui::Preferences preferences;
+    preferences.activeDataProfile = "Classic UO Felucca";
+    uo_mule::gui::savePreferences(preferences, preferencesFile);
+
+    REQUIRE(uo_mule::gui::loadPreferences(preferencesFile).activeDataProfile == "Classic UO Felucca");
+    std::filesystem::remove_all(preferencesFile.parent_path());
 }

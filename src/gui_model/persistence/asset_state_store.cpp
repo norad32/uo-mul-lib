@@ -5,7 +5,6 @@
 #include "gui_model/persistence/config_paths.h"
 #include "gui_model/source/source_identity.h"
 #include <cstddef>
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -131,16 +130,11 @@ std::vector<AssetStateRecord> loadAssetState(const std::filesystem::path & path)
 
     std::ifstream file(path);
     std::string key;
-    std::uint32_t version = currentAssetStateSchemaVersion + 1U;
     while (file >> key)
     {
         if (key == "schema_version")
         {
-            file >> version;
-            if (version != currentAssetStateSchemaVersion)
-            {
-                return {};
-            }
+            std::getline(file, key);
         }
         else if (key == "record")
         {

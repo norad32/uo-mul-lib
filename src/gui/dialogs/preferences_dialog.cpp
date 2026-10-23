@@ -162,8 +162,27 @@ void drawProfileSection(PreferencesDialogState & state)
     if (ImGui::Button("Save Profile"))
     {
         state.workingProfile.name = state.profileName.data();
+        state.profileSaveRequested = true;
         refreshProfiles(state);
         state.message = "Profile saved";
+    }
+
+    ImGui::SameLine();
+    const bool canDeleteProfile =
+        !state.workingProfile.name.empty() && std::filesystem::exists(dataProfilePath(state.workingProfile.name));
+    if (canDeleteProfile)
+    {
+        if (ImGui::Button("Delete Profile"))
+        {
+            state.profileDeleteRequested = state.workingProfile.name;
+            state.visible = false;
+        }
+    }
+    else
+    {
+        ImGui::BeginDisabled();
+        ImGui::Button("Delete Profile");
+        ImGui::EndDisabled();
     }
 }
 
@@ -256,6 +275,8 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
     state.idFormat = preferences.idFormat;
     state.closeRequested = false;
     state.validationRequested = false;
+    state.profileSaveRequested = false;
+    state.profileDeleteRequested.reset();
     initializeDialogFields(state);
     syncWorkingProfile(state);
     state.validation = validateDataProfile(state.workingProfile);
@@ -365,6 +386,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         activeProfile = state.workingProfile;
         preferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
         preferences.idFormat = state.idFormat;
+        state.profileSaveRequested = true;
         profileChanged = true;
         state.visible = false;
     }

@@ -81,7 +81,7 @@ void refreshEntryValidity(RecentFile & file)
     }
 }
 
-[[nodiscard]] std::optional<RecentFile> loadRecentEntry(std::ifstream & file, std::uint32_t version)
+[[nodiscard]] std::optional<RecentFile> loadRecentEntry(std::ifstream & file)
 {
     RecentFile result;
     std::string mapPath;
@@ -97,41 +97,19 @@ void refreshEntryValidity(RecentFile & file)
         result.dimensions = uomul::Dimensions{.widthTiles = width, .heightTiles = height};
     }
     file >> std::quoted(result.facet) >> std::quoted(result.failure);
-    if (version == recentFilesSchemaVersion)
+    std::string kind;
+    file >> std::quoted(kind) >> result.itemCount >> std::quoted(companionPath);
+    if (const auto parsedKind = documentKindFromStableName(kind))
     {
-        std::string kind;
-        file >> std::quoted(kind) >> result.itemCount >> std::quoted(companionPath);
-        if (const auto parsedKind = documentKindFromStableName(kind))
-        {
-            result.kind = *parsedKind;
-        }
-        else
-        {
-            result.kind = DocumentKind::unavailable;
-            result.failure = "Unsupported document kind: " + kind;
-        }
-        result.companionPath = companionPath;
-        file >> result.lastOpened >> result.lastModified;
+        result.kind = *parsedKind;
     }
-    else if (version == 4)
+    else
     {
-        std::uint32_t kind = 0;
-        file >> kind >> std::quoted(companionPath);
-        if (kind <= static_cast<std::uint32_t>(DocumentKind::texmapPair))
-        {
-            result.kind = static_cast<DocumentKind>(kind);
-        }
-        result.companionPath = companionPath;
-        file >> result.lastOpened >> result.lastModified;
+        result.kind = DocumentKind::unavailable;
+        result.failure = "Unsupported document kind: " + kind;
     }
-    else if (version == 3)
-    {
-        file >> result.lastOpened >> result.lastModified;
-    }
-    else if (version == 2)
-    {
-        file >> result.lastOpened;
-    }
+    result.companionPath = companionPath;
+    file >> result.lastOpened >> result.lastModified;
     if (!file || result.path.empty())
     {
         return std::nullopt;
@@ -160,12 +138,11 @@ std::vector<RecentFile> loadRecentFiles(const std::filesystem::path & path)
     std::vector<RecentFile> result;
     std::ifstream file(path);
     std::string key;
-    std::uint32_t version = 0;
     while (file >> key)
     {
         if (key == "schema_version")
         {
-            file >> version;
+            std::getline(file, key);
             continue;
         }
         if (key != "map" && key != "file")
@@ -175,16 +152,12 @@ std::vector<RecentFile> loadRecentFiles(const std::filesystem::path & path)
             continue;
         }
 
-        if (const auto map = loadRecentEntry(file, version))
+        if (const auto map = loadRecentEntry(file))
         {
             result.push_back(*map);
         }
     }
 
-    if (version != recentFilesSchemaVersion)
-    {
-        result.clear();
-    }
     for (auto & map : result)
     {
         refreshEntryValidity(map);

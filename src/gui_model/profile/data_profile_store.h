@@ -23,6 +23,7 @@ public:
     explicit DataProfileStore(std::filesystem::path directory = {});
     [[nodiscard]] DataProfileLoadResult load(std::string_view profileName) const;
     void save(const DataProfile & profile) const;
+    void remove(std::string_view profileName) const;
     [[nodiscard]] std::filesystem::path path(std::string_view profileName) const;
 
 private:

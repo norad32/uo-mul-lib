@@ -459,8 +459,8 @@ int Application::run()
             assets::resetAssetState(state.assetStateRecords);
         }
         assets::saveAssetState(assets::assetStatePath(), state.assetStateRecords);
-        savePreferences(state.preferences);
     }
+    savePreferences(state.preferences);
 
     SPDLOG_LOGGER_INFO(logger_, "GUI closed");
     return 0;

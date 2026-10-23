@@ -71,7 +71,7 @@ TEST_CASE("DataProfileStore_Should_IgnoreUnknownKeysAndRejectUnsafeProfileNames"
     const auto profilePath = directory.path() / "unknown.profile";
     {
         std::ofstream file(profilePath);
-        file << "schema_version 1\n"
+        file << "schema_version 0\n"
                 "name \"Fixture\"\n"
                 "unknown_setting \"ignored\"\n"
                 "map0.path \"map0.mul\"\n";
@@ -79,7 +79,7 @@ TEST_CASE("DataProfileStore_Should_IgnoreUnknownKeysAndRejectUnsafeProfileNames"
 
     const auto loaded = uo_mule::gui::loadDataProfile(profilePath);
     REQUIRE(loaded.profile.files.empty());
-    REQUIRE(loaded.diagnostics.size() == 3);
+    REQUIRE(loaded.diagnostics.size() == 2);
 
     const auto safePath = uo_mule::gui::dataProfilePath("../secret/profile", directory.path());
     REQUIRE(safePath.parent_path() == directory.path());
@@ -95,6 +95,19 @@ TEST_CASE("DataProfileStore_Should_ReturnDefaultsWhenProfileIsMissing")
     REQUIRE(loaded.diagnostics.empty());
     REQUIRE(loaded.profile.schemaVersion == uo_mule::gui::DataProfile::currentSchemaVersion);
     REQUIRE(loaded.profile.name.empty());
+}
+
+TEST_CASE("DataProfileStore_Should_DeleteProfile")
+{
+    const TemporaryProfileDirectory directory;
+    const uo_mule::gui::DataProfileStore store(directory.path());
+    uo_mule::gui::DataProfile profile;
+    profile.name = "To Delete";
+    store.save(profile);
+
+    REQUIRE(std::filesystem::is_regular_file(store.path(profile.name)));
+    store.remove(profile.name);
+    REQUIRE_FALSE(std::filesystem::exists(store.path(profile.name)));
 }
 
 TEST_CASE("DataProfileValidation_Should_ReportIncompleteTexturePair")

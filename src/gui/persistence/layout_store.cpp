@@ -3,7 +3,6 @@
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/persistence/config_paths.h"
 #include <cstddef>
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -16,16 +15,11 @@ namespace uo_mule::gui
 namespace
 {
 
-void loadPanel(std::ifstream & file, PanelRegistry & registry, bool validSchema)
+void loadPanel(std::ifstream & file, PanelRegistry & registry)
 {
     std::string stableId;
     bool visible = false;
     file >> std::quoted(stableId) >> visible;
-    if (!validSchema)
-    {
-        return;
-    }
-
     for (auto & panel : registry.panels())
     {
         if (panel.stableId == stableId)
@@ -35,18 +29,18 @@ void loadPanel(std::ifstream & file, PanelRegistry & registry, bool validSchema)
     }
 }
 
-void loadWindowGeometry(std::ifstream & file, WorkspaceLayout & layout, bool validSchema)
+void loadWindowGeometry(std::ifstream & file, WorkspaceLayout & layout)
 {
     WindowLayout window;
     file >> window.x >> window.y >> window.width >> window.height;
-    if (validSchema && window.width > 0 && window.height > 0)
+    if (window.width > 0 && window.height > 0)
     {
         window.geometryValid = true;
         layout.window = window;
     }
 }
 
-void loadDockingIni(std::ifstream & file, WorkspaceLayout & layout, bool validSchema)
+void loadDockingIni(std::ifstream & file, WorkspaceLayout & layout)
 {
     std::size_t size = 0;
     file >> size;
@@ -54,7 +48,7 @@ void loadDockingIni(std::ifstream & file, WorkspaceLayout & layout, bool validSc
     std::string dockingIni(size, '\0');
     file.read(dockingIni.data(), static_cast<std::streamsize>(size));
     const bool hasDelimiter = file.get() != std::char_traits<char>::eof();
-    if (validSchema && hasDelimiter)
+    if (hasDelimiter)
     {
         layout.dockingIni = std::move(dockingIni);
     }
@@ -89,26 +83,19 @@ void loadLayout(const std::filesystem::path & path, PanelRegistry & registry, Wo
     std::ifstream file(path);
     std::string key;
     std::string value;
-    bool validSchema = false;
     while (file >> key)
     {
-        if (key == "schema_version")
+        if (key == "panel")
         {
-            std::uint32_t version = 0;
-            file >> version;
-            validSchema = version == currentLayoutSchemaVersion;
-        }
-        else if (key == "panel")
-        {
-            loadPanel(file, registry, validSchema);
+            loadPanel(file, registry);
         }
         else if (key == "window_geometry")
         {
-            loadWindowGeometry(file, layout, validSchema);
+            loadWindowGeometry(file, layout);
         }
         else if (key == "docking_ini_size")
         {
-            loadDockingIni(file, layout, validSchema);
+            loadDockingIni(file, layout);
         }
         else
         {

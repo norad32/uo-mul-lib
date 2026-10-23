@@ -860,6 +860,26 @@ void updateAssetStateRecord(std::vector<assets::AssetStateRecord> & records, ass
 
 void applyPendingPersistence(WorkbenchState & state)
 {
+    if (state.menuBarState.preferencesDialog.profileDeleteRequested)
+    {
+        const std::string profileName = *state.menuBarState.preferencesDialog.profileDeleteRequested;
+        try
+        {
+            state.profileStore.remove(profileName);
+            state.menuBarState.preferencesDialog.profileDeleteRequested.reset();
+            if (state.activeProfile.name == profileName)
+            {
+                state.activeProfile = {};
+                state.preferences.activeDataProfile.clear();
+                applyProfileChange(state);
+            }
+        }
+        catch (const std::exception & error)
+        {
+            state.menuBarState.preferencesDialog.profileDeleteRequested.reset();
+            state.notifications.add(NotificationSeverity::error, "Profile deletion failed: " + std::string(error.what()));
+        }
+    }
     if (state.menuBarState.preferencesDialog.profileSaveRequested)
     {
         try
@@ -921,8 +941,9 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
     state.nativeWelcomeWindowMode = welcome;
 }
 
-void drawWelcomeOrWorkbench(logger::GuiLogSink & logSink, WorkbenchState & state, bool welcome)
+[[nodiscard]] bool drawWelcomeOrWorkbench(logger::GuiLogSink & logSink, WorkbenchState & state, bool welcome)
 {
+    bool profileChanged = false;
     const float bottomPanelHeight =
         welcome ? 0.0F : drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
     if (state.session.startupState() == StartupState::configureProfile)
@@ -934,7 +955,7 @@ void drawWelcomeOrWorkbench(logger::GuiLogSink & logSink, WorkbenchState & state
         state.recentMapRecordedPath.clear();
         drawWelcomeScreen(state);
         notifyRadarcolFallback(state);
-        static_cast<void>(drawMenuBar(state, false));
+        profileChanged = drawMenuBar(state, false);
     }
     else
     {
@@ -958,6 +979,7 @@ void drawWelcomeOrWorkbench(logger::GuiLogSink & logSink, WorkbenchState & state
         drawStatusBar(state, bottomPanelHeight);
     }
     drawNotifications(state.notifications);
+    return profileChanged;
 }
 
 } // namespace
@@ -990,7 +1012,11 @@ void drawWorkbenchFrame(GLFWwindow * window, logger::GuiLogSink & logSink, Workb
         toggleFullscreen(window, state);
     }
     dispatchShortcuts(state, !welcome);
-    drawWelcomeOrWorkbench(logSink, state, welcome);
+    const bool welcomeProfileChanged = drawWelcomeOrWorkbench(logSink, state, welcome);
+    if (welcomeProfileChanged)
+    {
+        applyProfileChange(state);
+    }
     applyPendingPreferenceChanges(state);
     applyPendingPersistence(state);
 }
