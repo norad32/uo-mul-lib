@@ -1,11 +1,11 @@
 #pragma once
 
+#include "gui/assets/asset_window_contracts.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/documents/radarcol_document.h"
-#include "gui/profile/data_profile.h"
-#include "gui/dialogs/file_browser_dialog.h"
-#include "gui/assets/asset_window_contracts.h"
 #include "gui/persistence/preferences.h"
+#include "gui/profile/data_profile.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
 #include <cstddef>
@@ -34,14 +34,12 @@ struct RadarcolPanelState
 [[nodiscard]] std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::uint16_t id);
 void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile);
 void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult & result);
-void drawRadarcolPanel(RadarcolPanelState & state,
-                       bool & visible,
-                       IdFormat idFormat);
+void drawRadarcolPanel(RadarcolPanelState & state, bool & visible, IdFormat idFormat);
 void drawRadarcolDocumentPanel(RadarcolPanelState & state,
                                RadarcolDocument & document,
-                                bool & visible,
-                                FileBrowserState & browser,
-                                IdFormat idFormat,
-                                const std::function<void()> & becameVisible = {});
+                               bool & visible,
+                               FileBrowserState & browser,
+                               IdFormat idFormat,
+                               const std::function<void()> & becameVisible = {});
 
 } // namespace uo_mule::gui

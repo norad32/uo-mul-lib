@@ -3,9 +3,9 @@
 #include "gui/metadata/document_contracts.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
+#include <cstdint>
 #include <expected>
 #include <filesystem>
-#include <cstdint>
 #include <optional>
 #include <string>
 #include <utility>
@@ -27,14 +27,13 @@ RadarcolDocument::RadarcolDocument(DocumentId id,
                                    std::filesystem::path sourcePath,
                                    std::optional<uomul::RadarColReader> reader,
                                    DocumentAccess access,
-                                   std::string error)
-    : id_(id), sourcePath_(std::move(sourcePath)), reader_(std::move(reader)), error_(std::move(error)), access_(access)
+                                   std::string error) :
+    id_(id), sourcePath_(std::move(sourcePath)), reader_(std::move(reader)), error_(std::move(error)), access_(access)
 {
 }
 
-std::expected<RadarcolDocument, uomul::Error> RadarcolDocument::open(DocumentId id,
-                                                                      const std::filesystem::path & sourcePath,
-                                                                      DocumentAccess access)
+std::expected<RadarcolDocument, uomul::Error>
+RadarcolDocument::open(DocumentId id, const std::filesystem::path & sourcePath, DocumentAccess access)
 {
     auto reader = uomul::RadarColReader::open(sourcePath);
     if (!reader)
@@ -45,10 +44,8 @@ std::expected<RadarcolDocument, uomul::Error> RadarcolDocument::open(DocumentId 
     return RadarcolDocument{id, sourcePath, std::move(*reader), access, {}};
 }
 
-RadarcolDocument RadarcolDocument::invalid(DocumentId id,
-                                           std::filesystem::path sourcePath,
-                                           DocumentAccess access,
-                                           std::string error)
+RadarcolDocument
+RadarcolDocument::invalid(DocumentId id, std::filesystem::path sourcePath, DocumentAccess access, std::string error)
 {
     return RadarcolDocument{id, std::move(sourcePath), std::nullopt, access, std::move(error)};
 }
@@ -108,8 +105,7 @@ std::expected<void, uomul::Error> RadarcolDocument::processPendingIntent()
     return handleIntent(intent);
 }
 
-std::expected<void, uomul::Error> RadarcolDocument::beginEditing(const std::filesystem::path & output,
-                                                                  bool outputOverwrite)
+std::expected<void, uomul::Error> RadarcolDocument::beginEditing(const std::filesystem::path & output, bool outputOverwrite)
 {
     if (readOnly())
     {
@@ -209,8 +205,7 @@ std::expected<void, uomul::Error> RadarcolDocument::discard()
     return {};
 }
 
-std::expected<void, uomul::Error> RadarcolDocument::saveAs(const std::filesystem::path & output,
-                                                             bool outputOverwrite)
+std::expected<void, uomul::Error> RadarcolDocument::saveAs(const std::filesystem::path & output, bool outputOverwrite)
 {
     if (editor_ && dirtyState_)
     {

@@ -214,9 +214,8 @@ void validateOutputFolder(const DataProfile & profile, DataProfileValidation & r
 
     std::error_code pathError;
     const auto source = std::filesystem::weakly_canonical(profile.sourceRoot, pathError);
-    const auto output = profile.useSourceFolderForOutput
-                            ? source
-                            : std::filesystem::weakly_canonical(profile.outputRoot, pathError);
+    const auto output =
+        profile.useSourceFolderForOutput ? source : std::filesystem::weakly_canonical(profile.outputRoot, pathError);
     if (!pathError && source == output)
     {
         addDiagnostic(result,
@@ -255,9 +254,8 @@ const DataFileValidation * DataProfileValidation::find(DataFileRole role) const 
 
 bool DataProfileValidation::hasErrors() const noexcept
 {
-    return std::ranges::any_of(diagnostics,
-                               [](const Diagnostic & diagnostic)
-                               { return diagnostic.severity == Diagnostic::Severity::error; });
+    return std::ranges::any_of(
+        diagnostics, [](const Diagnostic & diagnostic) { return diagnostic.severity == Diagnostic::Severity::error; });
 }
 
 DataProfileValidation validateDataProfile(const DataProfile & profile)

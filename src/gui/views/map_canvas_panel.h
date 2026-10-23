@@ -4,9 +4,9 @@
 #include "gui/providers/data_providers.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
+#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <array>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -103,9 +103,8 @@ struct MapCanvasPanelState
     std::array<char, coordinateInputBufferSize> coordinateInput{};
 };
 
-[[nodiscard]] MapColor mapCanvasTileColor(MapDisplayMode mode,
-                                          uomul::MapTile tile,
-                                          const RadarColorProvider & radarColors) noexcept;
+[[nodiscard]] MapColor
+mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const RadarColorProvider & radarColors) noexcept;
 
 void drawMapCanvasPanel(MapWorkspaceManager & workspace,
                         const RadarColorProvider & radarColors,

@@ -7,17 +7,17 @@
 #include "gui/dialogs/new_file_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/document_identity.h"
+#include "gui/documents/radarcol_document.h"
 #include "gui/metadata/document_contracts.h"
 #include "gui/profile/workbench_session.h"
+#include "gui/strings/ui_strings.h"
 #include "gui/views/radarcol_panel.h"
 #include "gui/views/texmaps_panel.h"
-#include "gui/documents/radarcol_document.h"
-#include "gui/views/common.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
+#include <filesystem>
 #include <string>
 #include <utility>
-#include <filesystem>
 
 namespace uo_mule::gui
 {
@@ -26,25 +26,26 @@ namespace
 
 void syncDialogHost(WorkbenchState & state)
 {
-    const auto mapWorkflow = [](MapFileDialogMode mode) noexcept {
+    const auto mapWorkflow = [](MapFileDialogMode mode) noexcept
+    {
         switch (mode)
         {
-            case MapFileDialogMode::openMap:
+            case MapFileDialogMode::openMap :
                 return MapDialogWorkflow::open;
-            case MapFileDialogMode::newMap:
+            case MapFileDialogMode::newMap :
                 return MapDialogWorkflow::create;
-            case MapFileDialogMode::saveAs:
+            case MapFileDialogMode::saveAs :
                 return MapDialogWorkflow::saveAs;
-            case MapFileDialogMode::dirtyChanges:
+            case MapFileDialogMode::dirtyChanges :
                 return MapDialogWorkflow::dirtyChanges;
-            case MapFileDialogMode::overwrite:
+            case MapFileDialogMode::overwrite :
                 return MapDialogWorkflow::overwrite;
-            case MapFileDialogMode::error:
+            case MapFileDialogMode::error :
                 return MapDialogWorkflow::error;
-            case MapFileDialogMode::newType:
-            case MapFileDialogMode::selectMapFacet:
+            case MapFileDialogMode::newType :
+            case MapFileDialogMode::selectMapFacet :
                 return MapDialogWorkflow::create;
-            case MapFileDialogMode::none:
+            case MapFileDialogMode::none :
                 break;
         }
         return MapDialogWorkflow::error;
@@ -55,20 +56,19 @@ void syncDialogHost(WorkbenchState & state)
     const bool preferencesVisible = state.menuBarState.preferencesDialog.visible;
     if (browserVisible)
     {
-        auto request = makeDialogRequest(DialogId::fileBrowser,
-                                         FileBrowserDialogRequest{.request = state.fileBrowser.request});
+        auto request = makeDialogRequest(DialogId::fileBrowser, FileBrowserDialogRequest{.request = state.fileBrowser.request});
         request.replaceActive = true;
         state.dialogHost.activate(std::move(request));
     }
     else if (selectorVisible)
     {
-        state.dialogHost.activate(makeDialogRequest(DialogId::fileSelector,
-                                                     FileSelectorDialogRequest{.sourcePath = state.fileSelector.browserResult.path}));
+        state.dialogHost.activate(makeDialogRequest(
+            DialogId::fileSelector, FileSelectorDialogRequest{.sourcePath = state.fileSelector.browserResult.path}));
     }
     else if (mapDialogVisible)
     {
-        state.dialogHost.activate(makeDialogRequest(DialogId::mapWorkflow,
-                                                     MapDialogRequest{.workflow = mapWorkflow(state.menuBarState.fileDialog.mode)}));
+        state.dialogHost.activate(makeDialogRequest(
+            DialogId::mapWorkflow, MapDialogRequest{.workflow = mapWorkflow(state.menuBarState.fileDialog.mode)}));
     }
     else if (preferencesVisible)
     {
@@ -119,12 +119,12 @@ void createNewAsset(WorkbenchState & state, FileBrowserTarget target, const std:
         auto created = uomul::RadarColEditor::createEmpty(path);
         if (!created)
         {
-            state.notifications.add(NotificationSeverity::error, formatError(created.error()));
+            state.notifications.add(NotificationSeverity::error, strings::formatError(created.error()));
             return;
         }
         if (auto committed = created->commit(); !committed)
         {
-            state.notifications.add(NotificationSeverity::error, formatError(committed.error()));
+            state.notifications.add(NotificationSeverity::error, strings::formatError(committed.error()));
             return;
         }
         openCreatedAsset(state, DocumentKind::radarcol, path);
@@ -137,20 +137,18 @@ void createNewAsset(WorkbenchState & state, FileBrowserTarget target, const std:
     auto created = uomul::TexMapsEditor::createEmpty(indexPath, path);
     if (!created)
     {
-        state.notifications.add(NotificationSeverity::error, formatError(created.error()));
+        state.notifications.add(NotificationSeverity::error, strings::formatError(created.error()));
         return;
     }
     if (auto committed = created->commit(); !committed)
     {
-        state.notifications.add(NotificationSeverity::error, formatError(committed.error()));
+        state.notifications.add(NotificationSeverity::error, strings::formatError(committed.error()));
         return;
     }
     openCreatedAsset(state, DocumentKind::texmapPair, indexPath, path);
 }
 
-bool openGenericAsset(WorkbenchState & state,
-                      const FileBrowserResult & result,
-                      const FileBrowserAssetCandidate & candidate)
+bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, const FileBrowserAssetCandidate & candidate)
 {
     if (candidate.kind == MulAssetKind::map)
     {
@@ -163,7 +161,7 @@ bool openGenericAsset(WorkbenchState & state,
     // Generic Open starts with the map workflow for map candidates. Once an
     // asset is selected, that workflow must not remain active behind the new
     // standalone document.
-        cancelFileDialog(state.menuBarState.fileDialog);
+    cancelFileDialog(state.menuBarState.fileDialog);
 
     DocumentSummary summary;
     summary.identity.kind = candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair;
@@ -189,6 +187,43 @@ bool openGenericAsset(WorkbenchState & state,
                                    candidate.companionPath,
                                    candidate.itemCount);
     return false;
+}
+
+bool routePairResult(WorkbenchState & state, const FileBrowserResult & result, const FileBrowserAssetCandidate & pair)
+{
+    auto indexResult = result;
+    indexResult.target = FileBrowserTarget::texmapsIndex;
+    indexResult.path = pair.path;
+    auto dataResult = result;
+    dataResult.target = FileBrowserTarget::texmapsData;
+    dataResult.path = pair.companionPath;
+    applyFileBrowserResult(state.texmapsState, indexResult);
+    applyFileBrowserResult(state.texmapsState, dataResult);
+    applyFileBrowserResult(state.menuBarState.preferencesDialog, indexResult);
+    applyFileBrowserResult(state.menuBarState.preferencesDialog, dataResult);
+    return false;
+}
+
+void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
+{
+    applyFileBrowserResult(state.menuBarState.fileDialog, result);
+    applyFileBrowserResult(state.menuBarState.preferencesDialog, result);
+    if (result.target == FileBrowserTarget::radarcolOutput)
+    {
+        if (auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+        {
+            active->radarcol->requestIntent({
+                .kind = RadarcolDocumentIntentKind::saveAs,
+                .outputPath = result.path,
+                .overwriteOutput = false,
+            });
+        }
+    }
+    else
+    {
+        applyFileBrowserResult(state.radarcolState, result);
+    }
+    applyFileBrowserResult(state.texmapsState, result);
 }
 
 [[nodiscard]] bool routeFileBrowserResult(WorkbenchState & state, const FileBrowserResult & result)
@@ -218,10 +253,9 @@ bool openGenericAsset(WorkbenchState & state,
         return openGenericAsset(state, result, result.assetCandidates.front());
     }
 
-    if (!result.assetCandidate && (result.target == FileBrowserTarget::genericOpen ||
-                                   result.target == FileBrowserTarget::radarcolSource ||
-                                   result.target == FileBrowserTarget::texmapsIndex ||
-                                   result.target == FileBrowserTarget::texmapsData))
+    if (!result.assetCandidate &&
+        (result.target == FileBrowserTarget::genericOpen || result.target == FileBrowserTarget::radarcolSource ||
+         result.target == FileBrowserTarget::texmapsIndex || result.target == FileBrowserTarget::texmapsData))
     {
         openFileSelector(state.fileSelector, result);
         return false;
@@ -234,37 +268,10 @@ bool openGenericAsset(WorkbenchState & state,
 
     if (result.assetCandidate && result.assetCandidate->kind == MulAssetKind::texmapsPair)
     {
-        const auto & pair = *result.assetCandidate;
-
-        auto indexResult = result;
-        indexResult.target = FileBrowserTarget::texmapsIndex;
-        indexResult.path = pair.path;
-        auto dataResult = result;
-        dataResult.target = FileBrowserTarget::texmapsData;
-        dataResult.path = pair.companionPath;
-        applyFileBrowserResult(state.texmapsState, indexResult);
-        applyFileBrowserResult(state.texmapsState, dataResult);
-        applyFileBrowserResult(state.menuBarState.preferencesDialog, indexResult);
-        applyFileBrowserResult(state.menuBarState.preferencesDialog, dataResult);
-        return false;
+        return routePairResult(state, result, *result.assetCandidate);
     }
 
-    applyFileBrowserResult(state.menuBarState.fileDialog, result);
-    applyFileBrowserResult(state.menuBarState.preferencesDialog, result);
-    if (result.target == FileBrowserTarget::radarcolOutput)
-    {
-        if (auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
-        {
-            active->radarcol->requestIntent({.kind = RadarcolDocumentIntentKind::saveAs,
-                                             .outputPath = result.path,
-                                             .overwriteOutput = false,});
-        }
-    }
-    else
-    {
-        applyFileBrowserResult(state.radarcolState, result);
-    }
-    applyFileBrowserResult(state.texmapsState, result);
+    applyAssetResult(state, result);
     return false;
 }
 
@@ -292,22 +299,26 @@ bool handleFileSelector(WorkbenchState & state)
         const auto original = state.fileSelector.browserResult;
         cancelFileSelector(state.fileSelector);
         requestFileBrowser(state.fileBrowser,
-                           {.mode = FileBrowserMode::openFile,
-                            .target = original.target,
-                            .initialPath = original.path,
-                            .extension = ".mul",
-                            .title = "Open Texture Pair Component",});
+                           {
+                               .mode = FileBrowserMode::openFile,
+                               .target = original.target,
+                               .initialPath = original.path,
+                               .extension = ".mul",
+                               .title = "Open Texture Pair Component",
+                           });
         return false;
     }
     if (action == FileSelectorAction::chooseCompanion)
     {
         const auto original = state.fileSelector.browserResult;
         requestFileBrowser(state.fileBrowser,
-                           {.mode = FileBrowserMode::openFile,
-                            .target = FileBrowserTarget::texmapsCompanion,
-                            .initialPath = original.path.parent_path(),
-                            .extension = ".mul",
-                            .title = "Choose Texture Pair Companion",});
+                           {
+                               .mode = FileBrowserMode::openFile,
+                               .target = FileBrowserTarget::texmapsCompanion,
+                               .initialPath = original.path.parent_path(),
+                               .extension = ".mul",
+                               .title = "Choose Texture Pair Companion",
+                           });
     }
     return false;
 }
@@ -326,12 +337,12 @@ bool drawFileDialogs(WorkbenchState & state)
     if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::mapWorkflow))
     {
         drawNewFileDialog(state.workspace,
-                         state.menuBarState.fileDialog,
-                         state.operationController,
-                         state.activeProfile.outputCollisionPolicy,
-                         state.notifications,
-                         state.fileBrowser,
-                         state.shouldClose);
+                          state.menuBarState.fileDialog,
+                          state.operationController,
+                          state.activeProfile.outputCollisionPolicy,
+                          state.notifications,
+                          state.fileBrowser,
+                          state.shouldClose);
     }
     if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::preferences))
     {
@@ -350,9 +361,11 @@ bool drawFileDialogs(WorkbenchState & state)
     }
     if (result)
     {
-        state.dialogHost.complete({.id = DialogId::fileBrowser,
-                                   .action = DialogAction::accept,
-                                   .payload = *result,});
+        state.dialogHost.complete({
+            .id = DialogId::fileBrowser,
+            .action = DialogAction::accept,
+            .payload = *result,
+        });
         profileChanged = routeFileBrowserResult(state, *result) || profileChanged;
     }
     return handleFileSelector(state) || profileChanged;

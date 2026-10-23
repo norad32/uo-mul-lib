@@ -1,6 +1,15 @@
 #include "gui/assets/asset_window.h"
 #include <catch2/catch_test_macros.hpp>
 
+namespace
+{
+
+constexpr float testCanvasWidth = 640.0F;
+constexpr float testCellWidth = 64.0F;
+constexpr float testCellSpacing = 4.0F;
+
+} // namespace
+
 TEST_CASE("assetGridLayout_Should_UseAtLeastOneColumn")
 {
     const auto layout = uo_mule::gui::assets::gridLayout(5U, 0.0F, 64.0F, 4.0F);
@@ -27,5 +36,5 @@ TEST_CASE("assetGridLayout_Should_NotReserveTrailingSpacing")
 
 TEST_CASE("assetGridLayout_Should_ReturnEmptyForNoItems")
 {
-    REQUIRE(uo_mule::gui::assets::gridLayout(0U, 640.0F, 64.0F, 4.0F).rows == 0U);
+    REQUIRE(uo_mule::gui::assets::gridLayout(0U, testCanvasWidth, testCellWidth, testCellSpacing).rows == 0U);
 }

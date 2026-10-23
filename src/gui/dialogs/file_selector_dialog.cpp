@@ -1,7 +1,7 @@
 #include "gui/dialogs/file_selector_dialog.h"
+#include "gui/dialogs/dialog_presentation.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/frontend/theme.h"
-#include "gui/dialogs/dialog_presentation.h"
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
@@ -30,10 +30,8 @@ FileSelectorAction drawCandidate(FileSelectorState & state, std::size_t index)
     if (candidate.kind == MulAssetKind::map && candidate.dimensions)
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("%s %u x %u",
-                            candidate.facet.c_str(),
-                            candidate.dimensions->widthTiles,
-                            candidate.dimensions->heightTiles);
+        ImGui::TextDisabled(
+            "%s %u x %u", candidate.facet.c_str(), candidate.dimensions->widthTiles, candidate.dimensions->heightTiles);
     }
     else if (candidate.kind == MulAssetKind::radarcol || candidate.kind == MulAssetKind::texmapsPair)
     {
@@ -68,21 +66,16 @@ void openFileSelector(FileSelectorState & state, FileBrowserResult result)
     state.candidates = state.browserResult.assetCandidates;
     if (state.browserResult.target == FileBrowserTarget::radarcolSource)
     {
-        std::erase_if(state.candidates, [](const auto & candidate) {
-            return candidate.kind != MulAssetKind::radarcol;
-        });
+        std::erase_if(state.candidates, [](const auto & candidate) { return candidate.kind != MulAssetKind::radarcol; });
     }
     else if (state.browserResult.target == FileBrowserTarget::texmapsIndex ||
              state.browserResult.target == FileBrowserTarget::texmapsData)
     {
-        std::erase_if(state.candidates, [](const auto & candidate) {
-            return candidate.kind != MulAssetKind::texmapsPair;
-        });
+        std::erase_if(state.candidates, [](const auto & candidate) { return candidate.kind != MulAssetKind::texmapsPair; });
     }
     sortFileBrowserCandidates(state.candidates);
-    const auto firstOpenable = std::ranges::find_if(state.candidates, [](const auto & candidate) {
-        return candidate.openable;
-    });
+    const auto firstOpenable =
+        std::ranges::find_if(state.candidates, [](const auto & candidate) { return candidate.openable; });
     if (firstOpenable != state.candidates.end())
     {
         state.selectedCandidate = static_cast<std::size_t>(std::distance(state.candidates.begin(), firstOpenable));
@@ -108,11 +101,11 @@ FileBrowserResult selectedFileSelectorResult(const FileSelectorState & state)
 bool applyFileSelectorCompanion(FileSelectorState & state, const std::filesystem::path & path)
 {
     const auto selectedName = state.browserResult.path.filename().string();
-    const auto lowerSelectedName = [&selectedName] {
+    const auto lowerSelectedName = [&selectedName]
+    {
         std::string value = selectedName;
-        std::ranges::transform(value, value.begin(), [](unsigned char character) {
-            return static_cast<char>(std::tolower(character));
-        });
+        std::ranges::transform(
+            value, value.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
         return value;
     }();
     const bool selectedIsIndex = lowerSelectedName == "texidx.mul";
@@ -159,8 +152,8 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "%s", state.error.c_str());
     }
-    const bool canAccept = state.selectedCandidate < state.candidates.size() &&
-                           state.candidates.at(state.selectedCandidate).openable;
+    const bool canAccept =
+        state.selectedCandidate < state.candidates.size() && state.candidates.at(state.selectedCandidate).openable;
     beginDialogFooter({"Open", "Cancel"});
     if (dialogButton("Open", canAccept) || (canAccept && ImGui::IsKeyPressed(ImGuiKey_Enter)))
     {
@@ -173,7 +166,7 @@ FileSelectorAction drawFileSelector(FileSelectorState & state)
     {
         endDialogFooter();
         ImGui::EndPopup();
-        return FileSelectorAction::chooseDifferent;
+        return FileSelectorAction::cancel;
     }
     endDialogFooter();
     endDialog();

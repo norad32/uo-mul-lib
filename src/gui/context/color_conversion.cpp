@@ -15,8 +15,7 @@ constexpr std::uint32_t colorChannelMaximum = 255U;
 constexpr std::uint32_t colorChannelValueMaximum = 31U;
 [[nodiscard]] std::uint8_t expandFiveBitChannel(std::uint32_t channel) noexcept
 {
-    return static_cast<std::uint8_t>(((channel * colorChannelMaximum) + (colorChannelMask / 2U)) /
-                                     colorChannelValueMaximum);
+    return static_cast<std::uint8_t>(((channel * colorChannelMaximum) + (colorChannelMask / 2U)) / colorChannelValueMaximum);
 }
 
 } // namespace
@@ -24,17 +23,21 @@ constexpr std::uint32_t colorChannelValueMaximum = 31U;
 MapColor radarColorToMapColor(uomul::RadarColor color) noexcept
 {
     const std::uint32_t packed = static_cast<std::uint32_t>(color);
-    return {.red = expandFiveBitChannel((packed >> colorRedShift) & colorChannelMask),
-            .green = expandFiveBitChannel((packed >> colorGreenShift) & colorChannelMask),
-            .blue = expandFiveBitChannel(packed & colorChannelMask),};
+    return {
+        .red = expandFiveBitChannel((packed >> colorRedShift) & colorChannelMask),
+        .green = expandFiveBitChannel((packed >> colorGreenShift) & colorChannelMask),
+        .blue = expandFiveBitChannel(packed & colorChannelMask),
+    };
 }
 
 MapColor texturePixelToMapColor(std::uint16_t pixel) noexcept
 {
     const std::uint32_t packed = pixel;
-    return {.red = expandFiveBitChannel((packed >> colorRedShift) & colorChannelMask),
-            .green = expandFiveBitChannel((packed >> colorGreenShift) & colorChannelMask),
-            .blue = expandFiveBitChannel(packed & colorChannelMask),};
+    return {
+        .red = expandFiveBitChannel((packed >> colorRedShift) & colorChannelMask),
+        .green = expandFiveBitChannel((packed >> colorGreenShift) & colorChannelMask),
+        .blue = expandFiveBitChannel(packed & colorChannelMask),
+    };
 }
 
 } // namespace uo_mule::gui

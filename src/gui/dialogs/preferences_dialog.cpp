@@ -1,12 +1,12 @@
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/dialogs/dialog_presentation.h"
+#include "gui/dialogs/file_browser_dialog.h"
+#include "gui/frontend/theme.h"
+#include "gui/persistence/preferences.h"
 #include "gui/profile/data_discovery.h"
 #include "gui/profile/data_profile.h"
 #include "gui/profile/data_profile_store.h"
-#include "gui/frontend/theme.h"
 #include "gui/profile/data_validation.h"
-#include "gui/persistence/preferences.h"
-#include "gui/dialogs/file_browser_dialog.h"
-#include "gui/dialogs/dialog_presentation.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/strings/ui_strings.h"
 #include <algorithm>
@@ -214,21 +214,25 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
     ImGui::PushID(label.c_str());
     dialogFieldLabel(label.c_str());
     dialogFieldWidth(pathInputWidth);
-    ImGui::InputText("##Path", path->second.data(), path->second.size(), ImGuiInputTextFlags_ElideLeft | ImGuiInputTextFlags_ReadOnly);
+    ImGui::InputText(
+        "##Path", path->second.data(), path->second.size(), ImGuiInputTextFlags_ElideLeft | ImGuiInputTextFlags_ReadOnly);
     ImGui::SameLine();
     if (ImGui::Button("Browse...##MetadataPath") && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
-                           {.mode = FileBrowserMode::openFile,
-                            .target = FileBrowserTarget::dataOverride,
-                            .role = role,
-                            .initialPath = bufferPath(path->second),
-                            .extension = ".mul",
-                            .title = "Choose Metadata File",});
+                           {
+                               .mode = FileBrowserMode::openFile,
+                               .target = FileBrowserTarget::dataOverride,
+                               .role = role,
+                               .initialPath = bufferPath(path->second),
+                               .extension = ".mul",
+                               .title = "Choose Metadata File",
+                           });
     }
     const auto * validation = state.validation.find(role);
     ImGui::TextDisabled("Status: %s",
-                        validation == nullptr ? "Missing" : std::string(strings::dataFileStatusLabel(validation->status)).c_str());
+                        validation == nullptr ? "Missing"
+                                              : std::string(strings::dataFileStatusLabel(validation->status)).c_str());
     ImGui::PopID();
 }
 
@@ -243,11 +247,13 @@ void drawMetadataSection(PreferencesDialogState & state)
     if (ImGui::Button("Choose folder...##MetadataSearch") && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
-                           {.mode = FileBrowserMode::chooseDirectory,
-                            .target = FileBrowserTarget::dataSearchRoot,
-                            .initialPath = bufferPath(state.sourceRoot),
-                            .extension = {},
-                            .title = "Search Metadata Folder",});
+                           {
+                               .mode = FileBrowserMode::chooseDirectory,
+                               .target = FileBrowserTarget::dataSearchRoot,
+                               .initialPath = bufferPath(state.sourceRoot),
+                               .extension = {},
+                               .title = "Search Metadata Folder",
+                           });
     }
     ImGui::SameLine();
     ImGui::TextDisabled("Search the selected folder for known metadata files.");
@@ -279,16 +285,20 @@ void drawOutputSection(PreferencesDialogState & state)
         return;
     }
 
-    drawPathField("Output folder", state.outputRoot, [&state]
+    drawPathField("Output folder",
+                  state.outputRoot,
+                  [&state]
                   {
                       if (state.browser != nullptr)
                       {
                           requestFileBrowser(*state.browser,
-                                             {.mode = FileBrowserMode::chooseDirectory,
-                                              .target = FileBrowserTarget::dataOutputRoot,
-                                              .initialPath = bufferPath(state.outputRoot),
-                                              .extension = {},
-                                              .title = "Choose Output Folder",});
+                                             {
+                                                 .mode = FileBrowserMode::chooseDirectory,
+                                                 .target = FileBrowserTarget::dataOutputRoot,
+                                                 .initialPath = bufferPath(state.outputRoot),
+                                                 .extension = {},
+                                                 .title = "Choose Output Folder",
+                                             });
                       }
                   });
     dialogFieldLabel("Create if missing");
@@ -312,7 +322,8 @@ void drawOutputSection(PreferencesDialogState & state)
             const auto input = resolvedDataFilePath(state.workingProfile, role);
             if (!input.empty())
             {
-                ImGui::Text("%s -> %s", input.filename().string().c_str(),
+                ImGui::Text("%s -> %s",
+                            input.filename().string().c_str(),
                             (state.workingProfile.outputRoot / input.filename()).string().c_str());
             }
         }
@@ -346,24 +357,24 @@ void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserRes
 {
     switch (result.target)
     {
-    case FileBrowserTarget::dataSourceRoot:
-        copyToBuffer(state.sourceRoot, result.path);
-        break;
-    case FileBrowserTarget::dataSearchRoot:
-        searchMetadataFolder(state, result.path);
-        return;
-    case FileBrowserTarget::dataOutputRoot:
-        copyToBuffer(state.outputRoot, result.path);
-        break;
-    case FileBrowserTarget::dataOverride:
-    {
-        auto & buffer = state.overrides[result.role];
-        copyToBuffer(buffer, result.path);
-        state.metadataOverrides[result.role] = true;
-        break;
-    }
-    default:
-        return;
+        case FileBrowserTarget::dataSourceRoot :
+            copyToBuffer(state.sourceRoot, result.path);
+            break;
+        case FileBrowserTarget::dataSearchRoot :
+            searchMetadataFolder(state, result.path);
+            return;
+        case FileBrowserTarget::dataOutputRoot :
+            copyToBuffer(state.outputRoot, result.path);
+            break;
+        case FileBrowserTarget::dataOverride :
+        {
+            auto & buffer = state.overrides[result.role];
+            copyToBuffer(buffer, result.path);
+            state.metadataOverrides[result.role] = true;
+            break;
+        }
+        default :
+            return;
     }
     validateWorkingProfile(state);
 }
@@ -401,10 +412,8 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
 
     dialogSubheading("Configure your UO data profile and application startup behavior.");
     ImGui::Separator();
-    ImGui::BeginChild("PreferencesContent",
-                      ImVec2(0.0F, contentHeight),
-                      ImGuiChildFlags_None,
-                      ImGuiWindowFlags_AlwaysVerticalScrollbar);
+    ImGui::BeginChild(
+        "PreferencesContent", ImVec2(0.0F, contentHeight), ImGuiChildFlags_None, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     drawProfileSection(state);
     if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
     {

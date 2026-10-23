@@ -206,7 +206,7 @@ struct AssetAdapter
 [[nodiscard]] bool filterMatches(const AssetQuery & query, std::span<const std::string> values);
 void selectSingle(AssetSelection & selection, AssetItemId item);
 void selectSingleAt(AssetSelection & selection, AssetItemId item, std::size_t index);
-void toggleAt(AssetSelection & selection, AssetItemId item, std::size_t index);
+void toggleAt(AssetSelection & selection, const AssetItemId & item, std::size_t index);
 void clear(AssetSelection & selection) noexcept;
 
 } // namespace uo_mule::gui::assets

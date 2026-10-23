@@ -29,14 +29,26 @@ constexpr std::array<FacetSize, 6> facetSizes{
         .heightTiles = 4096,
     },
     FacetSize{
-        .name = "ilshenar", .label = "Ilshenar", .mapLabel = "Ilshenar", .widthTiles = 2304, .heightTiles = 1600,
+        .name = "ilshenar",
+        .label = "Ilshenar",
+        .mapLabel = "Ilshenar",
+        .widthTiles = 2304,
+        .heightTiles = 1600,
     },
     FacetSize{.name = "malas", .label = "Malas", .mapLabel = "Malas", .widthTiles = 2560, .heightTiles = 2048},
     FacetSize{
-        .name = "tokuno", .label = "Tokuno", .mapLabel = "Tokuno", .widthTiles = 1448, .heightTiles = 1448,
+        .name = "tokuno",
+        .label = "Tokuno",
+        .mapLabel = "Tokuno",
+        .widthTiles = 1448,
+        .heightTiles = 1448,
     },
     FacetSize{
-        .name = "ter-mur", .label = "Ter-Mur", .mapLabel = "Ter-Mur", .widthTiles = 1280, .heightTiles = 4096,
+        .name = "ter-mur",
+        .label = "Ter-Mur",
+        .mapLabel = "Ter-Mur",
+        .widthTiles = 1280,
+        .heightTiles = 4096,
     },
 };
 

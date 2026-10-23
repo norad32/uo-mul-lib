@@ -1,11 +1,11 @@
 #pragma once
 
-#include "gui/profile/data_profile.h"
 #include "gui/context/map_context.h"
 #include "gui/documents/map_document.h"
 #include "gui/documents/map_workspace_manager.h"
-#include "gui/persistence/recent_files.h"
 #include "gui/metadata/document_contracts.h"
+#include "gui/persistence/recent_files.h"
+#include "gui/profile/data_profile.h"
 #include <cstdint>
 
 namespace uo_mule::gui

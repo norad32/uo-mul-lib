@@ -205,9 +205,9 @@ void saveRecentFiles(const std::vector<RecentFile> & files, const std::filesyste
         {
             file << ' ' << map.dimensions->widthTiles << ' ' << map.dimensions->heightTiles;
         }
-        file << ' ' << std::quoted(map.facet) << ' ' << std::quoted(map.failure) << ' '
-             << static_cast<std::uint32_t>(map.kind) << ' ' << map.itemCount << ' '
-             << std::quoted(map.companionPath.string()) << ' ' << map.lastOpened << ' ' << map.lastModified << '\n';
+        file << ' ' << std::quoted(map.facet) << ' ' << std::quoted(map.failure) << ' ' << static_cast<std::uint32_t>(map.kind)
+             << ' ' << map.itemCount << ' ' << std::quoted(map.companionPath.string()) << ' ' << map.lastOpened << ' '
+             << map.lastModified << '\n';
     }
     file.close();
     std::filesystem::rename(temporary, path);
@@ -224,11 +224,11 @@ const std::vector<RecentFile> & RecentFileStore::files() const noexcept
 }
 
 void RecentFileStore::record(std::filesystem::path path,
-                            std::optional<uomul::Dimensions> dimensions,
-                            std::string facet,
-                            DocumentKind kind,
-                            std::filesystem::path companionPath,
-                            std::uint32_t itemCount)
+                             std::optional<uomul::Dimensions> dimensions,
+                             std::string facet,
+                             DocumentKind kind,
+                             std::filesystem::path companionPath,
+                             std::uint32_t itemCount)
 {
     if (path.empty())
     {

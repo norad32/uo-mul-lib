@@ -1,7 +1,7 @@
 #pragma once
 
-#include "uomul/map.h"
 #include "gui/metadata/document_contracts.h"
+#include "uomul/map.h"
 #include <cstdint>
 #include <filesystem>
 #include <optional>

@@ -27,7 +27,7 @@ struct DocumentSourceIdentity
 [[nodiscard]] DocumentSourceIdentity makeDocumentSourceIdentity(std::span<const std::filesystem::path> paths);
 [[nodiscard]] DocumentSourceIdentity makeDocumentSourceIdentity(std::initializer_list<std::filesystem::path> paths);
 [[nodiscard]] std::optional<DocumentSourceIdentity> configuredDocumentSourceIdentity(const DataProfile & profile,
-                                                                                       DocumentKind kind);
+                                                                                     DocumentKind kind);
 
 struct DocumentIdentity
 {

@@ -51,6 +51,7 @@ public:
     [[nodiscard]] std::optional<DocumentIdentity> activeIdentity() const;
 
     [[nodiscard]] const std::optional<MapDocument> & active() const noexcept;
+
 private:
     [[nodiscard]] DocumentRecord * findByIdentity(const DocumentIdentity & identity) noexcept;
     [[nodiscard]] const DocumentRecord * activeRecord() const noexcept;

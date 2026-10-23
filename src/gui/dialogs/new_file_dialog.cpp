@@ -1,15 +1,15 @@
 #include "gui/dialogs/new_file_dialog.h"
-#include "gui/profile/data_profile.h"
-#include "gui/context/notification_state.h"
+#include "core/facet_sizes.h"
 #include "gui/commands/operation_controller.h"
-#include "gui/frontend/theme.h"
-#include "gui/documents/map_workspace.h"
-#include "gui/documents/map_workspace_manager.h"
+#include "gui/context/notification_state.h"
+#include "gui/dialogs/dialog_presentation.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_facet_dialog.h"
-#include "gui/dialogs/dialog_presentation.h"
-#include "gui/views/common.h"
-#include "core/facet_sizes.h"
+#include "gui/documents/map_workspace.h"
+#include "gui/documents/map_workspace_manager.h"
+#include "gui/frontend/theme.h"
+#include "gui/profile/data_profile.h"
+#include "gui/strings/ui_strings.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <algorithm>
@@ -50,25 +50,25 @@ constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     switch (mode)
     {
         case MapFileDialogMode::openMap :
-            return "Open File###OpenFileDialog";
+            return "Open File###dialog.map-open";
         case MapFileDialogMode::selectMapFacet :
-            return "Select Facet###SelectMapFacetDialog";
+            return "Select Facet###dialog.map-facet";
         case MapFileDialogMode::newType :
-            return "New###NewFileTypeDialog";
+            return "New###dialog.new-file-type";
         case MapFileDialogMode::newMap :
-            return "New Empty Map###NewMapDialog";
+            return "New Empty Map###dialog.new-map";
         case MapFileDialogMode::saveAs :
-            return "Save As / Commit###SaveMapDialog";
+            return "Save As / Commit###dialog.map-save";
         case MapFileDialogMode::dirtyChanges :
-            return "Pending Changes###PendingChangesDialog";
+            return "Pending Changes###dialog.map-pending-changes";
         case MapFileDialogMode::overwrite :
-            return "Confirm Overwrite###OverwriteMapDialog";
+            return "Confirm Overwrite###dialog.map-overwrite";
         case MapFileDialogMode::error :
-            return "Map Operation Failed###MapDialogError";
+            return "Map Operation Failed###dialog.map-error";
         case MapFileDialogMode::none :
             break;
     }
-    return "###NoMapDialog";
+    return "###dialog.map-none";
 }
 
 [[nodiscard]] const uo_mule::core::FacetSize * facetAt(std::size_t index) noexcept
@@ -100,7 +100,7 @@ void closeDialog(NewFileDialogState & state)
 
 void showError(NewFileDialogState & state, const uomul::Error & error)
 {
-    state.error = formatError(error);
+    state.error = strings::formatError(error);
     if (state.notifications != nullptr)
     {
         state.notifications->add(NotificationSeverity::error, state.error);
@@ -166,7 +166,7 @@ void showOverwrite(NewFileDialogState & state, MapOverwriteKind kind)
 }
 
 void executeOperation(MapWorkspaceManager & workspace,
-                       NewFileDialogState & state,
+                      NewFileDialogState & state,
                       PendingChangesAction action,
                       const std::optional<std::filesystem::path> & savePath,
                       bool overwrite)
@@ -240,17 +240,20 @@ void continueOperation(MapWorkspaceManager & workspace, NewFileDialogState & sta
         return true;
     }
 
-    const OperationKind kind = state.operation.kind == PendingMapOperationKind::newMap ? OperationKind::newMap : OperationKind::openMap;
+    const OperationKind kind =
+        state.operation.kind == PendingMapOperationKind::newMap ? OperationKind::newMap : OperationKind::openMap;
     std::error_code outputError;
     const bool outputExists = kind == OperationKind::newMap && std::filesystem::exists(state.operation.path, outputError);
-    const auto transition = state.controller->begin({.kind = kind,
-                                                      .path = state.operation.path,
-                                                      .dimensions = state.operation.dimensions,
-                                                      .initialTile = state.operation.initialTile,
-                                                     },
-                                                     workspace.dirty(),
-                                                     outputExists,
-                                                     state.collisionPolicy);
+    const auto transition = state.controller->begin(
+        {
+            .kind = kind,
+            .path = state.operation.path,
+            .dimensions = state.operation.dimensions,
+            .initialTile = state.operation.initialTile,
+        },
+        workspace.dirty(),
+        outputExists,
+        state.collisionPolicy);
     if (transition.kind == OperationTransitionKind::rejected)
     {
         state.error = transition.error;
@@ -336,7 +339,8 @@ void requestOperation(MapWorkspaceManager & workspace, NewFileDialogState & stat
 
 void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
 {
-    const auto facetLabel = [](std::size_t index) -> const char * {
+    const auto facetLabel = [](std::size_t index) -> const char *
+    {
         if (index == 0U)
         {
             return "Custom dimensions";
@@ -448,11 +452,13 @@ void drawOpenDialog(MapWorkspaceManager & workspace, NewFileDialogState & state)
     if (ImGui::IsItemClicked() && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
-                           {.mode = FileBrowserMode::openFile,
-                            .target = FileBrowserTarget::mapOpen,
-                            .initialPath = state.openPath.data(),
-                            .extension = ".mul",
-                            .title = "Open File",});
+                           {
+                               .mode = FileBrowserMode::openFile,
+                               .target = FileBrowserTarget::mapOpen,
+                               .initialPath = state.openPath.data(),
+                               .extension = ".mul",
+                               .title = "Open File",
+                           });
     }
     const bool validDimensions = drawDimensionsFields("OpenDimensions", state.openFacet, state.openWidth, state.openHeight);
     if (!validDimensions)
@@ -503,22 +509,24 @@ void drawNewTypeDialog(NewFileDialogState & state)
         FileBrowserTarget target = FileBrowserTarget::newMapOutput;
         switch (state.newFileKind)
         {
-            case NewFileKind::map:
+            case NewFileKind::map :
                 target = FileBrowserTarget::newMapOutput;
                 break;
-            case NewFileKind::radarcol:
+            case NewFileKind::radarcol :
                 target = FileBrowserTarget::newRadarcolOutput;
                 break;
-            case NewFileKind::texmapPair:
+            case NewFileKind::texmapPair :
                 target = FileBrowserTarget::newTexmapsData;
                 break;
         }
         requestFileBrowser(*state.browser,
-                           {.mode = FileBrowserMode::saveFile,
-                            .target = target,
-                            .initialPath = {},
-                            .extension = ".mul",
-                            .title = "New File",});
+                           {
+                               .mode = FileBrowserMode::saveFile,
+                               .target = target,
+                               .initialPath = {},
+                               .extension = ".mul",
+                               .title = "New File",
+                           });
         state.mode = state.newFileKind == NewFileKind::map ? MapFileDialogMode::newMap : MapFileDialogMode::none;
         state.activePopup = MapFileDialogMode::none;
         ImGui::CloseCurrentPopup();
@@ -538,11 +546,13 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewFileDialogState & state)
     if (ImGui::IsItemClicked() && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
-                           {.mode = FileBrowserMode::saveFile,
-                            .target = FileBrowserTarget::newMapOutput,
-                            .initialPath = state.newMapPath.data(),
-                            .extension = ".mul",
-                            .title = "Create Map",});
+                           {
+                               .mode = FileBrowserMode::saveFile,
+                               .target = FileBrowserTarget::newMapOutput,
+                               .initialPath = state.newMapPath.data(),
+                               .extension = ".mul",
+                               .title = "Create Map",
+                           });
     }
     const bool validDimensions =
         drawDimensionsFields("NewDimensions", state.newMapFacet, state.newMapWidth, state.newMapHeight);
@@ -610,11 +620,13 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewFileDialogState & stat
     if (ImGui::IsItemClicked() && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
-                           {.mode = FileBrowserMode::saveFile,
-                            .target = FileBrowserTarget::mapSaveAs,
-                            .initialPath = state.savePath.data(),
-                            .extension = ".mul",
-                            .title = "Save Map",});
+                           {
+                               .mode = FileBrowserMode::saveFile,
+                               .target = FileBrowserTarget::mapSaveAs,
+                               .initialPath = state.savePath.data(),
+                               .extension = ".mul",
+                               .title = "Save Map",
+                           });
     }
 
     beginDialogFooter({"Save", "Cancel"});
@@ -651,10 +663,12 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewFileDialogState & stat
                 if (transition.kind == OperationTransitionKind::rejected)
                 {
                     showError(state,
-                              uomul::Error{.code = uomul::ErrorCode::io,
-                                           .path = path,
-                                           .offset = 0,
-                                           .message = transition.error,});
+                              uomul::Error{
+                                  .code = uomul::ErrorCode::io,
+                                  .path = path,
+                                  .offset = 0,
+                                  .message = transition.error,
+                              });
                     endDialogFooter();
                     return;
                 }
@@ -745,11 +759,13 @@ void drawDirtyDialog(MapWorkspaceManager & workspace, NewFileDialogState & state
         state.saveForPendingOperation = true;
         state.savePath.fill('\0');
         requestFileBrowser(*state.browser,
-                           {.mode = FileBrowserMode::saveFile,
-                            .target = FileBrowserTarget::mapSaveAs,
-                            .initialPath = workspace.originalPath(),
-                            .extension = ".mul",
-                            .title = "Save Map As",});
+                           {
+                               .mode = FileBrowserMode::saveFile,
+                               .target = FileBrowserTarget::mapSaveAs,
+                               .initialPath = workspace.originalPath(),
+                               .extension = ".mul",
+                               .title = "Save Map As",
+                           });
         state.mode = MapFileDialogMode::saveAs;
         ImGui::CloseCurrentPopup();
     }
@@ -872,6 +888,75 @@ void drawOverwriteDialog(MapWorkspaceManager & workspace, NewFileDialogState & s
     endDialogFooter();
 }
 
+void drawMapFacetWorkflow(MapWorkspaceManager & workspace, NewFileDialogState & state)
+{
+    const auto result = drawMapFacetDialog(state);
+    if (result == MapFacetDialogResult::accept)
+    {
+        const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
+        if (dimensions)
+        {
+            state.operation = {
+                .kind = PendingMapOperationKind::openMap,
+                .path = state.openPath.data(),
+                .dimensions = *dimensions,
+            };
+            requestOperation(workspace, state);
+        }
+    }
+    else if (result == MapFacetDialogResult::cancel)
+    {
+        closeDialog(state);
+    }
+}
+
+void drawErrorDialog(NewFileDialogState & state)
+{
+    ImGui::TextColored(theme::imguiColor(theme::error), "%s", state.error.c_str());
+    beginDialogFooter({"OK"});
+    if (dialogButton("OK"))
+    {
+        state.operation = {};
+        state.overwriteKind = MapOverwriteKind::none;
+        state.saveForPendingOperation = false;
+        closeDialog(state);
+    }
+    endDialogFooter();
+}
+
+void drawDialogContent(MapWorkspaceManager & workspace, NewFileDialogState & state, MapFileDialogMode mode)
+{
+    switch (mode)
+    {
+        case MapFileDialogMode::newType :
+            drawNewTypeDialog(state);
+            break;
+        case MapFileDialogMode::selectMapFacet :
+            drawMapFacetWorkflow(workspace, state);
+            break;
+        case MapFileDialogMode::openMap :
+            drawOpenDialog(workspace, state);
+            break;
+        case MapFileDialogMode::newMap :
+            drawNewMapForm(workspace, state);
+            break;
+        case MapFileDialogMode::saveAs :
+            drawSaveAsDialog(workspace, state);
+            break;
+        case MapFileDialogMode::dirtyChanges :
+            drawDirtyDialog(workspace, state);
+            break;
+        case MapFileDialogMode::overwrite :
+            drawOverwriteDialog(workspace, state);
+            break;
+        case MapFileDialogMode::error :
+            drawErrorDialog(state);
+            break;
+        case MapFileDialogMode::none :
+            break;
+    }
+}
+
 } // namespace
 
 void cancelFileDialog(NewFileDialogState & state)
@@ -890,58 +975,58 @@ void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult 
 {
     switch (result.target)
     {
-    case FileBrowserTarget::mapOpen:
-        copyPathToBuffer(state.openPath, result.path);
-        state.openCandidates = result.mapCandidates;
-        state.openFacet = 0;
-        if (result.assetCandidate)
-        {
-            applyMapCandidateDimensions(state, *result.assetCandidate);
-        }
-        for (const auto & candidate : state.openCandidates)
-        {
-            if (!candidate.valid)
+        case FileBrowserTarget::mapOpen :
+            copyPathToBuffer(state.openPath, result.path);
+            state.openCandidates = result.mapCandidates;
+            state.openFacet = 0;
+            if (result.assetCandidate)
             {
-                continue;
+                applyMapCandidateDimensions(state, *result.assetCandidate);
             }
-            std::size_t index = 0;
-            for (const auto & facet : uo_mule::core::knownFacetSizes())
+            for (const auto & candidate : state.openCandidates)
             {
-                if (facet.name == candidate.presetName)
+                if (!candidate.valid)
                 {
-                    state.openFacet = static_cast<int>(index + 1U);
-                    state.openWidth = candidate.dimensions.widthTiles;
-                    state.openHeight = candidate.dimensions.heightTiles;
+                    continue;
+                }
+                std::size_t index = 0;
+                for (const auto & facet : uo_mule::core::knownFacetSizes())
+                {
+                    if (facet.name == candidate.presetName)
+                    {
+                        state.openFacet = static_cast<int>(index + 1U);
+                        state.openWidth = candidate.dimensions.widthTiles;
+                        state.openHeight = candidate.dimensions.heightTiles;
+                        break;
+                    }
+                    ++index;
+                }
+                if (state.openFacet != 0)
+                {
                     break;
                 }
-                ++index;
             }
-            if (state.openFacet != 0)
-            {
-                break;
-            }
-        }
-        state.mode = MapFileDialogMode::selectMapFacet;
-        state.activePopup = MapFileDialogMode::none;
-        break;
-    case FileBrowserTarget::newMapOutput:
-        copyPathToBuffer(state.newMapPath, result.path);
-        break;
-    case FileBrowserTarget::mapSaveAs:
-        copyPathToBuffer(state.savePath, result.path);
-        break;
-    default:
-        return;
+            state.mode = MapFileDialogMode::selectMapFacet;
+            state.activePopup = MapFileDialogMode::none;
+            break;
+        case FileBrowserTarget::newMapOutput :
+            copyPathToBuffer(state.newMapPath, result.path);
+            break;
+        case FileBrowserTarget::mapSaveAs :
+            copyPathToBuffer(state.savePath, result.path);
+            break;
+        default :
+            return;
     }
 }
 
 void drawNewFileDialog(MapWorkspaceManager & workspace,
                        NewFileDialogState & state,
-                      OperationController & controller,
-                      OutputCollisionPolicy collisionPolicy,
-                      NotificationState & notifications,
-                      FileBrowserState & browser,
-                      bool & shouldClose)
+                       OperationController & controller,
+                       OutputCollisionPolicy collisionPolicy,
+                       NotificationState & notifications,
+                       FileBrowserState & browser,
+                       bool & shouldClose)
 {
     state.shouldClose = false;
     state.controller = &controller;
@@ -968,7 +1053,8 @@ void drawNewFileDialog(MapWorkspaceManager & workspace,
 
     const MapFileDialogMode currentMode = state.mode;
 
-    const DialogWindowSpec dialogSpec = currentMode == MapFileDialogMode::selectMapFacet ? mapFacetDialogSpec() : mapDialogSpec();
+    const DialogWindowSpec dialogSpec =
+        currentMode == MapFileDialogMode::selectMapFacet ? mapFacetDialogSpec() : mapDialogSpec();
     if (!beginDialog(popupName(currentMode), nullptr, dialogSpec, ImGuiWindowFlags_AlwaysAutoResize))
     {
         state.mode = MapFileDialogMode::none;
@@ -978,63 +1064,7 @@ void drawNewFileDialog(MapWorkspaceManager & workspace,
         return;
     }
 
-    switch (currentMode)
-    {
-        case MapFileDialogMode::newType :
-            drawNewTypeDialog(state);
-            break;
-        case MapFileDialogMode::selectMapFacet :
-        {
-            const auto result = drawMapFacetDialog(state);
-            if (result == MapFacetDialogResult::accept)
-            {
-                const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
-                if (dimensions)
-                {
-                    state.operation = {
-                        .kind = PendingMapOperationKind::openMap,
-                        .path = state.openPath.data(),
-                        .dimensions = *dimensions,
-                    };
-                    requestOperation(workspace, state);
-                }
-            }
-            else if (result == MapFacetDialogResult::cancel)
-            {
-                closeDialog(state);
-            }
-            break;
-        }
-        case MapFileDialogMode::openMap :
-            drawOpenDialog(workspace, state);
-            break;
-        case MapFileDialogMode::newMap :
-            drawNewMapForm(workspace, state);
-            break;
-        case MapFileDialogMode::saveAs :
-            drawSaveAsDialog(workspace, state);
-            break;
-        case MapFileDialogMode::dirtyChanges :
-            drawDirtyDialog(workspace, state);
-            break;
-        case MapFileDialogMode::overwrite :
-            drawOverwriteDialog(workspace, state);
-            break;
-        case MapFileDialogMode::error :
-            ImGui::TextColored(theme::imguiColor(theme::error), "%s", state.error.c_str());
-            beginDialogFooter({"OK"});
-            if (dialogButton("OK"))
-            {
-                state.operation = {};
-                state.overwriteKind = MapOverwriteKind::none;
-                state.saveForPendingOperation = false;
-                closeDialog(state);
-            }
-            endDialogFooter();
-            break;
-        case MapFileDialogMode::none :
-            break;
-    }
+    drawDialogContent(workspace, state, currentMode);
 
     endDialog();
     ImGui::PopID();
@@ -1056,10 +1086,7 @@ void requestCloseOperation(MapWorkspaceManager & workspace,
     const OperationKind operationKind = kind == PendingMapOperationKind::quit ? OperationKind::quit : OperationKind::close;
     OperationRequest request{};
     request.kind = operationKind;
-    const auto transition = controller.begin(request,
-                                              workspace.dirty(),
-                                              false,
-                                              OutputCollisionPolicy::confirm);
+    const auto transition = controller.begin(request, workspace.dirty(), false, OutputCollisionPolicy::confirm);
     state.operation = {};
     state.operation.kind = kind;
     if (transition.kind == OperationTransitionKind::showDirtyDecision)

@@ -1,6 +1,6 @@
 #include "gui/commands/operation_controller.h"
-#include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/profile/data_profile.h"
 #include <catch2/catch_test_macros.hpp>
 
 using uo_mule::gui::OperationController;

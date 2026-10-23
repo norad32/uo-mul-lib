@@ -1,11 +1,11 @@
 #include "gui/profile/data_profile_store.h"
-#include "gui/profile/data_profile.h"
 #include "core/app_info.h"
+#include "gui/profile/data_profile.h"
 #include <atomic>
 #include <cerrno>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -16,8 +16,8 @@
 #include <string>
 #include <string_view>
 #include <system_error>
-#include <utility>
 #include <unistd.h>
+#include <utility>
 
 namespace uo_mule::gui
 {
@@ -339,7 +339,8 @@ std::filesystem::path dataProfilePath(std::string_view profileName, const std::f
     return baseDirectory / (safeProfileFileStem(profileName) + ".profile");
 }
 
-DataProfileStore::DataProfileStore(std::filesystem::path directory) : directory_(directory.empty() ? dataProfilesDirectory() : std::move(directory))
+DataProfileStore::DataProfileStore(std::filesystem::path directory) :
+    directory_(directory.empty() ? dataProfilesDirectory() : std::move(directory))
 {
 }
 

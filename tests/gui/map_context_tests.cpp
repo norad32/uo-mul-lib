@@ -1,9 +1,9 @@
-#include "gui/providers/data_providers.h"
-#include "gui/profile/data_profile.h"
+#include "gui/application/workbench_state.h"
 #include "gui/context/map_context.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/profile/data_profile.h"
+#include "gui/providers/data_providers.h"
 #include "gui/views/map_canvas_panel.h"
-#include "gui/application/workbench_state.h"
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("mapContextSnapshot_Should_ExposeNoActiveLocationWithoutMap")
@@ -48,8 +48,7 @@ TEST_CASE("MapCanvas_Should_UseTheEffectiveRadarColorProvider")
     providers.sync(uo_mule::gui::DataProfile{});
     const uomul::MapTile tile{.id = 0, .z = 0};
 
-    REQUIRE(uo_mule::gui::mapCanvasTileColor(uo_mule::gui::MapDisplayMode::tileIds, tile, providers.radarColors()) ==
-            uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::tileIds,
-                                            tile,
-                                            providers.radarColors().mapColor(tile.id)));
+    REQUIRE(
+        uo_mule::gui::mapCanvasTileColor(uo_mule::gui::MapDisplayMode::tileIds, tile, providers.radarColors()) ==
+        uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::tileIds, tile, providers.radarColors().mapColor(tile.id)));
 }

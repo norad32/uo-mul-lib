@@ -1,12 +1,12 @@
 #include "gui/persistence/layout_store.h"
-#include "gui/views/panel_registry.h"
 #include "core/app_info.h"
+#include "gui/views/panel_registry.h"
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <ios>
-#include <cstdint>
 #include <string>
 #include <utility>
 

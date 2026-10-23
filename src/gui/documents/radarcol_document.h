@@ -3,9 +3,9 @@
 #include "gui/documents/document_identity.h"
 #include "gui/metadata/document_contracts.h"
 #include "uomul/radarcol/radarcol.h"
-#include <filesystem>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <utility>
@@ -33,13 +33,10 @@ struct RadarcolDocumentIntent
 
 struct RadarcolDocument
 {
-    [[nodiscard]] static std::expected<RadarcolDocument, uomul::Error> open(DocumentId id,
-                                                                               const std::filesystem::path & sourcePath,
-                                                                               DocumentAccess access = DocumentAccess::editable);
-    [[nodiscard]] static RadarcolDocument invalid(DocumentId id,
-                                                   std::filesystem::path sourcePath,
-                                                   DocumentAccess access,
-                                                   std::string error);
+    [[nodiscard]] static std::expected<RadarcolDocument, uomul::Error>
+    open(DocumentId id, const std::filesystem::path & sourcePath, DocumentAccess access = DocumentAccess::editable);
+    [[nodiscard]] static RadarcolDocument
+    invalid(DocumentId id, std::filesystem::path sourcePath, DocumentAccess access, std::string error);
     [[nodiscard]] DocumentId id() const noexcept { return id_; }
     [[nodiscard]] const std::filesystem::path & sourcePath() const noexcept { return sourcePath_; }
     [[nodiscard]] const std::filesystem::path & outputPath() const noexcept { return outputPath_; }
@@ -63,13 +60,11 @@ private:
                      std::optional<uomul::RadarColReader> reader,
                      DocumentAccess access,
                      std::string error);
-    [[nodiscard]] std::expected<void, uomul::Error> beginEditing(const std::filesystem::path & output,
-                                                                  bool outputOverwrite);
+    [[nodiscard]] std::expected<void, uomul::Error> beginEditing(const std::filesystem::path & output, bool outputOverwrite);
     [[nodiscard]] std::expected<void, uomul::Error> editColor(std::uint32_t index, uomul::RadarColor color);
     [[nodiscard]] std::expected<void, uomul::Error> save();
     [[nodiscard]] std::expected<void, uomul::Error> discard();
-    [[nodiscard]] std::expected<void, uomul::Error> saveAs(const std::filesystem::path & output,
-                                                            bool outputOverwrite);
+    [[nodiscard]] std::expected<void, uomul::Error> saveAs(const std::filesystem::path & output, bool outputOverwrite);
     [[nodiscard]] std::expected<void, uomul::Error> fail(uomul::Error error);
     DocumentId id_ = 0;
     std::filesystem::path sourcePath_;

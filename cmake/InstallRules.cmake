@@ -1,9 +1,7 @@
 include(CMakePackageConfigHelpers)
 
 install(
-    TARGETS application_options
-            core
-            uomul
+    TARGETS application_options core uomul
     EXPORT ${CMAKE_PACKAGE_NAME}Targets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)
@@ -70,8 +68,8 @@ if(DEFINED spdlog_SOURCE_DIR AND EXISTS "${spdlog_SOURCE_DIR}/LICENSE")
         COMPONENT Runtime)
 endif()
 if(BUILD_CLI OR BUILD_GUI)
-    install(TARGETS ${EXECUTABLE_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-                                               COMPONENT Runtime)
+    install(TARGETS ${EXECUTABLE_NAME}
+            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Runtime)
 endif()
 if(BUILD_GUI_RUNTIME)
     install(TARGETS ${GUI_EXECUTABLE_NAME}

@@ -147,15 +147,19 @@ private:
         // 8 small
         for (std::uint32_t i = 0; i < 8; i++)
         {
-            writeIndexEntry(index, (i * static_cast<std::uint32_t>(uomul::textureSmallByteCount)),
-                            static_cast<std::uint32_t>(uomul::textureSmallByteCount), 0);
+            writeIndexEntry(index,
+                            (i * static_cast<std::uint32_t>(uomul::textureSmallByteCount)),
+                            static_cast<std::uint32_t>(uomul::textureSmallByteCount),
+                            0);
         }
         // 8 large
         offset = 8 * uomul::textureSmallByteCount;
         for (std::uint32_t i = 0; i < 8; i++)
         {
-            writeIndexEntry(index, offset + (i * static_cast<std::uint32_t>(uomul::textureLargeByteCount)),
-                            static_cast<std::uint32_t>(uomul::textureLargeByteCount), 1);
+            writeIndexEntry(index,
+                            offset + (i * static_cast<std::uint32_t>(uomul::textureLargeByteCount)),
+                            static_cast<std::uint32_t>(uomul::textureLargeByteCount),
+                            1);
         }
         index.flush();
     }
@@ -293,8 +297,8 @@ TEST_CASE("TexMapsEditor benchmarks", "[benchmark][texmaps]")
     {
         const auto outputIndex = files.directory() / "create-small-index.idx";
         const auto outputData = files.directory() / "create-small-data.mul";
-        auto editor = uomul::TexMapsEditor::create(files.smallIndex(), files.smallData(), outputIndex, outputData,
-                                                    {.overwriteOutput = true});
+        auto editor = uomul::TexMapsEditor::create(
+            files.smallIndex(), files.smallData(), outputIndex, outputData, {.overwriteOutput = true});
         requireSuccess(editor);
         editor->abort();
         return 1;
@@ -304,8 +308,8 @@ TEST_CASE("TexMapsEditor benchmarks", "[benchmark][texmaps]")
     {
         const auto outputIndex = files.directory() / "create-large-index.idx";
         const auto outputData = files.directory() / "create-large-data.mul";
-        auto editor = uomul::TexMapsEditor::create(files.largeIndex(), files.largeData(), outputIndex, outputData,
-                                                    {.overwriteOutput = true});
+        auto editor = uomul::TexMapsEditor::create(
+            files.largeIndex(), files.largeData(), outputIndex, outputData, {.overwriteOutput = true});
         requireSuccess(editor);
         editor->abort();
         return 1;
@@ -325,8 +329,8 @@ TEST_CASE("TexMapsEditor benchmarks", "[benchmark][texmaps]")
     {
         const auto outputIndex = files.directory() / "edit-small-index.idx";
         const auto outputData = files.directory() / "edit-small-data.mul";
-        auto editor = uomul::TexMapsEditor::create(files.smallIndex(), files.smallData(), outputIndex, outputData,
-                                                    {.overwriteOutput = true});
+        auto editor = uomul::TexMapsEditor::create(
+            files.smallIndex(), files.smallData(), outputIndex, outputData, {.overwriteOutput = true});
         requireSuccess(editor);
 
         uomul::TextureImage image;
@@ -359,8 +363,8 @@ TEST_CASE("TexMapsEditor benchmarks", "[benchmark][texmaps]")
     {
         const auto outputIndex = files.directory() / "commit-index.idx";
         const auto outputData = files.directory() / "commit-data.mul";
-        auto editor = uomul::TexMapsEditor::create(files.smallIndex(), files.smallData(), outputIndex, outputData,
-                                                    {.overwriteOutput = true});
+        auto editor = uomul::TexMapsEditor::create(
+            files.smallIndex(), files.smallData(), outputIndex, outputData, {.overwriteOutput = true});
         requireSuccess(editor);
         requireSuccess(editor->commit());
         return std::filesystem::file_size(outputData);

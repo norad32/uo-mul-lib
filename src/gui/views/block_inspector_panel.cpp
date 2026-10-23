@@ -1,9 +1,9 @@
 #include "gui/views/block_inspector_panel.h"
-#include "gui/providers/data_providers.h"
 #include "gui/context/map_context.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/views/common.h"
 #include "gui/frontend/theme.h"
+#include "gui/providers/data_providers.h"
+#include "gui/views/common.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <cstddef>
@@ -25,9 +25,9 @@ constexpr float selectedBorderThickness = 2.0F;
 constexpr float gridLineThickness = 1.0F;
 
 void drawTileCell(const uomul::MapBlock & block,
-                   uomul::BlockCoord blockCoordinate,
-                   MapWorkspace & workspace,
-                   const RadarColorProvider & radarColors,
+                  uomul::BlockCoord blockCoordinate,
+                  MapWorkspace & workspace,
+                  const RadarColorProvider & radarColors,
                   std::size_t row,
                   std::size_t column,
                   ImVec2 gridOrigin)
@@ -153,7 +153,7 @@ void refreshBlock(const uomul::MapReader & reader,
 
 void drawBlockError(const uomul::Error & error)
 {
-        ImGui::TextColored(theme::imguiColor(theme::error), "Block read error: %s", error.message.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::error), "Block read error: %s", error.message.c_str());
 }
 
 } // namespace

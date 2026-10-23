@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <uomul/map.h>
 #include <uomul/mul_common/mul_common.h>
 #include <utility>
@@ -13,8 +15,49 @@
 namespace uo_mule::gui
 {
 
-MapWorkspaceManager::MapWorkspaceManager()
-    : active_(std::make_unique<MapWorkspace>()), activeCanvas_(std::make_unique<MapCanvasPanelState>())
+namespace
+{
+
+[[nodiscard]] std::expected<void, uomul::Error> resolveActiveChanges(MapWorkspace & workspace,
+                                                                     PendingChangesAction action,
+                                                                     const std::optional<std::filesystem::path> & savePath,
+                                                                     bool overwrite,
+                                                                     std::string_view replacement)
+{
+    if (workspace.reader() == nullptr || !workspace.dirty())
+    {
+        return {};
+    }
+
+    if (action == PendingChangesAction::cancel)
+    {
+        return std::unexpected(uomul::Error{
+            .code = uomul::ErrorCode::io,
+            .path = workspace.mapPath(),
+            .message = "pending map changes require save or discard before " + std::string(replacement),
+        });
+    }
+
+    if (action == PendingChangesAction::save)
+    {
+        if (!savePath)
+        {
+            return std::unexpected(uomul::Error{
+                .code = uomul::ErrorCode::io,
+                .path = workspace.mapPath(),
+                .message = "save path is required before replacing a dirty map",
+            });
+        }
+        return workspace.save(*savePath, overwrite);
+    }
+
+    return workspace.discard();
+}
+
+} // namespace
+
+MapWorkspaceManager::MapWorkspaceManager() :
+    active_(std::make_unique<MapWorkspace>()), activeCanvas_(std::make_unique<MapCanvasPanelState>())
 {
 }
 
@@ -55,9 +98,8 @@ void MapWorkspaceManager::stashActive() noexcept
     activeId_.reset();
 }
 
-std::expected<void, uomul::Error> MapWorkspaceManager::replaceActive(WorkspacePtr replacement,
-                                                                       CanvasStatePtr canvas,
-                                                                       std::optional<DocumentId> newId)
+std::expected<void, uomul::Error>
+MapWorkspaceManager::replaceActive(WorkspacePtr replacement, CanvasStatePtr canvas, std::optional<DocumentId> newId)
 {
     stashActive();
     active_ = std::move(replacement);
@@ -67,36 +109,14 @@ std::expected<void, uomul::Error> MapWorkspaceManager::replaceActive(WorkspacePt
 }
 
 std::expected<void, uomul::Error> MapWorkspaceManager::openMap(const std::filesystem::path & path,
-                                                                uomul::Dimensions dimensions,
-                                                                PendingChangesAction action,
-                                                                const std::optional<std::filesystem::path> & savePath,
-                                                                bool overwriteSave)
+                                                               uomul::Dimensions dimensions,
+                                                               PendingChangesAction action,
+                                                               const std::optional<std::filesystem::path> & savePath,
+                                                               bool overwriteSave)
 {
-    if (active_->reader() != nullptr && active_->dirty())
+    if (auto resolved = resolveActiveChanges(*active_, action, savePath, overwriteSave, "opening another map"); !resolved)
     {
-        if (action == PendingChangesAction::cancel)
-        {
-            return std::unexpected(uomul::Error{.code = uomul::ErrorCode::io,
-                                                .path = active_->mapPath(),
-                                                .message = "pending map changes require save or discard before opening another map",});
-        }
-        if (action == PendingChangesAction::save)
-        {
-            if (!savePath)
-            {
-                return std::unexpected(uomul::Error{.code = uomul::ErrorCode::io,
-                                                    .path = active_->mapPath(),
-                                                    .message = "save path is required before replacing a dirty map",});
-            }
-            if (auto saved = active_->save(*savePath, overwriteSave); !saved)
-            {
-                return saved;
-            }
-        }
-        else if (auto discarded = active_->discard(); !discarded)
-        {
-            return discarded;
-        }
+        return resolved;
     }
     auto replacement = std::make_unique<MapWorkspace>();
     if (auto opened = replacement->openMap(path, dimensions); !opened)
@@ -106,42 +126,21 @@ std::expected<void, uomul::Error> MapWorkspaceManager::openMap(const std::filesy
     return replaceActive(std::move(replacement), std::make_unique<MapCanvasPanelState>(), std::nullopt);
 }
 
-std::expected<void, uomul::Error> MapWorkspaceManager::createEmptyMap(
-    const std::filesystem::path & path,
-    uomul::Dimensions dimensions,
-    PendingChangesAction action,
-    const std::optional<std::filesystem::path> & savePath,
-    bool overwriteOutput,
-    uomul::MapTile initialTile)
+std::expected<void, uomul::Error> MapWorkspaceManager::createEmptyMap(const std::filesystem::path & path,
+                                                                      uomul::Dimensions dimensions,
+                                                                      PendingChangesAction action,
+                                                                      const std::optional<std::filesystem::path> & savePath,
+                                                                      bool overwriteOutput,
+                                                                      uomul::MapTile initialTile)
 {
-    if (active_->reader() != nullptr && active_->dirty())
+    if (auto resolved = resolveActiveChanges(*active_, action, savePath, overwriteOutput, "creating another map"); !resolved)
     {
-        if (action == PendingChangesAction::cancel)
-        {
-            return std::unexpected(uomul::Error{.code = uomul::ErrorCode::io,
-                                                .path = active_->mapPath(),
-                                                .message = "pending map changes require save or discard before creating another map",});
-        }
-        if (action == PendingChangesAction::save)
-        {
-            if (!savePath)
-            {
-                return std::unexpected(uomul::Error{.code = uomul::ErrorCode::io,
-                                                    .path = active_->mapPath(),
-                                                    .message = "save path is required before replacing a dirty map",});
-            }
-            if (auto saved = active_->save(*savePath, overwriteOutput); !saved)
-            {
-                return saved;
-            }
-        }
-        else if (auto discarded = active_->discard(); !discarded)
-        {
-            return discarded;
-        }
+        return resolved;
     }
     auto replacement = std::make_unique<MapWorkspace>();
-    if (auto created = replacement->createEmptyMap(path, dimensions, PendingChangesAction::cancel, std::nullopt, overwriteOutput, initialTile); !created)
+    if (auto created = replacement->createEmptyMap(
+            path, dimensions, PendingChangesAction::cancel, std::nullopt, overwriteOutput, initialTile);
+        !created)
     {
         return created;
     }
@@ -173,9 +172,8 @@ void MapWorkspaceManager::deactivateMap() noexcept
     stashActive();
 }
 
-std::expected<void, uomul::Error> MapWorkspaceManager::activateMap(DocumentId id,
-                                                                     const std::filesystem::path & path,
-                                                                     uomul::Dimensions dimensions)
+std::expected<void, uomul::Error>
+MapWorkspaceManager::activateMap(DocumentId id, const std::filesystem::path & path, uomul::Dimensions dimensions)
 {
     if (activeId_ == id)
     {

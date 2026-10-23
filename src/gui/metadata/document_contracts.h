@@ -59,12 +59,12 @@ inline constexpr UnsupportedMulPolicy unsupportedMulPolicy = UnsupportedMulPolic
 {
     switch (kind)
     {
-    case DocumentKind::map:
-        return "Map";
-    case DocumentKind::radarcol:
-        return "Radarcol";
-    case DocumentKind::texmapPair:
-        return "Texmap Pair";
+        case DocumentKind::map :
+            return "Map";
+        case DocumentKind::radarcol :
+            return "Radarcol";
+        case DocumentKind::texmapPair :
+            return "Texmap Pair";
     }
     return "Unknown";
 }

@@ -1,5 +1,5 @@
-#include "gui/profile/data_profile.h"
 #include "gui/profile/data_discovery.h"
+#include "gui/profile/data_profile.h"
 #include "gui/profile/data_profile_store.h"
 #include "gui/profile/data_validation.h"
 #include "uomul/radarcol/radarcol.h"

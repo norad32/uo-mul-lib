@@ -1,9 +1,9 @@
 #include "gui/providers/data_providers.h"
-#include "gui/providers/embedded_radarcol.h"
 #include "gui/context/color_conversion.h"
-#include "gui/strings/ui_strings.h"
-#include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/profile/data_profile.h"
+#include "gui/providers/embedded_radarcol.h"
+#include "gui/strings/ui_strings.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include <cstdint>
@@ -33,9 +33,7 @@ ProviderStatus unavailableStatus(std::uint64_t revision, std::string message)
 class ProfileRadarColorProvider final : public RadarColorProvider
 {
 public:
-    ProfileRadarColorProvider() : embedded_(makeEmbeddedRadarColorProvider())
-    {
-    }
+    ProfileRadarColorProvider() : embedded_(makeEmbeddedRadarColorProvider()) {}
 
     void sync(const DataProfile & profile)
     {
@@ -61,10 +59,12 @@ public:
             return;
         }
         reader_ = std::move(*result);
-        status_ = {.state = ProviderAssetState::available,
-                   .source = ProviderSourceKind::externalConfigured,
-                   .message = {},
-                   .revision = revision_,};
+        status_ = {
+            .state = ProviderAssetState::available,
+            .source = ProviderSourceKind::externalConfigured,
+            .message = {},
+            .revision = revision_,
+        };
     }
 
     void invalidate() noexcept
@@ -89,10 +89,12 @@ public:
         }
         if (!reader_->readMapColor(id))
         {
-            return {.state = ProviderAssetState::empty,
-                    .source = status_.source,
-                    .message = "No radar color entry",
-                    .revision = revision_,};
+            return {
+                .state = ProviderAssetState::empty,
+                .source = status_.source,
+                .message = "No radar color entry",
+                .revision = revision_,
+            };
         }
         return status_;
     }
@@ -217,11 +219,12 @@ public:
         }
         path_ = path;
         ++revision_;
-        status_ = path_.empty()
-                      ? unavailableStatus(revision_, "Tile data is not configured")
-                      : ProviderStatus{.state = ProviderAssetState::unsupported,
-                                       .message = "Tile data reading is not supported yet",
-                                        .revision = revision_,};
+        status_ = path_.empty() ? unavailableStatus(revision_, "Tile data is not configured")
+                                : ProviderStatus{
+                                      .state = ProviderAssetState::unsupported,
+                                      .message = "Tile data reading is not supported yet",
+                                      .revision = revision_,
+                                  };
     }
 
     void invalidate() noexcept
@@ -259,7 +262,9 @@ public:
     ProfileTileDataProvider tileData;
 };
 
-DataProviders::DataProviders() : impl_(std::make_unique<Impl>()) {}
+DataProviders::DataProviders() : impl_(std::make_unique<Impl>())
+{
+}
 DataProviders::~DataProviders() = default;
 DataProviders::DataProviders(DataProviders &&) noexcept = default;
 DataProviders & DataProviders::operator=(DataProviders &&) noexcept = default;
@@ -278,8 +283,17 @@ void DataProviders::invalidate() noexcept
     impl_->tileData.invalidate();
 }
 
-const RadarColorProvider & DataProviders::radarColors() const noexcept { return impl_->radar; }
-const TextureProvider & DataProviders::textures() const noexcept { return impl_->textures; }
-const TileDataProvider & DataProviders::tileData() const noexcept { return impl_->tileData; }
+const RadarColorProvider & DataProviders::radarColors() const noexcept
+{
+    return impl_->radar;
+}
+const TextureProvider & DataProviders::textures() const noexcept
+{
+    return impl_->textures;
+}
+const TileDataProvider & DataProviders::tileData() const noexcept
+{
+    return impl_->tileData;
+}
 
 } // namespace uo_mule::gui

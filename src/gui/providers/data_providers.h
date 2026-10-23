@@ -1,7 +1,7 @@
 #pragma once
 
-#include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/profile/data_profile.h"
 #include <cstdint>
 #include <expected>
 #include <memory>

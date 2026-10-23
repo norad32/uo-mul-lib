@@ -1,10 +1,10 @@
 #include "gui/application/application.h"
-#include "gui/application/workbench_state.h"
 #include "core/app_info.h"
 #include "core/gui_log_sink.h"
+#include "gui/application/workbench_state.h"
 #include "gui/commands/menu_bar.h"
-#include "gui/frontend/theme.h"
 #include "gui/frontend/frame_composition.h"
+#include "gui/frontend/theme.h"
 #include "gui/persistence/layout_store.h"
 #include "gui/persistence/preferences.h"
 #include "gui/profile/workbench_session.h"
@@ -377,12 +377,8 @@ int Application::run()
     const std::string applicationName(core::applicationName());
     WorkbenchState state(loadPreferences());
     loadLayout(state.panelRegistry, state.layout);
-    const std::unique_ptr<GLFWwindow, WindowDeleter> window{glfwCreateWindow(
-        defaultWindowWidth,
-        defaultWindowHeight,
-        applicationName.c_str(),
-        nullptr,
-        nullptr)};
+    const std::unique_ptr<GLFWwindow, WindowDeleter> window{
+        glfwCreateWindow(defaultWindowWidth, defaultWindowHeight, applicationName.c_str(), nullptr, nullptr)};
 
     if (!window)
     {
@@ -437,13 +433,12 @@ int Application::run()
     glfwSetWindowCloseCallback(window.get(),
                                [](GLFWwindow * glfwWindow)
                                {
-                                    auto * callbackState =
-                                        static_cast<WorkbenchState *>(glfwGetWindowUserPointer(glfwWindow));
-                                    if (callbackState != nullptr)
-                                    {
-                                        glfwSetWindowShouldClose(glfwWindow, GLFW_FALSE);
-                                        requestWindowClose(*callbackState);
-                                    }
+                                   auto * callbackState = static_cast<WorkbenchState *>(glfwGetWindowUserPointer(glfwWindow));
+                                   if (callbackState != nullptr)
+                                   {
+                                       glfwSetWindowShouldClose(glfwWindow, GLFW_FALSE);
+                                       requestWindowClose(*callbackState);
+                                   }
                                });
     while (glfwWindowShouldClose(window.get()) == GLFW_FALSE && !state.shouldClose)
     {

@@ -1,15 +1,13 @@
 #include "gui/commands/operation_controller.h"
-#include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/profile/data_profile.h"
 #include <utility>
 
 namespace uo_mule::gui
 {
 
-OperationTransition OperationController::begin(OperationRequest request,
-                                                bool dirty,
-                                                bool outputExists,
-                                                OutputCollisionPolicy collisionPolicy)
+OperationTransition
+OperationController::begin(OperationRequest request, bool dirty, bool outputExists, OutputCollisionPolicy collisionPolicy)
 {
     request_ = std::move(request);
     dirty_ = dirty;

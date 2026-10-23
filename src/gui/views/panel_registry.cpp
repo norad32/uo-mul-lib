@@ -4,12 +4,25 @@
 namespace uo_mule::gui
 {
 
-PanelRegistry::PanelRegistry() : panels_({
-                                       {.id = PanelId::tileInspector, .stableId = "panel.tile-inspector", .title = "Tile Inspector", .defaultVisible = true, .visible = true},
-                                        {.id = PanelId::blockInspector, .stableId = "panel.block-inspector", .title = "Block Inspector", .defaultVisible = true, .visible = true},
-                                        {.id = PanelId::radarcol, .stableId = "panel.radarcol", .title = "Radarcol", .defaultVisible = true, .visible = true},
-                                       {.id = PanelId::texmaps, .stableId = "panel.texmaps", .title = "Texmaps", .defaultVisible = true, .visible = true},
-                                   })
+PanelRegistry::PanelRegistry() :
+    panels_({
+        {
+            .id = PanelId::tileInspector,
+            .stableId = "panel.tile-inspector",
+            .title = "Tile Inspector",
+            .defaultVisible = true,
+            .visible = true,
+        },
+        {
+            .id = PanelId::blockInspector,
+            .stableId = "panel.block-inspector",
+            .title = "Block Inspector",
+            .defaultVisible = true,
+            .visible = true,
+        },
+        {.id = PanelId::radarcol, .stableId = "panel.radarcol", .title = "Radarcol", .defaultVisible = true, .visible = true},
+        {.id = PanelId::texmaps, .stableId = "panel.texmaps", .title = "Texmaps", .defaultVisible = true, .visible = true},
+    })
 {
 }
 

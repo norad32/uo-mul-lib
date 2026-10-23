@@ -1,7 +1,7 @@
 #include "gui/views/log_panel.h"
 #include "core/gui_log_sink.h"
-#include "gui/persistence/preferences.h"
 #include "gui/frontend/theme.h"
+#include "gui/persistence/preferences.h"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>

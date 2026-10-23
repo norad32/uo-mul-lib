@@ -131,7 +131,7 @@ struct FileBrowserState
 [[nodiscard]] bool fileBrowserMatchesFilter(const std::filesystem::path & path, std::string_view extension);
 [[nodiscard]] FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & path);
 [[nodiscard]] FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & indexPath,
-                                                             const std::filesystem::path & dataPath);
+                                                           const std::filesystem::path & dataPath);
 void sortFileBrowserCandidates(std::vector<FileBrowserAssetCandidate> & candidates);
 
 void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request);

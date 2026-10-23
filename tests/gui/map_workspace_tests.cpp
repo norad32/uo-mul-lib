@@ -3,8 +3,8 @@
 #include "uomul/map.h"
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <limits>
 #include <optional>
@@ -89,50 +89,38 @@ TEST_CASE("mapCoordinateHelpers_Should_ConvertScreenAndTileCoordinates")
     const auto block = uo_mule::gui::tileToBlock({.x = 15, .y = 8});
     REQUIRE(block.x == 1);
     REQUIRE(block.y == 1);
-    const auto tile = uo_mule::gui::screenToTile(screenTileX,
-                                                 screenTileY,
-                                                 canvasOriginX,
-                                                 canvasOriginY,
-                                                 panOffset,
-                                                 panOffset,
-                                                 tilePixelSize,
-                                                 testDimensions);
+    const auto tile = uo_mule::gui::screenToTile(
+        screenTileX, screenTileY, canvasOriginX, canvasOriginY, panOffset, panOffset, tilePixelSize, testDimensions);
     const auto convertedTile = tile.value_or(uomul::TileCoord{});
     REQUIRE(tile.has_value());
     REQUIRE(convertedTile.x == 2);
     REQUIRE(convertedTile.y == 3);
     REQUIRE_FALSE(uo_mule::gui::screenToTile(canvasOriginX + outsideScreenCoordinate,
-                                            canvasOriginY + panOffset,
-                                            canvasOriginX,
-                                            canvasOriginY,
-                                            zeroOffset,
-                                            zeroOffset,
-                                            tilePixelSize,
-                                            testDimensions));
+                                             canvasOriginY + panOffset,
+                                             canvasOriginX,
+                                             canvasOriginY,
+                                             zeroOffset,
+                                             zeroOffset,
+                                             tilePixelSize,
+                                             testDimensions));
     REQUIRE_FALSE(uo_mule::gui::screenToTile(canvasOriginX + panOffset,
-                                            canvasOriginY + outsideScreenCoordinate,
-                                            canvasOriginX,
-                                            canvasOriginY,
-                                            zeroOffset,
-                                            zeroOffset,
-                                            tilePixelSize,
-                                            testDimensions));
+                                             canvasOriginY + outsideScreenCoordinate,
+                                             canvasOriginX,
+                                             canvasOriginY,
+                                             zeroOffset,
+                                             zeroOffset,
+                                             tilePixelSize,
+                                             testDimensions));
     REQUIRE_FALSE(uo_mule::gui::screenToTile(mapRightEdgeScreenCoordinate,
-                                            canvasOriginY,
-                                            canvasOriginX,
-                                            canvasOriginY,
-                                            zeroOffset,
-                                            zeroOffset,
-                                            tilePixelSize,
-                                            testDimensions));
-    REQUIRE_FALSE(uo_mule::gui::screenToTile(canvasOriginX,
-                                            canvasOriginY,
-                                            canvasOriginX,
-                                            canvasOriginY,
-                                            zeroOffset,
-                                            zeroOffset,
-                                            zeroTileSize,
-                                            testDimensions));
+                                             canvasOriginY,
+                                             canvasOriginX,
+                                             canvasOriginY,
+                                             zeroOffset,
+                                             zeroOffset,
+                                             tilePixelSize,
+                                             testDimensions));
+    REQUIRE_FALSE(uo_mule::gui::screenToTile(
+        canvasOriginX, canvasOriginY, canvasOriginX, canvasOriginY, zeroOffset, zeroOffset, zeroTileSize, testDimensions));
 }
 
 TEST_CASE("mapSelectionHelpers_Should_CreateHalfOpenSingleAndReverseDragRegions")
@@ -286,8 +274,7 @@ TEST_CASE("mapWorkspace_Should_StageEditsAndRequireExplicitDirtyResolution")
     REQUIRE(workspace.mapPath() == savedPath);
     const auto savedReader = uomul::MapReader::open(savedPath, testDimensions);
     REQUIRE(savedReader);
-    REQUIRE(savedReader->readTile({.x = 0, .y = 0}) ==
-            uomul::MapTile{.id = selectedReplacementTileId, .z = 12});
+    REQUIRE(savedReader->readTile({.x = 0, .y = 0}) == uomul::MapTile{.id = selectedReplacementTileId, .z = 12});
 }
 
 TEST_CASE("mapWorkspace_Should_RejectSelectionEditsWithoutSelectionAndDiscardBackToSource")
@@ -301,8 +288,7 @@ TEST_CASE("mapWorkspace_Should_RejectSelectionEditsWithoutSelectionAndDiscardBac
     REQUIRE_FALSE(workspace.dirty());
     workspace.setBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}});
     REQUIRE(workspace.replaceZ(initialTile.z, blockElevation, MapEditScope::selection));
-    REQUIRE(workspace.reader()->readTile({.x = 8, .y = 8}) ==
-            uomul::MapTile{.id = initialTile.id, .z = blockElevation});
+    REQUIRE(workspace.reader()->readTile({.x = 8, .y = 8}) == uomul::MapTile{.id = initialTile.id, .z = blockElevation});
     REQUIRE(workspace.workingPath().has_value());
     const auto workingPath = workspace.workingPath().value_or(std::filesystem::path{});
     REQUIRE(workspace.discard());

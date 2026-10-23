@@ -2,29 +2,29 @@
 
 #include "core/gui_log_sink.h"
 #include "gui/commands/command_registry.h"
-#include "gui/profile/data_profile.h"
-#include "gui/profile/data_profile_store.h"
-#include "gui/providers/data_providers.h"
-#include "gui/dialogs/preferences_dialog.h"
+#include "gui/commands/operation_controller.h"
+#include "gui/context/notification_state.h"
+#include "gui/dialogs/dialog_host.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
-#include "gui/documents/map_workspace_manager.h"
 #include "gui/dialogs/new_file_dialog.h"
-#include "gui/dialogs/dialog_host.h"
-#include "gui/context/notification_state.h"
-#include "gui/commands/operation_controller.h"
+#include "gui/dialogs/preferences_dialog.h"
+#include "gui/documents/map_workspace_manager.h"
+#include "gui/persistence/layout_store.h"
+#include "gui/persistence/preferences.h"
+#include "gui/profile/data_profile.h"
+#include "gui/profile/data_profile_store.h"
+#include "gui/profile/workbench_session.h"
+#include "gui/providers/data_providers.h"
 #include "gui/views/block_inspector_panel.h"
 #include "gui/views/map_canvas_panel.h"
+#include "gui/views/panel_registry.h"
 #include "gui/views/radarcol_panel.h"
 #include "gui/views/texmaps_panel.h"
-#include "gui/views/panel_registry.h"
-#include "gui/persistence/preferences.h"
-#include "gui/persistence/layout_store.h"
-#include "gui/profile/workbench_session.h"
-#include <vector>
-#include <string>
-#include <optional>
 #include <filesystem>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace uo_mule::gui
 {

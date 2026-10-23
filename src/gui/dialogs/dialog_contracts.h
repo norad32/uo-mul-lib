@@ -61,11 +61,8 @@ struct FileSelectorDialogRequest
     std::filesystem::path sourcePath;
 };
 
-using DialogRequestPayload = std::variant<std::monostate,
-                                          MapDialogRequest,
-                                          PreferencesDialogRequest,
-                                          FileBrowserDialogRequest,
-                                          FileSelectorDialogRequest>;
+using DialogRequestPayload = std::
+    variant<std::monostate, MapDialogRequest, PreferencesDialogRequest, FileBrowserDialogRequest, FileSelectorDialogRequest>;
 
 struct DialogRequest
 {

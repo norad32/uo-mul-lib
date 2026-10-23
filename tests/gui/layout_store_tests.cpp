@@ -22,11 +22,14 @@ TEST_CASE("workspaceLayout_Should_RoundTripWindowPanelsAndDockSettings")
     uo_mule::gui::PanelRegistry expectedRegistry;
     expectedRegistry.find(uo_mule::gui::PanelId::texmaps)->visible = false;
     uo_mule::gui::WorkspaceLayout expectedLayout{
-        .window = {.geometryValid = true,
-                   .x = expectedX,
-                   .y = expectedY,
-                   .width = expectedWidth,
-                   .height = expectedHeight,},
+        .window =
+            {
+                .geometryValid = true,
+                .x = expectedX,
+                .y = expectedY,
+                .width = expectedWidth,
+                .height = expectedHeight,
+            },
         .dockingIni = "[Window][Radarcol###view.radarcol]\nPos=400,200\nDockId=0x1234,2\n",
     };
 

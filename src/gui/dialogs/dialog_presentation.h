@@ -19,10 +19,8 @@ struct DialogWindowSpec
 [[nodiscard]] DialogWindowSpec mapDialogSpec() noexcept;
 [[nodiscard]] DialogWindowSpec mapFacetDialogSpec() noexcept;
 
-[[nodiscard]] bool beginDialog(const char * popupId,
-                               bool * visible,
-                               DialogWindowSpec spec,
-                               ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None);
+[[nodiscard]] bool
+beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None);
 void endDialog();
 void dialogHeading(const char * text);
 void dialogSubheading(const char * text);

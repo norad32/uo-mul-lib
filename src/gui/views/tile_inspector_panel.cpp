@@ -1,10 +1,10 @@
 #include "gui/views/tile_inspector_panel.h"
-#include "gui/persistence/preferences.h"
-#include "gui/strings/ui_strings.h"
 #include "gui/context/map_context.h"
-#include "gui/providers/data_providers.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/frontend/theme.h"
+#include "gui/persistence/preferences.h"
+#include "gui/providers/data_providers.h"
+#include "gui/strings/ui_strings.h"
 #include "uomul/map.h"
 #include <cstddef>
 #include <cstdint>
@@ -41,8 +41,8 @@ void drawTexturePreview(const ProviderTexture & texturePreview)
 
     // Draw checkerboard background
     constexpr float checkerSize = 4.0F;
-    constexpr ImU32 checkerColor1 = IM_COL32(64, 64, 64, 255);
-    constexpr ImU32 checkerColor2 = IM_COL32(128, 128, 128, 255);
+    const ImU32 checkerColor1 = theme::packedColor(theme::checkerboardDark);
+    const ImU32 checkerColor2 = theme::packedColor(theme::checkerboardLight);
 
     for (int checkerY = 0; (static_cast<float>(checkerY) * checkerSize) < assetPreviewSize; checkerY++)
     {
@@ -52,7 +52,7 @@ void drawTexturePreview(const ProviderTexture & texturePreview)
             const bool oddY = checkerY % 2 == 1;
             const ImU32 pixelColor = (oddX != oddY) ? checkerColor1 : checkerColor2;
             const ImVec2 checkerMin(cellMin.x + (static_cast<float>(checkerX) * checkerSize),
-                                     cellMin.y + (static_cast<float>(checkerY) * checkerSize));
+                                    cellMin.y + (static_cast<float>(checkerY) * checkerSize));
             const ImVec2 checkerMax(checkerMin.x + checkerSize, checkerMin.y + checkerSize);
             drawList->AddRectFilled(checkerMin, checkerMax, pixelColor);
         }
@@ -70,22 +70,20 @@ void drawTexturePreview(const ProviderTexture & texturePreview)
                 const ImU32 imColor = IM_COL32(pixelColor.red, pixelColor.green, pixelColor.blue, 255);
 
                 const ImVec2 pixelMin(cellMin.x + (static_cast<float>(tx) * scaleX),
-                                       cellMin.y + (static_cast<float>(ty) * scaleY));
+                                      cellMin.y + (static_cast<float>(ty) * scaleY));
                 const ImVec2 pixelMax(cellMin.x + (static_cast<float>(tx + 1) * scaleX),
-                                       cellMin.y + (static_cast<float>(ty + 1) * scaleY));
+                                      cellMin.y + (static_cast<float>(ty + 1) * scaleY));
 
                 drawList->AddRectFilled(pixelMin, pixelMax, imColor);
             }
         }
     }
 
-    drawList->AddRect(cellMin, cellMax, IM_COL32(255, 255, 255, 255), 0.0F, ImDrawFlags_None, 1.0F);
+    drawList->AddRect(cellMin, cellMax, theme::packedColor(theme::border), 0.0F, ImDrawFlags_None, 1.0F);
     ImGui::Dummy(ImVec2(assetPreviewSize, assetPreviewSize));
 }
 
-void drawTileDetails(const MapContextSnapshot & context,
-                     const DataProviders & providers,
-                     IdFormat idFormat)
+void drawTileDetails(const MapContextSnapshot & context, const DataProviders & providers, IdFormat idFormat)
 {
     const auto & tileValue = context.activeTile;
     const auto & dataValue = context.activeValue;
@@ -128,10 +126,10 @@ void drawTileDetails(const MapContextSnapshot & context,
 } // namespace
 
 void drawTileInspectorPanel(const MapWorkspace & workspace,
-                             const MapContextSnapshot & context,
-                             const DataProviders & providers,
-                             IdFormat idFormat,
-                             bool & visible)
+                            const MapContextSnapshot & context,
+                            const DataProviders & providers,
+                            IdFormat idFormat,
+                            bool & visible)
 {
     const bool contentsVisible = ImGui::Begin("Tile Inspector###view.tile-inspector", &visible);
 

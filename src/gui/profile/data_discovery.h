@@ -45,9 +45,8 @@ struct DataDiscoveryOptions
     bool validateCandidates = true;
 };
 
-[[nodiscard]] DataDiscoveryResult discoverDataFiles(const std::filesystem::path & root,
-                                                    DiscoveryMode mode,
-                                                    DataDiscoveryOptions options = {});
+[[nodiscard]] DataDiscoveryResult
+discoverDataFiles(const std::filesystem::path & root, DiscoveryMode mode, DataDiscoveryOptions options = {});
 void applyDiscovery(DataProfile & profile, const DataDiscoveryResult & result);
 
 } // namespace uo_mule::gui

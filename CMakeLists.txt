@@ -95,12 +95,6 @@ if(NOT spdlog_FOUND)
     set(SPDLOG_BUILD_EXAMPLE
         OFF
         CACHE BOOL "Disable spdlog examples" FORCE)
-    set(SPDLOG_BUILD_TESTS
-        OFF
-        CACHE BOOL "Disable spdlog tests" FORCE)
-    set(SPDLOG_BUILD_EXAMPLE
-        OFF
-        CACHE BOOL "Disable spdlog examples" FORCE)
     application_pin_fetchcontent_dependency(
         spdlog https://github.com/gabime/spdlog.git
         79524ddd08a4ec981b7fea76afd08ee05f83755d) # spdlog v1.17.0

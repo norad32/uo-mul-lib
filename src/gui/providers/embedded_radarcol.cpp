@@ -1,7 +1,7 @@
 #include "gui/providers/embedded_radarcol.h"
-#include "gui/providers/data_providers.h"
 #include "gui/context/color_conversion.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/providers/data_providers.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
 #include <cstdint>
@@ -26,20 +26,24 @@ class EmbeddedRadarColorProvider final : public RadarColorProvider
 public:
     [[nodiscard]] ProviderStatus status() const override
     {
-        return {.state = ProviderAssetState::available,
-                .source = ProviderSourceKind::embeddedDefault,
-                .message = "Embedded Radarcol",
-                .revision = 1,};
+        return {
+            .state = ProviderAssetState::available,
+            .source = ProviderSourceKind::embeddedDefault,
+            .message = "Embedded Radarcol",
+            .revision = 1,
+        };
     }
 
     [[nodiscard]] ProviderStatus status(std::uint16_t id) const override
     {
         if (id >= uomul::radarMapColorCount)
         {
-            return {.state = ProviderAssetState::invalid,
-                    .source = ProviderSourceKind::embeddedDefault,
-                    .message = "Map color ID is outside the radar table",
-                    .revision = 1,};
+            return {
+                .state = ProviderAssetState::invalid,
+                .source = ProviderSourceKind::embeddedDefault,
+                .message = "Map color ID is outside the radar table",
+                .revision = 1,
+            };
         }
         return status();
     }

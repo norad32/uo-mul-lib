@@ -186,7 +186,7 @@ void drawProfileSummary(const DataProfile & profile)
 {
     const DataProfileValidation validation = validateDataProfile(profile);
     const std::string profileName = profile.name.empty() ? "No profile" : profile.name;
-    ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", profileName.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::subheading), "%s", profileName.c_str());
 
     const std::array<DataFileRole, 3> metadataRoles{DataFileRole::radarcol, DataFileRole::texidx, DataFileRole::texmaps};
     const bool anyConfigured = std::ranges::any_of(metadataRoles,
@@ -211,7 +211,7 @@ void drawProfileSummary(const DataProfile & profile)
     else if (anyConfigured)
     {
         metadataLabel = "Incomplete";
-        metadataColor = theme::peach;
+        metadataColor = theme::warning;
     }
     ImGui::TextUnformatted("Metadata: ");
     ImGui::SameLine(0.0F, 0.0F);
@@ -267,14 +267,14 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
         const ImVec2 rowMin = ImGui::GetWindowPos();
         const ImVec2 rowMax = ImVec2(rowMin.x + ImGui::GetWindowSize().x, rowMin.y + ImGui::GetWindowSize().y);
         const theme::Color rowColor =
-            rowHovered && ImGui::IsMouseDown(ImGuiMouseButton_Left) ? theme::surface2 : theme::surface1;
+            rowHovered && ImGui::IsMouseDown(ImGuiMouseButton_Left) ? theme::activeSurface : theme::hoveredSurface;
         ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(rowColor));
     }
     else
     {
         const ImVec2 rowMin = ImGui::GetWindowPos();
         const ImVec2 rowMax = ImVec2(rowMin.x + ImGui::GetWindowSize().x, rowMin.y + ImGui::GetWindowSize().y);
-        ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(theme::surface0));
+        ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(theme::panelBackground));
     }
     if (rowHovered)
     {
@@ -282,7 +282,7 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
         ImGui::SetTooltip("%s", recent.path.string().c_str());
     }
 
-    ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", recent.displayName.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::subheading), "%s", recent.displayName.c_str());
     ImGui::SameLine();
     const std::string kindLabel(documentKindName(recent.kind));
     ImGui::TextUnformatted(kindLabel.c_str());
@@ -375,7 +375,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     ImGui::Separator();
 
     ImGui::Spacing();
-    ImGui::TextColored(theme::imguiColor(theme::peach), "%s", state.welcomeGreeting.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::greeting), "%s", state.welcomeGreeting.c_str());
     ImGui::Spacing();
     ImGui::Separator();
 

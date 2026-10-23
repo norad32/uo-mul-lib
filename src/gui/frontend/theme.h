@@ -33,12 +33,12 @@ constexpr Color colorFromRgba(std::uint32_t rgba) noexcept
     };
 }
 
-inline constexpr Color traceLog = colorFromRgba(0x9399B2FFU);    // Overlay 2
-inline constexpr Color debugLog = colorFromRgba(0x89B4FAFFU);    // Blue
-inline constexpr Color infoLog = colorFromRgba(0x94E2D5FFU);     // Teal
-inline constexpr Color warningLog = colorFromRgba(0xF9E2AFFFU);  // Yellow
-inline constexpr Color errorLog = colorFromRgba(0xF38BA8FFU);    // Red
-inline constexpr Color neutralLog = colorFromRgba(0xBAC2DEFFU);  // Subtext 1
+inline constexpr Color traceLog = colorFromRgba(0x9399B2FFU);   // Overlay 2
+inline constexpr Color debugLog = colorFromRgba(0x89B4FAFFU);   // Blue
+inline constexpr Color infoLog = colorFromRgba(0x94E2D5FFU);    // Teal
+inline constexpr Color warningLog = colorFromRgba(0xF9E2AFFFU); // Yellow
+inline constexpr Color errorLog = colorFromRgba(0xF38BA8FFU);   // Red
+inline constexpr Color neutralLog = colorFromRgba(0xBAC2DEFFU); // Subtext 1
 
 inline constexpr Color base = colorFromRgba(0x1E1E2EFFU);
 inline constexpr Color mantle = colorFromRgba(0x181825FFU);
@@ -76,12 +76,25 @@ inline constexpr Color border = surface1;
 inline constexpr Color selection = lavender;
 inline constexpr Color accent = mauve;
 inline constexpr Color primaryText = text;
+inline constexpr Color heading = mauve;
+inline constexpr Color subheading = lavender;
 inline constexpr Color greeting = lavender;
 inline constexpr Color warning = peach;
 inline constexpr Color error = red;
 inline constexpr Color success = green;
 inline constexpr Color info = sapphire;
 inline constexpr Color mutedText = subtext0;
+inline constexpr Color hoveredSurface = surface1;
+inline constexpr Color activeSurface = surface2;
+inline constexpr Color selectionOverlay{
+    .red = selection.red,
+    .green = selection.green,
+    .blue = selection.blue,
+    .alpha = 0.14F,
+};
+inline constexpr Color unavailable = maroon;
+inline constexpr Color checkerboardDark = colorFromRgba(0x404040FFU);
+inline constexpr Color checkerboardLight = colorFromRgba(0x808080FFU);
 
 [[nodiscard]] constexpr Color withAlpha(Color color, float value) noexcept
 {

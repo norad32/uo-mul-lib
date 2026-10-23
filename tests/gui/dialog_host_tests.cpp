@@ -28,9 +28,8 @@ TEST_CASE("dialogHost_Should_ReplaceAndDeliverTypedResult")
     auto replacement = makeDialogRequest(DialogId::fileBrowser);
     replacement.replaceActive = true;
     REQUIRE(host.request(std::move(replacement)));
-    host.complete({.id = DialogId::fileBrowser,
-                   .action = DialogAction::accept,
-                   .payload = DialogPathResult{.path = "selected.mul"}});
+    host.complete(
+        {.id = DialogId::fileBrowser, .action = DialogAction::accept, .payload = DialogPathResult{.path = "selected.mul"}});
 
     const auto result = host.consumeResult();
     REQUIRE(result.has_value());

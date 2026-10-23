@@ -42,7 +42,8 @@ void createRadarcol(const std::filesystem::path & path, std::uint16_t firstColor
     auto values = colors;
     values.front() = firstColor;
     std::ofstream file(path, std::ios::binary);
-    file.write(reinterpret_cast<const char *>(values.data()), static_cast<std::streamsize>(values.size() * sizeof(std::uint16_t)));
+    file.write(reinterpret_cast<const char *>(values.data()),
+               static_cast<std::streamsize>(values.size() * sizeof(std::uint16_t)));
 }
 
 uo_mule::gui::DataProfile profileWithRadarcol(const std::filesystem::path & path)

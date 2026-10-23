@@ -1,8 +1,8 @@
 #include "gui/documents/map_document.h"
 #include "gui/documents/document_identity.h"
-#include "gui/metadata/document_contracts.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/documents/radarcol_document.h"
+#include "gui/metadata/document_contracts.h"
 #include "gui/profile/data_profile.h"
 #include <algorithm>
 #include <optional>
@@ -44,8 +44,8 @@ void DocumentManager::sync(const MapWorkspace & workspace)
             .dimensions = workspace.dimensions(),
             .dirty = workspace.dirty(),
         };
-        record = &documents_.emplace_back(
-            DocumentRecord{.summary = map.summary(), .map = std::move(map), .radarcol = std::nullopt});
+        record =
+            &documents_.emplace_back(DocumentRecord{.summary = map.summary(), .map = std::move(map), .radarcol = std::nullopt});
     }
 
     if (!record->map)
@@ -83,8 +83,7 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
                 configured = configuredRadarcolSource_.has_value() && identity.source == configuredRadarcolSource_.value();
                 break;
             case DocumentKind::texmapPair :
-                configured = configuredTexmapPairSource_.has_value() &&
-                             identity.source == configuredTexmapPairSource_.value();
+                configured = configuredTexmapPairSource_.has_value() && identity.source == configuredTexmapPairSource_.value();
                 break;
             case DocumentKind::map :
                 break;
@@ -124,27 +123,24 @@ DocumentId DocumentManager::open(DocumentSummary summary)
     switch (summary.identity.kind)
     {
         case DocumentKind::radarcol :
-            configured = configuredRadarcolSource_.has_value() &&
-                         summary.identity.source == configuredRadarcolSource_.value();
+            configured = configuredRadarcolSource_.has_value() && summary.identity.source == configuredRadarcolSource_.value();
             break;
         case DocumentKind::texmapPair :
-            configured = configuredTexmapPairSource_.has_value() &&
-                         summary.identity.source == configuredTexmapPairSource_.value();
+            configured =
+                configuredTexmapPairSource_.has_value() && summary.identity.source == configuredTexmapPairSource_.value();
             break;
         case DocumentKind::map :
             break;
     }
     summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-    summary.access = summary.identity.kind == DocumentKind::radarcol && !configured
-                         ? DocumentAccess::editable
-                         : DocumentAccess::readOnly;
+    summary.access =
+        summary.identity.kind == DocumentKind::radarcol && !configured ? DocumentAccess::editable : DocumentAccess::readOnly;
 
     std::optional<RadarcolDocument> radarcol;
     if (summary.identity.kind == DocumentKind::radarcol && !summary.identity.source.canonicalPaths.empty())
     {
-        auto opened = RadarcolDocument::open(summary.identity.id,
-                                             summary.identity.source.canonicalPaths.front(),
-                                             summary.access);
+        auto opened =
+            RadarcolDocument::open(summary.identity.id, summary.identity.source.canonicalPaths.front(), summary.access);
         if (opened)
         {
             summary.validation = DocumentValidationState::valid;
@@ -153,10 +149,8 @@ DocumentId DocumentManager::open(DocumentSummary summary)
         else
         {
             summary.validation = DocumentValidationState::invalid;
-            radarcol = RadarcolDocument::invalid(summary.identity.id,
-                                                 summary.identity.source.canonicalPaths.front(),
-                                                 summary.access,
-                                                 opened.error().message);
+            radarcol = RadarcolDocument::invalid(
+                summary.identity.id, summary.identity.source.canonicalPaths.front(), summary.access, opened.error().message);
         }
     }
 
@@ -178,9 +172,8 @@ bool DocumentManager::activate(DocumentId id) noexcept
 
 bool DocumentManager::close(DocumentId id) noexcept
 {
-    const auto record = std::ranges::find_if(documents_, [id](const DocumentRecord & candidate) {
-        return candidate.summary.identity.id == id;
-    });
+    const auto record = std::ranges::find_if(
+        documents_, [id](const DocumentRecord & candidate) { return candidate.summary.identity.id == id; });
     if (record == documents_.end())
     {
         return false;
@@ -206,9 +199,8 @@ std::vector<DocumentRecord> & DocumentManager::documentsMutable() noexcept
 
 DocumentRecord * DocumentManager::findMutable(DocumentId id) noexcept
 {
-    const auto record = std::ranges::find_if(documents_, [id](const DocumentRecord & candidate) {
-        return candidate.summary.identity.id == id;
-    });
+    const auto record = std::ranges::find_if(
+        documents_, [id](const DocumentRecord & candidate) { return candidate.summary.identity.id == id; });
     return record == documents_.end() ? nullptr : &*record;
 }
 
@@ -226,17 +218,16 @@ void DocumentManager::syncAssetDocuments() noexcept
             document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
             document.radarcol->setAccess(document.summary.access);
             document.summary.dirty = document.radarcol->dirty();
-            document.summary.validation = document.radarcol->reader().has_value() ? DocumentValidationState::valid
-                                                                                    : DocumentValidationState::invalid;
+            document.summary.validation =
+                document.radarcol->reader().has_value() ? DocumentValidationState::valid : DocumentValidationState::invalid;
         }
     }
 }
 
 const DocumentRecord * DocumentManager::find(DocumentId id) const noexcept
 {
-    const auto record = std::ranges::find_if(documents_, [id](const DocumentRecord & candidate) {
-        return candidate.summary.identity.id == id;
-    });
+    const auto record = std::ranges::find_if(
+        documents_, [id](const DocumentRecord & candidate) { return candidate.summary.identity.id == id; });
     return record == documents_.end() ? nullptr : &*record;
 }
 
@@ -267,9 +258,9 @@ const std::optional<MapDocument> & DocumentManager::active() const noexcept
 
 DocumentRecord * DocumentManager::findByIdentity(const DocumentIdentity & identity) noexcept
 {
-    const auto record = std::ranges::find_if(documents_, [&identity](const DocumentRecord & candidate) {
-        return sameDocumentIdentity(candidate.summary.identity, identity);
-    });
+    const auto record = std::ranges::find_if(documents_,
+                                             [&identity](const DocumentRecord & candidate)
+                                             { return sameDocumentIdentity(candidate.summary.identity, identity); });
     return record == documents_.end() ? nullptr : &*record;
 }
 

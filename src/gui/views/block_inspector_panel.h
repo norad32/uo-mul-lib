@@ -1,7 +1,7 @@
 #pragma once
 
-#include "gui/documents/map_workspace.h"
 #include "gui/context/map_context.h"
+#include "gui/documents/map_workspace.h"
 #include "gui/providers/data_providers.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"

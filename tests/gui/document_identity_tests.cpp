@@ -50,17 +50,14 @@ TEST_CASE("DocumentIdentity_Should_CanonicalizeEquivalentSinglePathSources")
 
     REQUIRE(first.canonicalPaths.size() == 1);
     REQUIRE(first == second);
-    REQUIRE(uo_mule::gui::sameDocumentIdentity(
-        {.id = 1, .kind = uo_mule::gui::DocumentKind::map, .source = first},
-        {.id = 2, .kind = uo_mule::gui::DocumentKind::map, .source = second}));
+    REQUIRE(uo_mule::gui::sameDocumentIdentity({.id = 1, .kind = uo_mule::gui::DocumentKind::map, .source = first},
+                                               {.id = 2, .kind = uo_mule::gui::DocumentKind::map, .source = second}));
 }
 
 TEST_CASE("DocumentIdentity_Should_RepresentTexmapPairAsOneUnorderedSource")
 {
-    const auto identity = uo_mule::gui::makeDocumentSourceIdentity(
-        {testRoot / "texidx.mul", testRoot / "texmaps.mul"});
-    const auto reversed = uo_mule::gui::makeDocumentSourceIdentity(
-        {testRoot / "texmaps.mul", testRoot / "texidx.mul"});
+    const auto identity = uo_mule::gui::makeDocumentSourceIdentity({testRoot / "texidx.mul", testRoot / "texmaps.mul"});
+    const auto reversed = uo_mule::gui::makeDocumentSourceIdentity({testRoot / "texmaps.mul", testRoot / "texidx.mul"});
 
     REQUIRE(identity.canonicalPaths.size() == 2);
     REQUIRE(identity.canonicalPaths.at(0) != identity.canonicalPaths.at(1));
@@ -122,8 +119,7 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
 
     uo_mule::gui::DocumentManager documents;
     const auto radarcolIdentity = uo_mule::gui::makeDocumentSourceIdentity({testRoot / "radarcol.mul"});
-    const auto pairIdentity = uo_mule::gui::makeDocumentSourceIdentity(
-        {testRoot / "texidx.mul", testRoot / "texmaps.mul"});
+    const auto pairIdentity = uo_mule::gui::makeDocumentSourceIdentity({testRoot / "texidx.mul", testRoot / "texmaps.mul"});
 
     const auto radarcolId = documents.open({
         .identity = {.kind = uo_mule::gui::DocumentKind::radarcol, .source = radarcolIdentity},
@@ -240,8 +236,7 @@ TEST_CASE("ConfiguredDocumentSource_Should_MatchCanonicalRadarcolPaths")
     uo_mule::gui::DataProfile profile;
     profile.sourceRoot = testRoot;
     profile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = "radarcol.mul"};
-    const auto configured = uo_mule::gui::configuredDocumentSourceIdentity(
-        profile, uo_mule::gui::DocumentKind::radarcol);
+    const auto configured = uo_mule::gui::configuredDocumentSourceIdentity(profile, uo_mule::gui::DocumentKind::radarcol);
     REQUIRE(configured.has_value());
 
     const auto opened = uo_mule::gui::makeDocumentSourceIdentity({aliasPath});
@@ -258,8 +253,7 @@ TEST_CASE("ConfiguredDocumentSource_Should_RequireBothTexmapPairPaths")
     REQUIRE_FALSE(uo_mule::gui::configuredDocumentSourceIdentity(profile, uo_mule::gui::DocumentKind::texmapPair));
 
     profile.files[uo_mule::gui::DataFileRole::texmaps] = {.path = "texmaps.mul"};
-    const auto configured = uo_mule::gui::configuredDocumentSourceIdentity(
-        profile, uo_mule::gui::DocumentKind::texmapPair);
+    const auto configured = uo_mule::gui::configuredDocumentSourceIdentity(profile, uo_mule::gui::DocumentKind::texmapPair);
     REQUIRE(configured.has_value());
     REQUIRE(configured->canonicalPaths.size() == 2);
 }
@@ -272,7 +266,8 @@ TEST_CASE("WorkbenchSession_Should_RebindOpenMetadataSourceStatusWhenProfileChan
     std::ofstream(firstRadarcol).close();
     std::ofstream(secondRadarcol).close();
 
-    const auto makeSummary = [](const std::filesystem::path & path) {
+    const auto makeSummary = [](const std::filesystem::path & path)
+    {
         return uo_mule::gui::DocumentSummary{
             .identity = {.kind = uo_mule::gui::DocumentKind::radarcol,
                          .source = uo_mule::gui::makeDocumentSourceIdentity({path})},

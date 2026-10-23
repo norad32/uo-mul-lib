@@ -1,6 +1,8 @@
 #include "gui/assets/asset_window_contracts.h"
-#include <catch2/catch_test_macros.hpp>
 #include <array>
+#include <catch2/catch_test_macros.hpp>
+#include <cstddef>
+#include <cstdint>
 
 namespace
 {
@@ -9,12 +11,13 @@ constexpr auto grid = uo_mule::gui::assets::AssetPresentationCapability::grid;
 constexpr auto table = uo_mule::gui::assets::AssetPresentationCapability::table;
 constexpr auto filter = uo_mule::gui::assets::AssetQueryCapability::filter;
 constexpr auto sort = uo_mule::gui::assets::AssetQueryCapability::sort;
+constexpr std::size_t indexedSelection = 7U;
 
 } // namespace
 
 TEST_CASE("assetCapabilities_Should_ReportDeclaredPresentationAndQuerySupport")
 {
-    uo_mule::gui::assets::AssetCapabilitySet capabilities{
+    const uo_mule::gui::assets::AssetCapabilitySet capabilities{
         .presentations = static_cast<std::uint8_t>(grid) | static_cast<std::uint8_t>(table),
         .queries = static_cast<std::uint8_t>(filter) | static_cast<std::uint8_t>(sort),
         .selection = uo_mule::gui::assets::AssetSelectionMode::multiple,
@@ -56,7 +59,8 @@ TEST_CASE("assetSelection_Should_ReplaceSingleSelectionAndTrackAnchor")
 
     REQUIRE(selection.selected.size() == 1);
     REQUIRE(uo_mule::gui::assets::contains(selection, {.value = "42"}));
-    REQUIRE(selection.anchor->value == "42");
+    REQUIRE(selection.anchor.has_value());
+    REQUIRE(selection.selected.front().value == "42");
 
     uo_mule::gui::assets::selectSingle(selection, {.value = "43"});
     REQUIRE(selection.selected.size() == 1);
@@ -78,13 +82,14 @@ TEST_CASE("assetSelection_Should_ToggleItemsAndTrackIndexedAnchor")
 {
     uo_mule::gui::assets::AssetSelection selection;
     uo_mule::gui::assets::selectSingleAt(selection, {.value = "42"}, 4U);
-    uo_mule::gui::assets::toggleAt(selection, {.value = "43"}, 7U);
+    uo_mule::gui::assets::toggleAt(selection, {.value = "43"}, indexedSelection);
 
     REQUIRE(selection.selected.size() == 2U);
-    REQUIRE(selection.anchor->value == "43");
-    REQUIRE(selection.anchorIndex == 7U);
+    REQUIRE(selection.anchor.has_value());
+    REQUIRE(selection.selected.back().value == "43");
+    REQUIRE(selection.anchorIndex == indexedSelection);
 
-    uo_mule::gui::assets::toggleAt(selection, {.value = "43"}, 7U);
+    uo_mule::gui::assets::toggleAt(selection, {.value = "43"}, indexedSelection);
     REQUIRE(selection.selected.size() == 1U);
     REQUIRE_FALSE(uo_mule::gui::assets::contains(selection, {.value = "43"}));
 }
@@ -94,7 +99,8 @@ TEST_CASE("assetSelection_Should_TrackIndexedSingleSelection")
     uo_mule::gui::assets::AssetSelection selection;
     uo_mule::gui::assets::selectSingleAt(selection, {.value = "42"}, 4U);
 
-    REQUIRE(selection.anchor->value == "42");
+    REQUIRE(selection.anchor.has_value());
+    REQUIRE(selection.selected.front().value == "42");
     REQUIRE(selection.anchorIndex == 4U);
 }
 

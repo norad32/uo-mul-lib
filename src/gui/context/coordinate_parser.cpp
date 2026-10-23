@@ -1,11 +1,11 @@
 #include "gui/context/coordinate_parser.h"
-#include <charconv>
 #include <cctype>
+#include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <string>
 #include <string_view>
-#include <cstddef>
 #include <system_error>
 
 namespace uo_mule::gui
@@ -65,15 +65,13 @@ std::expected<ParsedCoordinate, std::string> parseCoordinate(std::string_view in
         remaining.remove_prefix(1);
     }
     const std::size_t trailingWhitespace = remaining.find_first_of(" \t\n\r\f\v");
-    const auto y = parseNumber(trailingWhitespace == std::string_view::npos
-                                   ? remaining
-                                   : remaining.substr(0, trailingWhitespace));
+    const auto y =
+        parseNumber(trailingWhitespace == std::string_view::npos ? remaining : remaining.substr(0, trailingWhitespace));
     if (!x || !y)
     {
         return std::unexpected(x ? y.error() : x.error());
     }
-    if (trailingWhitespace != std::string_view::npos &&
-        !trim(remaining.substr(trailingWhitespace + 1)).empty())
+    if (trailingWhitespace != std::string_view::npos && !trim(remaining.substr(trailingWhitespace + 1)).empty())
     {
         return std::unexpected("coordinates must contain exactly two values");
     }

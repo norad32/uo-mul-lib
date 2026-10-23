@@ -1,7 +1,7 @@
-#include "gui/commands/command_registry.h"
-#include "gui/documents/map_workspace.h"
-#include "gui/dialogs/new_file_dialog.h"
 #include "gui/application/workbench_state.h"
+#include "gui/commands/command_registry.h"
+#include "gui/dialogs/new_file_dialog.h"
+#include "gui/documents/map_workspace.h"
 #include "gui/views/panel_registry.h"
 #include <catch2/catch_test_macros.hpp>
 #include <string>

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "gui/documents/map_workspace.h"
-#include "gui/profile/data_profile.h"
-#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/assets/asset_window_contracts.h"
+#include "gui/dialogs/file_browser_dialog.h"
+#include "gui/documents/map_workspace.h"
 #include "gui/persistence/preferences.h"
+#include "gui/profile/data_profile.h"
 #include "uomul/texmaps/texmaps.h"
 #include <array>
 #include <cstddef>
@@ -12,8 +12,8 @@
 #include <limits>
 #include <optional>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace uo_mule::gui
 {

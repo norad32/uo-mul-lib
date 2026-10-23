@@ -39,18 +39,20 @@ constexpr float dialogFieldLabelWidth = 240.0F;
 
 [[nodiscard]] ImGuiWindowFlags modalFlags(ImGuiWindowFlags extraFlags) noexcept
 {
-    return static_cast<ImGuiWindowFlags>(static_cast<unsigned int>(ImGuiWindowFlags_NoCollapse) |
-                                         static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
-                                         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar) |
-                                         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse) |
-                                         static_cast<unsigned int>(extraFlags));
+    return static_cast<ImGuiWindowFlags>(
+        static_cast<unsigned int>(ImGuiWindowFlags_NoCollapse) | static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar) |
+        static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse) | static_cast<unsigned int>(extraFlags));
 }
 
 } // namespace
 
 DialogWindowSpec standardDialogSpec() noexcept
 {
-    return {.initialSize = ImVec2(standardWidth, standardHeight), .minimumSize = ImVec2(standardMinimumWidth, standardMinimumHeight)};
+    return {
+        .initialSize = ImVec2(standardWidth, standardHeight),
+        .minimumSize = ImVec2(standardMinimumWidth, standardMinimumHeight),
+    };
 }
 
 DialogWindowSpec selectorDialogSpec() noexcept
@@ -65,7 +67,10 @@ DialogWindowSpec largeDialogSpec() noexcept
 
 DialogWindowSpec browserDialogSpec() noexcept
 {
-    return {.initialSize = ImVec2(browserWidth, browserHeight), .minimumSize = ImVec2(browserMinimumWidth, browserMinimumHeight)};
+    return {
+        .initialSize = ImVec2(browserWidth, browserHeight),
+        .minimumSize = ImVec2(browserMinimumWidth, browserMinimumHeight),
+    };
 }
 
 DialogWindowSpec mapDialogSpec() noexcept
@@ -75,8 +80,10 @@ DialogWindowSpec mapDialogSpec() noexcept
 
 DialogWindowSpec mapFacetDialogSpec() noexcept
 {
-    return {.initialSize = ImVec2(mapFacetWidth, mapFacetHeight),
-            .minimumSize = ImVec2(mapFacetMinimumWidth, mapFacetMinimumHeight),};
+    return {
+        .initialSize = ImVec2(mapFacetWidth, mapFacetHeight),
+        .minimumSize = ImVec2(mapFacetMinimumWidth, mapFacetMinimumHeight),
+    };
 }
 
 bool beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, ImGuiWindowFlags extraFlags)
@@ -94,17 +101,17 @@ void endDialog()
 
 void dialogHeading(const char * text)
 {
-    ImGui::TextColored(theme::imguiColor(theme::mauve), "%s", text);
+    ImGui::TextColored(theme::imguiColor(theme::heading), "%s", text);
 }
 
 void dialogSubheading(const char * text)
 {
-    ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", text);
+    ImGui::TextColored(theme::imguiColor(theme::subheading), "%s", text);
 }
 
 void dialogSeparatorText(const char * text)
 {
-    ImGui::PushStyleColor(ImGuiCol_Text, theme::imguiColor(theme::lavender));
+    ImGui::PushStyleColor(ImGuiCol_Text, theme::imguiColor(theme::subheading));
     ImGui::SeparatorText(text);
     ImGui::PopStyleColor();
 }

@@ -1,23 +1,22 @@
 #include "gui/commands/command_registry.h"
+#include "gui/application/workbench_state.h"
 #include "gui/context/coordinate_parser.h"
 #include "gui/context/map_context.h"
-#include "gui/dialogs/preferences_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/new_file_dialog.h"
+#include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/documents/radarcol_document.h"
-#include "gui/dialogs/new_file_dialog.h"
-#include "gui/views/common.h"
 #include "gui/persistence/preferences.h"
-#include "gui/views/panel_registry.h"
-#include "gui/application/workbench_state.h"
 #include "gui/profile/workbench_session.h"
-#include "gui/views/map_canvas_panel.h"
 #include "gui/strings/ui_strings.h"
-#include <functional>
+#include "gui/views/map_canvas_panel.h"
+#include "gui/views/panel_registry.h"
 #include <algorithm>
 #include <cstddef>
-#include <string_view>
+#include <functional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -61,8 +60,10 @@ CommandAvailability requiresMapForSave(const WorkbenchState & state)
 {
     if (state.workspace.reader() == nullptr || !state.workspace.dirty())
     {
-        return {.enabled = false, .disabledReason = state.workspace.reader() == nullptr ? "No map is open"
-                                                                                         : "There are no staged changes",};
+        return {
+            .enabled = false,
+            .disabledReason = state.workspace.reader() == nullptr ? "No map is open" : "There are no staged changes",
+        };
     }
     return enabled(state);
 }
@@ -103,21 +104,19 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
     {
         state.menuBarState.fileDialog.openPath.fill('\0');
         requestFileBrowser(state.fileBrowser,
-                           {.mode = FileBrowserMode::openFile,
-                             .target = FileBrowserTarget::genericOpen,
-                             .initialPath = {},
-                             .extension = ".mul",
-                             .title = "Open MUL File",});
+                           {
+                               .mode = FileBrowserMode::openFile,
+                               .target = FileBrowserTarget::genericOpen,
+                               .initialPath = {},
+                               .extension = ".mul",
+                               .title = "Open MUL File",
+                           });
     }
 }
 
 void requestClose(WorkbenchState & state, PendingMapOperationKind kind)
 {
-    requestCloseOperation(state.workspace,
-                          state.menuBarState.fileDialog,
-                          state.operationController,
-                          kind,
-                          state.notifications);
+    requestCloseOperation(state.workspace, state.menuBarState.fileDialog, state.operationController, kind, state.notifications);
 }
 
 void togglePanel(bool & visibility)
@@ -148,15 +147,16 @@ void add(CommandRegistry & registry,
          std::function<CommandAvailability(const WorkbenchState &)> availability,
          std::function<void(WorkbenchState &)> execute)
 {
-    registry.registerCommand({.id = id,
-                              .stableId = std::move(stableId),
-                              .label = std::move(label),
-                              .category = std::move(category),
-                              .description = std::move(description),
-                              .defaultShortcut = std::move(defaultShortcut),
-                              .availability = std::move(availability),
-                              .execute = std::move(execute),
-                             });
+    registry.registerCommand({
+        .id = id,
+        .stableId = std::move(stableId),
+        .label = std::move(label),
+        .category = std::move(category),
+        .description = std::move(description),
+        .defaultShortcut = std::move(defaultShortcut),
+        .availability = std::move(availability),
+        .execute = std::move(execute),
+    });
 }
 
 } // namespace
@@ -230,9 +230,23 @@ const std::vector<Command> & CommandRegistry::commands() const noexcept
 
 void registerDefaultCommands(CommandRegistry & registry)
 {
-    add(registry, CommandId::fileOpen, "file.open", "Open...", "File", "Open a supported MUL file", "Ctrl+O", requiresMapReadyProfile,
+    add(registry,
+        CommandId::fileOpen,
+        "file.open",
+        "Open...",
+        "File",
+        "Open a supported MUL file",
+        "Ctrl+O",
+        requiresMapReadyProfile,
         [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::openMap); });
-    add(registry, CommandId::fileNew, "file.new", "New...", "File", "Create a new supported asset", "Ctrl+N", requiresMapReadyProfile,
+    add(registry,
+        CommandId::fileNew,
+        "file.new",
+        "New...",
+        "File",
+        "Create a new supported asset",
+        "Ctrl+N",
+        requiresMapReadyProfile,
         [](WorkbenchState & state) { openDialog(state, MapFileDialogMode::newType); });
     add(registry,
         CommandId::fileSave,
@@ -254,18 +268,20 @@ void registerDefaultCommands(CommandRegistry & registry)
                 const auto saved = state.workspace.save(state.workspace.originalPath(), false);
                 if (!saved)
                 {
-                    state.menuBarState.fileDialog.error = formatError(saved.error());
+                    state.menuBarState.fileDialog.error = strings::formatError(saved.error());
                     state.menuBarState.fileDialog.mode = MapFileDialogMode::error;
                 }
                 return;
             }
             if (active->radarcol)
             {
-                active->radarcol->requestIntent({.kind = RadarcolDocumentIntentKind::save,
-                                                 .colorIndex = 0,
-                                                 .color = 0,
-                                                 .outputPath = {},
-                                                 .overwriteOutput = false,});
+                active->radarcol->requestIntent({
+                    .kind = RadarcolDocumentIntentKind::save,
+                    .colorIndex = 0,
+                    .color = 0,
+                    .outputPath = {},
+                    .overwriteOutput = false,
+                });
             }
         });
     add(registry,
@@ -289,11 +305,13 @@ void registerDefaultCommands(CommandRegistry & registry)
                     state.menuBarState.fileDialog.savePath.at(length) = '\0';
                 }
                 requestFileBrowser(state.fileBrowser,
-                                   {.mode = FileBrowserMode::saveFile,
-                                    .target = FileBrowserTarget::mapSaveAs,
-                                    .initialPath = state.workspace.originalPath(),
-                                    .extension = ".mul",
-                                    .title = "Save Map As",});
+                                   {
+                                       .mode = FileBrowserMode::saveFile,
+                                       .target = FileBrowserTarget::mapSaveAs,
+                                       .initialPath = state.workspace.originalPath(),
+                                       .extension = ".mul",
+                                       .title = "Save Map As",
+                                   });
                 openDialog(state, MapFileDialogMode::saveAs);
             }
             else
@@ -302,7 +320,8 @@ void registerDefaultCommands(CommandRegistry & registry)
                 openDialog(state, MapFileDialogMode::error);
             }
         });
-    add(registry,
+    add(
+        registry,
         CommandId::fileDiscard,
         "file.discard",
         "Discard",
@@ -310,30 +329,69 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Discard staged map changes",
         "",
         [](const WorkbenchState & state)
-        { return state.workspace.dirty() ? enabled(state) : CommandAvailability{.enabled = false, .disabledReason = "There are no staged changes"}; },
+        {
+            return state.workspace.dirty()
+                       ? enabled(state)
+                       : CommandAvailability{.enabled = false, .disabledReason = "There are no staged changes"};
+        },
         [](WorkbenchState & state)
         {
             const auto discarded = state.workspace.discard();
             if (!discarded)
             {
                 openDialog(state, MapFileDialogMode::error);
-                state.menuBarState.fileDialog.error = formatError(discarded.error());
+                state.menuBarState.fileDialog.error = strings::formatError(discarded.error());
             }
             else
             {
                 state.menuBarState.fileDialog.error.clear();
             }
         });
-    add(registry, CommandId::fileClose, "file.close", "Close", "File", "Close the current map", "", enabled,
+    add(registry,
+        CommandId::fileClose,
+        "file.close",
+        "Close",
+        "File",
+        "Close the current map",
+        "",
+        enabled,
         [](WorkbenchState & state) { requestClose(state, PendingMapOperationKind::close); });
-    add(registry, CommandId::fileQuit, "file.quit", "Quit", "File", "Close the map and quit", "Ctrl+Q", enabled,
+    add(registry,
+        CommandId::fileQuit,
+        "file.quit",
+        "Quit",
+        "File",
+        "Close the map and quit",
+        "Ctrl+Q",
+        enabled,
         [](WorkbenchState & state) { requestClose(state, PendingMapOperationKind::quit); });
 
-    add(registry, CommandId::viewTileIds, "view.display.tile-ids", "Tile IDs", "View", "Display tile IDs", "", enabled,
+    add(registry,
+        CommandId::viewTileIds,
+        "view.display.tile-ids",
+        "Tile IDs",
+        "View",
+        "Display tile IDs",
+        "",
+        enabled,
         [](WorkbenchState & state) { state.workspace.setDisplayMode(MapDisplayMode::tileIds); });
-    add(registry, CommandId::viewZ, "view.display.z", "Z", "View", "Display elevation", "", enabled,
+    add(registry,
+        CommandId::viewZ,
+        "view.display.z",
+        "Z",
+        "View",
+        "Display elevation",
+        "",
+        enabled,
         [](WorkbenchState & state) { state.workspace.setDisplayMode(MapDisplayMode::z); });
-    add(registry, CommandId::viewCombined, "view.display.combined", "Combined", "View", "Display tile IDs and elevation", "", enabled,
+    add(registry,
+        CommandId::viewCombined,
+        "view.display.combined",
+        "Combined",
+        "View",
+        "Display tile IDs and elevation",
+        "",
+        enabled,
         [](WorkbenchState & state) { state.workspace.setDisplayMode(MapDisplayMode::combined); });
     add(registry,
         CommandId::viewToggleLogPanel,
@@ -346,8 +404,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state)
         {
             state.preferences.showLogPanel = !state.preferences.showLogPanel;
-             savePreferences(state.preferences);
-         });
+            savePreferences(state.preferences);
+        });
     add(registry,
         CommandId::viewToggleFullscreen,
         "view.fullscreen.toggle",
@@ -358,25 +416,79 @@ void registerDefaultCommands(CommandRegistry & registry)
         enabled,
         [](WorkbenchState & state) { state.fullscreenToggleRequested = true; });
 
-    add(registry, CommandId::panelTileInspector, "view.panel.tile-inspector", "Tile Inspector", "View", "Show or hide the tile inspector", "",
-        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tileInspector)); });
-    add(registry, CommandId::panelBlockInspector, "view.panel.block-inspector", "Block Inspector", "View", "Show or hide the block inspector", "",
-        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::blockInspector)); });
-    add(registry, CommandId::panelRadarcol, "view.panel.radarcol", "Radarcol", "View", "Show or hide radar colors", "",
-        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
-    add(registry, CommandId::panelTexmaps, "view.panel.texmaps", "Texmaps", "View", "Show or hide textures", "",
-        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::texmaps)); });
+    add(registry,
+        CommandId::panelTileInspector,
+        "view.panel.tile-inspector",
+        "Tile Inspector",
+        "View",
+        "Show or hide the tile inspector",
+        "",
+        enabled,
+        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tileInspector)); });
+    add(registry,
+        CommandId::panelBlockInspector,
+        "view.panel.block-inspector",
+        "Block Inspector",
+        "View",
+        "Show or hide the block inspector",
+        "",
+        enabled,
+        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::blockInspector)); });
+    add(registry,
+        CommandId::panelRadarcol,
+        "view.panel.radarcol",
+        "Radarcol",
+        "View",
+        "Show or hide radar colors",
+        "",
+        enabled,
+        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
+    add(registry,
+        CommandId::panelTexmaps,
+        "view.panel.texmaps",
+        "Texmaps",
+        "View",
+        "Show or hide textures",
+        "",
+        enabled,
+        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::texmaps)); });
 
-    add(registry, CommandId::selectionTiles, "selection.tiles", "Tile selection", "Selection", "Select individual tiles", "", enabled,
+    add(registry,
+        CommandId::selectionTiles,
+        "selection.tiles",
+        "Tile selection",
+        "Selection",
+        "Select individual tiles",
+        "",
+        enabled,
         [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::tiles); });
-    add(registry, CommandId::selectionBlocks, "selection.blocks", "Block selection", "Selection", "Select map blocks", "", enabled,
+    add(registry,
+        CommandId::selectionBlocks,
+        "selection.blocks",
+        "Block selection",
+        "Selection",
+        "Select map blocks",
+        "",
+        enabled,
         [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::blocks); });
-    add(registry, CommandId::dataPaths, "data.paths", "Preferences...", "Data", "Configure the active UO data profile", "", enabled,
+    add(registry,
+        CommandId::dataPaths,
+        "data.paths",
+        "Preferences...",
+        "Data",
+        "Configure the active UO data profile",
+        "",
+        enabled,
         [](WorkbenchState & state)
-        {
-            requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
-        });
-    add(registry, CommandId::resetLayout, "view.reset-layout", "Reset Layout", "View", "Restore the default workbench layout", "", enabled,
+        { requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences); });
+    add(registry,
+        CommandId::resetLayout,
+        "view.reset-layout",
+        "Reset Layout",
+        "View",
+        "Restore the default workbench layout",
+        "",
+        enabled,
         [](WorkbenchState & state)
         {
             state.panelRegistry.resetToDefaults();
@@ -386,7 +498,14 @@ void registerDefaultCommands(CommandRegistry & registry)
             savePreferences(state.preferences);
             state.layoutResetRequested = true;
         });
-    add(registry, CommandId::mapFit, "map.fit", "Fit Map", "Map", "Fit the complete map in the canvas", "", requiresMapDocument,
+    add(registry,
+        CommandId::mapFit,
+        "map.fit",
+        "Fit Map",
+        "Map",
+        "Fit the complete map in the canvas",
+        "",
+        requiresMapDocument,
         [](WorkbenchState & state) { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::fitMap; });
     add(registry,
         CommandId::mapFitSelection,
@@ -396,7 +515,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Fit the current selection in the canvas",
         "",
         requiresMapDocument,
-        [](WorkbenchState & state) { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::fitSelection; });
+        [](WorkbenchState & state)
+        { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::fitSelection; });
     add(registry,
         CommandId::mapCenterSelection,
         "map.center-selection",
@@ -405,7 +525,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Center the current selection in the canvas",
         "",
         requiresMapDocument,
-        [](WorkbenchState & state) { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::centerSelection; });
+        [](WorkbenchState & state)
+        { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::centerSelection; });
     add(registry,
         CommandId::mapResetView,
         "map.reset-view",
@@ -414,7 +535,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Reset map pan and zoom",
         "",
         requiresMapDocument,
-        [](WorkbenchState & state) { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::resetView; });
+        [](WorkbenchState & state)
+        { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::resetView; });
     add(registry,
         CommandId::mapGoToCoordinate,
         "map.go-to-coordinate",

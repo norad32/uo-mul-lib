@@ -1,9 +1,9 @@
 #pragma once
 
+#include "gui/persistence/preferences.h"
 #include "gui/profile/data_profile.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/providers/data_providers.h"
-#include "gui/persistence/preferences.h"
 #include <filesystem>
 #include <string>
 #include <string_view>

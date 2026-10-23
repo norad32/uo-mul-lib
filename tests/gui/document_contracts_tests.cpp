@@ -23,11 +23,9 @@ TEST_CASE("DocumentContracts_Should_RecordProfileFallbackAndOpenPolicies")
     REQUIRE(uo_mule::gui::document_contract::mapEditsAreStaged);
     REQUIRE_FALSE(uo_mule::gui::document_contract::mapRequiresGlobalEditMode);
     REQUIRE_FALSE(uo_mule::gui::document_contract::genericOpenMutatesProfile);
-    REQUIRE(uo_mule::gui::RadarcolSourcePolicy::embeddedDefault !=
-            uo_mule::gui::RadarcolSourcePolicy::externalConfigured);
+    REQUIRE(uo_mule::gui::RadarcolSourcePolicy::embeddedDefault != uo_mule::gui::RadarcolSourcePolicy::externalConfigured);
     REQUIRE(uo_mule::gui::RadarcolSourcePolicy::embeddedDefaultWithWarning !=
             uo_mule::gui::RadarcolSourcePolicy::embeddedDefault);
-    REQUIRE(uo_mule::gui::document_contract::unsupportedMulPolicy ==
-            uo_mule::gui::UnsupportedMulPolicy::rejectWithDiagnostic);
+    REQUIRE(uo_mule::gui::document_contract::unsupportedMulPolicy == uo_mule::gui::UnsupportedMulPolicy::rejectWithDiagnostic);
     REQUIRE(uo_mule::gui::document_contract::genericOpenLabel == "File > Open...");
 }

@@ -1,10 +1,10 @@
 #pragma once
 
+#include "gui/dialogs/file_browser_dialog.h"
+#include "gui/persistence/preferences.h"
 #include "gui/profile/data_discovery.h"
 #include "gui/profile/data_profile.h"
 #include "gui/profile/data_validation.h"
-#include "gui/dialogs/file_browser_dialog.h"
-#include "gui/persistence/preferences.h"
 #include <array>
 #include <cstdint>
 #include <filesystem>

@@ -1,24 +1,24 @@
 #include "gui/frontend/frame_composition.h"
-#include "gui/frontend/document_surface.h"
 #include "core/gui_log_sink.h"
 #include "gui/application/workbench_state.h"
+#include "gui/commands/command_registry.h"
 #include "gui/commands/menu_bar.h"
 #include "gui/context/map_context.h"
 #include "gui/context/notification_state.h"
-#include "gui/documents/map_document.h"
-#include "gui/documents/document_identity.h"
-#include "gui/metadata/document_contracts.h"
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/documents/document_identity.h"
+#include "gui/documents/map_document.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/frontend/welcome_screen.h"
+#include "gui/frontend/document_surface.h"
 #include "gui/frontend/theme.h"
-#include "gui/strings/ui_strings.h"
-#include "gui/profile/data_profile.h"
-#include "gui/commands/command_registry.h"
-#include "gui/persistence/preferences.h"
+#include "gui/frontend/welcome_screen.h"
+#include "gui/metadata/document_contracts.h"
 #include "gui/persistence/layout_store.h"
+#include "gui/persistence/preferences.h"
+#include "gui/profile/data_profile.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/providers/data_providers.h"
+#include "gui/strings/ui_strings.h"
 #include "gui/views/block_inspector_panel.h"
 #include "gui/views/log_panel.h"
 #include "gui/views/map_canvas_panel.h"
@@ -34,11 +34,11 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_internal.h>
-#include <utility>
+#include <optional>
 #include <string>
 #include <string_view>
-#include <optional>
 #include <uomul/map.h>
+#include <utility>
 
 namespace uo_mule::gui
 {
@@ -78,11 +78,11 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         static_cast<unsigned int>(ImGuiWindowFlags_NoMove) | static_cast<unsigned int>(ImGuiWindowFlags_NoBringToFrontOnFocus) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoNavFocus) | static_cast<unsigned int>(ImGuiWindowFlags_NoBackground) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) | static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar) |
-    static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse));
+        static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse));
     ImGui::Begin("BackgroundDockSpace###workbench.dock-space", nullptr, dockSpaceWindowFlags);
     const ImVec2 dockPosition(viewport->WorkPos.x, viewport->WorkPos.y);
-    const float availableDockHeight = std::max(0.0F, viewport->WorkSize.y - bottomPanelHeight - statusBarHeight -
-                                                         (dockPosition.y - viewport->WorkPos.y));
+    const float availableDockHeight =
+        std::max(0.0F, viewport->WorkSize.y - bottomPanelHeight - statusBarHeight - (dockPosition.y - viewport->WorkPos.y));
     constexpr ImGuiDockNodeFlags dockSpaceFlags = ImGuiDockNodeFlags_PassthruCentralNode;
     const ImGuiID dockSpaceId = ImGui::GetID("BackgroundDockSpace");
     const ImGuiDockNode * existingDockNode = ImGui::DockBuilderGetNode(dockSpaceId);
@@ -202,17 +202,23 @@ void drawMapPanels(WorkbenchState & state,
 
     if (mapActive && state.panelRegistry.find(PanelId::tileInspector)->visible)
     {
-        drawTileInspectorPanel(workspace, context, state.providers, state.preferences.idFormat, state.panelRegistry.find(PanelId::tileInspector)->visible);
+        drawTileInspectorPanel(workspace,
+                               context,
+                               state.providers,
+                               state.preferences.idFormat,
+                               state.panelRegistry.find(PanelId::tileInspector)->visible);
     }
     if (mapActive && state.panelRegistry.find(PanelId::blockInspector)->visible)
     {
-        drawBlockInspectorPanel(workspace, context, state.providers, blockInspectorState, state.panelRegistry.find(PanelId::blockInspector)->visible);
+        drawBlockInspectorPanel(workspace,
+                                context,
+                                state.providers,
+                                blockInspectorState,
+                                state.panelRegistry.find(PanelId::blockInspector)->visible);
     }
     if (state.panelRegistry.find(PanelId::radarcol)->visible)
     {
-        drawRadarcolPanel(radarcolState,
-                          state.panelRegistry.find(PanelId::radarcol)->visible,
-                          state.preferences.idFormat);
+        drawRadarcolPanel(radarcolState, state.panelRegistry.find(PanelId::radarcol)->visible, state.preferences.idFormat);
     }
     if (state.panelRegistry.find(PanelId::texmaps)->visible)
     {
@@ -223,7 +229,8 @@ void drawMapPanels(WorkbenchState & state,
 void notifyRadarcolFallback(WorkbenchState & state)
 {
     const ProviderStatus status = state.providers.radarColors().status();
-    if (status.source != ProviderSourceKind::embeddedDefaultWithWarning || status.revision == state.radarcolNotificationRevision)
+    if (status.source != ProviderSourceKind::embeddedDefaultWithWarning ||
+        status.revision == state.radarcolNotificationRevision)
     {
         state.radarcolNotificationRevision = status.revision;
         return;
@@ -258,7 +265,12 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
         {
             const uomul::BlockCoord block = tileToBlock(*canvasStatus.tile);
             ImGui::Text("%s: Tile (%u, %u)  Block (%u, %u)  Zoom %.3gx",
-                        canvasStatus.canvasId.c_str(), canvasStatus.tile->x, canvasStatus.tile->y, block.x, block.y, canvasStatus.zoom);
+                        canvasStatus.canvasId.c_str(),
+                        canvasStatus.tile->x,
+                        canvasStatus.tile->y,
+                        block.x,
+                        block.y,
+                        canvasStatus.zoom);
         }
     }
     if (hasCanvasStatus)
@@ -266,7 +278,8 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
         ImGui::SameLine();
     }
     const std::string profileStatus = strings::formatProfileStatus(state.activeProfile.name);
-    const std::string mapStatus = strings::formatMapStatus(state.workspace.reader() == nullptr ? std::filesystem::path{} : state.workspace.mapPath());
+    const std::string mapStatus =
+        strings::formatMapStatus(state.workspace.reader() == nullptr ? std::filesystem::path{} : state.workspace.mapPath());
     const std::string stateStatus = strings::formatStateStatus(state.workspace.dirty());
     const std::string readinessStatus = strings::formatDataStatus(state.session.profileState());
     const std::string radarcolStatus = strings::formatRadarcolStatus(state.providers.radarColors().status().source);
@@ -295,10 +308,13 @@ void drawNotifications(const NotificationState & notifications)
         return;
     }
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + notificationLeftMargin, viewport->WorkPos.y + notificationTopMargin), ImGuiCond_Always);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(notificationMinimumWidth, 0.0F),
-                                        ImVec2(notificationMaximumWidth, viewport->WorkSize.y * notificationMaximumHeightRatio));
-    if (ImGui::Begin("Notifications###workbench.notifications", nullptr,
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + notificationLeftMargin, viewport->WorkPos.y + notificationTopMargin),
+                            ImGuiCond_Always);
+    ImGui::SetNextWindowSizeConstraints(
+        ImVec2(notificationMinimumWidth, 0.0F),
+        ImVec2(notificationMaximumWidth, viewport->WorkSize.y * notificationMaximumHeightRatio));
+    if (ImGui::Begin("Notifications###workbench.notifications",
+                     nullptr,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
     {
         for (const auto & notification : notifications.entries)
@@ -327,7 +343,8 @@ void drawStartupScreen(WorkbenchState & state)
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(viewport->WorkSize, ImGuiCond_Always);
-    if (!ImGui::Begin("Configure Preferences###startup.configure-profile", nullptr,
+    if (!ImGui::Begin("Configure Preferences###startup.configure-profile",
+                      nullptr,
                       ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
     {
         ImGui::End();
@@ -335,7 +352,8 @@ void drawStartupScreen(WorkbenchState & state)
     }
     ImGui::TextUnformatted("Configure Preferences");
     ImGui::Separator();
-    ImGui::TextUnformatted("Maps are available without a profile. Embedded Radarcol is used until an external source is configured.");
+    ImGui::TextUnformatted(
+        "Maps are available without a profile. Embedded Radarcol is used until an external source is configured.");
     const std::string profileReadiness(strings::profileReadinessName(state.session.profileState()));
     ImGui::Text("Profile status: %s", profileReadiness.c_str());
     const std::string startupRadarcolSource(strings::providerSourceName(state.providers.radarColors().status().source));
@@ -356,30 +374,39 @@ ImGuiID documentDockNodeId()
 
 void requestDocumentClose(WorkbenchState & state, DocumentId id, bool dirty);
 
+void activateDocumentOrNotify(WorkbenchState & state, DocumentId id)
+{
+    const auto activated = state.session.activateDocument(id, state.workspace);
+    if (!activated)
+    {
+        state.notifications.add(NotificationSeverity::error, activated.error().message);
+    }
+}
+
+void dockDocumentWindow()
+{
+    if (const ImGuiID centralNode = documentDockNodeId(); centralNode != 0U)
+    {
+        ImGui::SetNextWindowDockID(centralNode, ImGuiCond_FirstUseEver);
+    }
+}
+
 void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
 {
     const std::string windowName = documentWindowName(document.summary);
     if (document.summary.identity.kind == DocumentKind::map && document.map)
     {
         bool visible = true;
-        if (const ImGuiID centralNode = documentDockNodeId(); centralNode != 0U)
-        {
-            ImGui::SetNextWindowDockID(centralNode, ImGuiCond_FirstUseEver);
-        }
-        drawMapCanvasPanel(state.workspace,
-                           state.providers.radarColors(),
-                           windowName,
-                           [&state, id = document.summary.identity.id] {
-                               const auto activated = state.session.activateDocument(id, state.workspace);
-                               if (!activated)
-                               {
-                                   state.notifications.add(NotificationSeverity::error, activated.error().message);
-                               }
-                           },
-                           [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
-                           [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
-                           [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
-                           visible);
+        dockDocumentWindow();
+        drawMapCanvasPanel(
+            state.workspace,
+            state.providers.radarColors(),
+            windowName,
+            [&state, id = document.summary.identity.id] { activateDocumentOrNotify(state, id); },
+            [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
+            [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
+            [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
+            visible);
         if (!visible)
         {
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
@@ -390,22 +417,13 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
     if (document.summary.identity.kind == DocumentKind::radarcol && document.radarcol)
     {
         bool visible = true;
-        if (const ImGuiID centralNode = documentDockNodeId(); centralNode != 0U)
-        {
-            ImGui::SetNextWindowDockID(centralNode, ImGuiCond_FirstUseEver);
-        }
+        dockDocumentWindow();
         drawRadarcolDocumentPanel(state.radarcolState,
                                   *document.radarcol,
-                                   visible,
-                                   state.fileBrowser,
-                                   state.preferences.idFormat,
-                                   [&state, id = document.summary.identity.id] {
-                                      const auto activated = state.session.activateDocument(id, state.workspace);
-                                      if (!activated)
-                                      {
-                                          state.notifications.add(NotificationSeverity::error, activated.error().message);
-                                      }
-                                  });
+                                  visible,
+                                  state.fileBrowser,
+                                  state.preferences.idFormat,
+                                  [&state, id = document.summary.identity.id] { activateDocumentOrNotify(state, id); });
         if (!visible)
         {
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
@@ -414,17 +432,10 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
     }
 
     bool visible = true;
-    if (const ImGuiID centralNode = documentDockNodeId(); centralNode != 0U)
-    {
-        ImGui::SetNextWindowDockID(centralNode, ImGuiCond_FirstUseEver);
-    }
+    dockDocumentWindow();
     if (ImGui::Begin(windowName.c_str(), &visible))
     {
-        const auto activated = state.session.activateDocument(document.summary.identity.id, state.workspace);
-        if (!activated)
-        {
-            state.notifications.add(NotificationSeverity::error, activated.error().message);
-        }
+        activateDocumentOrNotify(state, document.summary.identity.id);
         const std::string kindName(documentKindName(document.summary.identity.kind));
         ImGui::Text("%s is active, but has no view yet.", kindName.c_str());
         ImGui::TextUnformatted("This document type is represented as a placeholder until its view is implemented.");
@@ -477,11 +488,7 @@ void applyPendingDocumentAction(WorkbenchState & state)
     {
         const DocumentId id = *state.pendingDocumentActivation;
         state.pendingDocumentActivation.reset();
-        const auto activated = state.session.activateDocument(id, state.workspace);
-        if (!activated)
-        {
-            state.notifications.add(NotificationSeverity::error, activated.error().message);
-        }
+        activateDocumentOrNotify(state, id);
         return;
     }
 
@@ -534,7 +541,8 @@ void dispatchShortcuts(WorkbenchState & state, bool allowFullscreen)
     {
         static_cast<void>(state.commands.executeShortcut(shortcuts.at(graveShortcutIndex).second, state));
     }
-    else if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(shortcuts.at(saveAsShortcutIndex).first, false))
+    else if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift &&
+             ImGui::IsKeyPressed(shortcuts.at(saveAsShortcutIndex).first, false))
     {
         static_cast<void>(state.commands.executeShortcut(shortcuts.at(saveAsShortcutIndex).second, state));
     }
@@ -565,75 +573,73 @@ void dispatchShortcuts(WorkbenchState & state, bool allowFullscreen)
     }
 }
 
-} // namespace
-
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
-void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
+void beginGuiFrame()
 {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    bool welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr &&
-                        !state.session.hasDocuments();
-    bool profileChanged = welcomeShell ? false : drawMenuBar(state, true);
+}
 
-    if (!state.pendingClipboardText.empty())
+void applyPendingClipboard(GLFWwindow * window, WorkbenchState & state)
+{
+    if (state.pendingClipboardText.empty())
     {
-        glfwSetClipboardString(window, state.pendingClipboardText.c_str());
-        state.pendingClipboardText.clear();
-    }
-    if (profileChanged)
-    {
-        state.preferences.activeDataProfile = state.activeProfile.name;
-        savePreferences(state.preferences);
-        state.session.updateProfile(state.activeProfile);
-        state.workspace.invalidateProviderCaches();
-        if (state.session.mapReady() && !state.preferences.showWelcomeOnStartup)
-        {
-            state.session.setStartupState(StartupState::workbench);
-        }
-        if (state.workspace.reader() == nullptr)
-        {
-            state.welcomeGreetingSelected = false;
-            state.welcomeGreeting.clear();
-        }
+        return;
     }
 
-    state.session.syncDocument(state.workspace);
+    glfwSetClipboardString(window, state.pendingClipboardText.c_str());
+    state.pendingClipboardText.clear();
+}
 
-    const bool wasWelcomeShell = welcomeShell;
-    welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr &&
-                   !state.session.hasDocuments();
-    state.providers.sync(state.activeProfile);
-    if (state.nativeWelcomeWindowMode != welcomeShell)
+void applyProfileChange(WorkbenchState & state)
+{
+    state.preferences.activeDataProfile = state.activeProfile.name;
+    savePreferences(state.preferences);
+    state.session.updateProfile(state.activeProfile);
+    state.workspace.invalidateProviderCaches();
+    if (state.session.mapReady() && !state.preferences.showWelcomeOnStartup)
     {
-        glfwSetWindowAttrib(window, GLFW_DECORATED, welcomeShell ? GLFW_FALSE : GLFW_TRUE);
-        glfwSetWindowAttrib(window, GLFW_RESIZABLE, welcomeShell ? GLFW_FALSE : GLFW_TRUE);
-        state.nativeWelcomeWindowMode = welcomeShell;
+        state.session.setStartupState(StartupState::workbench);
     }
-    if (!welcomeShell)
+    if (state.workspace.reader() == nullptr)
     {
-        const bool enteredWorkbench = wasWelcomeShell && !welcomeShell;
-        if (enteredWorkbench || !state.workbenchLayoutApplied)
-        {
-            static_cast<void>(applyWorkbenchLayout(window, state));
-        }
-        toggleFullscreen(window, state);
+        state.welcomeGreetingSelected = false;
+        state.welcomeGreeting.clear();
     }
-    dispatchShortcuts(state, !welcomeShell);
+}
 
-    const float bottomPanelHeight = welcomeShell ? 0.0F : drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
+[[nodiscard]] bool welcomeShell(const WorkbenchState & state) noexcept
+{
+    return state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr &&
+           !state.session.hasDocuments();
+}
+
+void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool welcome)
+{
+    if (state.nativeWelcomeWindowMode == welcome)
+    {
+        return;
+    }
+
+    glfwSetWindowAttrib(window, GLFW_DECORATED, welcome ? GLFW_FALSE : GLFW_TRUE);
+    glfwSetWindowAttrib(window, GLFW_RESIZABLE, welcome ? GLFW_FALSE : GLFW_TRUE);
+    state.nativeWelcomeWindowMode = welcome;
+}
+
+void drawWelcomeOrWorkbench(core::GuiLogSink & logSink, WorkbenchState & state, bool welcome)
+{
+    const float bottomPanelHeight =
+        welcome ? 0.0F : drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
     if (state.session.startupState() == StartupState::configureProfile)
     {
         drawStartupScreen(state);
     }
-    else if (welcomeShell)
+    else if (welcome)
     {
         state.recentMapRecordedPath.clear();
         drawWelcomeScreen(state);
         notifyRadarcolFallback(state);
-        profileChanged = drawMenuBar(state, false);
-        static_cast<void>(profileChanged);
+        static_cast<void>(drawMenuBar(state, false));
     }
     else
     {
@@ -643,11 +649,7 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         applyPendingDocumentAction(state);
         drawDocumentSurface(state);
         processDocumentIntents(state);
-        drawMapPanels(state,
-                       state.activeProfile,
-                       state.blockInspectorState,
-                       state.radarcolState,
-                       state.texmapsState);
+        drawMapPanels(state, state.activeProfile, state.blockInspectorState, state.radarcolState, state.texmapsState);
         notifyRadarcolFallback(state);
         if (state.workspace.reader() != nullptr && state.recentMapRecordedPath != state.workspace.mapPath())
         {
@@ -660,6 +662,39 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         drawStatusBar(state, bottomPanelHeight);
     }
     drawNotifications(state.notifications);
+}
+
+} // namespace
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState & state)
+{
+    beginGuiFrame();
+    bool welcome = welcomeShell(state);
+    const bool profileChanged = welcome ? false : drawMenuBar(state, true);
+    applyPendingClipboard(window, state);
+    if (profileChanged)
+    {
+        applyProfileChange(state);
+    }
+
+    state.session.syncDocument(state.workspace);
+
+    const bool wasWelcome = welcome;
+    welcome = welcomeShell(state);
+    state.providers.sync(state.activeProfile);
+    updateNativeWindowMode(window, state, welcome);
+    if (!welcome)
+    {
+        const bool enteredWorkbench = wasWelcome && !welcome;
+        if (enteredWorkbench || !state.workbenchLayoutApplied)
+        {
+            static_cast<void>(applyWorkbenchLayout(window, state));
+        }
+        toggleFullscreen(window, state);
+    }
+    dispatchShortcuts(state, !welcome);
+    drawWelcomeOrWorkbench(logSink, state, welcome);
 }
 
 } // namespace uo_mule::gui

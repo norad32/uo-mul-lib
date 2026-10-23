@@ -1,6 +1,6 @@
-#include "gui/frontend/frame_composition.h"
-#include "gui/frontend/document_surface.h"
 #include "gui/documents/document_identity.h"
+#include "gui/frontend/document_surface.h"
+#include "gui/frontend/frame_composition.h"
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("documentWindow_Should_UseStableDocumentIdentity")

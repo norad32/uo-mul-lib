@@ -61,24 +61,30 @@ TEST_CASE("radarcolDocument_Should_StageColorEditsAndRefreshReaderOnSave")
     REQUIRE_FALSE(document->editing());
     REQUIRE_FALSE(document->dirty());
 
-    REQUIRE(document->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
-                                    .colorIndex = 0,
-                                    .color = 0,
-                                    .outputPath = outputPath,
-                                    .overwriteOutput = false,}));
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = outputPath,
+        .overwriteOutput = false,
+    }));
     REQUIRE(document->editing());
     REQUIRE_FALSE(document->dirty());
-    REQUIRE(document->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::editColor,
-                                    .colorIndex = 3,
-                                    .color = 0x1234,
-                                    .outputPath = {},
-                                    .overwriteOutput = false,}));
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::editColor,
+        .colorIndex = 3,
+        .color = 0x1234,
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
     REQUIRE(document->dirty());
-    REQUIRE(document->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::save,
-                                    .colorIndex = 0,
-                                    .color = 0,
-                                    .outputPath = {},
-                                    .overwriteOutput = false,}));
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::save,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
     REQUIRE_FALSE(document->editing());
     REQUIRE_FALSE(document->dirty());
     REQUIRE(document->sourcePath() == outputPath);
@@ -95,21 +101,27 @@ TEST_CASE("radarcolDocument_Should_DiscardStagedEditorWithoutChangingReader")
     auto document = uo_mule::gui::RadarcolDocument::open(8U, sourcePath);
     REQUIRE(document);
     const auto original = document->reader()->readRawColor(4U).value_or(0);
-    REQUIRE(document->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
-                                    .colorIndex = 0,
-                                    .color = 0,
-                                    .outputPath = outputPath,
-                                    .overwriteOutput = false,}));
-    REQUIRE(document->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::editColor,
-                                    .colorIndex = 4,
-                                    .color = 0x4321,
-                                    .outputPath = {},
-                                    .overwriteOutput = false,}));
-    REQUIRE(document->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::discard,
-                                    .colorIndex = 0,
-                                    .color = 0,
-                                    .outputPath = {},
-                                    .overwriteOutput = false,}));
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = outputPath,
+        .overwriteOutput = false,
+    }));
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::editColor,
+        .colorIndex = 4,
+        .color = 0x4321,
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::discard,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
     REQUIRE_FALSE(document->editing());
     REQUIRE_FALSE(document->dirty());
     REQUIRE(document->reader()->readRawColor(4U).value_or(0) == original);
@@ -124,30 +136,38 @@ TEST_CASE("radarcolDocument_Should_RejectConfiguredSourcesAndAliasedOutputs")
 
     auto configured = uo_mule::gui::RadarcolDocument::open(9U, sourcePath, uo_mule::gui::DocumentAccess::readOnly);
     REQUIRE(configured);
-    REQUIRE_FALSE(configured->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
-                                             .colorIndex = 0,
-                                             .color = 0,
-                                             .outputPath = directory.path() / "output.mul",
-                                             .overwriteOutput = false,}));
+    REQUIRE_FALSE(configured->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = directory.path() / "output.mul",
+        .overwriteOutput = false,
+    }));
     REQUIRE_FALSE(configured->editing());
 
     auto standalone = uo_mule::gui::RadarcolDocument::open(10U, sourcePath);
     REQUIRE(standalone);
-    REQUIRE(standalone->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
-                                      .colorIndex = 0,
-                                      .color = 0,
-                                      .outputPath = sourcePath,
-                                      .overwriteOutput = false,}));
-    REQUIRE(standalone->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::editColor,
-                                      .colorIndex = 0,
-                                      .color = 0x2345,
-                                      .outputPath = {},
-                                      .overwriteOutput = false,}));
-    REQUIRE(standalone->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::save,
-                                      .colorIndex = 0,
-                                      .color = 0,
-                                      .outputPath = {},
-                                      .overwriteOutput = false,}));
+    REQUIRE(standalone->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = sourcePath,
+        .overwriteOutput = false,
+    }));
+    REQUIRE(standalone->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::editColor,
+        .colorIndex = 0,
+        .color = 0x2345,
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
+    REQUIRE(standalone->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::save,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
     REQUIRE_FALSE(standalone->editing());
     REQUIRE(standalone->reader()->readRawColor(0U).value_or(0) == 0x2345U);
 
@@ -155,11 +175,13 @@ TEST_CASE("radarcolDocument_Should_RejectConfiguredSourcesAndAliasedOutputs")
     std::filesystem::create_hard_link(sourcePath, aliasPath);
     auto aliased = uo_mule::gui::RadarcolDocument::open(11U, sourcePath);
     REQUIRE(aliased);
-    REQUIRE_FALSE(aliased->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
-                                         .colorIndex = 0,
-                                         .color = 0,
-                                         .outputPath = aliasPath,
-                                         .overwriteOutput = true,}));
+    REQUIRE_FALSE(aliased->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = aliasPath,
+        .overwriteOutput = true,
+    }));
     REQUIRE_FALSE(aliased->editing());
 }
 
@@ -172,23 +194,29 @@ TEST_CASE("radarcolDocument_Should_ResetFailedEditorAfterCommitFailure")
 
     auto document = uo_mule::gui::RadarcolDocument::open(12U, sourcePath);
     REQUIRE(document);
-    REQUIRE(document->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
-                                    .colorIndex = 0,
-                                    .color = 0,
-                                    .outputPath = outputPath,
-                                    .overwriteOutput = false,}));
-    REQUIRE(document->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::editColor,
-                                    .colorIndex = 0,
-                                    .color = 0x3456,
-                                    .outputPath = {},
-                                    .overwriteOutput = false,}));
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::beginEdit,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = outputPath,
+        .overwriteOutput = false,
+    }));
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::editColor,
+        .colorIndex = 0,
+        .color = 0x3456,
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
 
     REQUIRE(createRadarcol(outputPath));
-    REQUIRE_FALSE(document->handleIntent({.kind = uo_mule::gui::RadarcolDocumentIntentKind::save,
-                                          .colorIndex = 0,
-                                          .color = 0,
-                                          .outputPath = {},
-                                          .overwriteOutput = false,}));
+    REQUIRE_FALSE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::save,
+        .colorIndex = 0,
+        .color = 0,
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
     REQUIRE_FALSE(document->editing());
     REQUIRE_FALSE(document->dirty());
     REQUIRE(document->reader()->readRawColor(0U).value_or(0) == 0U);

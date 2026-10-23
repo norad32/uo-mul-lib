@@ -1,8 +1,8 @@
 #include "gui/dialogs/file_browser_dialog.h"
-#include "core/facet_sizes.h"
 #include "core/app_info.h"
-#include "gui/dialogs/file_size.h"
+#include "core/facet_sizes.h"
 #include "gui/dialogs/dialog_presentation.h"
+#include "gui/dialogs/file_size.h"
 #include "gui/frontend/theme.h"
 #include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
@@ -379,8 +379,8 @@ void drawSummary(const FileBrowserState & state)
     const auto & summary = state.summary;
     const std::string filename = summary.path.filename().string();
     const std::string fullPath = summary.path.string();
-    ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", filename.c_str());
-    ImGui::TextColored(theme::imguiColor(theme::subtext0), "%s", fullPath.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::subheading), "%s", filename.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", fullPath.c_str());
     if (summary.size)
     {
         const auto size = formatFileSize(*summary.size);
@@ -412,9 +412,8 @@ void drawSummary(const FileBrowserState & state)
                            "%s",
                            candidate.valid ? "Openable" : "Invalid map candidate");
     }
-    const bool hasValidMapCandidate = std::ranges::any_of(summary.mapCandidates, [](const FileBrowserMapCandidate & candidate) {
-        return candidate.valid;
-    });
+    const bool hasValidMapCandidate =
+        std::ranges::any_of(summary.mapCandidates, [](const FileBrowserMapCandidate & candidate) { return candidate.valid; });
     for (const auto & candidate : summary.assetCandidates)
     {
         if (candidate.kind == MulAssetKind::map && hasValidMapCandidate)
@@ -422,7 +421,7 @@ void drawSummary(const FileBrowserState & state)
             continue;
         }
         ImGui::Separator();
-        ImGui::TextColored(theme::imguiColor(theme::lavender), "%s", candidate.label.c_str());
+        ImGui::TextColored(theme::imguiColor(theme::subheading), "%s", candidate.label.c_str());
         ImGui::TextWrapped("%s", candidate.reason.c_str());
         if (!candidate.warning.empty())
         {
@@ -437,19 +436,21 @@ void drawSummary(const FileBrowserState & state)
 
 void sortAssetCandidates(std::vector<FileBrowserAssetCandidate> & candidates)
 {
-    std::ranges::stable_sort(candidates, [](const auto & left, const auto & right) {
-        const bool leftHasWarning = !left.warning.empty();
-        const bool rightHasWarning = !right.warning.empty();
-        if (leftHasWarning != rightHasWarning)
-        {
-            return !leftHasWarning;
-        }
-        if (left.score != right.score)
-        {
-            return left.score > right.score;
-        }
-        return left.openable > right.openable;
-    });
+    std::ranges::stable_sort(candidates,
+                             [](const auto & left, const auto & right)
+                             {
+                                 const bool leftHasWarning = !left.warning.empty();
+                                 const bool rightHasWarning = !right.warning.empty();
+                                 if (leftHasWarning != rightHasWarning)
+                                 {
+                                     return !leftHasWarning;
+                                 }
+                                 if (left.score != right.score)
+                                 {
+                                     return left.score > right.score;
+                                 }
+                                 return left.openable > right.openable;
+                             });
 }
 
 [[nodiscard]] bool filenameContains(std::string_view filename, std::string_view token)
@@ -457,8 +458,7 @@ void sortAssetCandidates(std::vector<FileBrowserAssetCandidate> & candidates)
     return filename.contains(token);
 }
 
-[[nodiscard]] std::filesystem::path texmapsCompanionPath(const std::filesystem::path & path,
-                                                         bool selectedIndex)
+[[nodiscard]] std::filesystem::path texmapsCompanionPath(const std::filesystem::path & path, bool selectedIndex)
 {
     const std::string stem = path.stem().string();
     constexpr std::string_view indexPrefix = "texidx";
@@ -471,8 +471,8 @@ void sortAssetCandidates(std::vector<FileBrowserAssetCandidate> & candidates)
 
 void appendMapCandidates(FileBrowserSummary & summary, const std::filesystem::path & path)
 {
-    const auto exactFacets = summary.size ? uo_mule::core::facetSizesForMapFileBytes(*summary.size)
-                                          : std::vector<uo_mule::core::FacetSize>{};
+    const auto exactFacets =
+        summary.size ? uo_mule::core::facetSizesForMapFileBytes(*summary.size) : std::vector<uo_mule::core::FacetSize>{};
     for (const auto & facet : exactFacets)
     {
         const auto dimensions = uomul::Dimensions{.widthTiles = facet.widthTiles, .heightTiles = facet.heightTiles};
@@ -495,13 +495,13 @@ void appendMapCandidates(FileBrowserSummary & summary, const std::filesystem::pa
         summary.assetCandidates.push_back(FileBrowserAssetCandidate{
             .kind = MulAssetKind::map,
             .path = path,
-             .companionPath = {},
-             .label = "Map",
-             .facet = std::string(facet.mapLabel),
-             .reason = "Valid map layout for " + std::to_string(dimensions.widthTiles) + " x " +
-                       std::to_string(dimensions.heightTiles) + " tiles",
-             .warning = {},
-             .score = filenameContains(lowercase(path.filename().string()), "map") ? mapFilenameScore : mapCandidateScore,
+            .companionPath = {},
+            .label = "Map",
+            .facet = std::string(facet.mapLabel),
+            .reason = "Valid map layout for " + std::to_string(dimensions.widthTiles) + " x " +
+                      std::to_string(dimensions.heightTiles) + " tiles",
+            .warning = {},
+            .score = filenameContains(lowercase(path.filename().string()), "map") ? mapFilenameScore : mapCandidateScore,
             .dimensions = dimensions,
             .validated = true,
             .openable = true,
@@ -509,9 +509,7 @@ void appendMapCandidates(FileBrowserSummary & summary, const std::filesystem::pa
     }
 }
 
-void appendRadarcolCandidate(FileBrowserSummary & summary,
-                             const std::filesystem::path & path,
-                             std::string_view filename)
+void appendRadarcolCandidate(FileBrowserSummary & summary, const std::filesystem::path & path, std::string_view filename)
 {
     if (!summary.readable)
     {
@@ -554,26 +552,25 @@ void appendRadarcolCandidate(FileBrowserSummary & summary,
     summary.assetCandidates.push_back(FileBrowserAssetCandidate{
         .kind = MulAssetKind::radarcol,
         .path = path,
-         .companionPath = {},
-         .label = "Radarcol",
-         .facet = {},
-          .reason = std::move(reason),
-          .warning = std::move(warning),
-         .score = score,
-         .itemCount = reader->colorCount(),
-         .dimensions = std::nullopt,
-         .validated = true,
+        .companionPath = {},
+        .label = "Radarcol",
+        .facet = {},
+        .reason = std::move(reason),
+        .warning = std::move(warning),
+        .score = score,
+        .itemCount = reader->colorCount(),
+        .dimensions = std::nullopt,
+        .validated = true,
         .openable = true,
     });
 }
 
-void appendTexmapsCandidate(FileBrowserSummary & summary,
-                            const std::filesystem::path & path,
-                            std::string_view filename)
+void appendTexmapsCandidate(FileBrowserSummary & summary, const std::filesystem::path & path, std::string_view filename)
 {
     const bool selectedIsIndex = filename.starts_with("texidx") && filename.ends_with(".mul");
     const bool selectedIsData = filename.starts_with("texmaps") && filename.ends_with(".mul");
-    const bool filenameHint = filenameContains(filename, "tex") || filenameContains(filename, "maps") || filenameContains(filename, "idx");
+    const bool filenameHint =
+        filenameContains(filename, "tex") || filenameContains(filename, "maps") || filenameContains(filename, "idx");
     if (!selectedIsIndex && !selectedIsData && !filenameHint)
     {
         return;
@@ -613,14 +610,14 @@ void appendTexmapsCandidate(FileBrowserSummary & summary,
     summary.assetCandidates.push_back(FileBrowserAssetCandidate{
         .kind = MulAssetKind::texmapsPair,
         .path = path,
-         .companionPath = {},
-         .label = "Texmaps",
-          .facet = {},
-          .reason = "A matching texidx.mul and texmaps.mul pair must be selected",
-          .warning = std::move(pair.warning),
-          .score = filenameHint ? texmapsPairScore + filenameHintScoreBonus : texmapsPairScore,
-         .dimensions = std::nullopt,
-         .validated = false,
+        .companionPath = {},
+        .label = "Texmaps",
+        .facet = {},
+        .reason = "A matching texidx.mul and texmaps.mul pair must be selected",
+        .warning = std::move(pair.warning),
+        .score = filenameHint ? texmapsPairScore + filenameHintScoreBonus : texmapsPairScore,
+        .dimensions = std::nullopt,
+        .validated = false,
         .openable = false,
     });
 }
@@ -680,8 +677,7 @@ FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & pat
     return summary;
 }
 
-FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & indexPath,
-                                             const std::filesystem::path & dataPath)
+FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & indexPath, const std::filesystem::path & dataPath)
 {
     const auto reader = uomul::TexMapsReader::open(indexPath, dataPath);
     std::string reason;
@@ -700,15 +696,15 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
     return FileBrowserAssetCandidate{
         .kind = MulAssetKind::texmapsPair,
         .path = indexPath,
-         .companionPath = dataPath,
-         .label = "Texture pair",
-         .facet = {},
-         .reason = std::move(reason),
-         .warning = {},
-         .score = texmapsPairScore,
-         .itemCount = reader ? reader->textureCount() : 0U,
-         .dimensions = std::nullopt,
-         .validated = reader.has_value(),
+        .companionPath = dataPath,
+        .label = "Texture pair",
+        .facet = {},
+        .reason = std::move(reason),
+        .warning = {},
+        .score = texmapsPairScore,
+        .itemCount = reader ? reader->textureCount() : 0U,
+        .dimensions = std::nullopt,
+        .validated = reader.has_value(),
         .openable = reader.has_value(),
     };
 }
@@ -775,7 +771,9 @@ void drawFileBrowser(FileBrowserState & state)
 
     const std::string title =
         state.request.title.empty() ? "Open File###dialog.file-browser" : state.request.title + "###dialog.file-browser";
-    if (!beginDialog(title.c_str(), &state.visible, browserDialogSpec(),
+    if (!beginDialog(title.c_str(),
+                     &state.visible,
+                     browserDialogSpec(),
                      static_cast<ImGuiWindowFlags>(ImGuiWindowFlags_NoResize + ImGuiWindowFlags_NoScrollbar +
                                                    ImGuiWindowFlags_NoScrollWithMouse)))
     {
@@ -918,10 +916,11 @@ void drawFileBrowser(FileBrowserState & state)
         ImGui::TextUnformatted("Filename");
         ImGui::SameLine();
 
-        const float buttonWidth = ImGui::CalcTextSize(confirmLabel).x +
-                                   (ImGui::GetStyle().FramePadding.x * 2.0F) + ImGui::GetStyle().ItemSpacing.x +
-                                   ImGui::CalcTextSize("Cancel").x + (ImGui::GetStyle().FramePadding.x * 2.0F);
-        const float inputWidth = std::max(120.0F, ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemSpacing.x);
+        const float buttonWidth = ImGui::CalcTextSize(confirmLabel).x + (ImGui::GetStyle().FramePadding.x * 2.0F) +
+                                  ImGui::GetStyle().ItemSpacing.x + ImGui::CalcTextSize("Cancel").x +
+                                  (ImGui::GetStyle().FramePadding.x * 2.0F);
+        const float inputWidth =
+            std::max(120.0F, ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemSpacing.x);
         ImGui::SetNextItemWidth(inputWidth);
         ImGui::InputText("##Filename", state.filename.data(), state.filename.size());
         ImGui::SameLine();

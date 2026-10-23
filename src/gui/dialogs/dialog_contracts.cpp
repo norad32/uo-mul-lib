@@ -8,15 +8,15 @@ const char * dialogPopupId(DialogId id) noexcept
 {
     switch (id)
     {
-        case DialogId::mapWorkflow:
+        case DialogId::mapWorkflow :
             return "###dialog.map-workflow";
-        case DialogId::preferences:
+        case DialogId::preferences :
             return "###dialog.preferences";
-        case DialogId::fileBrowser:
+        case DialogId::fileBrowser :
             return "###dialog.file-browser";
-        case DialogId::fileSelector:
+        case DialogId::fileSelector :
             return "###dialog.file-selector";
-        case DialogId::none:
+        case DialogId::none :
             break;
     }
     return "###dialog.none";

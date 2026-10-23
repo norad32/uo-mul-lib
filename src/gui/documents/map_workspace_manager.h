@@ -1,7 +1,7 @@
 #pragma once
 
-#include "gui/documents/map_workspace.h"
 #include "gui/documents/document_identity.h"
+#include "gui/documents/map_workspace.h"
 #include "gui/views/map_canvas_panel.h"
 #include <expected>
 #include <memory>
@@ -40,18 +40,30 @@ public:
     void setTileSelection(uomul::TileRegion region) noexcept { active_->setTileSelection(region); }
     void setBlockSelection(uomul::BlockRegion region) noexcept { active_->setBlockSelection(region); }
     [[nodiscard]] const std::optional<uomul::TileRegion> & tileSelection() const noexcept { return active_->tileSelection(); }
-    [[nodiscard]] const std::optional<uomul::BlockRegion> & blockSelection() const noexcept { return active_->blockSelection(); }
+    [[nodiscard]] const std::optional<uomul::BlockRegion> & blockSelection() const noexcept
+    {
+        return active_->blockSelection();
+    }
     [[nodiscard]] const std::optional<uomul::TileCoord> & hoveredTile() const noexcept { return active_->hoveredTile(); }
     [[nodiscard]] const std::optional<uomul::MapTile> & hoveredValue() const noexcept { return active_->hoveredValue(); }
     [[nodiscard]] const std::optional<uomul::TileCoord> & selectedTile() const noexcept { return active_->selectedTile(); }
     [[nodiscard]] const std::optional<uomul::MapTile> & selectedValue() const noexcept { return active_->selectedValue(); }
     [[nodiscard]] const std::optional<uomul::Error> & error() const noexcept { return active_->error(); }
-    [[nodiscard]] std::expected<std::optional<uomul::MapStats>, uomul::Error> selectionStats() { return active_->selectionStats(); }
+    [[nodiscard]] std::expected<std::optional<uomul::MapStats>, uomul::Error> selectionStats()
+    {
+        return active_->selectionStats();
+    }
     [[nodiscard]] std::expected<void, uomul::Error> updateHover(uomul::TileCoord tile) { return active_->updateHover(tile); }
-    [[nodiscard]] std::expected<void, uomul::Error> updateSelectedTile(uomul::TileCoord tile) { return active_->updateSelectedTile(tile); }
+    [[nodiscard]] std::expected<void, uomul::Error> updateSelectedTile(uomul::TileCoord tile)
+    {
+        return active_->updateSelectedTile(tile);
+    }
     void clearHover() noexcept { active_->clearHover(); }
     void clearSelectedTile() noexcept { active_->clearSelectedTile(); }
-    [[nodiscard]] std::expected<void, uomul::Error> fill(uomul::MapTile value, MapEditScope scope) { return active_->fill(value, scope); }
+    [[nodiscard]] std::expected<void, uomul::Error> fill(uomul::MapTile value, MapEditScope scope)
+    {
+        return active_->fill(value, scope);
+    }
     [[nodiscard]] std::expected<void, uomul::Error> replaceTileId(std::uint16_t from, std::uint16_t to, MapEditScope scope)
     {
         return active_->replaceTileId(from, to, scope);
@@ -79,9 +91,8 @@ public:
     [[nodiscard]] std::expected<void, uomul::Error> closeMap();
     void deactivateMap() noexcept;
 
-    [[nodiscard]] std::expected<void, uomul::Error> activateMap(DocumentId id,
-                                                                 const std::filesystem::path & path,
-                                                                 uomul::Dimensions dimensions);
+    [[nodiscard]] std::expected<void, uomul::Error>
+    activateMap(DocumentId id, const std::filesystem::path & path, uomul::Dimensions dimensions);
     [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id);
     void bindActiveDocument(DocumentId id) noexcept;
     void invalidateProviderCaches() noexcept;
@@ -90,9 +101,8 @@ private:
     using WorkspacePtr = std::unique_ptr<MapWorkspace>;
     using CanvasStatePtr = std::unique_ptr<MapCanvasPanelState>;
 
-    [[nodiscard]] std::expected<void, uomul::Error> replaceActive(WorkspacePtr replacement,
-                                                                   CanvasStatePtr canvas,
-                                                                   std::optional<DocumentId> newId);
+    [[nodiscard]] std::expected<void, uomul::Error>
+    replaceActive(WorkspacePtr replacement, CanvasStatePtr canvas, std::optional<DocumentId> newId);
     void stashActive() noexcept;
 
     WorkspacePtr active_;

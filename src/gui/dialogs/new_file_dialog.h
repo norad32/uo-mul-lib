@@ -1,11 +1,11 @@
 #pragma once
 
+#include "core/facet_sizes.h"
+#include "gui/commands/operation_controller.h"
+#include "gui/context/notification_state.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/documents/map_workspace_manager.h"
 #include "gui/profile/data_profile.h"
-#include "gui/context/notification_state.h"
-#include "gui/commands/operation_controller.h"
-#include "gui/dialogs/file_browser_dialog.h"
-#include "core/facet_sizes.h"
 #include "uomul/map.h"
 #include <array>
 #include <cstddef>
@@ -96,17 +96,17 @@ struct NewFileDialogState
 
 void drawNewFileDialog(MapWorkspaceManager & workspace,
                        NewFileDialogState & state,
-                      OperationController & controller,
-                      OutputCollisionPolicy collisionPolicy,
-                      NotificationState & notifications,
-                      FileBrowserState & browser,
-                      bool & shouldClose);
+                       OperationController & controller,
+                       OutputCollisionPolicy collisionPolicy,
+                       NotificationState & notifications,
+                       FileBrowserState & browser,
+                       bool & shouldClose);
 
 void cancelFileDialog(NewFileDialogState & state);
 void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult & result);
 
 void requestCloseOperation(MapWorkspaceManager & workspace,
-                            NewFileDialogState & state,
+                           NewFileDialogState & state,
                            OperationController & controller,
                            PendingMapOperationKind kind,
                            NotificationState & notifications);

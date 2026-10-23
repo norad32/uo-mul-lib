@@ -1,7 +1,7 @@
+#include "core/facet_sizes.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/dialogs/file_size.h"
-#include "core/facet_sizes.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
@@ -61,9 +61,9 @@ TEST_CASE("file browser identifies a valid radar color table")
     }
 
     const auto summary = inspectFileBrowserSelection(path);
-    REQUIRE(std::any_of(summary.assetCandidates.begin(), summary.assetCandidates.end(), [](const auto & candidate) {
-        return candidate.kind == MulAssetKind::radarcol && candidate.openable;
-    }));
+    REQUIRE(std::any_of(summary.assetCandidates.begin(),
+                        summary.assetCandidates.end(),
+                        [](const auto & candidate) { return candidate.kind == MulAssetKind::radarcol && candidate.openable; }));
 
     std::error_code error;
     std::filesystem::remove(path, error);
@@ -79,9 +79,10 @@ TEST_CASE("file browser never treats an index file as an openable texture asset 
     }
 
     const auto summary = inspectFileBrowserSelection(indexPath);
-    REQUIRE(std::any_of(summary.assetCandidates.begin(), summary.assetCandidates.end(), [](const auto & candidate) {
-        return candidate.kind == MulAssetKind::texmapsPair && !candidate.openable;
-    }));
+    REQUIRE(std::any_of(summary.assetCandidates.begin(),
+                        summary.assetCandidates.end(),
+                        [](const auto & candidate)
+                        { return candidate.kind == MulAssetKind::texmapsPair && !candidate.openable; }));
 
     std::error_code error;
     std::filesystem::remove(indexPath, error);
@@ -95,15 +96,15 @@ TEST_CASE("file selector rejects a direct texture index result")
     result.path = "texidx.mul";
     result.assetCandidates.push_back(FileBrowserAssetCandidate{
         .kind = MulAssetKind::texmapsPair,
-         .path = result.path,
-         .companionPath = {},
-         .label = "Texture pair",
-          .facet = {},
-          .reason = "A matching pair is required",
-          .warning = {},
-          .score = 90,
-         .dimensions = std::nullopt,
-         .validated = false,
+        .path = result.path,
+        .companionPath = {},
+        .label = "Texture pair",
+        .facet = {},
+        .reason = "A matching pair is required",
+        .warning = {},
+        .score = 90,
+        .dimensions = std::nullopt,
+        .validated = false,
         .openable = false,
     });
     openFileSelector(state, result);
@@ -125,9 +126,9 @@ TEST_CASE("file browser treats an empty texture index and data pair as one opena
     }
 
     const auto summary = inspectFileBrowserSelection(indexPath);
-    const auto pair = std::find_if(summary.assetCandidates.begin(), summary.assetCandidates.end(), [](const auto & candidate) {
-        return candidate.kind == MulAssetKind::texmapsPair;
-    });
+    const auto pair = std::find_if(summary.assetCandidates.begin(),
+                                   summary.assetCandidates.end(),
+                                   [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsPair; });
     REQUIRE(pair != summary.assetCandidates.end());
     REQUIRE(pair->openable);
     REQUIRE(pair->path == indexPath);
@@ -158,9 +159,9 @@ TEST_CASE("generic open candidate selection preserves format and map dimensions"
     };
     FileSelectorState selector;
     openFileSelector(selector, result);
-    const auto mapCandidate = std::find_if(selector.candidates.begin(), selector.candidates.end(), [](const auto & candidate) {
-        return candidate.kind == MulAssetKind::map;
-    });
+    const auto mapCandidate = std::find_if(selector.candidates.begin(),
+                                           selector.candidates.end(),
+                                           [](const auto & candidate) { return candidate.kind == MulAssetKind::map; });
     REQUIRE(mapCandidate != selector.candidates.end());
     selector.selectedCandidate = static_cast<std::size_t>(std::distance(selector.candidates.begin(), mapCandidate));
     const auto selected = selectedFileSelectorResult(selector);
@@ -180,34 +181,35 @@ TEST_CASE("generic open selector keeps multiple candidates available for explici
         .role = DataFileRole::radarcol,
         .path = "ambiguous.mul",
         .mapCandidates = {},
-        .assetCandidates = {
-            FileBrowserAssetCandidate{
-                .kind = MulAssetKind::map,
-                .path = "ambiguous.mul",
-                .companionPath = {},
-                .label = "Map",
-                .facet = {},
-                .reason = "Map candidate",
-                .warning = {},
-                .score = 80,
-                .dimensions = std::nullopt,
-                .validated = true,
-                .openable = true,
+        .assetCandidates =
+            {
+                FileBrowserAssetCandidate{
+                    .kind = MulAssetKind::map,
+                    .path = "ambiguous.mul",
+                    .companionPath = {},
+                    .label = "Map",
+                    .facet = {},
+                    .reason = "Map candidate",
+                    .warning = {},
+                    .score = 80,
+                    .dimensions = std::nullopt,
+                    .validated = true,
+                    .openable = true,
+                },
+                FileBrowserAssetCandidate{
+                    .kind = MulAssetKind::radarcol,
+                    .path = "ambiguous.mul",
+                    .companionPath = {},
+                    .label = "Radar colors",
+                    .facet = {},
+                    .reason = "Radarcol candidate",
+                    .warning = {},
+                    .score = 20,
+                    .dimensions = std::nullopt,
+                    .validated = true,
+                    .openable = true,
+                },
             },
-            FileBrowserAssetCandidate{
-                .kind = MulAssetKind::radarcol,
-                .path = "ambiguous.mul",
-                .companionPath = {},
-                .label = "Radar colors",
-                .facet = {},
-                .reason = "Radarcol candidate",
-                .warning = {},
-                .score = 20,
-                .dimensions = std::nullopt,
-                .validated = true,
-                .openable = true,
-            },
-        },
         .assetCandidate = std::nullopt,
     };
     FileSelectorState selector;
@@ -240,11 +242,13 @@ TEST_CASE("file browser save request preserves the initial filename")
     const auto path = std::filesystem::temp_directory_path() / "uo-mule-output.mul";
     FileBrowserState state;
     requestFileBrowser(state,
-                       {.mode = FileBrowserMode::saveFile,
-                        .target = FileBrowserTarget::newMapOutput,
-                        .initialPath = path,
-                        .extension = ".mul",
-                        .title = "Save",});
+                       {
+                           .mode = FileBrowserMode::saveFile,
+                           .target = FileBrowserTarget::newMapOutput,
+                           .initialPath = path,
+                           .extension = ".mul",
+                           .title = "Save",
+                       });
 
     REQUIRE(state.visible);
     REQUIRE(state.directory == path.parent_path());
@@ -262,20 +266,24 @@ TEST_CASE("file browser reuses the last navigated folder in the same session")
 
     FileBrowserState state;
     requestFileBrowser(state,
-                       {.mode = FileBrowserMode::openFile,
-                        .target = FileBrowserTarget::genericOpen,
-                        .initialPath = directory,
-                        .extension = ".mul",
-                        .title = "Open",});
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::genericOpen,
+                           .initialPath = directory,
+                           .extension = ".mul",
+                           .title = "Open",
+                       });
     REQUIRE(state.directory == std::filesystem::absolute(directory).lexically_normal());
     cancelFileBrowser(state);
 
     requestFileBrowser(state,
-                       {.mode = FileBrowserMode::openFile,
-                        .target = FileBrowserTarget::genericOpen,
-                        .initialPath = {},
-                        .extension = ".mul",
-                        .title = "Open",});
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::genericOpen,
+                           .initialPath = {},
+                           .extension = ".mul",
+                           .title = "Open",
+                       });
     REQUIRE(state.directory == std::filesystem::absolute(directory).lexically_normal());
 
     cancelFileBrowser(state);
@@ -298,11 +306,13 @@ TEST_CASE("file browser accumulates multiple recent folders")
     for (const auto & folder : {first, second, third})
     {
         requestFileBrowser(state,
-                           {.mode = FileBrowserMode::openFile,
-                            .target = FileBrowserTarget::genericOpen,
-                            .initialPath = folder,
-                            .extension = ".mul",
-                            .title = "Open",});
+                           {
+                               .mode = FileBrowserMode::openFile,
+                               .target = FileBrowserTarget::genericOpen,
+                               .initialPath = folder,
+                               .extension = ".mul",
+                               .title = "Open",
+                           });
         cancelFileBrowser(state);
     }
 

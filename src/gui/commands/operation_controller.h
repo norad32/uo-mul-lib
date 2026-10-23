@@ -1,7 +1,7 @@
 #pragma once
 
-#include "gui/profile/data_profile.h"
 #include "gui/documents/map_workspace.h"
+#include "gui/profile/data_profile.h"
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -54,10 +54,8 @@ struct OperationTransition
 class OperationController
 {
 public:
-    [[nodiscard]] OperationTransition begin(OperationRequest request,
-                                             bool dirty,
-                                             bool outputExists,
-                                             OutputCollisionPolicy collisionPolicy);
+    [[nodiscard]] OperationTransition
+    begin(OperationRequest request, bool dirty, bool outputExists, OutputCollisionPolicy collisionPolicy);
     [[nodiscard]] OperationTransition resolveDirty(PendingChangesAction action);
     [[nodiscard]] OperationTransition resolveOverwrite(bool overwrite);
     [[nodiscard]] OperationTransition completeSave(bool success);
