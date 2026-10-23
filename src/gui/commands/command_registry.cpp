@@ -3,14 +3,14 @@
 #include "gui/context/coordinate_parser.h"
 #include "gui/context/map_context.h"
 #include "gui/dialogs/file_browser_dialog.h"
-#include "gui/dialogs/new_file_dialog.h"
+#include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/documents/radarcol_document.h"
 #include "gui/persistence/preferences.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/strings/ui_strings.h"
-#include "gui/views/map_canvas_panel.h"
+#include "gui/views/map_canvas_view.h"
 #include "gui/views/panel_registry.h"
 #include <algorithm>
 #include <cstddef>

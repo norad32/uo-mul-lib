@@ -53,14 +53,14 @@ struct MapCanvasNavigationRequest
     std::optional<uomul::TileCoord> coordinate;
 };
 
-struct MapCanvasPanelState
+struct MapCanvasViewState
 {
-    MapCanvasPanelState() = default;
-    ~MapCanvasPanelState();
-    MapCanvasPanelState(const MapCanvasPanelState &) = delete;
-    MapCanvasPanelState & operator=(const MapCanvasPanelState &) = delete;
-    MapCanvasPanelState(MapCanvasPanelState &&) = delete;
-    MapCanvasPanelState & operator=(MapCanvasPanelState &&) = delete;
+    MapCanvasViewState() = default;
+    ~MapCanvasViewState();
+    MapCanvasViewState(const MapCanvasViewState &) = delete;
+    MapCanvasViewState & operator=(const MapCanvasViewState &) = delete;
+    MapCanvasViewState(MapCanvasViewState &&) = delete;
+    MapCanvasViewState & operator=(MapCanvasViewState &&) = delete;
 
     double panX = 0.0;
     double panY = 0.0;
@@ -106,13 +106,13 @@ struct MapCanvasPanelState
 [[nodiscard]] MapColor
 mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const RadarColorProvider & radarColors) noexcept;
 
-void drawMapCanvasPanel(MapWorkspaceManager & workspace,
-                        const RadarColorProvider & radarColors,
-                        const std::string & windowName,
-                        const std::function<void()> & activateDocument,
-                        const std::function<void()> & openMap,
-                        const std::function<void()> & createMap,
-                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
-                        bool & visible);
+void drawMapCanvasView(MapWorkspaceManager & workspace,
+                       const RadarColorProvider & radarColors,
+                       const std::string & windowName,
+                       const std::function<void()> & activateDocument,
+                       const std::function<void()> & openMap,
+                       const std::function<void()> & createMap,
+                       const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
+                       bool & visible);
 
 } // namespace uo_mule::gui

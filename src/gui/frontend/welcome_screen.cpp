@@ -4,11 +4,11 @@
 #include "gui/commands/command_registry.h"
 #include "gui/context/notification_state.h"
 #include "gui/dialogs/dialog_presentation.h"
-#include "gui/dialogs/new_file_dialog.h"
+#include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/documents/document_identity.h"
 #include "gui/frontend/theme.h"
 #include "gui/frontend/welcome_greetings.h"
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/persistence/preferences.h"
 #include "gui/persistence/recent_files.h"
 #include "gui/profile/data_profile.h"
@@ -164,7 +164,7 @@ void drawMetadataTooltip(const DataProfileValidation & validation)
         const DataFileStatus fileStatus = file == nullptr ? DataFileStatus::missing : file->status;
         const bool configured = metadataFileConfigured(fileStatus);
         const bool missing = metadataFileMissing(fileStatus);
-        theme::Color color = theme::peach;
+        theme::Color color = theme::warning;
         const char * label = "incomplete";
         if (configured)
         {

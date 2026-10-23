@@ -12,7 +12,7 @@
 #include "gui/frontend/document_surface.h"
 #include "gui/frontend/theme.h"
 #include "gui/frontend/welcome_screen.h"
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/persistence/layout_store.h"
 #include "gui/persistence/preferences.h"
 #include "gui/profile/data_profile.h"
@@ -21,7 +21,7 @@
 #include "gui/strings/ui_strings.h"
 #include "gui/views/block_inspector_panel.h"
 #include "gui/views/log_panel.h"
-#include "gui/views/map_canvas_panel.h"
+#include "gui/views/map_canvas_view.h"
 #include "gui/views/panel_registry.h"
 #include "gui/views/radarcol_panel.h"
 #include "gui/views/texmaps_panel.h"
@@ -398,7 +398,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
     {
         bool visible = true;
         dockDocumentWindow();
-        drawMapCanvasPanel(
+        drawMapCanvasView(
             state.workspace,
             state.providers.radarColors(),
             windowName,

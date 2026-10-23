@@ -3,7 +3,7 @@
 #include "gui/documents/map_workspace.h"
 #include "gui/profile/data_profile.h"
 #include "gui/providers/data_providers.h"
-#include "gui/views/map_canvas_panel.h"
+#include "gui/views/map_canvas_view.h"
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("mapContextSnapshot_Should_ExposeNoActiveLocationWithoutMap")

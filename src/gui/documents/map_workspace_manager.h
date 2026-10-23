@@ -2,7 +2,7 @@
 
 #include "gui/documents/document_identity.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/views/map_canvas_panel.h"
+#include "gui/views/map_canvas_view.h"
 #include <expected>
 #include <memory>
 #include <optional>
@@ -23,8 +23,8 @@ public:
 
     [[nodiscard]] MapWorkspace & active() noexcept;
     [[nodiscard]] const MapWorkspace & active() const noexcept;
-    [[nodiscard]] MapCanvasPanelState & canvasState() noexcept;
-    [[nodiscard]] const MapCanvasPanelState & canvasState() const noexcept;
+    [[nodiscard]] MapCanvasViewState & canvasState() noexcept;
+    [[nodiscard]] const MapCanvasViewState & canvasState() const noexcept;
     [[nodiscard]] std::optional<DocumentId> activeDocumentId() const noexcept;
 
     [[nodiscard]] const uomul::MapReader * reader() const noexcept { return active_->reader(); }
@@ -99,7 +99,7 @@ public:
 
 private:
     using WorkspacePtr = std::unique_ptr<MapWorkspace>;
-    using CanvasStatePtr = std::unique_ptr<MapCanvasPanelState>;
+    using CanvasStatePtr = std::unique_ptr<MapCanvasViewState>;
 
     [[nodiscard]] std::expected<void, uomul::Error>
     replaceActive(WorkspacePtr replacement, CanvasStatePtr canvas, std::optional<DocumentId> newId);

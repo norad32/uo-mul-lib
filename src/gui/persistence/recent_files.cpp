@@ -1,6 +1,6 @@
 #include "gui/persistence/recent_files.h"
 #include "core/app_info.h"
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/persistence/config_paths.h"
 #include "uomul/map.h"
 #include <algorithm>

@@ -3,8 +3,6 @@
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include <algorithm>
-#include <array>
-#include <cstddef>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -18,12 +16,10 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::array<bool, 4> supportedRoles{
-    true,
-    true,
-    true,
-    false,
-};
+[[nodiscard]] constexpr bool isSupportedDataFileRole(DataFileRole role) noexcept
+{
+    return role != DataFileRole::tiledata;
+}
 
 void addDiagnostic(DataProfileValidation & result,
                    Diagnostic::Severity severity,
@@ -60,11 +56,9 @@ void validateFileRole(const DataProfile & profile, DataProfileValidation & resul
 {
     const auto path = resolvedDataFilePath(profile, role);
     auto validation = makeValidation(role, path);
-    const auto roleIndex = static_cast<std::size_t>(role);
-
     if (path.empty())
     {
-        validation.status = supportedRoles.at(roleIndex) ? DataFileStatus::missing : DataFileStatus::unsupported;
+        validation.status = isSupportedDataFileRole(role) ? DataFileStatus::missing : DataFileStatus::unsupported;
         appendValidation(result, std::move(validation));
         return;
     }
@@ -94,7 +88,7 @@ void validateFileRole(const DataProfile & profile, DataProfileValidation & resul
         return;
     }
 
-    if (!supportedRoles.at(roleIndex))
+    if (!isSupportedDataFileRole(role))
     {
         validation.status = DataFileStatus::unsupported;
         appendValidation(result, std::move(validation));

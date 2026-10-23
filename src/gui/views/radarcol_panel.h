@@ -9,7 +9,6 @@
 #include "uomul/radarcol/radarcol.h"
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -23,15 +22,11 @@ struct RadarcolPanelState
 {
     std::array<char, radarcolPathBufferSize> sourcePath{};
     std::optional<uomul::RadarColReader> reader;
-    std::array<MapColor, uomul::radarMapColorCount> mapColorCache{};
-    std::array<std::uint8_t, uomul::radarMapColorCount> mapColorCacheStatus{};
-    std::uint64_t colorRevision = 0;
     std::string error;
     assets::AssetWindowState assetView;
     std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
 };
 
-[[nodiscard]] std::optional<MapColor> radarMapDisplayColor(RadarcolPanelState & state, std::uint16_t id);
 void syncRadarcolPanel(RadarcolPanelState & state, const DataProfile & profile);
 void applyFileBrowserResult(RadarcolPanelState & state, const FileBrowserResult & result);
 void drawRadarcolPanel(RadarcolPanelState & state, bool & visible, IdFormat idFormat);

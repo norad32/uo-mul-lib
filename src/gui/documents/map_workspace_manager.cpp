@@ -1,7 +1,7 @@
 #include "gui/documents/map_workspace_manager.h"
 #include "gui/documents/document_identity.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/views/map_canvas_panel.h"
+#include "gui/views/map_canvas_view.h"
 #include <expected>
 #include <filesystem>
 #include <memory>
@@ -57,7 +57,7 @@ namespace
 } // namespace
 
 MapWorkspaceManager::MapWorkspaceManager() :
-    active_(std::make_unique<MapWorkspace>()), activeCanvas_(std::make_unique<MapCanvasPanelState>())
+    active_(std::make_unique<MapWorkspace>()), activeCanvas_(std::make_unique<MapCanvasViewState>())
 {
 }
 
@@ -71,12 +71,12 @@ const MapWorkspace & MapWorkspaceManager::active() const noexcept
     return *active_;
 }
 
-MapCanvasPanelState & MapWorkspaceManager::canvasState() noexcept
+MapCanvasViewState & MapWorkspaceManager::canvasState() noexcept
 {
     return *activeCanvas_;
 }
 
-const MapCanvasPanelState & MapWorkspaceManager::canvasState() const noexcept
+const MapCanvasViewState & MapWorkspaceManager::canvasState() const noexcept
 {
     return *activeCanvas_;
 }
@@ -94,7 +94,7 @@ void MapWorkspaceManager::stashActive() noexcept
         canvasStates_[*activeId_] = std::move(activeCanvas_);
     }
     active_ = std::make_unique<MapWorkspace>();
-    activeCanvas_ = std::make_unique<MapCanvasPanelState>();
+    activeCanvas_ = std::make_unique<MapCanvasViewState>();
     activeId_.reset();
 }
 
@@ -123,7 +123,7 @@ std::expected<void, uomul::Error> MapWorkspaceManager::openMap(const std::filesy
     {
         return opened;
     }
-    return replaceActive(std::move(replacement), std::make_unique<MapCanvasPanelState>(), std::nullopt);
+    return replaceActive(std::move(replacement), std::make_unique<MapCanvasViewState>(), std::nullopt);
 }
 
 std::expected<void, uomul::Error> MapWorkspaceManager::createEmptyMap(const std::filesystem::path & path,
@@ -144,7 +144,7 @@ std::expected<void, uomul::Error> MapWorkspaceManager::createEmptyMap(const std:
     {
         return created;
     }
-    return replaceActive(std::move(replacement), std::make_unique<MapCanvasPanelState>(), std::nullopt);
+    return replaceActive(std::move(replacement), std::make_unique<MapCanvasViewState>(), std::nullopt);
 }
 
 std::expected<void, uomul::Error> MapWorkspaceManager::save(const std::filesystem::path & path, bool overwrite)
@@ -199,7 +199,7 @@ MapWorkspaceManager::activateMap(DocumentId id, const std::filesystem::path & pa
     }
 
     active_ = std::make_unique<MapWorkspace>();
-    activeCanvas_ = std::make_unique<MapCanvasPanelState>();
+    activeCanvas_ = std::make_unique<MapCanvasViewState>();
     activeId_ = id;
     if (auto opened = active_->openMap(path, dimensions); !opened)
     {
@@ -218,7 +218,7 @@ std::expected<void, uomul::Error> MapWorkspaceManager::closeDocument(DocumentId 
             return closed;
         }
         active_ = std::make_unique<MapWorkspace>();
-        activeCanvas_ = std::make_unique<MapCanvasPanelState>();
+        activeCanvas_ = std::make_unique<MapCanvasViewState>();
         activeId_.reset();
         return {};
     }

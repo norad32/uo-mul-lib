@@ -1,6 +1,7 @@
 #include "gui/assets/asset_window_contracts.h"
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -8,6 +9,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -185,6 +187,17 @@ bool contains(const AssetSelection & selection, const AssetItemId & item)
     return std::ranges::find(selection.selected, item) != selection.selected.end();
 }
 
+std::optional<std::uint32_t> itemIndex(const AssetItemId & item) noexcept
+{
+    std::uint32_t value = 0;
+    const auto result = std::from_chars(item.value.data(), item.value.data() + item.value.size(), value);
+    if (result.ec != std::errc{} || result.ptr != item.value.data() + item.value.size())
+    {
+        return std::nullopt;
+    }
+    return value;
+}
+
 void selectSingle(AssetSelection & selection, AssetItemId item)
 {
     selection.selected.clear();
@@ -219,6 +232,23 @@ void clear(AssetSelection & selection) noexcept
     selection.selected.clear();
     selection.anchor.reset();
     selection.anchorIndex.reset();
+}
+
+void resetContext(AssetWindowState & state) noexcept
+{
+    state.queryCacheContext.clear();
+    state.queryCacheFilter.clear();
+    state.searchItems.clear();
+    state.searchItemsValid = false;
+    state.filteredItems.clear();
+    state.queryCacheValid = false;
+    state.detailsCache.clear();
+    clear(state.selection);
+    clear(state.selectionDragBase);
+    state.selectionDragStartX = 0.0F;
+    state.selectionDragStartY = 0.0F;
+    state.selectionDragActive = false;
+    state.scrollPosition = 0.0F;
 }
 
 } // namespace uo_mule::gui::assets

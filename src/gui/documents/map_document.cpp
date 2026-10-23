@@ -2,7 +2,7 @@
 #include "gui/documents/document_identity.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/documents/radarcol_document.h"
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/profile/data_profile.h"
 #include <algorithm>
 #include <optional>

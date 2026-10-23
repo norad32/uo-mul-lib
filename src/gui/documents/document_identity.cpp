@@ -1,5 +1,5 @@
 #include "gui/documents/document_identity.h"
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/profile/data_profile.h"
 #include <algorithm>
 #include <filesystem>

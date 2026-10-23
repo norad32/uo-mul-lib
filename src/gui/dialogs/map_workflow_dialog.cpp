@@ -1,4 +1,4 @@
-#include "gui/dialogs/new_file_dialog.h"
+#include "gui/dialogs/map_workflow_dialog.h"
 #include "core/facet_sizes.h"
 #include "gui/commands/operation_controller.h"
 #include "gui/context/notification_state.h"

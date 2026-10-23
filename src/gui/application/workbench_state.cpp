@@ -1,7 +1,7 @@
 #include "gui/application/workbench_state.h"
 #include "gui/commands/command_registry.h"
 #include "gui/persistence/preferences.h"
-#include "gui/views/map_canvas_panel.h"
+#include "gui/views/map_canvas_view.h"
 #include <utility>
 
 namespace uo_mule::gui

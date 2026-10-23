@@ -13,19 +13,38 @@ include(GuiDependencies)
 
 add_library(
     gui
+    assets/asset_window.cpp
+    assets/asset_window_contracts.cpp
     application/application.cpp
     application/workbench_state.cpp
     commands/command_registry.cpp
     commands/file_operations.cpp
     commands/menu_bar.cpp
     commands/operation_controller.cpp
-    context/coordinate_parser.cpp
     context/color_conversion.cpp
+    context/coordinate_parser.cpp
     context/map_context.cpp
+    dialogs/dialog_contracts.cpp
+    dialogs/dialog_host.cpp
+    dialogs/dialog_presentation.cpp
+    dialogs/file_browser_dialog.cpp
+    dialogs/file_selector_dialog.cpp
+    dialogs/map_facet_dialog.cpp
+    dialogs/map_workflow_dialog.cpp
+    dialogs/preferences_dialog.cpp
+    documents/document_identity.cpp
+    documents/map_document.cpp
+    documents/map_workspace.cpp
+    documents/map_workspace_manager.cpp
+    documents/radarcol_document.cpp
     frontend/document_surface.cpp
-    assets/asset_window_contracts.cpp
-    assets/asset_window.cpp
-    strings/ui_strings.cpp
+    frontend/frame_composition.cpp
+    frontend/welcome_greetings.cpp
+    frontend/welcome_screen.cpp
+    persistence/config_paths.cpp
+    persistence/layout_store.cpp
+    persistence/preferences.cpp
+    persistence/recent_files.cpp
     profile/data_discovery.cpp
     profile/data_profile.cpp
     profile/data_profile_store.cpp
@@ -33,36 +52,17 @@ add_library(
     profile/workbench_session.cpp
     providers/data_providers.cpp
     providers/embedded_radarcol.cpp
-    dialogs/file_size.cpp
-    dialogs/file_browser_dialog.cpp
-    dialogs/file_selector_dialog.cpp
-    dialogs/map_facet_dialog.cpp
-    dialogs/preferences_dialog.cpp
-    dialogs/dialog_contracts.cpp
-    dialogs/dialog_host.cpp
-    dialogs/dialog_presentation.cpp
-    persistence/config_paths.cpp
-    documents/document_identity.cpp
-    documents/map_document.cpp
-    documents/radarcol_document.cpp
-    documents/map_workspace.cpp
-    documents/map_workspace_manager.cpp
-    persistence/layout_store.cpp
-    persistence/preferences.cpp
-    persistence/recent_files.cpp
+    support/file_size.cpp
+    strings/ui_strings.cpp
     views/block_inspector_panel.cpp
-    views/common.cpp
     views/log_panel.cpp
-    views/map_canvas_panel.cpp
+    views/map_canvas_view.cpp
     views/panel_registry.cpp
     views/radarcol_panel.cpp
     views/texmaps_panel.cpp
     views/tile_inspector_panel.cpp
     views/texture_preview.cpp
-    dialogs/new_file_dialog.cpp
-    frontend/frame_composition.cpp
-    frontend/welcome_greetings.cpp
-    frontend/welcome_screen.cpp)
+    views/tile_labels.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(

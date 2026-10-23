@@ -1,6 +1,6 @@
 #include "gui/frontend/document_surface.h"
 #include "gui/documents/document_identity.h"
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include <string>
 
 namespace uo_mule::gui

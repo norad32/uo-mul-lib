@@ -1,4 +1,4 @@
-#include "gui/views/common.h"
+#include "gui/views/tile_labels.h"
 #include "gui/documents/map_workspace.h"
 #include "uomul/map.h"
 #include <string>

@@ -1,4 +1,4 @@
-#include "gui/views/map_canvas_panel.h"
+#include "gui/views/map_canvas_view.h"
 #include "gui/context/coordinate_parser.h"
 #include "gui/documents/map_workspace.h"
 #include "gui/documents/map_workspace_manager.h"
@@ -94,7 +94,7 @@ constexpr double noMapButtonOffset = 28.0;
 }
 
 [[nodiscard]] ImVec2
-tileScreenPosition(ImVec2 canvasOrigin, const MapCanvasPanelState & state, std::uint32_t tileX, std::uint32_t tileY) noexcept
+tileScreenPosition(ImVec2 canvasOrigin, const MapCanvasViewState & state, std::uint32_t tileX, std::uint32_t tileY) noexcept
 {
     return {canvasOrigin.x + static_cast<float>(state.panX + (static_cast<double>(tileX) * state.zoom)),
             canvasOrigin.y + static_cast<float>(state.panY + (static_cast<double>(tileY) * state.zoom))};
@@ -107,7 +107,7 @@ struct ScreenRect
 };
 
 [[nodiscard]] ScreenRect
-tileScreenRect(ImVec2 canvasOrigin, const MapCanvasPanelState & state, std::uint32_t tileX, std::uint32_t tileY) noexcept
+tileScreenRect(ImVec2 canvasOrigin, const MapCanvasViewState & state, std::uint32_t tileX, std::uint32_t tileY) noexcept
 {
     const ImVec2 minimum = tileScreenPosition(canvasOrigin, state, tileX, tileY);
     return {
@@ -116,14 +116,14 @@ tileScreenRect(ImVec2 canvasOrigin, const MapCanvasPanelState & state, std::uint
     };
 }
 
-[[nodiscard]] bool hasPendingNavigation(const MapCanvasPanelState & state) noexcept
+[[nodiscard]] bool hasPendingNavigation(const MapCanvasViewState & state) noexcept
 {
     return state.navigationRequest.request != MapCanvasViewRequest::none || state.navigationRequest.coordinate.has_value() ||
            state.scrollResetPending;
 }
 
 [[nodiscard]] const MapCanvasCachedBlock &
-cachedBlock(const MapWorkspace & workspace, MapCanvasPanelState & state, uomul::BlockCoord coordinate)
+cachedBlock(const MapWorkspace & workspace, MapCanvasViewState & state, uomul::BlockCoord coordinate)
 {
     const std::uint64_t cacheKey = (static_cast<std::uint64_t>(coordinate.x) << 32U) | coordinate.y;
     const auto cachedIndex = state.blockCacheIndex.find(cacheKey);
@@ -189,7 +189,7 @@ cachedBlock(const MapWorkspace & workspace, MapCanvasPanelState & state, uomul::
 [[nodiscard]] std::optional<uomul::TileCoord> tileAtMouse(ImVec2 mouse,
                                                           ImVec2 canvasOrigin,
                                                           ImVec2 canvasSize,
-                                                          const MapCanvasPanelState & state,
+                                                          const MapCanvasViewState & state,
                                                           uomul::Dimensions dimensions,
                                                           bool canvasHovered) noexcept
 {
@@ -204,7 +204,7 @@ cachedBlock(const MapWorkspace & workspace, MapCanvasPanelState & state, uomul::
 
 void drawSelection(ImDrawList & drawList,
                    ImVec2 canvasOrigin,
-                   MapCanvasPanelState & state,
+                   MapCanvasViewState & state,
                    const MapWorkspace & workspace,
                    uomul::Dimensions dimensions)
 {
@@ -278,7 +278,7 @@ void writeLodPixel(std::vector<std::uint8_t> & pixels, std::size_t pixelIndex, I
 
 void rasterizeLodRow(const MapWorkspace & workspace,
                      const RadarColorProvider & radarColors,
-                     MapCanvasPanelState & state,
+                     MapCanvasViewState & state,
                      std::vector<std::uint8_t> & pixels,
                      std::uint32_t rasterWidth,
                      std::uint32_t pixelY,
@@ -338,7 +338,7 @@ void rasterizeLodRow(const MapWorkspace & workspace,
 
 void rasterizeLod(const MapWorkspace & workspace,
                   const RadarColorProvider & radarColors,
-                  MapCanvasPanelState & state,
+                  MapCanvasViewState & state,
                   std::uint32_t rasterWidth,
                   std::uint32_t rasterHeight,
                   double scaleX,
@@ -362,7 +362,7 @@ void rasterizeLod(const MapWorkspace & workspace,
     }
 }
 
-void uploadLodTexture(MapCanvasPanelState & state, std::uint32_t rasterWidth, std::uint32_t rasterHeight)
+void uploadLodTexture(MapCanvasViewState & state, std::uint32_t rasterWidth, std::uint32_t rasterHeight)
 {
     if (state.lodTexture == 0U)
     {
@@ -419,7 +419,7 @@ void uploadLodTexture(MapCanvasPanelState & state, std::uint32_t rasterWidth, st
     glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
 }
 
-[[nodiscard]] bool lodCacheMatches(const MapCanvasPanelState & state,
+[[nodiscard]] bool lodCacheMatches(const MapCanvasViewState & state,
                                    const RadarColorProvider & radarColors,
                                    std::uint32_t rasterWidth,
                                    std::uint32_t rasterHeight,
@@ -437,7 +437,7 @@ void uploadLodTexture(MapCanvasPanelState & state, std::uint32_t rasterWidth, st
            state.lodRadarColorRevision == radarColors.status().revision;
 }
 
-void saveLodCacheKey(MapCanvasPanelState & state,
+void saveLodCacheKey(MapCanvasViewState & state,
                      const RadarColorProvider & radarColors,
                      std::uint32_t rasterWidth,
                      std::uint32_t rasterHeight,
@@ -459,7 +459,7 @@ void saveLodCacheKey(MapCanvasPanelState & state,
 
 [[nodiscard]] bool drawScreenSpaceLod(const MapWorkspace & workspace,
                                       const RadarColorProvider & radarColors,
-                                      MapCanvasPanelState & state,
+                                      MapCanvasViewState & state,
                                       ImDrawList & drawList,
                                       ImVec2 canvasOrigin,
                                       ImVec2 canvasSize,
@@ -513,7 +513,7 @@ void saveLodCacheKey(MapCanvasPanelState & state,
 
 void drawCanvasContents(const MapWorkspace & workspace,
                         const RadarColorProvider & radarColors,
-                        MapCanvasPanelState & state,
+                        MapCanvasViewState & state,
                         ImVec2 canvasOrigin,
                         ImVec2 canvasSize,
                         std::optional<uomul::TileCoord> currentTile,
@@ -652,7 +652,7 @@ void drawLayerButton(MapWorkspace & workspace, MapDisplayMode mode, const char *
     }
 }
 
-void drawLayerControls(MapWorkspace & workspace, MapCanvasPanelState & state)
+void drawLayerControls(MapWorkspace & workspace, MapCanvasViewState & state)
 {
     drawLayerButton(workspace, MapDisplayMode::tileIds, "Tile IDs");
     ImGui::SameLine();
@@ -678,7 +678,7 @@ void drawLayerControls(MapWorkspace & workspace, MapCanvasPanelState & state)
     }
 }
 
-void resetForDocument(const MapWorkspace & workspace, MapCanvasPanelState & state, uomul::Dimensions dimensions)
+void resetForDocument(const MapWorkspace & workspace, MapCanvasViewState & state, uomul::Dimensions dimensions)
 {
     const bool hasDocument = workspace.reader() != nullptr;
     const std::filesystem::path & currentPath = workspace.mapPath();
@@ -706,7 +706,7 @@ void resetForDocument(const MapWorkspace & workspace, MapCanvasPanelState & stat
     state.scrollResetPending = true;
 }
 
-void applyNavigationRequest(MapCanvasPanelState & state, const MapWorkspace & workspace, ImVec2 canvasSize, double minimumZoom)
+void applyNavigationRequest(MapCanvasViewState & state, const MapWorkspace & workspace, ImVec2 canvasSize, double minimumZoom)
 {
     const MapCanvasViewRequest request = state.navigationRequest.request;
     if (request == MapCanvasViewRequest::none || workspace.reader() == nullptr)
@@ -791,7 +791,7 @@ void applyNavigationRequest(MapCanvasPanelState & state, const MapWorkspace & wo
     state.navigationRequest.request = MapCanvasViewRequest::none;
 }
 
-void drawCoordinatePopup(MapCanvasPanelState & state)
+void drawCoordinatePopup(MapCanvasViewState & state)
 {
     if (state.coordinatePopupRequested)
     {
@@ -864,7 +864,7 @@ void updateHover(MapWorkspace & workspace, std::optional<uomul::TileCoord> tile)
     }
 }
 
-void updateNavigation(MapCanvasPanelState & state, ImVec2 mouse, ImVec2 canvasOrigin, bool canvasHovered, double minimumZoom)
+void updateNavigation(MapCanvasViewState & state, ImVec2 mouse, ImVec2 canvasOrigin, bool canvasHovered, double minimumZoom)
 {
     if (!state.scrollResetPending)
     {
@@ -928,7 +928,7 @@ void updateNavigation(MapCanvasPanelState & state, ImVec2 mouse, ImVec2 canvasOr
 }
 
 void updateSelectionDrag(MapWorkspace & workspace,
-                         MapCanvasPanelState & state,
+                         MapCanvasViewState & state,
                          std::optional<uomul::TileCoord> currentTile,
                          uomul::Dimensions dimensions,
                          bool canvasHovered)
@@ -1011,7 +1011,7 @@ MapColor mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const Rada
     return tileDisplayColor(mode, tile, radarColors.mapColor(tile.id));
 }
 
-MapCanvasPanelState::~MapCanvasPanelState()
+MapCanvasViewState::~MapCanvasViewState()
 {
     if (lodTexture != 0U)
     {
@@ -1020,14 +1020,14 @@ MapCanvasPanelState::~MapCanvasPanelState()
     }
 }
 
-void drawMapCanvasPanel(MapWorkspaceManager & workspaceManager,
-                        const RadarColorProvider & radarColors,
-                        const std::string & windowName,
-                        const std::function<void()> & activateDocument,
-                        const std::function<void()> & openMap,
-                        const std::function<void()> & createMap,
-                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
-                        bool & visible)
+void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
+                       const RadarColorProvider & radarColors,
+                       const std::string & windowName,
+                       const std::function<void()> & activateDocument,
+                       const std::function<void()> & openMap,
+                       const std::function<void()> & createMap,
+                       const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
+                       bool & visible)
 {
     const bool contentsVisible = ImGui::Begin(windowName.c_str(), &visible);
 
@@ -1039,7 +1039,7 @@ void drawMapCanvasPanel(MapWorkspaceManager & workspaceManager,
 
     activateDocument();
     MapWorkspace & workspace = workspaceManager.active();
-    MapCanvasPanelState & state = workspaceManager.canvasState();
+    MapCanvasViewState & state = workspaceManager.canvasState();
     state.panX = std::isfinite(state.panX) ? state.panX : 0.0;
     state.panY = std::isfinite(state.panY) ? state.panY : 0.0;
     state.zoom = std::isfinite(state.zoom) ? state.zoom : defaultMapCanvasZoom;

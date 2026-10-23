@@ -4,7 +4,7 @@
 #include "gui/context/color_conversion.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/documents/document_identity.h"
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/persistence/preferences.h"
 #include "gui/profile/data_profile.h"
 #include "gui/strings/ui_strings.h"
@@ -93,17 +93,26 @@ void loadSource(TexmapsPanelState & state)
     };
     adapter.descriptor.queryWhenEmpty = state.hideUnused;
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
-    { return strings::formatId(static_cast<std::uint32_t>(std::stoul(item.value)), idFormat); };
+    {
+        return assets::itemIndex(item)
+            .transform([idFormat](std::uint32_t id) { return strings::formatId(id, idFormat); })
+            .value_or(item.value);
+    };
     adapter.descriptor.renderSelectionPreview = [&state](const assets::AssetItemId & item, float size)
     {
-        const auto & preview = texturePreview(state, static_cast<std::uint32_t>(std::stoul(item.value)));
+        const auto id = assets::itemIndex(item);
+        if (!id)
+        {
+            return;
+        }
+        const auto & preview = texturePreview(state, *id);
         drawTexturePreview({.width = preview.width, .height = preview.height, .pixels = preview.pixels}, size, borderThickness);
     };
     adapter.descriptor.selectionPreviewSize = thumbnailSize;
     adapter.descriptor.inlinePresentationControl = [&state, &preferences]
     {
         bool hideUnused = preferences.texmapsHideUnused;
-        if (ImGui::Checkbox("Hide unused", &hideUnused) && hideUnused != preferences.texmapsHideUnused)
+        if (ImGui::Checkbox(strings::hideUnused(), &hideUnused) && hideUnused != preferences.texmapsHideUnused)
         {
             preferences.texmapsHideUnused = hideUnused;
             state.hideUnused = hideUnused;
@@ -169,7 +178,7 @@ void loadSource(TexmapsPanelState & state)
                 const auto texture = state.reader->readTexture(static_cast<std::uint32_t>(id));
                 if (texture)
                 {
-                    values.push_back("Dimensions: " + std::to_string(texture->dimension) + "x" +
+                    values.push_back(std::string(strings::dimensions()) + ": " + std::to_string(texture->dimension) + "x" +
                                      std::to_string(texture->dimension));
                 }
             }
@@ -196,25 +205,34 @@ void loadSource(TexmapsPanelState & state)
         {
             return std::nullopt;
         }
-        const auto id = static_cast<std::uint32_t>(std::stoul(item.value));
-        const auto texture = state.reader->readTexture(id);
+        const auto id = assets::itemIndex(item);
+        if (!id)
+        {
+            return std::nullopt;
+        }
+        const auto texture = state.reader->readTexture(*id);
         if (!texture)
         {
             return std::nullopt;
         }
         return assets::AssetDetails{
             .item = item,
-            .title = "ID: " + strings::formatId(id, idFormat),
+            .title = "ID: " + strings::formatId(*id, idFormat),
             .fields =
                 {
-                    "Dimensions: " + std::to_string(texture->dimension) + "x" + std::to_string(texture->dimension),
+                    std::string(strings::dimensions()) + ": " + std::to_string(texture->dimension) + "x" +
+                        std::to_string(texture->dimension),
                 },
         };
     };
     adapter.renderItem = [&state](const assets::AssetItem & item, bool)
     {
-        const auto id = static_cast<std::uint32_t>(std::stoul(item.id.value));
-        const auto & preview = texturePreview(state, id);
+        const auto id = assets::itemIndex(item.id);
+        if (!id)
+        {
+            return;
+        }
+        const auto & preview = texturePreview(state, *id);
         drawTexturePreview(
             {.width = preview.width, .height = preview.height, .pixels = preview.pixels}, thumbnailSize, borderThickness);
     };

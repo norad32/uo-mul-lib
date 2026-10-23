@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include "uomul/map.h"
 #include <cstdint>
 #include <filesystem>

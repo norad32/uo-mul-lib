@@ -38,3 +38,31 @@ TEST_CASE("assetGridLayout_Should_ReturnEmptyForNoItems")
 {
     REQUIRE(uo_mule::gui::assets::gridLayout(0U, testCanvasWidth, testCellWidth, testCellSpacing).rows == 0U);
 }
+
+TEST_CASE("assetWindowState_Should_ResetSelectionAndCachesForNewContext")
+{
+    uo_mule::gui::assets::AssetWindowState state;
+    state.queryCacheContext = "old-context";
+    state.queryCacheFilter = "old-filter";
+    state.searchItemsValid = true;
+    state.queryCacheValid = true;
+    state.selection.selected.push_back({.value = "7"});
+    state.selection.anchor = state.selection.selected.front();
+    state.selection.anchorIndex = 3U;
+    state.selectionDragBase = state.selection;
+    state.selectionDragActive = true;
+    state.scrollPosition = 42.0F;
+
+    uo_mule::gui::assets::resetContext(state);
+
+    REQUIRE(state.queryCacheContext.empty());
+    REQUIRE(state.queryCacheFilter.empty());
+    REQUIRE_FALSE(state.searchItemsValid);
+    REQUIRE_FALSE(state.queryCacheValid);
+    REQUIRE(state.selection.selected.empty());
+    REQUIRE_FALSE(state.selection.anchor.has_value());
+    REQUIRE_FALSE(state.selection.anchorIndex.has_value());
+    REQUIRE(state.selectionDragBase.selected.empty());
+    REQUIRE_FALSE(state.selectionDragActive);
+    REQUIRE(state.scrollPosition <= 0.0F);
+}

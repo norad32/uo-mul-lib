@@ -101,6 +101,42 @@ const char * details() noexcept
 {
     return "Details";
 }
+const char * beginEditing() noexcept
+{
+    return "Begin editing";
+}
+const char * saveAs() noexcept
+{
+    return "Save As...";
+}
+const char * discardChanges() noexcept
+{
+    return "Discard changes";
+}
+const char * configuredMetadataReadOnly() noexcept
+{
+    return "Configured metadata source (read-only)";
+}
+const char * readyToEdit() noexcept
+{
+    return "Ready to edit";
+}
+const char * hideUnused() noexcept
+{
+    return "Hide unused";
+}
+const char * dimensions() noexcept
+{
+    return "Dimensions";
+}
+const char * raw() noexcept
+{
+    return "Raw";
+}
+const char * hexadecimal() noexcept
+{
+    return "Hex";
+}
 
 const char * fileMenu() noexcept
 {

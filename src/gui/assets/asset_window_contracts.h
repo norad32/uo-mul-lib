@@ -1,7 +1,7 @@
 #pragma once
 
 #include "gui/documents/document_identity.h"
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -163,6 +163,8 @@ struct AssetWindowState
     bool detailsCollapsed = false;
 };
 
+void resetContext(AssetWindowState & state) noexcept;
+
 struct AssetAdapterDescriptor
 {
     std::string viewId;
@@ -203,6 +205,7 @@ struct AssetAdapter
 };
 
 [[nodiscard]] bool contains(const AssetSelection & selection, const AssetItemId & item);
+[[nodiscard]] std::optional<std::uint32_t> itemIndex(const AssetItemId & item) noexcept;
 [[nodiscard]] bool filterMatches(const AssetQuery & query, std::span<const std::string> values);
 void selectSingle(AssetSelection & selection, AssetItemId item);
 void selectSingleAt(AssetSelection & selection, AssetItemId item, std::size_t index);

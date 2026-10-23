@@ -1,4 +1,4 @@
-#include "gui/metadata/document_contracts.h"
+#include "gui/documents/document_contracts.h"
 #include "gui/persistence/preferences.h"
 #include "gui/strings/ui_strings.h"
 #include <catch2/catch_test_macros.hpp>

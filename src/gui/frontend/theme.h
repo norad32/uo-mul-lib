@@ -153,6 +153,11 @@ inline constexpr float modalDimAlpha = 0.35F;
     return ImGui::ColorConvertFloat4ToU32(imguiColor(color));
 }
 
+[[nodiscard]] inline ImU32 packedOpaqueColor(const Color & color) noexcept
+{
+    return packedColor(withAlpha(color, alpha));
+}
+
 inline void applyImGuiStyle()
 {
     ImGuiStyle & style = ImGui::GetStyle();

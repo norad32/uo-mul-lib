@@ -1,4 +1,4 @@
-#include "gui/dialogs/file_size.h"
+#include "gui/support/file_size.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>

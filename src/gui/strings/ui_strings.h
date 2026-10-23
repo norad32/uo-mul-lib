@@ -31,6 +31,15 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * table() noexcept;
 [[nodiscard]] const char * item() noexcept;
 [[nodiscard]] const char * details() noexcept;
+[[nodiscard]] const char * beginEditing() noexcept;
+[[nodiscard]] const char * saveAs() noexcept;
+[[nodiscard]] const char * discardChanges() noexcept;
+[[nodiscard]] const char * configuredMetadataReadOnly() noexcept;
+[[nodiscard]] const char * readyToEdit() noexcept;
+[[nodiscard]] const char * hideUnused() noexcept;
+[[nodiscard]] const char * dimensions() noexcept;
+[[nodiscard]] const char * raw() noexcept;
+[[nodiscard]] const char * hexadecimal() noexcept;
 
 [[nodiscard]] const char * fileMenu() noexcept;
 [[nodiscard]] const char * viewMenu() noexcept;

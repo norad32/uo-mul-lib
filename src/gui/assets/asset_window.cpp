@@ -120,6 +120,7 @@ void syncPresentation(const AssetAdapter & adapter, AssetWindowState & state)
     if (state.presentationContext != key)
     {
         state.presentationContext = key;
+        resetContext(state);
         const auto stored = state.presentations.find(key);
         state.presentation = stored == state.presentations.end() ? adapter.descriptor.defaultPresentation : stored->second;
     }
@@ -397,6 +398,41 @@ void appendDragSelection(AssetWindowState & state,
     }
 }
 
+void updateSelectionDragState(const AssetAdapter & adapter, AssetWindowState & state)
+{
+    const ImGuiIO & io = ImGui::GetIO();
+    if (state.selectionDragActive && !io.MouseDown[ImGuiMouseButton_Left])
+    {
+        state.selectionDragActive = false;
+    }
+    if (!state.selectionDragActive && adapter.descriptor.capabilities.selection == AssetSelectionMode::multiple &&
+        ImGui::IsMouseDragging(ImGuiMouseButton_Left) && ImGui::IsWindowHovered())
+    {
+        state.selectionDragActive = true;
+        state.selectionDragStartX = io.MouseClickedPos[ImGuiMouseButton_Left].x;
+        state.selectionDragStartY = io.MouseClickedPos[ImGuiMouseButton_Left].y;
+        state.selectionDragBase = io.KeyCtrl ? state.selection : AssetSelection{};
+    }
+    if (state.selectionDragActive)
+    {
+        state.selection = state.selectionDragBase;
+    }
+}
+
+void drawSelectionMarquee(const AssetWindowState & state)
+{
+    if (!state.selectionDragActive)
+    {
+        return;
+    }
+    const ImVec2 selectionMin(std::min(state.selectionDragStartX, ImGui::GetIO().MousePos.x),
+                              std::min(state.selectionDragStartY, ImGui::GetIO().MousePos.y));
+    const ImVec2 selectionMax(std::max(state.selectionDragStartX, ImGui::GetIO().MousePos.x),
+                              std::max(state.selectionDragStartY, ImGui::GetIO().MousePos.y));
+    ImGui::GetWindowDrawList()->AddRectFilled(selectionMin, selectionMax, theme::packedColor(theme::selectionOverlay));
+    ImGui::GetWindowDrawList()->AddRect(selectionMin, selectionMax, theme::packedColor(theme::selection));
+}
+
 void updateSelectionOnClick(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
 {
     const ImGuiIO & io = ImGui::GetIO();
@@ -486,23 +522,7 @@ void drawItem(const AssetAdapter & adapter,
 
 void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
 {
-    const ImGuiIO & io = ImGui::GetIO();
-    if (state.selectionDragActive && !io.MouseDown[ImGuiMouseButton_Left])
-    {
-        state.selectionDragActive = false;
-    }
-    if (!state.selectionDragActive && adapter.descriptor.capabilities.selection == AssetSelectionMode::multiple &&
-        ImGui::IsMouseDragging(ImGuiMouseButton_Left) && ImGui::IsWindowHovered())
-    {
-        state.selectionDragActive = true;
-        state.selectionDragStartX = io.MouseClickedPos[ImGuiMouseButton_Left].x;
-        state.selectionDragStartY = io.MouseClickedPos[ImGuiMouseButton_Left].y;
-        state.selectionDragBase = io.KeyCtrl ? state.selection : AssetSelection{};
-    }
-    if (state.selectionDragActive)
-    {
-        state.selection = state.selectionDragBase;
-    }
+    updateSelectionDragState(adapter, state);
 
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
     const float availableWidth = ImGui::GetContentRegionAvail().x;
@@ -555,12 +575,7 @@ void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
 
     if (state.selectionDragActive)
     {
-        const ImVec2 selectionMin(std::min(state.selectionDragStartX, io.MousePos.x),
-                                  std::min(state.selectionDragStartY, io.MousePos.y));
-        const ImVec2 selectionMax(std::max(state.selectionDragStartX, io.MousePos.x),
-                                  std::max(state.selectionDragStartY, io.MousePos.y));
-        ImGui::GetWindowDrawList()->AddRectFilled(selectionMin, selectionMax, theme::packedColor(theme::selectionOverlay));
-        ImGui::GetWindowDrawList()->AddRect(selectionMin, selectionMax, theme::packedColor(theme::selection));
+        drawSelectionMarquee(state);
     }
 }
 
@@ -619,14 +634,7 @@ void drawTableRow(const AssetAdapter & adapter, AssetWindowState & state, const 
 void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
 {
     const ImGuiIO & io = ImGui::GetIO();
-    if (state.selectionDragActive && !io.MouseDown[ImGuiMouseButton_Left])
-    {
-        state.selectionDragActive = false;
-    }
-    if (state.selectionDragActive)
-    {
-        state.selection = state.selectionDragBase;
-    }
+    updateSelectionDragState(adapter, state);
 
     const float rowHeight =
         std::max(static_cast<float>(adapter.descriptor.fixedCellHeight), ImGui::GetTextLineHeightWithSpacing() * 3.0F);
@@ -685,12 +693,7 @@ void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
 
     if (state.selectionDragActive)
     {
-        const ImVec2 selectionMin(std::min(state.selectionDragStartX, io.MousePos.x),
-                                  std::min(state.selectionDragStartY, io.MousePos.y));
-        const ImVec2 selectionMax(std::max(state.selectionDragStartX, io.MousePos.x),
-                                  std::max(state.selectionDragStartY, io.MousePos.y));
-        ImGui::GetWindowDrawList()->AddRectFilled(selectionMin, selectionMax, theme::packedColor(theme::selectionOverlay));
-        ImGui::GetWindowDrawList()->AddRect(selectionMin, selectionMax, theme::packedColor(theme::selection));
+        drawSelectionMarquee(state);
     }
 }
 
@@ -702,12 +705,8 @@ void resetQueryCacheIfNeeded(const AssetAdapter & adapter, AssetWindowState & st
         return;
     }
 
+    resetContext(state);
     state.queryCacheContext = queryContext;
-    state.queryCacheFilter.clear();
-    state.searchItems.clear();
-    state.searchItemsValid = false;
-    state.queryCacheValid = false;
-    state.detailsCache.clear();
 }
 
 void updateSearchItems(const AssetAdapter & adapter, AssetWindowState & state)

@@ -3,7 +3,7 @@
 #include "gui/documents/map_workspace.h"
 #include "gui/frontend/theme.h"
 #include "gui/providers/data_providers.h"
-#include "gui/views/common.h"
+#include "gui/views/tile_labels.h"
 #include "uomul/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <cstddef>
@@ -52,12 +52,8 @@ void drawTileCell(const uomul::MapBlock & block,
 
     ImDrawList * drawList = ImGui::GetWindowDrawList();
     drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
-    drawList->AddRect(cellMinimum,
-                      cellMaximum,
-                      ImGui::ColorConvertFloat4ToU32(theme::imguiColor(theme::border)),
-                      0.0F,
-                      ImDrawFlags_None,
-                      gridLineThickness);
+    drawList->AddRect(
+        cellMinimum, cellMaximum, theme::packedOpaqueColor(theme::border), 0.0F, ImDrawFlags_None, gridLineThickness);
     if (selected)
     {
         drawList->AddRect(
