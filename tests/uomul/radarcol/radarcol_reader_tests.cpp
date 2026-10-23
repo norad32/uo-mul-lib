@@ -1,4 +1,4 @@
-#include "../map_test_helpers.h"
+#include "../test_helpers.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>

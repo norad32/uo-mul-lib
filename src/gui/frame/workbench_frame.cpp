@@ -44,7 +44,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <uomul/map.h>
+#include <uomul/map/map.h>
 #include <utility>
 #include <vector>
 

@@ -12,7 +12,7 @@
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/workspaces/map_workspace_manager.h"
 #include "uomul/facet_sizes.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <array>
 #include <cstddef>

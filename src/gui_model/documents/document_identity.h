@@ -2,7 +2,7 @@
 
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/source/source_identity.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <cstdint>
 #include <initializer_list>
 #include <optional>

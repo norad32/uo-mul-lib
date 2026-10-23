@@ -7,7 +7,7 @@
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/persistence/config_paths.h"
 #include "uomul/facet_sizes.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include <algorithm>

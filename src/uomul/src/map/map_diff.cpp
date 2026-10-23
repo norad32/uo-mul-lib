@@ -1,6 +1,6 @@
 #include "map_common.h"
 #include "uomul/facet_sizes.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <algorithm>
 #include <array>

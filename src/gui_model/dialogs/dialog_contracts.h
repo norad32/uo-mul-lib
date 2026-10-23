@@ -1,7 +1,7 @@
 #pragma once
 
 #include "gui_model/profile/data_profile.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>

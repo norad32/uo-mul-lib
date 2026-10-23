@@ -1,7 +1,7 @@
 #include "gui_model/world/map_context.h"
 #include "gui_model/documents/map_document.h"
 #include "gui_model/workspaces/map_workspace.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <optional>
 
 namespace uo_mule::gui

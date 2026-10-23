@@ -1,5 +1,5 @@
 #include "map_test_helpers.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <array>
 #include <catch2/catch_test_macros.hpp>

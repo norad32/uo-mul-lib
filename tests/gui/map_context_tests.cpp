@@ -4,7 +4,7 @@
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_context.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("mapContextSnapshot_Should_ExposeNoActiveLocationWithoutMap")

@@ -6,7 +6,7 @@
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/workspaces/map_workspace_manager.h"
 #include "uomul/facet_sizes.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>

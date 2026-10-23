@@ -3,7 +3,7 @@
 #include "gui/presentation/dialog/dialog_presentation.h"
 #include "gui/presentation/theme/theme.h"
 #include "uomul/facet_sizes.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <cstddef>
 #include <cstdint>
 #include <imgui.h>

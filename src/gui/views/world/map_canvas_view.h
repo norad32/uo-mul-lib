@@ -2,7 +2,7 @@
 
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/world/map_canvas_state.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <cstddef>
 #include <cstdint>
