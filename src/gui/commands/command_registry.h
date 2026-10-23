@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include "gui_model/tools/tool_contracts.h"
 
 namespace uo_mule::gui
 {
@@ -25,6 +26,12 @@ enum class CommandId : std::uint8_t
     viewCombined,
     viewToggleLogPanel,
     viewToggleFullscreen,
+    toolMove,
+    toolRectangleSelect,
+    toolLassoSelect,
+    toolFuzzySelect,
+    toolFill,
+    toolReplace,
     panelToolPalette,
     panelTileInspector,
     panelBlockInspector,
@@ -80,5 +87,7 @@ private:
 };
 
 void registerDefaultCommands(CommandRegistry & registry);
+
+[[nodiscard]] CommandId toolCommandId(ToolId tool) noexcept;
 
 } // namespace uo_mule::gui

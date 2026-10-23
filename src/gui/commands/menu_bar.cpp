@@ -85,8 +85,32 @@ void drawSelectionMenu(WorkbenchState & state)
     }
 
     const MapSelectionMode selectionMode = state.workspace.selectionMode();
+    drawCommandItem(state, CommandId::toolRectangleSelect,
+                    state.toolState.activeTool() == ToolId::rectangleSelect);
+    drawCommandItem(state, CommandId::toolLassoSelect, state.toolState.activeTool() == ToolId::lassoSelect);
+    drawCommandItem(state, CommandId::toolFuzzySelect, state.toolState.activeTool() == ToolId::fuzzySelect);
+    ImGui::Separator();
     drawCommandItem(state, CommandId::selectionTiles, selectionMode == MapSelectionMode::tiles);
     drawCommandItem(state, CommandId::selectionBlocks, selectionMode == MapSelectionMode::blocks);
+
+    ImGui::EndMenu();
+}
+
+void drawToolsMenu(WorkbenchState & state)
+{
+    if (!ImGui::BeginMenu("Tools"))
+    {
+        return;
+    }
+
+    drawCommandItem(state, CommandId::toolMove, state.toolState.activeTool() == ToolId::move);
+    ImGui::Separator();
+    drawCommandItem(state, CommandId::toolRectangleSelect, state.toolState.activeTool() == ToolId::rectangleSelect);
+    drawCommandItem(state, CommandId::toolLassoSelect, state.toolState.activeTool() == ToolId::lassoSelect);
+    drawCommandItem(state, CommandId::toolFuzzySelect, state.toolState.activeTool() == ToolId::fuzzySelect);
+    ImGui::Separator();
+    drawCommandItem(state, CommandId::toolFill, state.toolState.activeTool() == ToolId::fill);
+    drawCommandItem(state, CommandId::toolReplace, state.toolState.activeTool() == ToolId::replace);
 
     ImGui::EndMenu();
 }
@@ -134,6 +158,7 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
     if (showMainMenu && ImGui::BeginMainMenuBar())
     {
         drawFileMenu(state);
+        drawToolsMenu(state);
         drawViewMenu(state);
         drawSelectionMenu(state);
         drawMapMenu(state);

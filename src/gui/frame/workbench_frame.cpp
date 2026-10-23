@@ -76,6 +76,22 @@ constexpr std::size_t quitShortcutIndex = 5;
 constexpr std::size_t goToShortcutIndex = 6;
 constexpr std::size_t fullscreenShortcutIndex = 7;
 
+struct ToolShortcut
+{
+    ImGuiKey key;
+    std::string_view shortcut;
+    bool shift = false;
+};
+
+constexpr std::array<ToolShortcut, 6> toolShortcuts{
+    ToolShortcut{ImGuiKey_M, "M"},
+    ToolShortcut{ImGuiKey_R, "R"},
+    ToolShortcut{ImGuiKey_F, "F"},
+    ToolShortcut{ImGuiKey_U, "U"},
+    ToolShortcut{ImGuiKey_B, "Shift+B", true},
+    ToolShortcut{ImGuiKey_R, "Shift+R", true},
+};
+
 void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
 {
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
@@ -748,6 +764,18 @@ void dispatchShortcuts(WorkbenchState & state, bool allowFullscreen)
     if (ImGui::GetIO().WantTextInput || ImGui::GetIO().WantCaptureKeyboard)
     {
         return;
+    }
+    for (const ToolShortcut & shortcut : toolShortcuts)
+    {
+        if (ImGui::GetIO().KeyShift != shortcut.shift || ImGui::GetIO().KeyCtrl ||
+            ImGui::IsKeyPressed(shortcut.key, false) == false)
+        {
+            continue;
+        }
+        if (state.commands.executeShortcut(shortcut.shortcut, state))
+        {
+            return;
+        }
     }
     const std::array<std::pair<ImGuiKey, std::string_view>, shortcutCount> shortcuts{
         std::pair{ImGuiKey_GraveAccent, "`"},

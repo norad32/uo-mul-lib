@@ -1,4 +1,5 @@
 #include "gui/panels/tool_palette_panel.h"
+#include "gui/commands/command_registry.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/state/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
@@ -60,7 +61,7 @@ void drawToolButton(WorkbenchState & state, const ToolDescriptor & tool, const T
 
     if (clicked && availability.enabled)
     {
-        static_cast<void>(state.toolState.activate(tool.id, context, state.toolRegistry));
+        static_cast<void>(state.commands.execute(toolCommandId(tool.id), state));
     }
 
     if (active)

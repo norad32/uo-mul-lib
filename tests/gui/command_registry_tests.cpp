@@ -3,7 +3,9 @@
 #include "gui/state/workbench_state.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/workspaces/map_workspace.h"
+#include "gui_model/tools/tool_contracts.h"
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <string>
 
 using uo_mule::gui::CommandId;
@@ -63,6 +65,42 @@ TEST_CASE("commandRegistry_Should_DispatchRegisteredShortcuts")
     REQUIRE(state.commands.executeShortcut("Ctrl+N", state));
     REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::newType);
     REQUIRE_FALSE(state.commands.executeShortcut("Ctrl+P", state));
+}
+
+TEST_CASE("toolCommands_Should_ExposeSharedActivationMetadata")
+{
+    const WorkbenchState state;
+
+    const auto * move = state.commands.find(CommandId::toolMove);
+    REQUIRE(move != nullptr);
+    REQUIRE(move->stableId == "tool.move");
+    REQUIRE(move->defaultShortcut == "M");
+    REQUIRE(state.commands.find(CommandId::toolReplace)->defaultShortcut == "Shift+R");
+}
+
+TEST_CASE("toolCommands_Should_ActivateThroughRegistryWhenMapIsOpen")
+{
+    WorkbenchState state;
+    const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};
+    const auto mapPath = std::filesystem::temp_directory_path() / "uo-mule-tool-command-map.mul";
+    std::filesystem::remove(mapPath);
+    REQUIRE(state.workspace.createEmptyMap(mapPath, dimensions));
+    state.session.syncDocument(state.workspace);
+
+    REQUIRE(state.commands.execute(CommandId::toolRectangleSelect, state));
+    REQUIRE(state.toolState.activeTool() == uo_mule::gui::ToolId::rectangleSelect);
+    REQUIRE(state.commands.executeShortcut("M", state));
+    REQUIRE(state.toolState.activeTool() == uo_mule::gui::ToolId::move);
+
+    static_cast<void>(state.workspace.closeMap());
+    std::filesystem::remove(mapPath);
+}
+
+TEST_CASE("toolCommands_Should_RejectEditingToolWithoutEditableMap")
+{
+    WorkbenchState state;
+
+    REQUIRE_FALSE(state.commands.execute(CommandId::toolFill, state));
 }
 
 TEST_CASE("defaultCommands_Should_ExposeSeparateTileAndBlockNavigationCommands")

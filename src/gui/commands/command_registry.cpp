@@ -11,6 +11,8 @@
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/session/workbench_session.h"
+#include "gui_model/documents/document_contracts.h"
+#include "gui_model/tools/tool_state.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_canvas_state.h"
 #include "gui_model/world/map_context.h"
@@ -46,6 +48,29 @@ CommandAvailability requiresMapDocument(const WorkbenchState & state)
         return {.enabled = false, .disabledReason = "No map is open"};
     }
     return enabled(state);
+}
+
+ToolContext toolContext(const WorkbenchState & state)
+{
+    const DocumentRecord * active = state.session.activeDocumentRecord();
+    const bool mapOpen = active != nullptr && active->summary.identity.kind == DocumentKind::map &&
+                         state.workspace.reader() != nullptr;
+    return {
+        .mapDocumentOpen = mapOpen,
+        .mapEditable = mapOpen && active->summary.access == DocumentAccess::editable,
+        .selectionGranularity = state.toolState.selectionGranularity(),
+    };
+}
+
+CommandAvailability requiresTool(ToolId tool, const WorkbenchState & state)
+{
+    const ToolAvailability available = state.toolRegistry.availability(tool, toolContext(state));
+    return {.enabled = available.enabled, .disabledReason = available.disabledReason};
+}
+
+void activateTool(WorkbenchState & state, ToolId tool)
+{
+    static_cast<void>(state.toolState.activate(tool, toolContext(state), state.toolRegistry));
 }
 
 CommandAvailability requiresActiveLocation(const WorkbenchState & state)
@@ -163,6 +188,26 @@ void add(CommandRegistry & registry,
 
 } // namespace
 
+CommandId toolCommandId(ToolId tool) noexcept
+{
+    switch (tool)
+    {
+    case ToolId::move:
+        return CommandId::toolMove;
+    case ToolId::rectangleSelect:
+        return CommandId::toolRectangleSelect;
+    case ToolId::lassoSelect:
+        return CommandId::toolLassoSelect;
+    case ToolId::fuzzySelect:
+        return CommandId::toolFuzzySelect;
+    case ToolId::fill:
+        return CommandId::toolFill;
+    case ToolId::replace:
+        return CommandId::toolReplace;
+    }
+    return CommandId::toolMove;
+}
+
 void CommandRegistry::registerCommand(Command command)
 {
     commands_.push_back(std::move(command));
@@ -232,6 +277,61 @@ const std::vector<Command> & CommandRegistry::commands() const noexcept
 
 void registerDefaultCommands(CommandRegistry & registry)
 {
+    add(registry,
+        CommandId::toolMove,
+        "tool.move",
+        "Move",
+        "Tools",
+        "Pan the world view",
+        "M",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::move, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::move); });
+    add(registry,
+        CommandId::toolRectangleSelect,
+        "tool.rectangle-select",
+        "Rectangle Select",
+        "Tools",
+        "Select a rectangular tile or block area",
+        "R",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::rectangleSelect, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::rectangleSelect); });
+    add(registry,
+        CommandId::toolLassoSelect,
+        "tool.lasso-select",
+        "Lasso Select",
+        "Tools",
+        "Select a freehand tile or block area",
+        "F",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::lassoSelect, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::lassoSelect); });
+    add(registry,
+        CommandId::toolFuzzySelect,
+        "tool.fuzzy-select",
+        "Fuzzy Select",
+        "Tools",
+        "Select matching connected or global map tiles",
+        "U",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::fuzzySelect, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::fuzzySelect); });
+    add(registry,
+        CommandId::toolFill,
+        "tool.fill",
+        "Fill",
+        "Tools",
+        "Fill the current selection from the active tile",
+        "Shift+B",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::fill, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::fill); });
+    add(registry,
+        CommandId::toolReplace,
+        "tool.replace",
+        "Replace",
+        "Tools",
+        "Replace matching IDs or elevations in the selection",
+        "Shift+R",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::replace, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::replace); });
+
     add(registry,
         CommandId::fileOpen,
         "file.open",
