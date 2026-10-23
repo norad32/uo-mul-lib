@@ -20,6 +20,8 @@ struct Preferences
     std::string activeDataProfile;
     bool showWelcomeOnStartup = true;
     IdFormat idFormat = IdFormat::hexadecimal;
+    bool texmapsHideUnused = true;
+    bool texmapsTablePresentation = false;
 };
 
 [[nodiscard]] Preferences loadPreferences();

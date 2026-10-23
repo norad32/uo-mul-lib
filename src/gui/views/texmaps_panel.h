@@ -35,6 +35,7 @@ struct TexmapsPanelState
     std::array<char, texmapsPathBufferSize> sourceDataPath{};
     std::optional<uomul::TexMapsReader> reader;
     std::unordered_map<std::uint32_t, TexmapsTexturePreview> texturePreviews;
+    bool hideUnused = false;
     std::vector<TexmapsTexturePreview> pageTextures;
     std::uint32_t selectedTextureId = 0;
     std::string error;
@@ -47,6 +48,6 @@ struct TexmapsPanelState
 
 void syncTexmapsPanel(TexmapsPanelState & state, const DataProfile & profile);
 void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult & result);
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, IdFormat idFormat);
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, Preferences & preferences);
 
 } // namespace uo_mule::gui

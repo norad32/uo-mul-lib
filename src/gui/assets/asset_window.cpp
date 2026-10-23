@@ -119,7 +119,7 @@ void syncPresentation(const AssetAdapter & adapter, AssetWindowState & state)
         state.presentationContext = key;
         const auto stored = state.presentations.find(key);
         state.presentation =
-            stored == state.presentations.end() ? defaultPresentation(adapter.descriptor.capabilities) : stored->second;
+            stored == state.presentations.end() ? adapter.descriptor.defaultPresentation : stored->second;
     }
     if (!supportsPresentation(adapter, state.presentation))
     {
@@ -134,6 +134,10 @@ void setPresentation(const AssetAdapter & adapter, AssetWindowState & state, Ass
     {
         state.presentation = presentation;
         state.presentations[state.presentationContext] = presentation;
+        if (adapter.descriptor.presentationChanged)
+        {
+            adapter.descriptor.presentationChanged(presentation);
+        }
     }
 }
 
@@ -152,6 +156,11 @@ void drawPresentationControls(const AssetAdapter & adapter, AssetWindowState & s
     if (ImGui::RadioButton(strings::table(), state.presentation == AssetPresentation::table))
     {
         setPresentation(adapter, state, AssetPresentation::table);
+    }
+    if (adapter.descriptor.inlinePresentationControl)
+    {
+        ImGui::SameLine();
+        adapter.descriptor.inlinePresentationControl();
     }
 }
 
@@ -726,12 +735,12 @@ void drawAssetWindow(const AssetAdapter & adapter,
         state.queryCacheValid = false;
         state.detailsCache.clear();
     }
-    if (adapter.loadSearchItems && !state.searchItemsValid && !state.query.filter.empty())
+    if (adapter.loadSearchItems && !state.searchItemsValid && (!state.query.filter.empty() || adapter.descriptor.queryWhenEmpty))
     {
         state.searchItems = adapter.loadSearchItems();
         state.searchItemsValid = true;
     }
-    if (!state.query.filter.empty() && adapter.loadSearchItems)
+    if ((!state.query.filter.empty() || adapter.descriptor.queryWhenEmpty) && adapter.loadSearchItems)
     {
         if (!state.queryCacheValid || state.queryCacheFilter != state.query.filter)
         {

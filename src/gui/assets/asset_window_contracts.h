@@ -169,9 +169,13 @@ struct AssetAdapterDescriptor
     std::string title;
     std::string sourceTooltip;
     std::string cacheContext;
+    AssetPresentation defaultPresentation = AssetPresentation::grid;
+    std::function<void(AssetPresentation)> presentationChanged;
+    bool queryWhenEmpty = false;
     std::function<std::string(const AssetItemId &)> formatSelectionId;
     std::function<void(const AssetItemId &, float)> renderSelectionPreview;
     float selectionPreviewSize = 0.0F;
+    std::function<void()> inlinePresentationControl;
     AssetSourceContext source;
     AssetCapabilitySet capabilities;
     std::function<std::size_t(const AssetQuery &)> queryItemCount;

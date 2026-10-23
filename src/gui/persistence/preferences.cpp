@@ -191,6 +191,14 @@ Preferences loadPreferences(const std::filesystem::path & path)
         {
             preferences.idFormat = value == "decimal" ? IdFormat::decimal : IdFormat::hexadecimal;
         }
+        else if (key == "texmaps_hide_unused")
+        {
+            preferences.texmapsHideUnused = value == "1";
+        }
+        else if (key == "texmaps_table_presentation")
+        {
+            preferences.texmapsTablePresentation = value == "1";
+        }
     }
     return preferences;
 }
@@ -215,6 +223,8 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
     contents << "active_data_profile " << std::quoted(preferences.activeDataProfile) << '\n';
     contents << "show_welcome_on_startup " << static_cast<int>(preferences.showWelcomeOnStartup) << '\n';
     contents << "id_format " << (preferences.idFormat == IdFormat::decimal ? "decimal" : "hexadecimal") << '\n';
+    contents << "texmaps_hide_unused " << static_cast<int>(preferences.texmapsHideUnused) << '\n';
+    contents << "texmaps_table_presentation " << static_cast<int>(preferences.texmapsTablePresentation) << '\n';
     TemporaryPreferencesFile temporaryFile(path);
     temporaryFile.write(contents.str());
     temporaryFile.commit(path);

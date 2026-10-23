@@ -126,14 +126,24 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-[[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state, IdFormat idFormat)
+[[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state, Preferences & preferences)
 {
+    const IdFormat idFormat = preferences.idFormat;
+    state.hideUnused = preferences.texmapsHideUnused;
     assets::AssetAdapter adapter;
     adapter.descriptor.viewId = "view.texmaps";
     adapter.descriptor.title = "Texmaps";
     adapter.descriptor.sourceTooltip = "Index: " + std::string(state.sourceIndexPath.data()) +
                                       "\nData: " + std::string(state.sourceDataPath.data());
-    adapter.descriptor.cacheContext = std::to_string(static_cast<int>(idFormat));
+    adapter.descriptor.cacheContext = std::to_string(static_cast<int>(idFormat)) + "|" +
+                                      std::to_string(static_cast<int>(state.hideUnused));
+    adapter.descriptor.defaultPresentation = preferences.texmapsTablePresentation ? assets::AssetPresentation::table
+                                                                                   : assets::AssetPresentation::grid;
+    adapter.descriptor.presentationChanged = [&preferences](assets::AssetPresentation presentation) {
+        preferences.texmapsTablePresentation = presentation == assets::AssetPresentation::table;
+        savePreferences(preferences);
+    };
+    adapter.descriptor.queryWhenEmpty = state.hideUnused;
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item) {
         return strings::formatId(static_cast<std::uint32_t>(std::stoul(item.value)), idFormat);
     };
@@ -141,6 +151,15 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
         drawTexturePreview(texturePreview(state, static_cast<std::uint32_t>(std::stoul(item.value))), size);
     };
     adapter.descriptor.selectionPreviewSize = thumbnailSize;
+    adapter.descriptor.inlinePresentationControl = [&state, &preferences] {
+        bool hideUnused = preferences.texmapsHideUnused;
+        if (ImGui::Checkbox("Hide unused", &hideUnused) && hideUnused != preferences.texmapsHideUnused)
+        {
+            preferences.texmapsHideUnused = hideUnused;
+            state.hideUnused = hideUnused;
+            savePreferences(preferences);
+        }
+    };
     if (!state.error.empty())
     {
         adapter.descriptor.sourceTooltip += "\nError: " + state.error;
@@ -193,6 +212,10 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
                     values.push_back("Dimensions: " + std::to_string(texture->dimension) + "x" +
                                      std::to_string(texture->dimension));
                 }
+            }
+            if (state.hideUnused && (!present || !*present))
+            {
+                continue;
             }
             items.push_back({.item = {.id = {.value = std::to_string(id)},
                                       .label = formattedId,
@@ -252,9 +275,9 @@ void applyFileBrowserResult(TexmapsPanelState & state, const FileBrowserResult &
     }
 }
 
-void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, IdFormat idFormat)
+void drawTexmapsPanel(TexmapsPanelState & state, bool & visible, Preferences & preferences)
 {
-    const auto adapter = makeAdapter(state, idFormat);
+    const auto adapter = makeAdapter(state, preferences);
     assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 

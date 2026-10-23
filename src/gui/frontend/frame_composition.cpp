@@ -158,7 +158,7 @@ void drawMapPanels(WorkbenchState & state,
     }
     if (state.panelRegistry.find(PanelId::texmaps)->visible)
     {
-        drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible, state.preferences.idFormat);
+        drawTexmapsPanel(texmapsState, state.panelRegistry.find(PanelId::texmaps)->visible, state.preferences);
     }
 }
 
