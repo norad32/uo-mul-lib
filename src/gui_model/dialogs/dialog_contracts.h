@@ -30,7 +30,6 @@ enum class FileBrowserTarget : std::uint8_t
     mapSaveAs,
     dataSourceRoot,
     dataSearchRoot,
-    dataOutputRoot,
     dataOverride,
     radarcolSource,
     radarcolOutput,

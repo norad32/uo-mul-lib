@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <array>
 #include <filesystem>
-#include <functional>
 #include <imgui.h>
 #include <string>
 #include <string_view>
@@ -62,7 +61,6 @@ void initializeDialogFields(PreferencesDialogState & state)
 {
     copyToBuffer(state.profileName, std::string_view(state.workingProfile.name));
     copyToBuffer(state.sourceRoot, state.workingProfile.sourceRoot);
-    copyToBuffer(state.outputRoot, state.workingProfile.outputRoot);
     initializeOverrides(state);
 }
 
@@ -84,7 +82,6 @@ void refreshProfiles(PreferencesDialogState & state)
 void syncWorkingProfile(PreferencesDialogState & state)
 {
     state.workingProfile.sourceRoot = bufferPath(state.sourceRoot);
-    state.workingProfile.outputRoot = bufferPath(state.outputRoot);
     state.workingProfile.name = state.profileName.data();
     for (const auto & [role, buffer] : state.overrides)
     {
@@ -116,22 +113,6 @@ void searchMetadataFolder(PreferencesDialogState & state, const std::filesystem:
     initializeDialogFields(state);
     validateWorkingProfile(state);
     state.message = "Metadata search completed";
-}
-
-void drawPathField(const char * label,
-                   std::array<char, preferencesDialogBufferSize> & buffer,
-                   const std::function<void()> & picker)
-{
-    ImGui::PushID(label);
-    dialogFieldLabel(label);
-    dialogFieldWidth(pathInputWidth);
-    ImGui::InputText("##Path", buffer.data(), buffer.size(), ImGuiInputTextFlags_ElideLeft | ImGuiInputTextFlags_ReadOnly);
-    if (ImGui::IsItemClicked())
-    {
-        picker();
-    }
-
-    ImGui::PopID();
 }
 
 void drawProfileSection(PreferencesDialogState & state)
@@ -262,63 +243,6 @@ void drawMetadataSection(PreferencesDialogState & state)
     }
 }
 
-void drawOutputSection(PreferencesDialogState & state)
-{
-    if (!ImGui::CollapsingHeader("Output", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        return;
-    }
-
-    drawPathField("Output folder",
-                  state.outputRoot,
-                  [&state]
-                  {
-                      if (state.browser != nullptr)
-                      {
-                          requestFileBrowser(*state.browser,
-                                             {
-                                                 .mode = FileBrowserMode::chooseDirectory,
-                                                 .target = FileBrowserTarget::dataOutputRoot,
-                                                 .initialPath = bufferPath(state.outputRoot),
-                                                 .extension = {},
-                                                 .title = "Choose Output Folder",
-                                             });
-                      }
-                  });
-    dialogFieldLabel("Create if missing");
-    ImGui::Checkbox("##CreateIfMissing", &state.workingProfile.createOutputIfMissing);
-    ImGui::BeginDisabled();
-    dialogFieldLabel("Use source folder");
-    ImGui::Checkbox("##UseSourceFolder", &state.workingProfile.useSourceFolderForOutput);
-    ImGui::EndDisabled();
-    const auto policy = state.workingProfile.outputCollisionPolicy;
-    ImGui::Text("Collision policy: %s", std::string(outputCollisionPolicyName(policy)).c_str());
-
-    dialogSeparatorText("Preview");
-    if (state.workingProfile.outputRoot.empty())
-    {
-        ImGui::TextUnformatted("Choose an output folder to preview generated paths.");
-    }
-    else
-    {
-        for (const auto role : knownDataFileRoles())
-        {
-            const auto input = resolvedDataFilePath(state.workingProfile, role);
-            if (!input.empty())
-            {
-                ImGui::Text("%s -> %s",
-                            input.filename().string().c_str(),
-                            (state.workingProfile.outputRoot / input.filename()).string().c_str());
-            }
-        }
-    }
-
-    if (ImGui::Button("Refresh Preview"))
-    {
-        validateWorkingProfile(state);
-    }
-}
-
 } // namespace
 
 void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile & profile, const Preferences & preferences)
@@ -347,9 +271,6 @@ void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserRes
         case FileBrowserTarget::dataSearchRoot :
             searchMetadataFolder(state, result.path);
             return;
-        case FileBrowserTarget::dataOutputRoot :
-            copyToBuffer(state.outputRoot, result.path);
-            break;
         case FileBrowserTarget::dataOverride :
         {
             auto & buffer = state.overrides[result.role];
@@ -419,7 +340,6 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         }
     }
     drawMetadataSection(state);
-    drawOutputSection(state);
     ImGui::EndChild();
 
     if (!state.message.empty())

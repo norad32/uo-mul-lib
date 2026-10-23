@@ -76,12 +76,8 @@ struct DataProfile
     std::uint32_t schemaVersion = currentSchemaVersion;
     std::string name;
     std::filesystem::path sourceRoot;
-    std::filesystem::path outputRoot;
     DiscoveryMode discoveryMode = DiscoveryMode::none;
-    bool createOutputIfMissing = true;
-    bool useSourceFolderForOutput = false;
     OutputCollisionPolicy outputCollisionPolicy = OutputCollisionPolicy::confirm;
-    bool allowSourceOutputSame = false;
     std::map<DataFileRole, DataFileEntry> files;
 };
 

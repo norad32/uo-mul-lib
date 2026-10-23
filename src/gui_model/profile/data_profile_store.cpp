@@ -120,12 +120,6 @@ void parseSchemaVersion(DataProfileLoadResult & result,
         return true;
     }
 
-    if (key == "output_root" && readQuoted(line, value))
-    {
-        result.profile.outputRoot = value;
-        return true;
-    }
-
     if (key == "discovery_mode" && readQuoted(line, value))
     {
         if (const auto mode = discoveryModeFromName(value))
@@ -136,21 +130,6 @@ void parseSchemaVersion(DataProfileLoadResult & result,
         {
             addParseDiagnostic(result, path, key);
         }
-        return true;
-    }
-
-    if (key == "create_output_if_missing" && (line >> result.profile.createOutputIfMissing))
-    {
-        return true;
-    }
-
-    if (key == "use_source_folder_for_output" && (line >> result.profile.useSourceFolderForOutput))
-    {
-        return true;
-    }
-
-    if (key == "allow_source_output_same" && (line >> result.profile.allowSourceOutputSame))
-    {
         return true;
     }
 
@@ -254,11 +233,7 @@ void parseProfileLine(DataProfileLoadResult & result,
     contents << "schema_version " << DataProfile::currentSchemaVersion << '\n';
     contents << "name " << std::quoted(profile.name) << '\n';
     contents << "source_root " << std::quoted(profile.sourceRoot.string()) << '\n';
-    contents << "output_root " << std::quoted(profile.outputRoot.string()) << '\n';
     contents << "discovery_mode " << std::quoted(std::string(discoveryModeName(profile.discoveryMode))) << '\n';
-    contents << "create_output_if_missing " << profile.createOutputIfMissing << '\n';
-    contents << "use_source_folder_for_output " << profile.useSourceFolderForOutput << '\n';
-    contents << "allow_source_output_same " << profile.allowSourceOutputSame << '\n';
     contents << "output_collision_policy " << std::quoted(std::string(outputCollisionPolicyName(profile.outputCollisionPolicy)))
              << '\n';
     return contents.str();

@@ -49,10 +49,7 @@ TEST_CASE("DataProfile_Should_RoundTripRolePathsAndPolicies")
     uo_mule::gui::DataProfile expected;
     expected.name = "Classic UO Felucca";
     expected.sourceRoot = directory.path() / "source";
-    expected.outputRoot = directory.path() / "output";
     expected.discoveryMode = uo_mule::gui::DiscoveryMode::installation;
-    expected.createOutputIfMissing = false;
-    expected.useSourceFolderForOutput = false;
     expected.outputCollisionPolicy = uo_mule::gui::OutputCollisionPolicy::reject;
     expected.files[uo_mule::gui::DataFileRole::texidx] = {.path = "texidx.mul"};
     expected.files[uo_mule::gui::DataFileRole::texmaps] = {.path = "texmaps.mul"};
@@ -64,7 +61,6 @@ TEST_CASE("DataProfile_Should_RoundTripRolePathsAndPolicies")
     REQUIRE(loaded.profile.schemaVersion == uo_mule::gui::DataProfile::currentSchemaVersion);
     REQUIRE(loaded.profile.name == expected.name);
     REQUIRE(loaded.profile.sourceRoot == expected.sourceRoot);
-    REQUIRE(loaded.profile.outputRoot == expected.outputRoot);
     REQUIRE(loaded.profile.discoveryMode == expected.discoveryMode);
     REQUIRE(loaded.profile.outputCollisionPolicy == expected.outputCollisionPolicy);
 }
@@ -101,7 +97,7 @@ TEST_CASE("DataProfileStore_Should_ReturnDefaultsWhenProfileIsMissing")
     REQUIRE(loaded.profile.name.empty());
 }
 
-TEST_CASE("DataProfileValidation_Should_ReportTexturePairAndOutputSafety")
+TEST_CASE("DataProfileValidation_Should_ReportIncompleteTexturePair")
 {
     const TemporaryProfileDirectory directory;
     const auto source = directory.path() / "source";
@@ -112,7 +108,6 @@ TEST_CASE("DataProfileValidation_Should_ReportTexturePairAndOutputSafety")
 
     uo_mule::gui::DataProfile profile;
     profile.sourceRoot = source;
-    profile.outputRoot = source;
     profile.files[uo_mule::gui::DataFileRole::texidx] = {.path = "texidx.mul"};
 
     const auto validation = uo_mule::gui::validateDataProfile(profile);
@@ -120,7 +115,7 @@ TEST_CASE("DataProfileValidation_Should_ReportTexturePairAndOutputSafety")
     REQUIRE(validation.hasErrors());
     REQUIRE(validation.find(uo_mule::gui::DataFileRole::texidx)->status == uo_mule::gui::DataFileStatus::found);
     REQUIRE(validation.find(uo_mule::gui::DataFileRole::texmaps)->status == uo_mule::gui::DataFileStatus::missing);
-    REQUIRE(validation.diagnostics.size() >= 2);
+    REQUIRE(validation.diagnostics.size() == 1);
 }
 
 TEST_CASE("DataProfileValidation_Should_PreserveExplicitOverrideStatus")

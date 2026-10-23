@@ -26,7 +26,6 @@ struct PreferencesDialogState
     IdFormat idFormat = IdFormat::hexadecimal;
     std::array<char, preferencesDialogBufferSize> profileName{};
     std::array<char, preferencesDialogBufferSize> sourceRoot{};
-    std::array<char, preferencesDialogBufferSize> outputRoot{};
     std::map<DataFileRole, std::array<char, preferencesDialogBufferSize>> overrides;
     std::map<DataFileRole, bool> metadataOverrides;
     std::vector<std::filesystem::path> profiles;

@@ -179,47 +179,6 @@ void validateTexmaps(const DataProfile & profile, DataProfileValidation & result
                   {"Configure both texidx.mul and texmaps.mul."});
 }
 
-void validateOutputFolder(const DataProfile & profile, DataProfileValidation & result)
-{
-    if (profile.outputRoot.empty() && !profile.useSourceFolderForOutput)
-    {
-        addDiagnostic(result,
-                      Diagnostic::Severity::warning,
-                      std::nullopt,
-                      {},
-                      "no output folder is configured",
-                      {"Choose an output folder before starting an operation."});
-    }
-
-    if (profile.useSourceFolderForOutput && !profile.allowSourceOutputSame)
-    {
-        addDiagnostic(result,
-                      Diagnostic::Severity::error,
-                      std::nullopt,
-                      profile.sourceRoot,
-                      "using the source folder as output requires explicit confirmation");
-    }
-
-    if (profile.sourceRoot.empty() || (!profile.useSourceFolderForOutput && profile.outputRoot.empty()) ||
-        profile.allowSourceOutputSame)
-    {
-        return;
-    }
-
-    std::error_code pathError;
-    const auto source = std::filesystem::weakly_canonical(profile.sourceRoot, pathError);
-    const auto output =
-        profile.useSourceFolderForOutput ? source : std::filesystem::weakly_canonical(profile.outputRoot, pathError);
-    if (!pathError && source == output)
-    {
-        addDiagnostic(result,
-                      Diagnostic::Severity::error,
-                      std::nullopt,
-                      profile.outputRoot,
-                      "source and output folders must be separate unless explicitly confirmed");
-    }
-}
-
 } // namespace
 
 DataFileValidation * DataProfileValidation::find(DataFileRole role) noexcept
@@ -258,7 +217,6 @@ DataProfileValidation validateDataProfile(const DataProfile & profile)
     validateKnownFiles(profile, result);
     validateRadarcol(profile, result);
     validateTexmaps(profile, result);
-    validateOutputFolder(profile, result);
     return result;
 }
 
