@@ -139,7 +139,6 @@ TEST_CASE("DataProviders_Should_ExposeEffectiveRadarcolSourceIdentity")
     uo_mule::gui::DataProviders providers;
     providers.sync(profileWithRadarcol(path));
 
-    REQUIRE(providers.radarColors().status().sourceIdentity ==
-            uo_mule::gui::makeDocumentSourceIdentity({path}));
+    REQUIRE(providers.radarColors().status().sourceIdentity == uo_mule::gui::makeDocumentSourceIdentity({path}));
     REQUIRE(providers.radarColors().rawColor(0U).has_value());
 }

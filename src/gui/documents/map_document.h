@@ -1,8 +1,8 @@
 #pragma once
 
 #include "gui/documents/document_identity.h"
-#include "gui/documents/map_workspace.h"
 #include "gui/documents/radarcol_document.h"
+#include "gui/workspaces/map_workspace.h"
 #include <filesystem>
 #include <optional>
 #include <vector>

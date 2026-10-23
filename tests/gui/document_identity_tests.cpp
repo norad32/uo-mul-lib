@@ -1,7 +1,7 @@
 #include "gui/documents/document_identity.h"
 #include "gui/documents/map_document.h"
-#include "gui/documents/map_workspace.h"
-#include "gui/profile/workbench_session.h"
+#include "gui/session/workbench_session.h"
+#include "gui/workspaces/map_workspace.h"
 #include "uomul/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>

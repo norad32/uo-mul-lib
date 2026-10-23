@@ -1,4 +1,4 @@
-#include "gui/assets/asset_window.h"
+#include "gui/ui/widgets/asset_browser.h"
 #include <catch2/catch_test_macros.hpp>
 
 namespace

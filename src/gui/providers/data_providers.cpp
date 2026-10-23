@@ -1,10 +1,9 @@
 #include "gui/providers/data_providers.h"
-#include "gui/context/color_conversion.h"
 #include "gui/documents/document_identity.h"
-#include "gui/documents/map_workspace.h"
 #include "gui/profile/data_profile.h"
+#include "gui/providers/color_conversion.h"
 #include "gui/providers/embedded_radarcol.h"
-#include "gui/strings/ui_strings.h"
+#include "gui/ui/strings/ui_strings.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include <cstdint>

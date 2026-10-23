@@ -1,5 +1,5 @@
-#include "gui/dialogs/dialog_contracts.h"
-#include "gui/dialogs/dialog_host.h"
+#include "gui/ui/dialogs/dialog_contracts.h"
+#include "gui/ui/dialogs/dialog_host.h"
 #include <catch2/catch_test_macros.hpp>
 
 using namespace uo_mule::gui;

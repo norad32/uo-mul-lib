@@ -1,13 +1,13 @@
 #include "gui/application/application.h"
 #include "core/app_info.h"
 #include "core/gui_log_sink.h"
-#include "gui/application/workbench_state.h"
 #include "gui/commands/menu_bar.h"
-#include "gui/frontend/frame_composition.h"
-#include "gui/frontend/theme.h"
 #include "gui/persistence/layout_store.h"
 #include "gui/persistence/preferences.h"
-#include "gui/profile/workbench_session.h"
+#include "gui/session/workbench_session.h"
+#include "gui/state/workbench_state.h"
+#include "gui/ui/frame/workbench_frame.h"
+#include "gui/ui/theme/theme.h"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
 #include <array>

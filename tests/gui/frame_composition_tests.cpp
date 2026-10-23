@@ -1,6 +1,6 @@
 #include "gui/documents/document_identity.h"
-#include "gui/frontend/document_surface.h"
-#include "gui/frontend/frame_composition.h"
+#include "gui/ui/documents/document_window.h"
+#include "gui/ui/frame/workbench_frame.h"
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("documentWindow_Should_UseStableDocumentIdentity")
@@ -31,6 +31,6 @@ TEST_CASE("documentWindow_Should_KeepCentralIdentityWhenDisplayTitleChanges")
     summary.displayName = "new.mul";
     summary.dirty = true;
 
-    REQUIRE(first.substr(first.find("###")) == uo_mule::gui::documentWindowName(summary).substr(
-                                                     uo_mule::gui::documentWindowName(summary).find("###")));
+    REQUIRE(first.substr(first.find("###")) ==
+            uo_mule::gui::documentWindowName(summary).substr(uo_mule::gui::documentWindowName(summary).find("###")));
 }

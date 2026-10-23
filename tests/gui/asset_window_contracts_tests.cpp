@@ -1,4 +1,4 @@
-#include "gui/assets/asset_window_contracts.h"
+#include "gui/ui/widgets/asset_browser_contracts.h"
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>

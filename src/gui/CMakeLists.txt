@@ -13,34 +13,20 @@ include(GuiDependencies)
 
 add_library(
     gui
-    assets/asset_window.cpp
-    assets/asset_window_contracts.cpp
     application/application.cpp
-    application/workbench_state.cpp
     commands/command_registry.cpp
-    commands/file_operations.cpp
     commands/menu_bar.cpp
-    commands/operation_controller.cpp
-    context/color_conversion.cpp
-    context/coordinate_parser.cpp
-    context/map_context.cpp
-    dialogs/dialog_contracts.cpp
-    dialogs/dialog_host.cpp
-    dialogs/dialog_presentation.cpp
-    dialogs/file_browser_dialog.cpp
-    dialogs/file_selector_dialog.cpp
-    dialogs/map_facet_dialog.cpp
-    dialogs/map_workflow_dialog.cpp
-    dialogs/preferences_dialog.cpp
+    ui/dialogs/dialog_contracts.cpp
+    ui/dialogs/dialog_host.cpp
+    ui/dialogs/dialog_presentation.cpp
+    ui/dialogs/file_browser_dialog.cpp
+    ui/dialogs/file_selector_dialog.cpp
+    ui/dialogs/map_facet_dialog.cpp
+    ui/dialogs/map_workflow_dialog.cpp
+    ui/dialogs/preferences_dialog.cpp
     documents/document_identity.cpp
     documents/map_document.cpp
-    documents/map_workspace.cpp
-    documents/map_workspace_manager.cpp
     documents/radarcol_document.cpp
-    frontend/document_surface.cpp
-    frontend/frame_composition.cpp
-    frontend/welcome_greetings.cpp
-    frontend/welcome_screen.cpp
     persistence/config_paths.cpp
     persistence/layout_store.cpp
     persistence/preferences.cpp
@@ -49,20 +35,34 @@ add_library(
     profile/data_profile.cpp
     profile/data_profile_store.cpp
     profile/data_validation.cpp
-    profile/workbench_session.cpp
+    providers/color_conversion.cpp
     providers/data_providers.cpp
     providers/embedded_radarcol.cpp
-    support/file_size.cpp
-    strings/ui_strings.cpp
-    views/block_inspector_panel.cpp
-    views/log_panel.cpp
-    views/map_canvas_view.cpp
-    views/panel_registry.cpp
-    views/radarcol_panel.cpp
-    views/texmaps_panel.cpp
-    views/tile_inspector_panel.cpp
-    views/texture_preview.cpp
-    views/tile_labels.cpp)
+    ui/strings/ui_strings.cpp
+    layout/panel_registry.cpp
+    operations/operation_controller.cpp
+    session/workbench_session.cpp
+    state/workbench_state.cpp
+    ui/documents/document_window.cpp
+    ui/frame/workbench_frame.cpp
+    ui/input/coordinate_parser.cpp
+    ui/formatting/file_size.cpp
+    ui/panels/block_inspector_panel.cpp
+    ui/panels/tile_inspector_panel.cpp
+    ui/panels/log_panel.cpp
+    ui/panels/radarcol_panel.cpp
+    ui/panels/texmap_panel.cpp
+    ui/shell/welcome_greetings.cpp
+    ui/shell/welcome_screen.cpp
+    ui/widgets/asset_browser.cpp
+    ui/widgets/asset_browser_contracts.cpp
+    ui/widgets/texture_preview.cpp
+    ui/world/map_canvas_view.cpp
+    ui/world/tile_labels.cpp
+    workflows/file_operations.cpp
+    world/map_context.cpp
+    workspaces/map_workspace.cpp
+    workspaces/map_workspace_manager.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(

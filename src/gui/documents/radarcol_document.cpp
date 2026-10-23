@@ -1,6 +1,6 @@
 #include "gui/documents/radarcol_document.h"
-#include "gui/documents/document_identity.h"
 #include "gui/documents/document_contracts.h"
+#include "gui/documents/document_identity.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
 #include <cstdint>

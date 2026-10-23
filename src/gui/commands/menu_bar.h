@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/application/workbench_state.h"
+#include "gui/state/workbench_state.h"
 
 namespace uo_mule::gui
 {

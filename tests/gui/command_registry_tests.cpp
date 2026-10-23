@@ -1,8 +1,8 @@
-#include "gui/application/workbench_state.h"
 #include "gui/commands/command_registry.h"
-#include "gui/dialogs/map_workflow_dialog.h"
-#include "gui/documents/map_workspace.h"
-#include "gui/views/panel_registry.h"
+#include "gui/layout/panel_registry.h"
+#include "gui/state/workbench_state.h"
+#include "gui/ui/dialogs/map_workflow_dialog.h"
+#include "gui/workspaces/map_workspace.h"
 #include <catch2/catch_test_macros.hpp>
 #include <string>
 

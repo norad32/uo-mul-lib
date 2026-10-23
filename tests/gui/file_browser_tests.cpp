@@ -1,7 +1,7 @@
 #include "core/facet_sizes.h"
-#include "gui/dialogs/file_browser_dialog.h"
-#include "gui/dialogs/file_selector_dialog.h"
-#include "gui/support/file_size.h"
+#include "gui/ui/dialogs/file_browser_dialog.h"
+#include "gui/ui/dialogs/file_selector_dialog.h"
+#include "gui/ui/formatting/file_size.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>

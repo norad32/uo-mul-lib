@@ -1,4 +1,4 @@
-#include "gui/support/bounded_buffer.h"
+#include "gui/ui/input/bounded_buffer.h"
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <string_view>

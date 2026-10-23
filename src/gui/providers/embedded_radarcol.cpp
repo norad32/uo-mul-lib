@@ -1,6 +1,5 @@
 #include "gui/providers/embedded_radarcol.h"
-#include "gui/context/color_conversion.h"
-#include "gui/documents/map_workspace.h"
+#include "gui/providers/color_conversion.h"
 #include "gui/providers/data_providers.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>

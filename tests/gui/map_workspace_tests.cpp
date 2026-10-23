@@ -1,5 +1,5 @@
-#include "gui/documents/map_workspace.h"
-#include "gui/documents/map_workspace_manager.h"
+#include "gui/workspaces/map_workspace.h"
+#include "gui/workspaces/map_workspace_manager.h"
 #include "uomul/map.h"
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>

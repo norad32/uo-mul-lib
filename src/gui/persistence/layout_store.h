@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gui/views/panel_registry.h"
+#include "gui/layout/panel_registry.h"
 #include <cstdint>
 #include <filesystem>
 #include <string>
