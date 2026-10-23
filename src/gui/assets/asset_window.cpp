@@ -435,7 +435,11 @@ void drawSelectionOutline(const ImVec2 & itemMin, const ImVec2 & itemMax)
     ImGui::GetWindowDrawList()->AddRect(itemMin, itemMax, theme::packedColor(theme::selection), 0.0F, ImDrawFlags_None, 2.0F);
 }
 
-void drawItem(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
+void drawItem(const AssetAdapter & adapter,
+              AssetWindowState & state,
+              const AssetItem & item,
+              std::size_t index,
+              bool handleSelection = true)
 {
     ImGui::PushID(item.id.value.c_str());
     const bool selected = contains(state.selection, item.id);
@@ -447,12 +451,12 @@ void drawItem(const AssetAdapter & adapter, AssetWindowState & state, const Asse
         adapter.renderItem(item, selected);
         itemMin = ImGui::GetItemRectMin();
         itemMax = ImGui::GetItemRectMax();
-        if (ImGui::IsItemClicked())
+        if (handleSelection && ImGui::IsItemClicked())
         {
             updateSelectionOnClick(adapter, state, item, index);
         }
     }
-    else if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F)))
+    else if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F)) && handleSelection)
     {
         updateSelectionOnClick(adapter, state, item, index);
     }
@@ -555,31 +559,28 @@ void drawTableRow(const AssetAdapter & adapter, AssetWindowState & state, const 
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
     const bool selected = contains(state.selection, item.id);
-    ImGui::BeginDisabled(item.state != AssetItemState::available);
-    bool itemHovered = false;
-    if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
+    const ImVec2 rowCursor = ImGui::GetCursorPos();
+    const ImVec2 previewMin = ImGui::GetCursorScreenPos();
+    const ImVec2 previewMax(previewMin.x + static_cast<float>(adapter.descriptor.fixedCellWidth),
+                            previewMin.y + static_cast<float>(adapter.descriptor.fixedCellHeight));
+    const bool previewHovered = ImGui::IsMouseHoveringRect(previewMin, previewMax);
+    const float rowHeight = std::max(static_cast<float>(adapter.descriptor.fixedCellHeight),
+                                     ImGui::GetTextLineHeightWithSpacing() * 3.0F);
+    if (ImGui::Selectable("##AssetTableRow",
+                          selected,
+                          ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap,
+                          ImVec2(0.0F, rowHeight)) &&
+        !previewHovered)
     {
         updateSelectionOnClick(adapter, state, item, index);
     }
-    itemHovered = ImGui::IsItemHovered();
-    ImGui::EndDisabled();
-    if (itemHovered)
-    {
-        ImGui::BeginTooltip();
-        if (item.state == AssetItemState::available && adapter.loadDetails)
-        {
-                const auto & details = cachedDetails(adapter, state, item.id);
-            if (details)
-            {
-                drawItemDetails(*details, false);
-            }
-        }
-        else if (!item.stateMessage.empty())
-        {
-            ImGui::TextUnformatted(item.stateMessage.c_str());
-        }
-        ImGui::EndTooltip();
-    }
+    const ImVec2 rowMin = ImGui::GetItemRectMin();
+    const ImVec2 rowMax = ImGui::GetItemRectMax();
+    ImGui::SetItemAllowOverlap();
+    appendDragSelection(state, item, index, rowMin, rowMax);
+    ImGui::SetCursorPos(rowCursor);
+    drawItem(adapter, state, item, index);
+
     ImGui::TableNextColumn();
     if (item.state != AssetItemState::available)
     {
@@ -606,7 +607,18 @@ void drawTableRow(const AssetAdapter & adapter, AssetWindowState & state, const 
 
 void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
 {
-    const float rowHeight = ImGui::GetTextLineHeightWithSpacing() * 2.0F;
+    const ImGuiIO & io = ImGui::GetIO();
+    if (state.selectionDragActive && !io.MouseDown[ImGuiMouseButton_Left])
+    {
+        state.selectionDragActive = false;
+    }
+    if (state.selectionDragActive)
+    {
+        state.selection = state.selectionDragBase;
+    }
+
+    const float rowHeight = std::max(static_cast<float>(adapter.descriptor.fixedCellHeight),
+                                     ImGui::GetTextLineHeightWithSpacing() * 3.0F);
     const float tableHeight = ImGui::GetContentRegionAvail().y;
     if (adapter.descriptor.itemCount == 0U)
     {
@@ -614,14 +626,24 @@ void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
         return;
     }
 
-    const ImGuiTableFlags flags = ImGuiTableFlags_Borders + ImGuiTableFlags_RowBg + ImGuiTableFlags_ScrollY;
+    const ImGuiTableFlags flags = ImGuiTableFlags_RowBg + ImGuiTableFlags_ScrollY;
     if (!ImGui::BeginTable("AssetTable", 2, flags, ImVec2(0.0F, tableHeight)))
     {
         return;
     }
-    ImGui::TableSetupColumn(strings::item(), ImGuiTableColumnFlags_WidthFixed, 100.0F);
-    ImGui::TableSetupColumn(strings::details(), ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableHeadersRow();
+    ImGui::TableSetupColumn("##AssetPreviewColumn", ImGuiTableColumnFlags_WidthFixed,
+                            static_cast<float>(adapter.descriptor.fixedCellWidth));
+    ImGui::TableSetupColumn("##AssetDetailsColumn", ImGuiTableColumnFlags_WidthStretch);
+
+    if (!state.selectionDragActive && adapter.descriptor.capabilities.selection == AssetSelectionMode::multiple &&
+        ImGui::TableGetHoveredColumn() >= 0 && ImGui::TableGetHoveredColumn() < 2 &&
+        ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+    {
+        state.selectionDragActive = true;
+        state.selectionDragStartX = io.MouseClickedPos[ImGuiMouseButton_Left].x;
+        state.selectionDragStartY = io.MouseClickedPos[ImGuiMouseButton_Left].y;
+        state.selectionDragBase = io.KeyCtrl ? state.selection : AssetSelection{};
+    }
 
     ImGuiListClipper clipper;
     clipper.Begin(static_cast<int>(adapter.descriptor.itemCount), rowHeight);
@@ -649,6 +671,16 @@ void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
         }
     }
     ImGui::EndTable();
+
+    if (state.selectionDragActive)
+    {
+        const ImVec2 selectionMin(std::min(state.selectionDragStartX, io.MousePos.x),
+                                  std::min(state.selectionDragStartY, io.MousePos.y));
+        const ImVec2 selectionMax(std::max(state.selectionDragStartX, io.MousePos.x),
+                                  std::max(state.selectionDragStartY, io.MousePos.y));
+        ImGui::GetWindowDrawList()->AddRectFilled(selectionMin, selectionMax, IM_COL32(137, 180, 250, 35));
+        ImGui::GetWindowDrawList()->AddRect(selectionMin, selectionMax, theme::packedColor(theme::selection));
+    }
 }
 
 } // namespace
