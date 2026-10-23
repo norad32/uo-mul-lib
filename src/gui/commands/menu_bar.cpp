@@ -64,12 +64,11 @@ void drawViewMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::viewTileIds, displayMode == MapDisplayMode::tileIds);
     drawCommandItem(state, CommandId::viewZ, displayMode == MapDisplayMode::z);
     drawCommandItem(state, CommandId::viewCombined, displayMode == MapDisplayMode::combined);
+    drawCommandItem(state, CommandId::viewToggleFullscreen, state.preferences.workspaceFullscreen);
 
     ImGui::Separator();
     drawCommandItem(state, CommandId::panelTileInspector, state.panelRegistry.find(PanelId::tileInspector)->visible);
     drawCommandItem(state, CommandId::panelBlockInspector, state.panelRegistry.find(PanelId::blockInspector)->visible);
-    drawCommandItem(state, CommandId::panelSelectionStatistics, state.panelRegistry.find(PanelId::selectionStatistics)->visible);
-    drawCommandItem(state, CommandId::panelMapInformation, state.panelRegistry.find(PanelId::mapInformation)->visible);
     drawCommandItem(state, CommandId::panelRadarcol, state.panelRegistry.find(PanelId::radarcol)->visible);
     drawCommandItem(state, CommandId::panelTexmaps, state.panelRegistry.find(PanelId::texmaps)->visible);
     drawCommandItem(state, CommandId::viewToggleLogPanel, state.preferences.showLogPanel);

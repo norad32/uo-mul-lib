@@ -16,10 +16,10 @@
 #include "gui/views/block_inspector_panel.h"
 #include "gui/views/map_canvas_panel.h"
 #include "gui/views/radarcol_panel.h"
-#include "gui/views/selection_stats_panel.h"
 #include "gui/views/texmaps_panel.h"
 #include "gui/views/panel_registry.h"
 #include "gui/persistence/preferences.h"
+#include "gui/persistence/layout_store.h"
 #include "gui/profile/workbench_session.h"
 #include <vector>
 #include <string>
@@ -55,8 +55,10 @@ struct WorkbenchState
     OperationController operationController;
     NotificationState notifications;
     PanelRegistry panelRegistry;
-    std::string dockingIni;
+    WorkspaceLayout layout;
     bool layoutResetRequested = false;
+    bool fullscreenToggleRequested = false;
+    bool workbenchLayoutApplied = false;
     std::optional<DocumentId> pendingDocumentActivation;
     std::optional<DocumentId> pendingDocumentClose;
     bool pendingDocumentCloseDirty = false;
@@ -67,7 +69,6 @@ struct WorkbenchState
     std::optional<MapCanvasStatus> lastHoveredCanvasStatus;
     std::string pendingClipboardText;
     BlockInspectorPanelState blockInspectorState;
-    SelectionStatsPanelState selectionStatsState;
     RadarcolPanelState radarcolState;
     TexmapsPanelState texmapsState;
     std::vector<core::GuiLogEntry> logEntries;
@@ -75,8 +76,6 @@ struct WorkbenchState
     bool shouldClose = false;
     bool startupLoaded = false;
     bool nativeWelcomeWindowMode = false;
-    int workbenchWindowWidth = 0;
-    int workbenchWindowHeight = 0;
     std::filesystem::path recentMapRecordedPath;
     std::string welcomeGreeting;
     bool welcomeGreetingSelected = false;

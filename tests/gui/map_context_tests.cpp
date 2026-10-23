@@ -2,7 +2,6 @@
 #include "gui/profile/data_profile.h"
 #include "gui/context/map_context.h"
 #include "gui/documents/map_workspace.h"
-#include "gui/views/selection_stats_panel.h"
 #include "gui/views/map_canvas_panel.h"
 #include "gui/application/workbench_state.h"
 #include <catch2/catch_test_macros.hpp>
@@ -53,11 +52,4 @@ TEST_CASE("MapCanvas_Should_UseTheEffectiveRadarColorProvider")
             uo_mule::gui::tileDisplayColor(uo_mule::gui::MapDisplayMode::tileIds,
                                             tile,
                                             providers.radarColors().mapColor(tile.id)));
-}
-
-TEST_CASE("selectionStatsState_Should_StartIdle")
-{
-    const uo_mule::gui::SelectionStatsPanelState state;
-
-    REQUIRE(state.status == uo_mule::gui::SelectionStatsState::idle);
 }

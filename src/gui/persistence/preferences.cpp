@@ -199,6 +199,10 @@ Preferences loadPreferences(const std::filesystem::path & path)
         {
             preferences.texmapsTablePresentation = value == "1";
         }
+        else if (key == "workspace_fullscreen")
+        {
+            preferences.workspaceFullscreen = value == "1";
+        }
     }
     return preferences;
 }
@@ -225,6 +229,7 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
     contents << "id_format " << (preferences.idFormat == IdFormat::decimal ? "decimal" : "hexadecimal") << '\n';
     contents << "texmaps_hide_unused " << static_cast<int>(preferences.texmapsHideUnused) << '\n';
     contents << "texmaps_table_presentation " << static_cast<int>(preferences.texmapsTablePresentation) << '\n';
+    contents << "workspace_fullscreen " << static_cast<int>(preferences.workspaceFullscreen) << '\n';
     TemporaryPreferencesFile temporaryFile(path);
     temporaryFile.write(contents.str());
     temporaryFile.commit(path);

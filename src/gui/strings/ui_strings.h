@@ -41,8 +41,6 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * mapCanvas() noexcept;
 [[nodiscard]] const char * tileInspector() noexcept;
 [[nodiscard]] const char * blockInspector() noexcept;
-[[nodiscard]] const char * selectionStatistics() noexcept;
-[[nodiscard]] const char * mapInformation() noexcept;
 [[nodiscard]] const char * radarcol() noexcept;
 [[nodiscard]] const char * texmaps() noexcept;
 

@@ -33,8 +33,6 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr int initialApplicationWindowWidth = 1280;
-constexpr int initialApplicationWindowHeight = 800;
 constexpr std::size_t appIconWidth = 32;
 constexpr std::size_t appIconHeight = 32;
 constexpr int appIconWidthAsInt = 32;
@@ -349,6 +347,18 @@ void drawFrame(GLFWwindow * window, core::GuiLogSink & logSink, WorkbenchState &
     renderFrame(window);
 }
 
+void captureWindowLayout(GLFWwindow * window, WorkspaceLayout & layout, bool fullscreen)
+{
+    if (fullscreen)
+    {
+        return;
+    }
+
+    glfwGetWindowPos(window, &layout.window.x, &layout.window.y);
+    glfwGetWindowSize(window, &layout.window.width, &layout.window.height);
+    layout.window.geometryValid = layout.window.width > 0 && layout.window.height > 0;
+}
+
 } // namespace
 
 Application::Application(std::shared_ptr<spdlog::logger> logger, std::shared_ptr<core::GuiLogSink> logSink) :
@@ -365,8 +375,14 @@ int Application::run()
     glfwWindowHintString(GLFW_WAYLAND_APP_ID, applicationId.c_str());
 #endif
     const std::string applicationName(core::applicationName());
+    WorkbenchState state(loadPreferences());
+    loadLayout(state.panelRegistry, state.layout);
     const std::unique_ptr<GLFWwindow, WindowDeleter> window{glfwCreateWindow(
-        initialApplicationWindowWidth, initialApplicationWindowHeight, applicationName.c_str(), nullptr, nullptr)};
+        defaultWindowWidth,
+        defaultWindowHeight,
+        applicationName.c_str(),
+        nullptr,
+        nullptr)};
 
     if (!window)
     {
@@ -388,8 +404,10 @@ int Application::run()
     ImGui::GetIO().IniFilename = nullptr;
     ImGui::GetIO().ConfigFlags = static_cast<ImGuiConfigFlags>(static_cast<unsigned int>(ImGui::GetIO().ConfigFlags) |
                                                                static_cast<unsigned int>(ImGuiConfigFlags_DockingEnable));
-    WorkbenchState state(loadPreferences());
-    loadLayout(state.panelRegistry, state.dockingIni);
+    if (!state.layout.dockingIni.empty())
+    {
+        ImGui::LoadIniSettingsFromMemory(state.layout.dockingIni.c_str(), state.layout.dockingIni.size());
+    }
     state.activeProfile.name = state.preferences.activeDataProfile;
     bool invalidProfileLoad = false;
     if (!state.activeProfile.name.empty())
@@ -433,7 +451,14 @@ int Application::run()
         drawFrame(window.get(), *logSink_, state);
     }
 
-    saveLayout(state.panelRegistry, state.dockingIni);
+    if (state.workbenchLayoutApplied)
+    {
+        captureWindowLayout(window.get(), state.layout, state.preferences.workspaceFullscreen);
+        const char * dockingIni = ImGui::SaveIniSettingsToMemory();
+        state.layout.dockingIni = dockingIni == nullptr ? std::string{} : std::string(dockingIni);
+        saveLayout(state.panelRegistry, state.layout);
+        savePreferences(state.preferences);
+    }
 
     SPDLOG_LOGGER_INFO(logger_, "GUI closed");
     return 0;

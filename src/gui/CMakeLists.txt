@@ -49,15 +49,12 @@ add_library(
     persistence/layout_store.cpp
     persistence/preferences.cpp
     persistence/recent_files.cpp
-    tools/edit_tools_panel.cpp
     views/block_inspector_panel.cpp
     views/common.cpp
     views/log_panel.cpp
     views/map_canvas_panel.cpp
-    views/map_info_panel.cpp
     views/panel_registry.cpp
     views/radarcol_panel.cpp
-    views/selection_stats_panel.cpp
     views/texmaps_panel.cpp
     views/tile_inspector_panel.cpp
     dialogs/new_file_dialog.cpp

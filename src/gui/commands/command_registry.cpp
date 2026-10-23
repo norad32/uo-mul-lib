@@ -346,17 +346,22 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state)
         {
             state.preferences.showLogPanel = !state.preferences.showLogPanel;
-            savePreferences(state.preferences);
-        });
+             savePreferences(state.preferences);
+         });
+    add(registry,
+        CommandId::viewToggleFullscreen,
+        "view.fullscreen.toggle",
+        "Fullscreen",
+        "View",
+        "Toggle fullscreen workbench",
+        "F11",
+        enabled,
+        [](WorkbenchState & state) { state.fullscreenToggleRequested = true; });
 
     add(registry, CommandId::panelTileInspector, "view.panel.tile-inspector", "Tile Inspector", "View", "Show or hide the tile inspector", "",
         enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tileInspector)); });
     add(registry, CommandId::panelBlockInspector, "view.panel.block-inspector", "Block Inspector", "View", "Show or hide the block inspector", "",
         enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::blockInspector)); });
-    add(registry, CommandId::panelSelectionStatistics, "view.panel.selection-statistics", "Selection Statistics", "View", "Show or hide selection statistics", "",
-        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::selectionStatistics)); });
-    add(registry, CommandId::panelMapInformation, "view.panel.map-information", "Map Information", "View", "Show or hide map information", "",
-        enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::mapInformation)); });
     add(registry, CommandId::panelRadarcol, "view.panel.radarcol", "Radarcol", "View", "Show or hide radar colors", "",
         enabled, [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
     add(registry, CommandId::panelTexmaps, "view.panel.texmaps", "Texmaps", "View", "Show or hide textures", "",
@@ -375,6 +380,10 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state)
         {
             state.panelRegistry.resetToDefaults();
+            state.layout.dockingIni.clear();
+            state.layout.window.geometryValid = false;
+            state.preferences.workspaceFullscreen = false;
+            savePreferences(state.preferences);
             state.layoutResetRequested = true;
         });
     add(registry, CommandId::mapFit, "map.fit", "Fit Map", "Map", "Fit the complete map in the canvas", "", requiresMapDocument,

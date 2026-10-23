@@ -16,15 +16,14 @@
 #include "gui/profile/data_profile.h"
 #include "gui/commands/command_registry.h"
 #include "gui/persistence/preferences.h"
+#include "gui/persistence/layout_store.h"
 #include "gui/profile/workbench_session.h"
 #include "gui/providers/data_providers.h"
 #include "gui/views/block_inspector_panel.h"
 #include "gui/views/log_panel.h"
 #include "gui/views/map_canvas_panel.h"
-#include "gui/views/map_info_panel.h"
 #include "gui/views/panel_registry.h"
 #include "gui/views/radarcol_panel.h"
-#include "gui/views/selection_stats_panel.h"
 #include "gui/views/texmaps_panel.h"
 #include "gui/views/tile_inspector_panel.h"
 #include <GLFW/glfw3.h>
@@ -46,16 +45,18 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr float dockLeftWidthRatio = 0.20F;
-constexpr float dockRightWidthRatio = 0.24F;
+// Defaults mirror the user's persisted workbench arrangement: inspectors on
+// the left, documents in the center, and asset palettes stacked on the right.
+constexpr float dockLeftWidthRatio = 0.306F;
+constexpr float dockRightWidthRatio = 0.447F;
+constexpr float dockLeftBottomRatio = 0.5F;
 constexpr float statusBarHeight = 24.0F;
 constexpr float notificationLeftMargin = 16.0F;
 constexpr float notificationTopMargin = 48.0F;
 constexpr float notificationMinimumWidth = 280.0F;
 constexpr float notificationMaximumWidth = 480.0F;
 constexpr float notificationMaximumHeightRatio = 0.5F;
-constexpr int welcomeWindowWidth = 1004;
-constexpr std::size_t shortcutCount = 7;
+constexpr std::size_t shortcutCount = 8;
 constexpr std::size_t graveShortcutIndex = 0;
 constexpr std::size_t saveAsShortcutIndex = 1;
 constexpr std::size_t saveShortcutIndex = 2;
@@ -63,6 +64,7 @@ constexpr std::size_t openShortcutIndex = 3;
 constexpr std::size_t newShortcutIndex = 4;
 constexpr std::size_t quitShortcutIndex = 5;
 constexpr std::size_t goToShortcutIndex = 6;
+constexpr std::size_t fullscreenShortcutIndex = 7;
 
 void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
 {
@@ -86,6 +88,10 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
     const ImGuiDockNode * existingDockNode = ImGui::DockBuilderGetNode(dockSpaceId);
     if (state.layoutResetRequested || existingDockNode == nullptr)
     {
+        if (state.layoutResetRequested)
+        {
+            ImGui::ClearIniSettings();
+        }
         state.layoutResetRequested = false;
         ImGui::DockBuilderRemoveNode(dockSpaceId);
         ImGui::DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags_DockSpace);
@@ -94,16 +100,17 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         ImGuiID leftNode = 0;
         ImGuiID centerNode = 0;
         ImGuiID rightNode = 0;
+        ImGuiID leftBottomNode = 0;
+        ImGuiID leftTopNode = 0;
         ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, dockLeftWidthRatio, &leftNode, &centerNode);
         ImGui::DockBuilderSplitNode(centerNode, ImGuiDir_Right, dockRightWidthRatio, &rightNode, &centerNode);
+        ImGui::DockBuilderSplitNode(leftNode, ImGuiDir_Down, dockLeftBottomRatio, &leftBottomNode, &leftTopNode);
         for (const auto & document : state.session.documents())
         {
             ImGui::DockBuilderDockWindow(documentWindowName(document.summary).c_str(), centerNode);
         }
-        ImGui::DockBuilderDockWindow("Tile Inspector###view.tile-inspector", leftNode);
-        ImGui::DockBuilderDockWindow("Block Inspector###view.block-inspector", leftNode);
-        ImGui::DockBuilderDockWindow("Selection Statistics###view.selection-statistics", leftNode);
-        ImGui::DockBuilderDockWindow("Map Information###view.map-information", leftNode);
+        ImGui::DockBuilderDockWindow("Tile Inspector###view.tile-inspector", leftBottomNode);
+        ImGui::DockBuilderDockWindow("Block Inspector###view.block-inspector", leftTopNode);
         ImGui::DockBuilderDockWindow("Texmaps###view.texmaps", rightNode);
         ImGui::DockBuilderDockWindow("Radarcol###view.radarcol", rightNode);
         ImGui::DockBuilderFinish(dockSpaceId);
@@ -112,10 +119,76 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
     ImGui::End();
 }
 
+void captureWindowGeometry(GLFWwindow * window, WorkspaceLayout & layout)
+{
+    glfwGetWindowPos(window, &layout.window.x, &layout.window.y);
+    glfwGetWindowSize(window, &layout.window.width, &layout.window.height);
+    layout.window.geometryValid = layout.window.width > 0 && layout.window.height > 0;
+}
+
+bool applyWorkbenchLayout(GLFWwindow * window, WorkbenchState & state)
+{
+    if (state.workbenchLayoutApplied)
+    {
+        return true;
+    }
+
+    if (state.preferences.workspaceFullscreen)
+    {
+        GLFWmonitor * monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode * mode = monitor == nullptr ? nullptr : glfwGetVideoMode(monitor);
+        if (mode == nullptr)
+        {
+            return false;
+        }
+        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+    }
+    else if (state.layout.window.geometryValid)
+    {
+        glfwSetWindowPos(window, state.layout.window.x, state.layout.window.y);
+        glfwSetWindowSize(window, state.layout.window.width, state.layout.window.height);
+    }
+
+    state.workbenchLayoutApplied = true;
+    return true;
+}
+
+void toggleFullscreen(GLFWwindow * window, WorkbenchState & state)
+{
+    if (!state.fullscreenToggleRequested)
+    {
+        return;
+    }
+
+    state.fullscreenToggleRequested = false;
+    if (!state.preferences.workspaceFullscreen)
+    {
+        captureWindowGeometry(window, state.layout);
+        GLFWmonitor * monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode * mode = monitor == nullptr ? nullptr : glfwGetVideoMode(monitor);
+        if (mode == nullptr)
+        {
+            return;
+        }
+
+        glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        state.preferences.workspaceFullscreen = true;
+        savePreferences(state.preferences);
+        return;
+    }
+
+    const int width = state.layout.window.geometryValid ? state.layout.window.width : defaultWindowWidth;
+    const int height = state.layout.window.geometryValid ? state.layout.window.height : defaultWindowHeight;
+    const int x = state.layout.window.geometryValid ? state.layout.window.x : 0;
+    const int y = state.layout.window.geometryValid ? state.layout.window.y : 0;
+    glfwSetWindowMonitor(window, nullptr, x, y, width, height, 0);
+    state.preferences.workspaceFullscreen = false;
+    savePreferences(state.preferences);
+}
+
 void drawMapPanels(WorkbenchState & state,
                    const DataProfile & activeProfile,
                    BlockInspectorPanelState & blockInspectorState,
-                   SelectionStatsPanelState & selectionStatsState,
                    RadarcolPanelState & radarcolState,
                    TexmapsPanelState & texmapsState)
 {
@@ -134,14 +207,6 @@ void drawMapPanels(WorkbenchState & state,
     if (mapActive && state.panelRegistry.find(PanelId::blockInspector)->visible)
     {
         drawBlockInspectorPanel(workspace, context, state.providers, blockInspectorState, state.panelRegistry.find(PanelId::blockInspector)->visible);
-    }
-    if (mapActive && state.panelRegistry.find(PanelId::selectionStatistics)->visible)
-    {
-        drawSelectionStatsPanel(workspace, context, selectionStatsState, state.panelRegistry.find(PanelId::selectionStatistics)->visible);
-    }
-    if (mapActive && state.panelRegistry.find(PanelId::mapInformation)->visible)
-    {
-        drawMapInfoPanel(workspace, state.panelRegistry.find(PanelId::mapInformation)->visible);
     }
     if (state.panelRegistry.find(PanelId::radarcol)->visible)
     {
@@ -449,7 +514,7 @@ void applyPendingDocumentAction(WorkbenchState & state)
     }
 }
 
-void dispatchShortcuts(WorkbenchState & state)
+void dispatchShortcuts(WorkbenchState & state, bool allowFullscreen)
 {
     if (ImGui::GetIO().WantTextInput || ImGui::GetIO().WantCaptureKeyboard)
     {
@@ -463,6 +528,7 @@ void dispatchShortcuts(WorkbenchState & state)
         std::pair{ImGuiKey_N, "Ctrl+N"},
         std::pair{ImGuiKey_Q, "Ctrl+Q"},
         std::pair{ImGuiKey_G, "Ctrl+G"},
+        std::pair{ImGuiKey_F11, "F11"},
     };
     if (ImGui::IsKeyPressed(shortcuts.at(graveShortcutIndex).first, false))
     {
@@ -492,6 +558,10 @@ void dispatchShortcuts(WorkbenchState & state)
     else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(goToShortcutIndex).first, false))
     {
         static_cast<void>(state.commands.executeShortcut(shortcuts.at(goToShortcutIndex).second, state));
+    }
+    else if (allowFullscreen && ImGui::IsKeyPressed(shortcuts.at(fullscreenShortcutIndex).first, false))
+    {
+        static_cast<void>(state.commands.executeShortcut(shortcuts.at(fullscreenShortcutIndex).second, state));
     }
 }
 
@@ -531,36 +601,26 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
 
     state.session.syncDocument(state.workspace);
 
+    const bool wasWelcomeShell = welcomeShell;
     welcomeShell = state.session.startupState() == StartupState::mapWelcome && state.workspace.reader() == nullptr &&
                    !state.session.hasDocuments();
     state.providers.sync(state.activeProfile);
     if (state.nativeWelcomeWindowMode != welcomeShell)
     {
-        int windowWidth = 0;
-        int windowHeight = 0;
-        int windowX = 0;
-        int windowY = 0;
-        glfwGetWindowSize(window, &windowWidth, &windowHeight);
-        glfwGetWindowPos(window, &windowX, &windowY);
-        if (welcomeShell)
-        {
-            state.workbenchWindowWidth = windowWidth;
-            state.workbenchWindowHeight = windowHeight;
-            const int horizontalOffset = (windowWidth - welcomeWindowWidth) / 2;
-            glfwSetWindowSize(window, welcomeWindowWidth, windowHeight);
-            glfwSetWindowPos(window, windowX + horizontalOffset, windowY);
-        }
-        else if (state.workbenchWindowWidth > 0 && state.workbenchWindowHeight > 0)
-        {
-            const int horizontalOffset = (windowWidth - state.workbenchWindowWidth) / 2;
-            glfwSetWindowSize(window, state.workbenchWindowWidth, state.workbenchWindowHeight);
-            glfwSetWindowPos(window, windowX + horizontalOffset, windowY);
-        }
         glfwSetWindowAttrib(window, GLFW_DECORATED, welcomeShell ? GLFW_FALSE : GLFW_TRUE);
         glfwSetWindowAttrib(window, GLFW_RESIZABLE, welcomeShell ? GLFW_FALSE : GLFW_TRUE);
         state.nativeWelcomeWindowMode = welcomeShell;
     }
-    dispatchShortcuts(state);
+    if (!welcomeShell)
+    {
+        const bool enteredWorkbench = wasWelcomeShell && !welcomeShell;
+        if (enteredWorkbench || !state.workbenchLayoutApplied)
+        {
+            static_cast<void>(applyWorkbenchLayout(window, state));
+        }
+        toggleFullscreen(window, state);
+    }
+    dispatchShortcuts(state, !welcomeShell);
 
     const float bottomPanelHeight = welcomeShell ? 0.0F : drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
     if (state.session.startupState() == StartupState::configureProfile)
@@ -586,7 +646,6 @@ void drawWorkbenchFrame(GLFWwindow * window, core::GuiLogSink & logSink, Workben
         drawMapPanels(state,
                        state.activeProfile,
                        state.blockInspectorState,
-                       state.selectionStatsState,
                        state.radarcolState,
                        state.texmapsState);
         notifyRadarcolFallback(state);

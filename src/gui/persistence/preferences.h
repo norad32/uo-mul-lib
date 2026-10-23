@@ -22,6 +22,7 @@ struct Preferences
     IdFormat idFormat = IdFormat::hexadecimal;
     bool texmapsHideUnused = true;
     bool texmapsTablePresentation = false;
+    bool workspaceFullscreen = false;
 };
 
 [[nodiscard]] Preferences loadPreferences();

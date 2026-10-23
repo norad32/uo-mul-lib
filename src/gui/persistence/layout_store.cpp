@@ -8,11 +8,56 @@
 #include <ios>
 #include <cstdint>
 #include <string>
+#include <utility>
 
 namespace uo_mule::gui
 {
 namespace
 {
+
+void loadPanel(std::ifstream & file, PanelRegistry & registry, bool validSchema)
+{
+    std::string stableId;
+    bool visible = false;
+    file >> std::quoted(stableId) >> visible;
+    if (!validSchema)
+    {
+        return;
+    }
+
+    for (auto & panel : registry.panels())
+    {
+        if (panel.stableId == stableId)
+        {
+            panel.visible = visible;
+        }
+    }
+}
+
+void loadWindowGeometry(std::ifstream & file, WorkspaceLayout & layout, bool validSchema)
+{
+    WindowLayout window;
+    file >> window.x >> window.y >> window.width >> window.height;
+    if (validSchema && window.width > 0 && window.height > 0)
+    {
+        window.geometryValid = true;
+        layout.window = window;
+    }
+}
+
+void loadDockingIni(std::ifstream & file, WorkspaceLayout & layout, bool validSchema)
+{
+    std::size_t size = 0;
+    file >> size;
+    file.get();
+    std::string dockingIni(size, '\0');
+    file.read(dockingIni.data(), static_cast<std::streamsize>(size));
+    const bool hasDelimiter = file.get() != std::char_traits<char>::eof();
+    if (validSchema && hasDelimiter)
+    {
+        layout.dockingIni = std::move(dockingIni);
+    }
+}
 
 [[nodiscard]] std::filesystem::path configDirectory()
 {
@@ -35,9 +80,19 @@ std::filesystem::path layoutPath()
     return config.empty() ? std::filesystem::path{} : config / std::string(core::applicationName()) / "layout.ini";
 }
 
-void loadLayout(PanelRegistry & registry, std::string & dockingIni)
+void loadLayout(PanelRegistry & registry, WorkspaceLayout & layout)
 {
     const auto path = layoutPath();
+    if (path.empty())
+    {
+        return;
+    }
+
+    loadLayout(path, registry, layout);
+}
+
+void loadLayout(const std::filesystem::path & path, PanelRegistry & registry, WorkspaceLayout & layout)
+{
     if (path.empty())
     {
         return;
@@ -57,28 +112,15 @@ void loadLayout(PanelRegistry & registry, std::string & dockingIni)
         }
         else if (key == "panel")
         {
-            std::string stableId;
-            bool visible = false;
-            file >> std::quoted(stableId) >> visible;
-            if (!validSchema)
-            {
-                continue;
-            }
-            for (auto & panel : registry.panels())
-            {
-                if (panel.stableId == stableId)
-                {
-                    panel.visible = visible;
-                }
-            }
+            loadPanel(file, registry, validSchema);
         }
-        else if (key == "docking_ini")
+        else if (key == "window_geometry")
         {
-            file >> std::quoted(value);
-            if (validSchema)
-            {
-                dockingIni = value;
-            }
+            loadWindowGeometry(file, layout, validSchema);
+        }
+        else if (key == "docking_ini_size")
+        {
+            loadDockingIni(file, layout, validSchema);
         }
         else
         {
@@ -87,9 +129,19 @@ void loadLayout(PanelRegistry & registry, std::string & dockingIni)
     }
 }
 
-void saveLayout(const PanelRegistry & registry, const std::string & dockingIni)
+void saveLayout(const PanelRegistry & registry, const WorkspaceLayout & layout)
 {
     const auto path = layoutPath();
+    if (path.empty())
+    {
+        return;
+    }
+
+    saveLayout(path, registry, layout);
+}
+
+void saveLayout(const std::filesystem::path & path, const PanelRegistry & registry, const WorkspaceLayout & layout)
+{
     if (path.empty())
     {
         return;
@@ -103,7 +155,14 @@ void saveLayout(const PanelRegistry & registry, const std::string & dockingIni)
     {
         file << "panel " << std::quoted(panel.stableId) << ' ' << panel.visible << '\n';
     }
-    file << "docking_ini " << std::quoted(dockingIni) << '\n';
+    if (layout.window.geometryValid)
+    {
+        file << "window_geometry " << layout.window.x << ' ' << layout.window.y << ' ' << layout.window.width << ' '
+             << layout.window.height << '\n';
+    }
+    file << "docking_ini_size " << layout.dockingIni.size() << '\n';
+    file.write(layout.dockingIni.data(), static_cast<std::streamsize>(layout.dockingIni.size()));
+    file << '\n';
     file.close();
     std::filesystem::rename(temporary, path);
 }

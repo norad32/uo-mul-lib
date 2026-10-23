@@ -51,8 +51,6 @@ const char * preferences() noexcept { return "Preferences"; }
 const char * mapCanvas() noexcept { return "Map Canvas"; }
 const char * tileInspector() noexcept { return "Tile Inspector"; }
 const char * blockInspector() noexcept { return "Block Inspector"; }
-const char * selectionStatistics() noexcept { return "Selection Statistics"; }
-const char * mapInformation() noexcept { return "Map Information"; }
 const char * radarcol() noexcept { return "Radarcol"; }
 const char * texmaps() noexcept { return "Texmaps"; }
 
