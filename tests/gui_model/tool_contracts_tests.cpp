@@ -1,4 +1,5 @@
 #include "gui_model/tools/tool_contracts.h"
+#include "gui_model/tools/tool_state.h"
 #include <catch2/catch_test_macros.hpp>
 #include <set>
 #include <string>
@@ -8,6 +9,7 @@ using uo_mule::gui::ToolContext;
 using uo_mule::gui::ToolId;
 using uo_mule::gui::ToolRegistry;
 using uo_mule::gui::ToolSelectionGranularity;
+using uo_mule::gui::ToolState;
 
 TEST_CASE("defaultTools_Should_ExposeStableMetadata")
 {
@@ -76,4 +78,80 @@ TEST_CASE("selectionTools_Should_BeAvailableForAnOpenMap")
     REQUIRE(registry.availability(ToolId::rectangleSelect, context).enabled);
     REQUIRE(registry.availability(ToolId::lassoSelect, context).enabled);
     REQUIRE(registry.availability(ToolId::fuzzySelect, context).enabled);
+}
+
+TEST_CASE("toolState_Should_DefaultToMoveAndTiles")
+{
+    const ToolState state;
+
+    REQUIRE(state.activeTool() == ToolId::move);
+    REQUIRE(state.selectionGranularity() == ToolSelectionGranularity::tiles);
+}
+
+TEST_CASE("toolState_Should_RejectUnavailableActivationWithoutChangingState")
+{
+    const ToolRegistry registry;
+    ToolState state;
+    const ToolContext noMap;
+
+    const auto result = state.activate(ToolId::rectangleSelect, noMap, registry);
+
+    REQUIRE_FALSE(result.accepted);
+    REQUIRE_FALSE(result.changed);
+    REQUIRE(result.reason == "No map is open");
+    REQUIRE(state.activeTool() == ToolId::move);
+}
+
+TEST_CASE("toolState_Should_ActivateAvailableTools")
+{
+    const ToolRegistry registry;
+    ToolState state;
+    const ToolContext context{.mapDocumentOpen = true, .mapEditable = true};
+
+    const auto result = state.activate(ToolId::rectangleSelect, context, registry);
+
+    REQUIRE(result.accepted);
+    REQUIRE(result.changed);
+    REQUIRE(state.activeTool() == ToolId::rectangleSelect);
+}
+
+TEST_CASE("toolState_Should_ShareGranularityAcrossSelectionTools")
+{
+    const ToolRegistry registry;
+    ToolState state;
+    const ToolContext context{.mapDocumentOpen = true, .mapEditable = true};
+
+    REQUIRE(state.activate(ToolId::rectangleSelect, context, registry).accepted);
+    REQUIRE(state.setSelectionGranularity(ToolSelectionGranularity::blocks, context, registry).accepted);
+    REQUIRE(state.selectionGranularity() == ToolSelectionGranularity::blocks);
+    REQUIRE(state.activate(ToolId::lassoSelect, context, registry).accepted);
+    REQUIRE(state.selectionGranularity() == ToolSelectionGranularity::blocks);
+}
+
+TEST_CASE("toolState_Should_KeepFuzzySelectTileOnly")
+{
+    const ToolRegistry registry;
+    ToolState state;
+    const ToolContext context{.mapDocumentOpen = true, .mapEditable = true};
+
+    REQUIRE(state.activate(ToolId::fuzzySelect, context, registry).accepted);
+    const auto result = state.setSelectionGranularity(ToolSelectionGranularity::blocks, context, registry);
+
+    REQUIRE_FALSE(result.accepted);
+    REQUIRE_FALSE(result.changed);
+    REQUIRE(result.reason == "Fuzzy Select supports tiles only");
+    REQUIRE(state.activeTool() == ToolId::fuzzySelect);
+    REQUIRE(state.selectionGranularity() == ToolSelectionGranularity::tiles);
+}
+
+TEST_CASE("toolState_Should_AllowGranularityBeforeMapOpens")
+{
+    const ToolRegistry registry;
+    ToolState state;
+    const ToolContext noMap;
+
+    const auto result = state.setSelectionGranularity(ToolSelectionGranularity::blocks, noMap, registry);
+
+    REQUIRE(result.accepted);
+    REQUIRE(state.selectionGranularity() == ToolSelectionGranularity::blocks);
 }

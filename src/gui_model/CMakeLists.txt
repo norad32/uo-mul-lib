@@ -31,7 +31,9 @@ set(GUI_MODEL_SOURCES
     world/map_context.cpp
     world/combine_contracts.cpp
     workspaces/map_workspace.cpp
-    workspaces/map_workspace_manager.cpp)
+    workspaces/map_workspace_manager.cpp
+    tools/tool_contracts.cpp
+    tools/tool_state.cpp)
     
 list(APPEND GUI_MODEL_SOURCES tile_sources/tile_source_contracts.cpp)
 

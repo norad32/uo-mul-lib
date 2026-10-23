@@ -44,6 +44,13 @@ struct ToolAvailability
     std::string disabledReason;
 };
 
+struct ToolStateChange
+{
+    bool accepted = false;
+    bool changed = false;
+    std::string reason;
+};
+
 struct ToolDescriptor
 {
     ToolId id;

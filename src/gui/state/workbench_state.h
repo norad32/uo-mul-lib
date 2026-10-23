@@ -23,6 +23,8 @@
 #include "gui_model/profile/data_profile_store.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/session/workbench_session.h"
+#include "gui_model/tools/tool_contracts.h"
+#include "gui_model/tools/tool_state.h"
 #include "gui_model/workspaces/map_workspace_manager.h"
 #include "logger/gui_log_sink.h"
 #include <cstdint>
@@ -67,6 +69,8 @@ struct WorkbenchState
     DocumentDescriptorRegistry documentDescriptors;
     MapWorkspaceManager workspace;
     CommandRegistry commands;
+    ToolRegistry toolRegistry;
+    ToolState toolState;
     OperationController operationController;
     NotificationState notifications;
     PanelRegistry panelRegistry;
