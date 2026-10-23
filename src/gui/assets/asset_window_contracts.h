@@ -98,6 +98,12 @@ struct AssetItem
     std::string stateMessage;
 };
 
+struct AssetSearchItem
+{
+    AssetItem item;
+    std::vector<std::string> values;
+};
+
 struct AssetDetails
 {
     AssetItemId item;
@@ -141,6 +147,13 @@ struct AssetWindowState
     std::string presentationContext;
     std::map<std::string, AssetPresentation> presentations;
     AssetQuery query;
+    std::string queryCacheContext;
+    std::string queryCacheFilter;
+    std::vector<AssetSearchItem> searchItems;
+    bool searchItemsValid = false;
+    std::vector<AssetItem> filteredItems;
+    bool queryCacheValid = false;
+    std::map<std::string, std::optional<AssetDetails>> detailsCache;
     AssetSelection selection;
     AssetSelection selectionDragBase;
     float scrollPosition = 0.0F;
@@ -155,6 +168,7 @@ struct AssetAdapterDescriptor
     std::string viewId;
     std::string title;
     std::string sourceTooltip;
+    std::string cacheContext;
     std::function<std::string(const AssetItemId &)> formatSelectionId;
     std::function<void(const AssetItemId &, float)> renderSelectionPreview;
     float selectionPreviewSize = 0.0F;
@@ -169,7 +183,7 @@ struct AssetAdapterDescriptor
 };
 
 using AssetRangeLoader = std::function<std::vector<AssetItem>(const AssetRangeRequest &, const AssetQuery &)>;
-using AssetQueryItemLoader = std::function<std::vector<AssetItem>(const AssetQuery &)>;
+using AssetSearchItemLoader = std::function<std::vector<AssetSearchItem>()>;
 using AssetDetailsLoader = std::function<std::optional<AssetDetails>(const AssetItemId &)>;
 using AssetDragPayloadBuilder = std::function<std::optional<AssetDragPayload>(const AssetSelection &)>;
 using AssetItemRenderer = std::function<void(const AssetItem &, bool)>;
@@ -178,7 +192,7 @@ struct AssetAdapter
 {
     AssetAdapterDescriptor descriptor;
     AssetRangeLoader loadRange;
-    AssetQueryItemLoader queryItems;
+    AssetSearchItemLoader loadSearchItems;
     AssetDetailsLoader loadDetails;
     AssetDragPayloadBuilder makeDragPayload;
     AssetItemRenderer renderItem;

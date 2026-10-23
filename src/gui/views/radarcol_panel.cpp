@@ -161,6 +161,7 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
     adapter.descriptor.viewId = std::move(viewId);
     adapter.descriptor.title = "Radarcol";
     adapter.descriptor.sourceTooltip = "Source: " + std::string(state.sourcePath.data());
+    adapter.descriptor.cacheContext = std::to_string(static_cast<int>(idFormat));
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item) {
         return strings::formatId(static_cast<std::uint32_t>(std::stoul(item.value)), idFormat);
     };
@@ -201,8 +202,8 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
         }
         return items;
     };
-    adapter.queryItems = [&state, idFormat](const assets::AssetQuery & query) {
-        std::vector<assets::AssetItem> items;
+    adapter.loadSearchItems = [&state, idFormat]() {
+        std::vector<assets::AssetSearchItem> items;
         if (!state.reader)
         {
             return items;
@@ -218,13 +219,11 @@ void drawRadarcolItem(const RadarcolPanelState & state, const assets::AssetItem 
                 values.push_back("Raw: " + strings::formatId(static_cast<std::uint32_t>(*color), idFormat));
                 values.push_back("Hex: " + colorToHex(*color));
             }
-            if (filterMatches(query, values))
-            {
-                items.push_back({.id = {.value = std::to_string(index)},
-                                 .label = formattedId,
-                                 .state = color ? assets::AssetItemState::available : assets::AssetItemState::empty,
-                                 .stateMessage = {},});
-            }
+            items.push_back({.item = {.id = {.value = std::to_string(index)},
+                                      .label = formattedId,
+                                      .state = color ? assets::AssetItemState::available : assets::AssetItemState::empty,
+                                      .stateMessage = {},},
+                             .values = std::move(values),});
         }
         return items;
     };
@@ -261,6 +260,7 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
     adapter.descriptor.viewId = std::move(viewId);
     adapter.descriptor.title = "Radarcol";
     adapter.descriptor.sourceTooltip = "Source: " + document.sourcePath().string();
+    adapter.descriptor.cacheContext = std::to_string(static_cast<int>(idFormat));
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item) {
         return strings::formatId(static_cast<std::uint32_t>(std::stoul(item.value)), idFormat);
     };
@@ -300,8 +300,8 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
         }
         return items;
     };
-    adapter.queryItems = [&document, idFormat](const assets::AssetQuery & query) {
-        std::vector<assets::AssetItem> items;
+    adapter.loadSearchItems = [&document, idFormat]() {
+        std::vector<assets::AssetSearchItem> items;
         if (!document.reader())
         {
             return items;
@@ -317,13 +317,11 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
                 values.push_back("Raw: " + strings::formatId(static_cast<std::uint32_t>(*color), idFormat));
                 values.push_back("Hex: " + colorToHex(*color));
             }
-            if (filterMatches(query, values))
-            {
-                items.push_back({.id = {.value = std::to_string(index)},
-                                 .label = formattedId,
-                                 .state = color ? assets::AssetItemState::available : assets::AssetItemState::empty,
-                                 .stateMessage = {},});
-            }
+            items.push_back({.item = {.id = {.value = std::to_string(index)},
+                                      .label = formattedId,
+                                      .state = color ? assets::AssetItemState::available : assets::AssetItemState::empty,
+                                      .stateMessage = {},},
+                             .values = std::move(values),});
         }
         return items;
     };

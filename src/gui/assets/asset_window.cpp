@@ -171,7 +171,19 @@ void drawItemDetails(const AssetDetails & details, bool wrap = true)
     }
 }
 
-void drawItemTooltip(const AssetAdapter & adapter, const AssetItem & item)
+[[nodiscard]] const std::optional<AssetDetails> & cachedDetails(const AssetAdapter & adapter,
+                                                                 AssetWindowState & state,
+                                                                 const AssetItemId & id)
+{
+    const auto [iterator, inserted] = state.detailsCache.try_emplace(id.value);
+    if (inserted)
+    {
+        iterator->second = adapter.loadDetails ? adapter.loadDetails(id) : std::nullopt;
+    }
+    return iterator->second;
+}
+
+void drawItemTooltip(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item)
 {
     if (!ImGui::IsItemHovered())
     {
@@ -180,7 +192,7 @@ void drawItemTooltip(const AssetAdapter & adapter, const AssetItem & item)
 
     if (item.state == AssetItemState::available && adapter.loadDetails)
     {
-        const auto details = adapter.loadDetails(item.id);
+        const auto & details = cachedDetails(adapter, state, item.id);
         if (details)
         {
             ImGui::BeginTooltip();
@@ -222,7 +234,7 @@ void appendLabeledValue(std::vector<SelectionFieldValues> & fields, const std::s
     }
 }
 
-void drawSelectionSummary(const AssetAdapter & adapter, const AssetWindowState & state)
+void drawSelectionSummary(const AssetAdapter & adapter, AssetWindowState & state)
 {
     const std::size_t selectedCount = state.selection.selected.size();
     if (selectedCount == 0U)
@@ -243,7 +255,7 @@ void drawSelectionSummary(const AssetAdapter & adapter, const AssetWindowState &
         {
             continue;
         }
-        const auto details = adapter.loadDetails(selected);
+        const auto & details = cachedDetails(adapter, state, selected);
         if (details)
         {
             for (const auto & field : details->fields)
@@ -272,7 +284,7 @@ void drawSelectionSummary(const AssetAdapter & adapter, const AssetWindowState &
     }
 }
 
-void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state)
+void drawDetails(const AssetAdapter & adapter, AssetWindowState & state)
 {
     ImGui::BeginChild("AssetDetails", ImVec2(-detailsPadding, -detailsPadding), ImGuiChildFlags_Borders);
     if (state.detailsCollapsed)
@@ -330,7 +342,7 @@ void drawDetails(const AssetAdapter & adapter, const AssetWindowState & state)
     }
     else if (state.selection.selected.size() == 1U)
     {
-        const auto details = adapter.loadDetails(state.selection.selected.front());
+        const auto & details = cachedDetails(adapter, state, state.selection.selected.front());
         if (details)
         {
             drawItemDetails(*details);
@@ -453,7 +465,7 @@ void drawItem(const AssetAdapter & adapter, AssetWindowState & state, const Asse
             drawSelectionOutline(itemMin, itemMax);
         }
     }
-    drawItemTooltip(adapter, item);
+    drawItemTooltip(adapter, state, item);
     ImGui::PopID();
 }
 
@@ -556,7 +568,7 @@ void drawTableRow(const AssetAdapter & adapter, AssetWindowState & state, const 
         ImGui::BeginTooltip();
         if (item.state == AssetItemState::available && adapter.loadDetails)
         {
-            const auto details = adapter.loadDetails(item.id);
+                const auto & details = cachedDetails(adapter, state, item.id);
             if (details)
             {
                 drawItemDetails(*details, false);
@@ -579,7 +591,7 @@ void drawTableRow(const AssetAdapter & adapter, AssetWindowState & state, const 
     }
     else
     {
-        const auto details = adapter.loadDetails(item.id);
+        const auto & details = cachedDetails(adapter, state, item.id);
         if (details)
         {
             drawItemDetails(*details);
@@ -672,16 +684,43 @@ void drawAssetWindow(const AssetAdapter & adapter,
 
     syncPresentation(adapter, state);
     AssetAdapter queryAdapter = adapter;
-    if (adapter.queryItems)
+    const std::string queryContext = presentationContextKey(adapter.descriptor) + "|" + adapter.descriptor.cacheContext;
+    if (state.queryCacheContext != queryContext)
     {
-        const std::vector<AssetItem> filteredItems = adapter.queryItems(state.query);
-        queryAdapter.descriptor.itemCount = filteredItems.size();
-        queryAdapter.loadRange = [filteredItems](const AssetRangeRequest & request, const AssetQuery &)
+        state.queryCacheContext = queryContext;
+        state.queryCacheFilter.clear();
+        state.searchItems.clear();
+        state.searchItemsValid = false;
+        state.queryCacheValid = false;
+        state.detailsCache.clear();
+    }
+    if (adapter.loadSearchItems && !state.searchItemsValid && !state.query.filter.empty())
+    {
+        state.searchItems = adapter.loadSearchItems();
+        state.searchItemsValid = true;
+    }
+    if (!state.query.filter.empty() && adapter.loadSearchItems)
+    {
+        if (!state.queryCacheValid || state.queryCacheFilter != state.query.filter)
         {
-            const std::size_t first = std::min(request.first, filteredItems.size());
-            const std::size_t last = std::min(first + request.count, filteredItems.size());
-            return std::vector<AssetItem>(filteredItems.begin() + static_cast<std::ptrdiff_t>(first),
-                                          filteredItems.begin() + static_cast<std::ptrdiff_t>(last));
+            state.queryCacheFilter = state.query.filter;
+            state.filteredItems.clear();
+            for (const auto & searchItem : state.searchItems)
+            {
+                if (filterMatches(state.query, searchItem.values))
+                {
+                    state.filteredItems.push_back(searchItem.item);
+                }
+            }
+            state.queryCacheValid = true;
+        }
+        queryAdapter.descriptor.itemCount = state.filteredItems.size();
+        queryAdapter.loadRange = [&state](const AssetRangeRequest & request, const AssetQuery &)
+        {
+            const std::size_t first = std::min(request.first, state.filteredItems.size());
+            const std::size_t last = std::min(first + request.count, state.filteredItems.size());
+            return std::vector<AssetItem>(state.filteredItems.begin() + static_cast<std::ptrdiff_t>(first),
+                                          state.filteredItems.begin() + static_cast<std::ptrdiff_t>(last));
         };
     }
     if (!adapter.descriptor.sourceTooltip.empty())

@@ -17,6 +17,13 @@ struct FilterTerm
     bool regex = false;
 };
 
+struct CompiledFilterTerm
+{
+    std::string value;
+    bool regex = false;
+    std::optional<std::regex> expression;
+};
+
 [[nodiscard]] std::vector<std::vector<FilterTerm>> parseFilter(std::string_view filter)
 {
     std::vector<std::vector<FilterTerm>> groups(1U);
@@ -89,7 +96,33 @@ bool AssetCapabilitySet::supports(AssetQueryCapability capability) const noexcep
 
 bool filterMatches(const AssetQuery & query, std::span<const std::string> values)
 {
-    for (const auto & group : parseFilter(query.filter))
+    static thread_local std::string compiledFilterText;
+    static thread_local std::vector<std::vector<CompiledFilterTerm>> compiledGroups;
+    if (compiledFilterText != query.filter)
+    {
+        compiledFilterText = query.filter;
+        compiledGroups.clear();
+        for (const auto & group : parseFilter(query.filter))
+        {
+            auto & compiledGroup = compiledGroups.emplace_back();
+            for (const auto & term : group)
+            {
+                std::optional<std::regex> expression;
+                if (term.regex)
+                {
+                    try
+                    {
+                        expression.emplace(term.value, std::regex_constants::icase);
+                    }
+                    catch (const std::regex_error &)
+                    {
+                    }
+                }
+                compiledGroup.push_back({.value = term.value, .regex = term.regex, .expression = std::move(expression)});
+            }
+        }
+    }
+    for (const auto & group : compiledGroups)
     {
         bool groupMatched = false;
         for (const auto & term : group)
@@ -99,11 +132,11 @@ bool filterMatches(const AssetQuery & query, std::span<const std::string> values
                 bool matched = false;
                 if (term.regex)
                 {
-                    try
+                    if (term.expression)
                     {
-                        matched = std::regex_search(value, std::regex(term.value, std::regex_constants::icase));
+                        matched = std::regex_search(value, *term.expression);
                     }
-                    catch (const std::regex_error &)
+                    else
                     {
                         matched = containsInsensitive(value, term.value);
                     }

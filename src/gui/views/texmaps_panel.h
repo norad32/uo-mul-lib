@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace uo_mule::gui
 {
@@ -33,6 +34,7 @@ struct TexmapsPanelState
     std::array<char, texmapsPathBufferSize> sourceIndexPath{};
     std::array<char, texmapsPathBufferSize> sourceDataPath{};
     std::optional<uomul::TexMapsReader> reader;
+    std::unordered_map<std::uint32_t, TexmapsTexturePreview> texturePreviews;
     std::vector<TexmapsTexturePreview> pageTextures;
     std::uint32_t selectedTextureId = 0;
     std::string error;

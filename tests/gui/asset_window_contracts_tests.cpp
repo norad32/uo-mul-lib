@@ -1,5 +1,6 @@
 #include "gui/assets/asset_window_contracts.h"
 #include <catch2/catch_test_macros.hpp>
+#include <array>
 
 namespace
 {
@@ -71,4 +72,64 @@ TEST_CASE("assetSelection_Should_ClearItemsAndAnchor")
 
     REQUIRE(selection.selected.empty());
     REQUIRE_FALSE(selection.anchor.has_value());
+}
+
+TEST_CASE("assetSelection_Should_ToggleItemsAndTrackIndexedAnchor")
+{
+    uo_mule::gui::assets::AssetSelection selection;
+    uo_mule::gui::assets::selectSingleAt(selection, {.value = "42"}, 4U);
+    uo_mule::gui::assets::toggleAt(selection, {.value = "43"}, 7U);
+
+    REQUIRE(selection.selected.size() == 2U);
+    REQUIRE(selection.anchor->value == "43");
+    REQUIRE(selection.anchorIndex == 7U);
+
+    uo_mule::gui::assets::toggleAt(selection, {.value = "43"}, 7U);
+    REQUIRE(selection.selected.size() == 1U);
+    REQUIRE_FALSE(uo_mule::gui::assets::contains(selection, {.value = "43"}));
+}
+
+TEST_CASE("assetSelection_Should_TrackIndexedSingleSelection")
+{
+    uo_mule::gui::assets::AssetSelection selection;
+    uo_mule::gui::assets::selectSingleAt(selection, {.value = "42"}, 4U);
+
+    REQUIRE(selection.anchor->value == "42");
+    REQUIRE(selection.anchorIndex == 4U);
+}
+
+TEST_CASE("assetFilter_Should_MatchSpaceSeparatedTermsAcrossValues")
+{
+    uo_mule::gui::assets::AssetQuery query;
+    query.filter = "dimensions 0x0001";
+    const std::array<std::string, 2> values{"Dimensions: 64 x 64", "ID: 0x0001"};
+
+    REQUIRE(uo_mule::gui::assets::filterMatches(query, values));
+}
+
+TEST_CASE("assetFilter_Should_RequireCommaSeparatedTerms")
+{
+    uo_mule::gui::assets::AssetQuery query;
+    query.filter = "dimensions,64";
+    const std::array<std::string, 1> values{"Dimensions: 64 x 64"};
+
+    REQUIRE(uo_mule::gui::assets::filterMatches(query, values));
+}
+
+TEST_CASE("assetFilter_Should_MatchQuotedPhrase")
+{
+    uo_mule::gui::assets::AssetQuery query;
+    query.filter = "\"64 x 64\"";
+    const std::array<std::string, 1> values{"Dimensions: 64 x 64"};
+
+    REQUIRE(uo_mule::gui::assets::filterMatches(query, values));
+}
+
+TEST_CASE("assetFilter_Should_MatchSimpleRegex")
+{
+    uo_mule::gui::assets::AssetQuery query;
+    query.filter = "/0x00[0-9A-F]{2}/";
+    const std::array<std::string, 1> values{"ID: 0x003A"};
+
+    REQUIRE(uo_mule::gui::assets::filterMatches(query, values));
 }

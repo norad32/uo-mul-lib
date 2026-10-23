@@ -43,6 +43,7 @@ void setPath(std::array<char, texmapsPathBufferSize> & buffer, const std::filesy
 void loadSource(TexmapsPanelState & state)
 {
     state.reader.reset();
+    state.texturePreviews.clear();
     state.error.clear();
     const std::string indexPath(state.sourceIndexPath.data());
     const std::string dataPath(state.sourceDataPath.data());
@@ -57,6 +58,26 @@ void loadSource(TexmapsPanelState & state)
         return;
     }
     state.reader.emplace(std::move(*result));
+}
+
+[[nodiscard]] const TexmapsTexturePreview & texturePreview(TexmapsPanelState & state, std::uint32_t id)
+{
+    const auto [iterator, inserted] = state.texturePreviews.try_emplace(id);
+    if (inserted && state.reader)
+    {
+        const auto texture = state.reader->readTexture(id);
+        if (texture)
+        {
+            iterator->second.width = texture->dimension;
+            iterator->second.height = texture->dimension;
+            iterator->second.pixels.reserve(texture->pixels.size());
+            for (const auto pixel : texture->pixels)
+            {
+                iterator->second.pixels.push_back(texturePixelToMapColor(pixel));
+            }
+        }
+    }
+    return iterator->second;
 }
 
 void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
@@ -112,26 +133,12 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
     adapter.descriptor.title = "Texmaps";
     adapter.descriptor.sourceTooltip = "Index: " + std::string(state.sourceIndexPath.data()) +
                                       "\nData: " + std::string(state.sourceDataPath.data());
+    adapter.descriptor.cacheContext = std::to_string(static_cast<int>(idFormat));
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item) {
         return strings::formatId(static_cast<std::uint32_t>(std::stoul(item.value)), idFormat);
     };
     adapter.descriptor.renderSelectionPreview = [&state](const assets::AssetItemId & item, float size) {
-        TexmapsTexturePreview preview;
-        if (state.reader)
-        {
-            const auto texture = state.reader->readTexture(static_cast<std::uint32_t>(std::stoul(item.value)));
-            if (texture)
-            {
-                preview.width = texture->dimension;
-                preview.height = texture->dimension;
-                preview.pixels.reserve(texture->pixels.size());
-                for (const auto pixel : texture->pixels)
-                {
-                    preview.pixels.push_back(texturePixelToMapColor(pixel));
-                }
-            }
-        }
-        drawTexturePreview(preview, size);
+        drawTexturePreview(texturePreview(state, static_cast<std::uint32_t>(std::stoul(item.value))), size);
     };
     adapter.descriptor.selectionPreviewSize = thumbnailSize;
     if (!state.error.empty())
@@ -166,8 +173,8 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
         }
         return items;
     };
-    adapter.queryItems = [&state, idFormat](const assets::AssetQuery & query) {
-        std::vector<assets::AssetItem> items;
+    adapter.loadSearchItems = [&state, idFormat]() {
+        std::vector<assets::AssetSearchItem> items;
         if (!state.reader)
         {
             return items;
@@ -187,13 +194,11 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
                                      std::to_string(texture->dimension));
                 }
             }
-            if (filterMatches(query, values))
-            {
-                items.push_back({.id = {.value = std::to_string(id)},
-                                 .label = formattedId,
-                                 .state = present && *present ? assets::AssetItemState::available : assets::AssetItemState::empty,
-                                 .stateMessage = {},});
-            }
+            items.push_back({.item = {.id = {.value = std::to_string(id)},
+                                      .label = formattedId,
+                                      .state = present && *present ? assets::AssetItemState::available : assets::AssetItemState::empty,
+                                      .stateMessage = {},},
+                             .values = std::move(values),});
         }
         return items;
     };
@@ -215,22 +220,7 @@ void drawTexturePreview(const TexmapsTexturePreview & texture, float size)
     };
     adapter.renderItem = [&state](const assets::AssetItem & item, bool) {
         const auto id = static_cast<std::uint32_t>(std::stoul(item.id.value));
-        TexmapsTexturePreview preview;
-        if (state.reader)
-        {
-            const auto texture = state.reader->readTexture(id);
-            if (texture)
-            {
-                preview.width = texture->dimension;
-                preview.height = texture->dimension;
-                preview.pixels.reserve(texture->pixels.size());
-                for (const auto pixel : texture->pixels)
-                {
-                    preview.pixels.push_back(texturePixelToMapColor(pixel));
-                }
-            }
-        }
-        drawTexturePreview(preview, thumbnailSize);
+        drawTexturePreview(texturePreview(state, id), thumbnailSize);
     };
     return adapter;
 }
