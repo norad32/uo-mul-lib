@@ -4,6 +4,7 @@
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/document_window.h"
 #include "gui/panels/block_inspector_panel.h"
+#include "gui/panels/icon_gallery_panel.h"
 #include "gui/panels/log_panel.h"
 #include "gui/panels/radarcol_panel.h"
 #include "gui/panels/texmap_panel.h"
@@ -254,6 +255,10 @@ void drawMapPanels(WorkbenchState & state,
     if (state.panelRegistry.find(PanelId::toolPalette)->visible)
     {
         drawToolPalettePanel(state, state.panelRegistry.find(PanelId::toolPalette)->visible);
+    }
+    if (state.panelRegistry.find(PanelId::iconGallery)->visible)
+    {
+        drawIconGalleryPanel(state.panelRegistry.find(PanelId::iconGallery)->visible, state.iconFontAvailable);
     }
 
     MapWorkspace & workspace = state.workspace.active();

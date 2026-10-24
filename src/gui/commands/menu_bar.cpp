@@ -81,6 +81,7 @@ void drawWindowsMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::panelRadarcol, state.panelRegistry.find(PanelId::radarcol)->visible);
     drawCommandItem(state, CommandId::panelTexmaps, state.panelRegistry.find(PanelId::texmaps)->visible);
     drawCommandItem(state, CommandId::panelTiledata, state.panelRegistry.find(PanelId::tiledata)->visible);
+    drawCommandItem(state, CommandId::panelIconGallery, state.panelRegistry.find(PanelId::iconGallery)->visible);
     drawCommandItem(state, CommandId::viewToggleLogPanel, state.preferences.showLogPanel);
     drawCommandItem(state, CommandId::resetLayout);
     drawCommandItem(state, CommandId::resetAssetState);

@@ -4,6 +4,7 @@
 #include "gui/commands/menu_bar.h"
 #include "gui/frame/workbench_frame.h"
 #include "gui/persistence/layout_store.h"
+#include "gui/presentation/fonts/imgui_fonts.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/state/workbench_state.h"
 #include "gui_model/persistence/asset_state_store.h"
@@ -373,6 +374,12 @@ int Application::run()
     glfwMakeContextCurrent(window.get());
     glfwSwapInterval(1);
     const ImGuiContext guiContext;
+    const ImGuiFontState fontState = configureImGuiFonts(defaultGuiResourceLookup().find(GuiResourceId::materialDesignIconsFont));
+    state.iconFontAvailable = fontState.iconFontAvailable;
+    if (!fontState.iconFontAvailable)
+    {
+        SPDLOG_LOGGER_WARN(logger_, "{}", fontState.diagnostic);
+    }
     ImGui::StyleColorsDark();
     theme::applyImGuiStyle();
     const GlfwBackend glfwBackend(window.get());

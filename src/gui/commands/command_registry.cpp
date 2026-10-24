@@ -574,8 +574,17 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Windows",
         "Show or hide Tiledata records",
         "",
+         enabled,
+         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tiledata)); });
+    add(registry,
+        CommandId::panelIconGallery,
+        "view.panel.icon-gallery",
+        "Icon Gallery",
+        "Windows",
+        "Show or hide the semantic icon gallery",
+        "",
         enabled,
-        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tiledata)); });
+        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::iconGallery)); });
 
     add(registry,
         CommandId::selectionTiles,

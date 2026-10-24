@@ -45,6 +45,7 @@ TEST_CASE("defaultCommands_Should_ExposeOrientedMenuCategories")
     REQUIRE(state.commands.find(CommandId::selectionAll)->category == "Select");
     REQUIRE(state.commands.find(CommandId::mapFit)->category == "World");
     REQUIRE(state.commands.find(CommandId::panelToolPalette)->category == "Windows");
+    REQUIRE(state.commands.find(CommandId::panelIconGallery)->category == "Windows");
     REQUIRE(state.commands.find(CommandId::toolFill)->category == "Tools");
     REQUIRE(state.commands.find(CommandId::dataPaths)->category == "Edit");
 }
@@ -68,6 +69,12 @@ TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")
     REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::toolPalette)->visible);
     REQUIRE(state.commands.execute(CommandId::panelToolPalette, state));
     REQUIRE(state.panelRegistry.find(uo_mule::gui::PanelId::toolPalette)->visible);
+
+    REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::iconGallery)->visible);
+    REQUIRE(state.commands.execute(CommandId::panelIconGallery, state));
+    REQUIRE(state.panelRegistry.find(uo_mule::gui::PanelId::iconGallery)->visible);
+    REQUIRE(state.commands.execute(CommandId::panelIconGallery, state));
+    REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::iconGallery)->visible);
 }
 
 TEST_CASE("commandRegistry_Should_DispatchRegisteredShortcuts")

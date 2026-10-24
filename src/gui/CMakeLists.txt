@@ -18,6 +18,8 @@ add_library(
     commands/command_registry.cpp
     commands/menu_bar.cpp
     presentation/dialog/dialog_presentation.cpp
+    presentation/fonts/imgui_fonts.cpp
+    presentation/icons/iconography.cpp
     dialogs/file_browser_dialog.cpp
     dialogs/file_selector_dialog.cpp
     dialogs/map_facet_dialog.cpp
@@ -30,6 +32,7 @@ add_library(
     frame/workbench_frame.cpp
     presentation/formatting/file_size.cpp
     panels/block_inspector_panel.cpp
+    panels/icon_gallery_panel.cpp
     panels/tile_inspector_panel.cpp
     panels/log_panel.cpp
     panels/radarcol_panel.cpp

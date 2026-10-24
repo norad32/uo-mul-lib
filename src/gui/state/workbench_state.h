@@ -108,6 +108,7 @@ struct WorkbenchState
     std::vector<assets::AssetStateRecord> assetStateRecords;
     bool assetStateResetRequested = false;
     bool assetStateRestored = false;
+    bool iconFontAvailable = false;
 };
 
 } // namespace uo_mule::gui

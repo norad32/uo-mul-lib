@@ -1,5 +1,6 @@
 #include "gui/panels/tool_palette_panel.h"
 #include "gui/commands/command_registry.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/state/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
@@ -25,6 +26,36 @@ namespace
 {
 
 constexpr std::size_t fuzzyNameBufferSize = 128U;
+
+[[nodiscard]] std::optional<IconId> toolIcon(ToolId tool)
+{
+    switch (tool)
+    {
+    case ToolId::move:
+        return IconId::pan;
+    case ToolId::rectangleSelect:
+        return IconId::rectangleSelect;
+    case ToolId::lassoSelect:
+        return IconId::freeSelect;
+    case ToolId::fuzzySelect:
+        return IconId::fuzzySelect;
+    case ToolId::fill:
+        return IconId::fill;
+    case ToolId::replace:
+        return IconId::replace;
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] std::string toolButtonLabel(const ToolDescriptor & tool, bool iconFontAvailable)
+{
+    const auto icon = toolIcon(tool.id);
+    if (!iconFontAvailable || !icon.has_value())
+    {
+        return tool.label;
+    }
+    return iconGlyph(*icon) + " " + tool.label;
+}
 
 ToolContext toolContext(const WorkbenchState & state)
 {
