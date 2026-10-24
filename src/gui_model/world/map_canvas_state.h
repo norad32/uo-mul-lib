@@ -1,9 +1,9 @@
 #pragma once
 
 #include "gui_model/input/coordinate_parser.h"
+#include "gui_model/persistence/preferences.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_color.h"
-#include "gui_model/persistence/preferences.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -50,7 +50,6 @@ enum class MapCanvasViewRequest : std::uint8_t
     fitMap,
     fitSelection,
     centerSelection,
-    resetView,
 };
 
 struct MapCanvasNavigationRequest
@@ -122,6 +121,10 @@ struct MapCanvasViewState
     uomul::Dimensions documentDimensions{};
     bool hasDocument = false;
     bool panning = false;
+    bool panningWithLeftButton = false;
+    bool lassoing = false;
+    SelectionCombineMode lassoCombineMode = SelectionCombineMode::replace;
+    std::vector<uomul::TileCoord> lassoPath;
     bool scrollResetPending = false;
     MapCanvasNavigationRequest navigationRequest;
     bool coordinatePopupRequested = false;

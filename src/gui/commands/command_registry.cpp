@@ -6,11 +6,15 @@
 #include "gui/state/workbench_state.h"
 #include "gui/views/world/map_canvas_view.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/map_document.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/session/workbench_session.h"
+#include "gui_model/tools/tool_contracts.h"
+#include "gui_model/tools/tool_state.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_canvas_state.h"
 #include "gui_model/world/map_context.h"
@@ -46,6 +50,29 @@ CommandAvailability requiresMapDocument(const WorkbenchState & state)
         return {.enabled = false, .disabledReason = "No map is open"};
     }
     return enabled(state);
+}
+
+ToolContext toolContext(const WorkbenchState & state)
+{
+    const DocumentRecord * active = state.session.activeDocumentRecord();
+    const bool mapOpen =
+        active != nullptr && active->summary.identity.kind == DocumentKind::map && state.workspace.reader() != nullptr;
+    return {
+        .mapDocumentOpen = mapOpen,
+        .mapEditable = mapOpen && active->summary.access == DocumentAccess::editable,
+        .selectionGranularity = state.toolState.selectionGranularity(),
+    };
+}
+
+CommandAvailability requiresTool(ToolId tool, const WorkbenchState & state)
+{
+    const ToolAvailability available = state.toolRegistry.availability(tool, toolContext(state));
+    return {.enabled = available.enabled, .disabledReason = available.disabledReason};
+}
+
+void activateTool(WorkbenchState & state, ToolId tool)
+{
+    static_cast<void>(state.toolState.activate(tool, toolContext(state), state.toolRegistry));
 }
 
 CommandAvailability requiresActiveLocation(const WorkbenchState & state)
@@ -163,6 +190,26 @@ void add(CommandRegistry & registry,
 
 } // namespace
 
+CommandId toolCommandId(ToolId tool) noexcept
+{
+    switch (tool)
+    {
+        case ToolId::move :
+            return CommandId::toolMove;
+        case ToolId::rectangleSelect :
+            return CommandId::toolRectangleSelect;
+        case ToolId::lassoSelect :
+            return CommandId::toolLassoSelect;
+        case ToolId::fuzzySelect :
+            return CommandId::toolFuzzySelect;
+        case ToolId::fill :
+            return CommandId::toolFill;
+        case ToolId::replace :
+            return CommandId::toolReplace;
+    }
+    return CommandId::toolMove;
+}
+
 void CommandRegistry::registerCommand(Command command)
 {
     commands_.push_back(std::move(command));
@@ -232,6 +279,67 @@ const std::vector<Command> & CommandRegistry::commands() const noexcept
 
 void registerDefaultCommands(CommandRegistry & registry)
 {
+    add(
+        registry,
+        CommandId::toolMove,
+        "tool.move",
+        "Pan",
+        "Tools",
+        "Pan the world view",
+        "P",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::move, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::move); });
+    add(
+        registry,
+        CommandId::toolRectangleSelect,
+        "tool.rectangle-select",
+        "Rectangle Select",
+        "Tools",
+        "Select a rectangular tile or block area",
+        "R",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::rectangleSelect, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::rectangleSelect); });
+    add(
+        registry,
+        CommandId::toolLassoSelect,
+        "tool.lasso-select",
+        "Free Select",
+        "Tools",
+        "Select a freehand tile or block area",
+        "F",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::lassoSelect, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::lassoSelect); });
+    add(
+        registry,
+        CommandId::toolFuzzySelect,
+        "tool.fuzzy-select",
+        "Fuzzy Select",
+        "Tools",
+        "Select matching connected or global map tiles",
+        "U",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::fuzzySelect, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::fuzzySelect); });
+    add(
+        registry,
+        CommandId::toolFill,
+        "tool.fill",
+        "Fill",
+        "Tools",
+        "Fill the current selection from the active tile",
+        "Shift+B",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::fill, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::fill); });
+    add(
+        registry,
+        CommandId::toolReplace,
+        "tool.replace",
+        "Replace",
+        "Tools",
+        "Replace matching IDs or elevations in the selection",
+        "Shift+R",
+        [](const WorkbenchState & state) { return requiresTool(ToolId::replace, state); },
+        [](WorkbenchState & state) { activateTool(state, ToolId::replace); });
+
     add(registry,
         CommandId::fileOpen,
         "file.open",
@@ -415,10 +523,19 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state) { state.fullscreenToggleRequested = true; });
 
     add(registry,
+        CommandId::panelToolPalette,
+        "view.panel.tool-palette",
+        "Tool Palette",
+        "Windows",
+        "Show or hide the tool palette",
+        "",
+        enabled,
+        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::toolPalette)); });
+    add(registry,
         CommandId::panelTileInspector,
         "view.panel.tile-inspector",
         "Tile Inspector",
-        "View",
+        "Windows",
         "Show or hide the tile inspector",
         "",
         enabled,
@@ -427,7 +544,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::panelBlockInspector,
         "view.panel.block-inspector",
         "Block Inspector",
-        "View",
+        "Windows",
         "Show or hide the block inspector",
         "",
         enabled,
@@ -436,7 +553,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::panelRadarcol,
         "view.panel.radarcol",
         "Radarcol",
-        "View",
+        "Windows",
         "Show or hide radar colors",
         "",
         enabled,
@@ -445,7 +562,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::panelTexmaps,
         "view.panel.texmaps",
         "Texmaps",
-        "View",
+        "Windows",
         "Show or hide textures",
         "",
         enabled,
@@ -454,7 +571,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::panelTiledata,
         "view.panel.tiledata",
         "Tiledata",
-        "View",
+        "Windows",
         "Show or hide Tiledata records",
         "",
         enabled,
@@ -464,25 +581,68 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::selectionTiles,
         "selection.tiles",
         "Tile selection",
-        "Selection",
+        "Select",
         "Select individual tiles",
         "",
         enabled,
-        [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::tiles); });
+        [](WorkbenchState & state)
+        {
+            const auto result = state.toolState.setSelectionGranularity(
+                ToolSelectionGranularity::tiles, toolContext(state), state.toolRegistry);
+            if (result.accepted)
+            {
+                state.workspace.setSelectionMode(MapSelectionMode::tiles);
+            }
+        });
     add(registry,
         CommandId::selectionBlocks,
         "selection.blocks",
         "Block selection",
-        "Selection",
+        "Select",
         "Select map blocks",
         "",
         enabled,
-        [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::blocks); });
+        [](WorkbenchState & state)
+        {
+            const auto result = state.toolState.setSelectionGranularity(
+                ToolSelectionGranularity::blocks, toolContext(state), state.toolRegistry);
+            if (result.accepted)
+            {
+                state.workspace.setSelectionMode(MapSelectionMode::blocks);
+            }
+        });
+    add(registry,
+        CommandId::selectionAll,
+        "selection.all",
+        "Select All",
+        "Select",
+        "Select all tiles or blocks at the active granularity",
+        "Ctrl+A",
+        requiresMapDocument,
+        [](WorkbenchState & state) { state.workspace.selectAll(); });
+    add(registry,
+        CommandId::selectionNone,
+        "selection.none",
+        "Select None",
+        "Select",
+        "Clear the current selection",
+        "Ctrl+Shift+A",
+        requiresMapDocument,
+        [](WorkbenchState & state) { state.workspace.clearSelection(); });
+    add(registry,
+        CommandId::selectionInvert,
+        "selection.invert",
+        "Invert",
+        "Select",
+        "Invert the current selection",
+        "Ctrl+I",
+        requiresMapDocument,
+        [](WorkbenchState & state) { state.workspace.invertSelection(); });
     add(registry,
         CommandId::dataPaths,
         "data.paths",
         "Preferences...",
-        "Data",
+        "Edit",
         "Configure the active UO data profile",
         "",
         enabled,
@@ -517,7 +677,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapFit,
         "map.fit",
         "Fit Map",
-        "Map",
+        "World",
         "Fit the complete map in the canvas",
         "",
         requiresMapDocument,
@@ -526,7 +686,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapFitSelection,
         "map.fit-selection",
         "Fit Selection",
-        "Map",
+        "World",
         "Fit the current selection in the canvas",
         "",
         requiresMapDocument,
@@ -536,27 +696,17 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapCenterSelection,
         "map.center-selection",
         "Center Selection",
-        "Map",
+        "World",
         "Center the current selection in the canvas",
         "",
         requiresMapDocument,
         [](WorkbenchState & state)
         { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::centerSelection; });
     add(registry,
-        CommandId::mapResetView,
-        "map.reset-view",
-        "Reset View",
-        "Map",
-        "Reset map pan and zoom",
-        "",
-        requiresMapDocument,
-        [](WorkbenchState & state)
-        { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::resetView; });
-    add(registry,
         CommandId::mapGoToCoordinate,
         "map.go-to-coordinate",
         "Go to Coordinate...",
-        "Map",
+        "World",
         "Center the map on a tile coordinate",
         "Ctrl+G",
         requiresMapDocument,
@@ -565,7 +715,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapGoToBlockCoordinate,
         "map.go-to-block-coordinate",
         "Go to Block...",
-        "Map",
+        "World",
         "Center the map on a block coordinate",
         "",
         requiresMapDocument,
@@ -574,7 +724,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapCopyCoordinate,
         "map.copy-coordinate",
         "Copy Coordinate",
-        "Map",
+        "World",
         "Copy the active tile coordinate",
         "",
         requiresActiveLocation,
@@ -587,7 +737,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapCopyTileData,
         "map.copy-tile-data",
         "Copy Tile Data",
-        "Map",
+        "World",
         "Copy the active tile ID and elevation",
         "",
         requiresActiveLocation,

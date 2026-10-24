@@ -186,6 +186,7 @@ struct AssetAdapterDescriptor
     bool queryWhenEmpty = false;
     std::function<std::string(const AssetItemId &)> formatSelectionId;
     std::function<void(const AssetItemId &, float)> renderSelectionPreview;
+    std::function<void(const AssetItemId &)> itemPicked;
     float selectionPreviewSize = 0.0F;
     std::function<void()> inlinePresentationControl;
     AssetSourceContext source;

@@ -9,6 +9,7 @@ namespace uo_mule::gui
 
 enum class PanelId : std::uint8_t
 {
+    toolPalette,
     tileInspector,
     blockInspector,
     radarcol,

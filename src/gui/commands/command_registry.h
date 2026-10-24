@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gui_model/tools/tool_contracts.h"
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -25,6 +26,13 @@ enum class CommandId : std::uint8_t
     viewCombined,
     viewToggleLogPanel,
     viewToggleFullscreen,
+    toolMove,
+    toolRectangleSelect,
+    toolLassoSelect,
+    toolFuzzySelect,
+    toolFill,
+    toolReplace,
+    panelToolPalette,
     panelTileInspector,
     panelBlockInspector,
     panelRadarcol,
@@ -32,13 +40,15 @@ enum class CommandId : std::uint8_t
     panelTiledata,
     selectionTiles,
     selectionBlocks,
+    selectionAll,
+    selectionNone,
+    selectionInvert,
     dataPaths,
     resetLayout,
     resetAssetState,
     mapFit,
     mapFitSelection,
     mapCenterSelection,
-    mapResetView,
     mapGoToCoordinate,
     mapGoToBlockCoordinate,
     mapCopyCoordinate,
@@ -79,5 +89,7 @@ private:
 };
 
 void registerDefaultCommands(CommandRegistry & registry);
+
+[[nodiscard]] CommandId toolCommandId(ToolId tool) noexcept;
 
 } // namespace uo_mule::gui

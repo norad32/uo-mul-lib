@@ -1,5 +1,7 @@
+#include "gui_model/tools/tool_contracts.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/workspaces/map_workspace_manager.h"
+#include "gui_model/world/map_selection.h"
 #include "uomul/map/map.h"
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
@@ -10,15 +12,18 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <vector>
 
 namespace
 {
 
+using uo_mule::gui::FillMode;
 using uo_mule::gui::MapEditScope;
 using uo_mule::gui::MapSelectionMode;
 using uo_mule::gui::MapWorkspace;
 using uo_mule::gui::MapWorkspaceManager;
 using uo_mule::gui::PendingChangesAction;
+using uo_mule::gui::ReplaceMode;
 
 constexpr uomul::Dimensions testDimensions{.widthTiles = 16, .heightTiles = 16};
 constexpr uomul::MapTile initialTile{.id = 17, .z = -4};
@@ -247,6 +252,75 @@ TEST_CASE("mapWorkspace_Should_OpenCreateHoverAndExposeSelectionState")
     REQUIRE_FALSE(workspace.hoveredTile());
 }
 
+TEST_CASE("mapWorkspace_Should_ApplyLassoSelectionWithCombineModes")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "lasso.mul";
+    MapWorkspace workspace;
+    REQUIRE(workspace.createEmptyMap(mapPath, testDimensions));
+
+    const std::vector<uomul::TileCoord> firstLasso{
+        {.x = 1, .y = 1},
+        {.x = 4, .y = 1},
+        {.x = 4, .y = 4},
+        {.x = 1, .y = 4},
+    };
+    workspace.applyLassoSelection(firstLasso, uo_mule::gui::SelectionCombineMode::replace);
+    REQUIRE(workspace.selectionMask().size() == 9);
+
+    const std::vector<uomul::TileCoord> secondLasso{
+        {.x = 3, .y = 3},
+        {.x = 5, .y = 3},
+        {.x = 5, .y = 5},
+        {.x = 3, .y = 5},
+    };
+    workspace.applyLassoSelection(secondLasso, uo_mule::gui::SelectionCombineMode::add);
+    REQUIRE(workspace.selectionMask().size() == 12);
+    workspace.applyLassoSelection(secondLasso, uo_mule::gui::SelectionCombineMode::subtract);
+    REQUIRE(workspace.selectionMask().size() == 8);
+}
+
+TEST_CASE("mapWorkspace_Should_ConvertBlockSelectionBackToClippedTiles")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "selection-conversion.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, {.widthTiles = 16, .heightTiles = 16}));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, {.widthTiles = 16, .heightTiles = 16}));
+    workspace.setBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}});
+    workspace.setSelectionMode(MapSelectionMode::tiles);
+
+    REQUIRE(workspace.selectionMode() == MapSelectionMode::tiles);
+    REQUIRE(workspace.selectionMask().size() == 64);
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 8, .y = 8}));
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 15, .y = 15}));
+}
+
+TEST_CASE("mapWorkspace_Should_ExposeSparseSelectionBoundsAndStats")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "selection-bounds.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    workspace.applyLassoSelection({{.x = 1, .y = 1}, {.x = 4, .y = 1}, {.x = 4, .y = 4}, {.x = 1, .y = 4}},
+                                  uo_mule::gui::SelectionCombineMode::replace);
+
+    const auto bounds = workspace.selectionBounds();
+    REQUIRE(bounds.has_value());
+    const auto boundsValue = bounds.value_or(uomul::TileRegion{});
+    REQUIRE(boundsValue.min.x == 1);
+    REQUIRE(boundsValue.min.y == 1);
+    REQUIRE(boundsValue.maxExclusive.x == 4);
+    REQUIRE(boundsValue.maxExclusive.y == 4);
+    const auto stats = workspace.selectionStats();
+    REQUIRE(stats.has_value());
+    REQUIRE(stats->has_value());
+    const auto statsValue = stats.value().value_or(uomul::MapStats{});
+    REQUIRE(statsValue.tileCount == 9);
+}
+
 TEST_CASE("mapWorkspace_Should_StageEditsAndRequireExplicitDirtyResolution")
 {
     const TestDirectory directory;
@@ -310,6 +384,172 @@ TEST_CASE("mapWorkspace_Should_RejectSelectionEditsWithoutSelectionAndDiscardBac
     REQUIRE(workspace.closeMap());
     REQUIRE(workspace.reader() == nullptr);
     REQUIRE(workspace.mapPath().empty());
+}
+
+TEST_CASE("mapWorkspace_Should_ApplyMaskedFillModesAndPreserveSparseTileSelection")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "masked-fill.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    workspace.setTileSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 3, .y = 3}});
+    workspace.applyTileSelection({.min = {.x = 2, .y = 2}, .maxExclusive = {.x = 3, .y = 3}},
+                                 uo_mule::gui::SelectionCombineMode::subtract);
+    REQUIRE(workspace.selectionMask().size() == 3);
+
+    const auto idFill = workspace.fillMasked({.id = 90, .z = 50}, FillMode::id);
+    REQUIRE(idFill);
+    REQUIRE(idFill->changedTiles == 3);
+    REQUIRE(workspace.selectionMask().size() == 3);
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 1, .y = 1}));
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 90, .z = initialTile.z});
+    REQUIRE(workspace.reader()->readTile({.x = 2, .y = 2}) == initialTile);
+
+    const auto zFill = workspace.fillMasked({.id = 80, .z = 51}, FillMode::z);
+    REQUIRE(zFill);
+    REQUIRE(zFill->changedTiles == 3);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 90, .z = 51});
+
+    const auto combinedFill = workspace.fillMasked({.id = 70, .z = 52}, FillMode::idAndZ);
+    REQUIRE(combinedFill);
+    REQUIRE(combinedFill->changedTiles == 3);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 70, .z = 52});
+    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == initialTile);
+    REQUIRE(workspace.dirty());
+}
+
+TEST_CASE("mapWorkspace_Should_ApplyMaskedReplaceModesToSparseTiles")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "masked-replace.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    workspace.setTileSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 3, .y = 3}});
+
+    const auto idReplace = workspace.replaceMasked(ReplaceMode::id, initialTile, {.id = 30, .z = 99});
+    REQUIRE(idReplace);
+    REQUIRE(idReplace->changedTiles == 4);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 30, .z = initialTile.z});
+    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == initialTile);
+
+    const auto zReplace = workspace.replaceMasked(ReplaceMode::z, {.id = 30, .z = initialTile.z}, {.id = 40, .z = 22});
+    REQUIRE(zReplace);
+    REQUIRE(zReplace->changedTiles == 4);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 30, .z = 22});
+
+    const auto combinedReplace = workspace.replaceMasked(ReplaceMode::idAndZ, {.id = 30, .z = 22}, {.id = 40, .z = 23});
+    REQUIRE(combinedReplace);
+    REQUIRE(combinedReplace->changedTiles == 4);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 40, .z = 23});
+    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == initialTile);
+}
+
+TEST_CASE("mapWorkspace_Should_ApplyMaskedBlockEditsOnlyToSelectedBlocks")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "masked-blocks.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    workspace.setBlockSelection({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}});
+    workspace.applyBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}},
+                                  uo_mule::gui::SelectionCombineMode::add);
+
+    const auto result = workspace.fillMasked({.id = 61, .z = 62}, FillMode::idAndZ);
+    REQUIRE(result);
+    REQUIRE(result->changedTiles == 128);
+    REQUIRE(workspace.selectionMask().size() == 2);
+    REQUIRE(workspace.reader()->readTile({.x = 7, .y = 7}) == uomul::MapTile{.id = 61, .z = 62});
+    REQUIRE(workspace.reader()->readTile({.x = 8, .y = 8}) == uomul::MapTile{.id = 61, .z = 62});
+    REQUIRE(workspace.reader()->readTile({.x = 8, .y = 7}) == initialTile);
+}
+
+TEST_CASE("mapWorkspace_Should_RejectMaskedEditsWithoutSelectionAndKeepCleanState")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "masked-no-selection.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    const auto result = workspace.fillMasked({.id = 11, .z = 12}, FillMode::idAndZ);
+
+    REQUIRE_FALSE(result);
+    REQUIRE(result.error().message == "selection scope requires a selection");
+    REQUIRE_FALSE(workspace.dirty());
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == initialTile);
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+TEST_CASE("mapWorkspace_ShouldFuzzySelectContiguousAndWholeMapWithAndPredicates")
+{
+    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "fuzzy.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+    auto editor = uomul::MapEditor::create(mapPath, directory.path() / "fuzzy-staged.mul", testDimensions);
+    REQUIRE(editor);
+    REQUIRE(editor->editTile({.x = 1, .y = 1}, {.id = 20, .z = 5}));
+    REQUIRE(editor->editTile({.x = 2, .y = 1}, {.id = 20, .z = 5}));
+    REQUIRE(editor->editTile({.x = 1, .y = 2}, {.id = 20, .z = 5}));
+    REQUIRE(editor->editTile({.x = 10, .y = 10}, {.id = 20, .z = 5}));
+    REQUIRE(editor->commit());
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(directory.path() / "fuzzy-staged.mul", testDimensions));
+    uo_mule::gui::FuzzySelectionOptions options{
+        .scope = uo_mule::gui::FuzzyScope::contiguous,
+        .idEnabled = true,
+        .id = 20,
+        .zEnabled = true,
+        .z = 5,
+        .nameEnabled = true,
+        .name = "  Granite   Floor ",
+    };
+    const auto names = [](std::uint16_t id) -> std::optional<std::string>
+    { return id == 20 ? std::optional<std::string>{"granite floor"} : std::optional<std::string>{"grass"}; };
+
+    REQUIRE(workspace.fuzzySelect(options, {.x = 1, .y = 1}, names) == 3);
+    REQUIRE(workspace.selectionMask().size() == 3);
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 1, .y = 1}));
+    REQUIRE_FALSE(workspace.selectionMask().contains(uomul::TileCoord{.x = 10, .y = 10}));
+
+    options.scope = uo_mule::gui::FuzzyScope::wholeMap;
+    REQUIRE(workspace.fuzzySelect(options, {.x = 1, .y = 1}, names) == 4);
+    REQUIRE(workspace.selectionMask().size() == 4);
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 10, .y = 10}));
+    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+}
+
+TEST_CASE("mapWorkspace_ShouldRejectUnavailableFuzzyNameAndBlockMode")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "fuzzy-rejected.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    const uo_mule::gui::FuzzySelectionOptions nameOptions{
+        .nameEnabled = true,
+        .name = "grass",
+    };
+    REQUIRE_FALSE(workspace.fuzzySelect(nameOptions, {.x = 0, .y = 0}));
+    REQUIRE(workspace.error());
+    REQUIRE(workspace.error().value_or(uomul::Error{}).message == "Tiledata name matching is unavailable");
+
+    workspace.setBlockSelection({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}});
+    const uo_mule::gui::FuzzySelectionOptions idOptions{
+        .idEnabled = true,
+        .id = initialTile.id,
+        .name = {},
+    };
+    REQUIRE_FALSE(workspace.fuzzySelect(idOptions, {.x = 0, .y = 0}));
+    REQUIRE(workspace.error());
+    REQUIRE(workspace.error().value_or(uomul::Error{}).message == "Fuzzy Select supports tiles only");
 }
 
 TEST_CASE("mapWorkspaceManager_Should_PreserveIndependentMapAndCanvasState")

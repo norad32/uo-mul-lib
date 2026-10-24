@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui_model/world/map_color.h"
+#include "gui_model/world/map_selection.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <cstdint>
@@ -37,6 +38,13 @@ enum class MapEditScope : std::uint8_t
     selection,
     wholeMap,
 };
+
+struct MapEditResult
+{
+    std::uint64_t changedTiles = 0;
+};
+
+using FuzzyTiledataNameLookup = std::function<std::optional<std::string>(std::uint16_t)>;
 
 [[nodiscard]] uomul::BlockCoord tileToBlock(uomul::TileCoord tile) noexcept;
 [[nodiscard]] uomul::TileCoord selectionInspectorTile(MapSelectionMode mode, uomul::TileCoord tile) noexcept;
@@ -90,15 +98,30 @@ public:
     [[nodiscard]] std::expected<void, uomul::Error> fill(uomul::MapTile value, MapEditScope scope);
     [[nodiscard]] std::expected<void, uomul::Error> replaceTileId(std::uint16_t from, std::uint16_t to, MapEditScope scope);
     [[nodiscard]] std::expected<void, uomul::Error> replaceZ(std::int8_t from, std::int8_t to, MapEditScope scope);
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error> fillMasked(uomul::MapTile value, FillMode mode);
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error>
+    replaceMasked(ReplaceMode mode, uomul::MapTile source, uomul::MapTile target);
+    [[nodiscard]] std::expected<std::size_t, uomul::Error> fuzzySelect(const FuzzySelectionOptions & options,
+                                                                       uomul::TileCoord origin,
+                                                                       const FuzzyTiledataNameLookup & tiledataNameLookup = {});
 
     [[nodiscard]] std::expected<std::optional<uomul::MapStats>, uomul::Error> selectionStats();
     [[nodiscard]] std::expected<void, uomul::Error> updateHover(uomul::TileCoord tile);
     [[nodiscard]] std::expected<void, uomul::Error> updateSelectedTile(uomul::TileCoord tile);
     void clearHover() noexcept;
     void clearSelectedTile() noexcept;
-    void setSelectionMode(MapSelectionMode mode) noexcept;
-    void setTileSelection(uomul::TileRegion region) noexcept;
-    void setBlockSelection(uomul::BlockRegion region) noexcept;
+    void setSelectionMode(MapSelectionMode mode);
+    void setTileSelection(uomul::TileRegion region);
+    void setBlockSelection(uomul::BlockRegion region);
+    void applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode);
+    void applyBlockSelection(uomul::BlockRegion region, SelectionCombineMode mode);
+    void applyLassoSelection(const std::vector<uomul::TileCoord> & path, SelectionCombineMode mode);
+    void clearSelection();
+    void selectAll();
+    void invertSelection();
+    void convertTileSelectionToBlocks();
+    [[nodiscard]] const MapSelectionMask & selectionMask() const noexcept;
+    [[nodiscard]] std::optional<uomul::TileRegion> selectionBounds() const;
 
     [[nodiscard]] const uomul::MapReader * reader() const noexcept;
     [[nodiscard]] uomul::Dimensions dimensions() const noexcept;
@@ -120,11 +143,14 @@ public:
 
 private:
     using EditOperation = std::function<std::expected<void, uomul::Error>(uomul::MapEditor &, const MapWorkspace &)>;
+    using CountedEditOperation =
+        std::function<std::expected<std::uint64_t, uomul::Error>(uomul::MapEditor &, const MapWorkspace &)>;
 
     [[nodiscard]] std::expected<void, uomul::Error> resolvePendingChanges(PendingChangesAction action,
                                                                           const std::optional<std::filesystem::path> & savePath,
                                                                           bool overwriteSave);
     [[nodiscard]] std::expected<void, uomul::Error> applyEdit(const EditOperation & operation);
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error> applyCountedEdit(const CountedEditOperation & operation);
     [[nodiscard]] std::expected<void, uomul::Error> fail(uomul::Error error);
     void replaceDocument(uomul::MapReader reader,
                          std::filesystem::path path,
@@ -141,6 +167,7 @@ private:
     MapSelectionMode selectionMode_ = MapSelectionMode::tiles;
     std::optional<uomul::TileRegion> tileSelection_;
     std::optional<uomul::BlockRegion> blockSelection_;
+    MapSelectionMask selectionMask_;
     std::optional<uomul::TileCoord> hoveredTile_;
     std::optional<uomul::MapTile> hoveredValue_;
     std::optional<uomul::TileCoord> selectedTile_;

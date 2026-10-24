@@ -5,6 +5,7 @@
 #include "gui/workflows/file_operations.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/session/workbench_session.h"
+#include "gui_model/tools/tool_contracts.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include <imgui.h>
 #include <string>
@@ -64,7 +65,17 @@ void drawViewMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::viewCombined, displayMode == MapDisplayMode::combined);
     drawCommandItem(state, CommandId::viewToggleFullscreen, state.preferences.workspaceFullscreen);
 
-    ImGui::Separator();
+    ImGui::EndMenu();
+}
+
+void drawWindowsMenu(WorkbenchState & state)
+{
+    if (!ImGui::BeginMenu("Windows"))
+    {
+        return;
+    }
+
+    drawCommandItem(state, CommandId::panelToolPalette, state.panelRegistry.find(PanelId::toolPalette)->visible);
     drawCommandItem(state, CommandId::panelTileInspector, state.panelRegistry.find(PanelId::tileInspector)->visible);
     drawCommandItem(state, CommandId::panelBlockInspector, state.panelRegistry.find(PanelId::blockInspector)->visible);
     drawCommandItem(state, CommandId::panelRadarcol, state.panelRegistry.find(PanelId::radarcol)->visible);
@@ -76,30 +87,76 @@ void drawViewMenu(WorkbenchState & state)
     ImGui::EndMenu();
 }
 
-void drawSelectionMenu(WorkbenchState & state)
+void drawEditMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Selection"))
+    static_cast<void>(state);
+    if (!ImGui::BeginMenu("Edit"))
+    {
+        return;
+    }
+    ImGui::BeginDisabled();
+    ImGui::MenuItem("Undo");
+    ImGui::MenuItem("Redo");
+    ImGui::Separator();
+    ImGui::MenuItem("Cut");
+    ImGui::MenuItem("Copy");
+    ImGui::MenuItem("Paste");
+    ImGui::EndDisabled();
+    ImGui::Separator();
+    drawCommandItem(state, CommandId::dataPaths);
+    ImGui::EndMenu();
+}
+
+void drawSelectMenu(WorkbenchState & state)
+{
+    if (!ImGui::BeginMenu("Select"))
     {
         return;
     }
 
     const MapSelectionMode selectionMode = state.workspace.selectionMode();
+    drawCommandItem(state, CommandId::toolRectangleSelect, state.toolState.activeTool() == ToolId::rectangleSelect);
+    drawCommandItem(state, CommandId::toolLassoSelect, state.toolState.activeTool() == ToolId::lassoSelect);
+    drawCommandItem(state, CommandId::toolFuzzySelect, state.toolState.activeTool() == ToolId::fuzzySelect);
+    ImGui::Separator();
+    drawCommandItem(state, CommandId::selectionAll);
+    drawCommandItem(state, CommandId::selectionNone);
+    drawCommandItem(state, CommandId::selectionInvert);
+    ImGui::Separator();
     drawCommandItem(state, CommandId::selectionTiles, selectionMode == MapSelectionMode::tiles);
     drawCommandItem(state, CommandId::selectionBlocks, selectionMode == MapSelectionMode::blocks);
 
     ImGui::EndMenu();
 }
 
-void drawMapMenu(WorkbenchState & state)
+void drawToolsMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Map"))
+    if (!ImGui::BeginMenu("Tools"))
+    {
+        return;
+    }
+
+    drawCommandItem(state, CommandId::toolMove, state.toolState.activeTool() == ToolId::move);
+    ImGui::Separator();
+    drawCommandItem(state, CommandId::toolRectangleSelect, state.toolState.activeTool() == ToolId::rectangleSelect);
+    drawCommandItem(state, CommandId::toolLassoSelect, state.toolState.activeTool() == ToolId::lassoSelect);
+    drawCommandItem(state, CommandId::toolFuzzySelect, state.toolState.activeTool() == ToolId::fuzzySelect);
+    ImGui::Separator();
+    drawCommandItem(state, CommandId::toolFill, state.toolState.activeTool() == ToolId::fill);
+    drawCommandItem(state, CommandId::toolReplace, state.toolState.activeTool() == ToolId::replace);
+
+    ImGui::EndMenu();
+}
+
+void drawWorldMenu(WorkbenchState & state)
+{
+    if (!ImGui::BeginMenu("World"))
     {
         return;
     }
     drawCommandItem(state, CommandId::mapFit);
     drawCommandItem(state, CommandId::mapFitSelection);
     drawCommandItem(state, CommandId::mapCenterSelection);
-    drawCommandItem(state, CommandId::mapResetView);
     drawCommandItem(state, CommandId::mapGoToCoordinate);
     drawCommandItem(state, CommandId::mapGoToBlockCoordinate);
     drawCommandItem(state, CommandId::mapCopyCoordinate);
@@ -133,14 +190,14 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
     if (showMainMenu && ImGui::BeginMainMenuBar())
     {
         drawFileMenu(state);
+        drawEditMenu(state);
+        drawSelectMenu(state);
+        drawWorldMenu(state);
+        drawToolsMenu(state);
         drawViewMenu(state);
-        drawSelectionMenu(state);
-        drawMapMenu(state);
-
-        if (ImGui::BeginMenu("Data"))
+        drawWindowsMenu(state);
+        if (ImGui::BeginMenu("Help"))
         {
-            drawCommandItem(state, CommandId::dataPaths);
-
             ImGui::EndMenu();
         }
 

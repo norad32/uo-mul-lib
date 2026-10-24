@@ -177,6 +177,7 @@ loadTextureDetails(const TextureProvider & provider, const assets::AssetItemId &
     adapter.descriptor.renderSelectionPreview = [&state, &provider](const assets::AssetItemId & item, float size)
     { drawTextureAsset(state, provider, item, size); };
     adapter.descriptor.selectionPreviewSize = thumbnailSize;
+    adapter.descriptor.itemPicked = state.itemPicked;
     adapter.descriptor.inlinePresentationControl = [&state, &pendingChanges]
     {
         bool hideUnused = state.hideUnused;

@@ -1,14 +1,14 @@
 #pragma once
 
-#include "gui_model/providers/data_providers.h"
 #include "gui_model/persistence/preferences.h"
+#include "gui_model/providers/data_providers.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_canvas_state.h"
 #include "gui_model/world/map_context.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
-#include <filesystem>
 #include <array>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <unordered_map>

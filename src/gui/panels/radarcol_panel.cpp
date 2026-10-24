@@ -296,7 +296,8 @@ loadRadarcolDetails(const uomul::RadarColReader * reader, const assets::AssetIte
     };
 }
 
-[[nodiscard]] assets::AssetAdapter makeAdapter(const RadarColorProvider & provider, IdFormat idFormat, std::string viewId)
+[[nodiscard]] assets::AssetAdapter
+makeAdapter(const RadarcolPanelState & state, const RadarColorProvider & provider, IdFormat idFormat, std::string viewId)
 {
     const ProviderStatus status = provider.status();
     assets::AssetAdapter adapter;
@@ -314,6 +315,7 @@ loadRadarcolDetails(const uomul::RadarColReader * reader, const assets::AssetIte
     adapter.descriptor.renderSelectionPreview = [&provider](const assets::AssetItemId & item, float size)
     { drawRadarcolPreview(provider, item, size, "##RadarcolSelectionColor"); };
     adapter.descriptor.selectionPreviewSize = swatchSize;
+    adapter.descriptor.itemPicked = state.itemPicked;
     if (!status.message.empty())
     {
         adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
@@ -401,7 +403,7 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
 
 void drawRadarcolPanel(RadarcolPanelState & state, const RadarColorProvider & provider, bool & visible, IdFormat idFormat)
 {
-    const auto adapter = makeAdapter(provider, idFormat, "view.radarcol");
+    const auto adapter = makeAdapter(state, provider, idFormat, "view.radarcol");
     assets::drawAssetWindow(adapter, state.assetView, visible);
 }
 

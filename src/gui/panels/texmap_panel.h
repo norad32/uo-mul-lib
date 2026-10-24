@@ -6,6 +6,7 @@
 #include "gui_model/world/map_color.h"
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 #include <vector>
 
@@ -27,6 +28,7 @@ struct TexmapsPanelState
     std::uint64_t texturePreviewRevision = 0;
     bool hideUnused = false;
     assets::AssetWindowState assetView;
+    std::function<void(const assets::AssetItemId &)> itemPicked;
 };
 
 void drawTexmapsPanel(TexmapsPanelState & state,

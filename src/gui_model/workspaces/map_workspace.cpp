@@ -1,19 +1,29 @@
 #include "gui_model/workspaces/map_workspace.h"
+#include "gui_model/tools/tool_contracts.h"
 #include "gui_model/world/map_color.h"
+#include "gui_model/world/map_selection.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <limits>
+#include <map>
+#include <numeric>
 #include <optional>
+#include <queue>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <unistd.h>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace uo_mule::gui
 {
@@ -32,6 +42,7 @@ constexpr std::uint32_t idColorThirdShift = 8;
 constexpr std::uint32_t grayscaleRange = colorChannelMaximum;
 constexpr std::uint32_t signedElevationRange = std::numeric_limits<std::uint8_t>::max();
 constexpr std::uint32_t maximumTemporaryPathAttempts = 128;
+constexpr unsigned coordinateKeyShift = 32U;
 std::atomic<std::uint64_t> temporaryPathCounter = 0;
 
 [[nodiscard]] uomul::Error makeWorkspaceError(const std::filesystem::path & path, std::string message)
@@ -74,6 +85,348 @@ std::atomic<std::uint64_t> temporaryPathCounter = 0;
 [[nodiscard]] std::uint32_t clampCoordinate(std::uint32_t coordinate, std::uint32_t limit) noexcept
 {
     return std::min(coordinate, limit);
+}
+
+[[nodiscard]] std::uint64_t coordinateKey(uomul::BlockCoord coordinate) noexcept
+{
+    return (static_cast<std::uint64_t>(coordinate.x) << coordinateKeyShift) | coordinate.y;
+}
+
+[[nodiscard]] std::size_t tileIndex(uomul::TileCoord tile) noexcept
+{
+    const std::size_t row = static_cast<std::size_t>(tile.y % uomul::mapBlockDimension);
+    const std::size_t column = static_cast<std::size_t>(tile.x % uomul::mapBlockDimension);
+    return (row * static_cast<std::size_t>(uomul::mapBlockDimension)) + column;
+}
+
+[[nodiscard]] std::vector<uomul::BlockCoord> affectedBlocks(const MapSelectionMask & selection, uomul::Dimensions dimensions);
+
+[[nodiscard]] bool selectedTile(const MapSelectionMask & selection, uomul::TileCoord tile, uomul::BlockCoord block) noexcept
+{
+    return selection.granularity() == ToolSelectionGranularity::tiles ? selection.contains(tile) : selection.contains(block);
+}
+
+[[nodiscard]] uomul::MapTile applyFill(uomul::MapTile current, uomul::MapTile value, FillMode mode) noexcept
+{
+    if (mode == FillMode::id || mode == FillMode::idAndZ)
+    {
+        current.id = value.id;
+    }
+    if (mode == FillMode::z || mode == FillMode::idAndZ)
+    {
+        current.z = value.z;
+    }
+    return current;
+}
+
+[[nodiscard]] bool replaceMatches(uomul::MapTile current, uomul::MapTile source, ReplaceMode mode) noexcept
+{
+    if (mode == ReplaceMode::id)
+    {
+        return current.id == source.id;
+    }
+    if (mode == ReplaceMode::z)
+    {
+        return current.z == source.z;
+    }
+    return current == source;
+}
+
+[[nodiscard]] uomul::MapTile applyReplace(uomul::MapTile current, uomul::MapTile target, ReplaceMode mode) noexcept
+{
+    if (mode == ReplaceMode::id || mode == ReplaceMode::idAndZ)
+    {
+        current.id = target.id;
+    }
+    if (mode == ReplaceMode::z || mode == ReplaceMode::idAndZ)
+    {
+        current.z = target.z;
+    }
+    return current;
+}
+
+template <typename Transform>
+std::expected<std::uint64_t, uomul::Error>
+editSelectedBlocks(const MapWorkspace & workspace, uomul::MapEditor & editor, Transform transform)
+{
+    std::uint64_t changedTiles = 0;
+    for (const uomul::BlockCoord block : affectedBlocks(workspace.selectionMask(), workspace.dimensions()))
+    {
+        const uomul::BlockRegion region{
+            .min = block,
+            .maxExclusive = {.x = block.x + 1U, .y = block.y + 1U},
+        };
+        auto edited = editor.editBlocks(
+            region,
+            [&workspace, block, &changedTiles, &transform](
+                uomul::BlockCoord coordinate, const uomul::MapBlock & current) -> std::expected<uomul::MapBlock, uomul::Error>
+            {
+                uomul::MapBlock changed = current;
+                const std::uint32_t minX = coordinate.x * uomul::mapBlockDimension;
+                const std::uint32_t minY = coordinate.y * uomul::mapBlockDimension;
+                const std::uint32_t maxX = std::min(workspace.dimensions().widthTiles, minX + uomul::mapBlockDimension);
+                const std::uint32_t maxY = std::min(workspace.dimensions().heightTiles, minY + uomul::mapBlockDimension);
+                for (std::uint32_t y = minY; y < maxY; y++)
+                {
+                    for (std::uint32_t x = minX; x < maxX; x++)
+                    {
+                        const uomul::TileCoord tile{.x = x, .y = y};
+                        if (!selectedTile(workspace.selectionMask(), tile, block))
+                        {
+                            continue;
+                        }
+                        const std::size_t index = tileIndex(tile);
+                        const uomul::MapTile next = transform(current.at(index));
+                        if (next != current.at(index))
+                        {
+                            changedTiles++;
+                            changed.at(index) = next;
+                        }
+                    }
+                }
+                return changed;
+            });
+        if (!edited)
+        {
+            return std::unexpected(edited.error());
+        }
+    }
+    return changedTiles;
+}
+
+[[nodiscard]] std::vector<uomul::BlockCoord> affectedBlocks(const MapSelectionMask & selection, uomul::Dimensions dimensions)
+{
+    std::vector<uomul::BlockCoord> blocks;
+    std::unordered_set<std::uint64_t> seen;
+    const auto add = [&blocks, &seen](uomul::BlockCoord block)
+    {
+        if (seen.insert(coordinateKey(block)).second)
+        {
+            blocks.push_back(block);
+        }
+    };
+
+    if (selection.granularity() == ToolSelectionGranularity::tiles)
+    {
+        selection.forEachSelectedTile(
+            [&add](uomul::TileCoord tile)
+            { add({.x = tile.x / uomul::mapBlockDimension, .y = tile.y / uomul::mapBlockDimension}); });
+    }
+    else
+    {
+        selection.forEachSelectedBlock(add);
+    }
+
+    const std::uint32_t blockWidth = (dimensions.widthTiles + uomul::mapBlockDimension - 1U) / uomul::mapBlockDimension;
+    const std::uint32_t blockHeight = (dimensions.heightTiles + uomul::mapBlockDimension - 1U) / uomul::mapBlockDimension;
+    std::erase_if(
+        blocks, [blockWidth, blockHeight](uomul::BlockCoord block) { return block.x >= blockWidth || block.y >= blockHeight; });
+    return blocks;
+}
+
+[[nodiscard]] std::string normalizeTiledataName(std::string_view value)
+{
+    std::string normalized;
+    bool pendingSpace = false;
+    for (const char character : value)
+    {
+        const auto unsignedCharacter = static_cast<unsigned char>(character);
+        if (std::isspace(unsignedCharacter) != 0)
+        {
+            pendingSpace = !normalized.empty();
+            continue;
+        }
+        if (pendingSpace)
+        {
+            normalized.push_back(' ');
+            pendingSpace = false;
+        }
+        normalized.push_back(static_cast<char>(std::tolower(unsignedCharacter)));
+    }
+    return normalized;
+}
+
+[[nodiscard]] bool fuzzyTileMatches(const uomul::MapTile & tile,
+                                    const FuzzySelectionOptions & options,
+                                    const FuzzyTiledataNameLookup & tiledataNameLookup)
+{
+    if (!options.idEnabled && !options.zEnabled && !options.nameEnabled)
+    {
+        return false;
+    }
+    if (options.idEnabled && tile.id != options.id)
+    {
+        return false;
+    }
+    if (options.zEnabled && tile.z != options.z)
+    {
+        return false;
+    }
+    if (options.nameEnabled)
+    {
+        if (!tiledataNameLookup)
+        {
+            return false;
+        }
+        const auto name = tiledataNameLookup(tile.id);
+        if (!name || normalizeTiledataName(*name) != normalizeTiledataName(options.name))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] std::vector<uomul::TileCoord> scanWholeMap(const uomul::MapReader & reader,
+                                                         uomul::Dimensions dimensions,
+                                                         const FuzzySelectionOptions & options,
+                                                         const FuzzyTiledataNameLookup & lookup)
+{
+    std::vector<uomul::TileCoord> selected;
+    for (std::uint32_t y = 0; y < dimensions.heightTiles; y++)
+    {
+        for (std::uint32_t x = 0; x < dimensions.widthTiles; x++)
+        {
+            const uomul::TileCoord tile{.x = x, .y = y};
+            const auto value = reader.readTile(tile);
+            if (value && fuzzyTileMatches(*value, options, lookup))
+            {
+                selected.push_back(tile);
+            }
+        }
+    }
+    return selected;
+}
+
+[[nodiscard]] std::vector<uomul::TileCoord> scanContiguous(const uomul::MapReader & reader,
+                                                           uomul::Dimensions dimensions,
+                                                           uomul::TileCoord origin,
+                                                           const FuzzySelectionOptions & options,
+                                                           const FuzzyTiledataNameLookup & lookup)
+{
+    std::vector<uomul::TileCoord> selected;
+    std::queue<uomul::TileCoord> pending;
+    std::unordered_set<std::uint64_t> visited;
+    pending.push(origin);
+    while (!pending.empty())
+    {
+        const uomul::TileCoord tile = pending.front();
+        pending.pop();
+        const std::uint64_t key = (static_cast<std::uint64_t>(tile.x) << coordinateKeyShift) | tile.y;
+        if (!visited.insert(key).second)
+        {
+            continue;
+        }
+        const auto value = reader.readTile(tile);
+        if (!value || !fuzzyTileMatches(*value, options, lookup))
+        {
+            continue;
+        }
+        selected.push_back(tile);
+        if (tile.x > 0U)
+            pending.push({.x = tile.x - 1U, .y = tile.y});
+        if (tile.x + 1U < dimensions.widthTiles)
+            pending.push({.x = tile.x + 1U, .y = tile.y});
+        if (tile.y > 0U)
+            pending.push({.x = tile.x, .y = tile.y - 1U});
+        if (tile.y + 1U < dimensions.heightTiles)
+            pending.push({.x = tile.x, .y = tile.y + 1U});
+    }
+    return selected;
+}
+
+struct SelectionSamples
+{
+    std::map<std::int32_t, std::uint64_t> ids;
+    std::map<std::int32_t, std::uint64_t> zs;
+    std::vector<std::int32_t> elevations;
+    std::uint64_t tileCount = 0;
+};
+
+void addSample(SelectionSamples & samples, uomul::MapTile tile)
+{
+    samples.ids[static_cast<std::int32_t>(tile.id)]++;
+    samples.zs[static_cast<std::int32_t>(tile.z)]++;
+    samples.elevations.push_back(static_cast<std::int32_t>(tile.z));
+    samples.tileCount++;
+}
+
+[[nodiscard]] uomul::MapStats makeStats(SelectionSamples samples)
+{
+    constexpr double medianDivisor = 2.0;
+    uomul::MapStats stats{.tileCount = samples.tileCount, .tileIds = {}, .zs = {}, .averageZ = {}, .medianZ = {}};
+    for (const auto [value, count] : samples.ids)
+    {
+        stats.tileIds.push_back({
+            .value = value,
+            .count = count,
+            .percentage =
+                samples.tileCount == 0U ? 0.0 : (100.0 * static_cast<double>(count) / static_cast<double>(samples.tileCount)),
+        });
+    }
+    for (const auto [value, count] : samples.zs)
+    {
+        stats.zs.push_back({
+            .value = value,
+            .count = count,
+            .percentage =
+                samples.tileCount == 0U ? 0.0 : (100.0 * static_cast<double>(count) / static_cast<double>(samples.tileCount)),
+        });
+    }
+    if (!samples.elevations.empty())
+    {
+        std::ranges::sort(samples.elevations);
+        stats.averageZ = std::accumulate(samples.elevations.begin(), samples.elevations.end(), 0.0) /
+                         static_cast<double>(samples.elevations.size());
+        const std::size_t midpoint = samples.elevations.size() / 2U;
+        stats.medianZ = samples.elevations.size() % 2U == 0U ? (static_cast<double>(samples.elevations.at(midpoint - 1U)) +
+                                                                static_cast<double>(samples.elevations.at(midpoint))) /
+                                                                   medianDivisor
+                                                             : static_cast<double>(samples.elevations.at(midpoint));
+    }
+    return stats;
+}
+
+[[nodiscard]] SelectionSamples collectSelectionSamples(const MapWorkspace & workspace)
+{
+    SelectionSamples samples;
+    const MapSelectionMask & selection = workspace.selectionMask();
+    const uomul::Dimensions dimensions = workspace.dimensions();
+    const uomul::MapReader & reader = *workspace.reader();
+    if (selection.granularity() == ToolSelectionGranularity::tiles)
+    {
+        selection.forEachSelectedTile(
+            [&samples, &reader, dimensions](uomul::TileCoord tile)
+            {
+                if (tile.x < dimensions.widthTiles && tile.y < dimensions.heightTiles)
+                {
+                    const auto value = reader.readTile(tile);
+                    if (value)
+                        addSample(samples, *value);
+                }
+            });
+        return samples;
+    }
+
+    selection.forEachSelectedBlock(
+        [&samples, &reader, dimensions](uomul::BlockCoord block)
+        {
+            const auto value = reader.readBlock(block);
+            if (!value)
+                return;
+            const std::uint32_t minX = block.x * uomul::mapBlockDimension;
+            const std::uint32_t minY = block.y * uomul::mapBlockDimension;
+            const std::uint32_t maxX = std::min(dimensions.widthTiles, minX + uomul::mapBlockDimension);
+            const std::uint32_t maxY = std::min(dimensions.heightTiles, minY + uomul::mapBlockDimension);
+            for (std::uint32_t y = minY; y < maxY; y++)
+            {
+                for (std::uint32_t x = minX; x < maxX; x++)
+                {
+                    addSample(samples, value->at(tileIndex({.x = x, .y = y})));
+                }
+            }
+        });
+    return samples;
 }
 
 } // namespace
@@ -430,6 +783,7 @@ std::expected<void, uomul::Error> MapWorkspace::closeMap()
     originalPath_.clear();
     tileSelection_.reset();
     blockSelection_.reset();
+    selectionMask_.clear();
     clearHover();
     clearSelectedTile();
     error_.reset();
@@ -509,6 +863,101 @@ std::expected<void, uomul::Error> MapWorkspace::replaceZ(std::int8_t from, std::
         });
 }
 
+std::expected<MapEditResult, uomul::Error> MapWorkspace::fillMasked(uomul::MapTile value, FillMode mode)
+{
+    if (selectionMask_.empty())
+    {
+        const auto failure = fail(makeWorkspaceError(mapPath_, "selection scope requires a selection"));
+        return std::unexpected(failure.error());
+    }
+
+    return applyCountedEdit(
+        [value, mode](uomul::MapEditor & editor, const MapWorkspace & workspace)
+        {
+            return editSelectedBlocks(
+                workspace, editor, [value, mode](uomul::MapTile tile) { return applyFill(tile, value, mode); });
+        });
+}
+
+std::expected<MapEditResult, uomul::Error>
+MapWorkspace::replaceMasked(ReplaceMode mode, uomul::MapTile source, uomul::MapTile target)
+{
+    if (selectionMask_.empty())
+    {
+        const auto failure = fail(makeWorkspaceError(mapPath_, "selection scope requires a selection"));
+        return std::unexpected(failure.error());
+    }
+
+    return applyCountedEdit(
+        [mode, source, target](uomul::MapEditor & editor, const MapWorkspace & workspace)
+        {
+            return editSelectedBlocks(workspace,
+                                      editor,
+                                      [mode, source, target](uomul::MapTile tile)
+                                      { return replaceMatches(tile, source, mode) ? applyReplace(tile, target, mode) : tile; });
+        });
+}
+
+std::expected<std::size_t, uomul::Error> MapWorkspace::fuzzySelect(const FuzzySelectionOptions & options,
+                                                                   uomul::TileCoord origin,
+                                                                   const FuzzyTiledataNameLookup & tiledataNameLookup)
+{
+    if (!reader_)
+    {
+        return std::unexpected(fail(makeWorkspaceError(mapPath_, "no map is open")).error());
+    }
+    if (selectionMask_.granularity() == ToolSelectionGranularity::blocks)
+    {
+        return std::unexpected(fail(makeWorkspaceError(mapPath_, "Fuzzy Select supports tiles only")).error());
+    }
+    if (!options.idEnabled && !options.zEnabled && !options.nameEnabled)
+    {
+        return std::unexpected(fail(makeWorkspaceError(mapPath_, "enable at least one fuzzy criterion")).error());
+    }
+    if (options.nameEnabled && !tiledataNameLookup)
+    {
+        return std::unexpected(fail(makeWorkspaceError(mapPath_, "Tiledata name matching is unavailable")).error());
+    }
+    if (origin.x >= dimensions_.widthTiles || origin.y >= dimensions_.heightTiles)
+    {
+        return std::unexpected(fail(makeWorkspaceError(mapPath_, "fuzzy selection origin is outside the map")).error());
+    }
+
+    if (options.scope == FuzzyScope::contiguous)
+    {
+        const auto originValue = reader_->readTile(origin);
+        if (!originValue)
+        {
+            return std::unexpected(originValue.error());
+        }
+        if (!fuzzyTileMatches(*originValue, options, tiledataNameLookup))
+        {
+            selectionMask_.clear();
+            tileSelection_.reset();
+            blockSelection_.reset();
+            selectionMode_ = MapSelectionMode::tiles;
+            error_.reset();
+            return std::size_t{0};
+        }
+    }
+
+    const std::vector<uomul::TileCoord> selected =
+        options.scope == FuzzyScope::wholeMap ? scanWholeMap(*reader_, dimensions_, options, tiledataNameLookup)
+                                              : scanContiguous(*reader_, dimensions_, origin, options, tiledataNameLookup);
+
+    selectionMask_.clear();
+    selectionMask_.setGranularity(ToolSelectionGranularity::tiles);
+    for (const uomul::TileCoord tile : selected)
+    {
+        selectionMask_.selectTile(tile, dimensions_);
+    }
+    tileSelection_.reset();
+    blockSelection_.reset();
+    selectionMode_ = MapSelectionMode::tiles;
+    error_.reset();
+    return selected.size();
+}
+
 std::expected<std::optional<uomul::MapStats>, uomul::Error> MapWorkspace::selectionStats()
 {
     if (!reader_)
@@ -516,36 +965,12 @@ std::expected<std::optional<uomul::MapStats>, uomul::Error> MapWorkspace::select
         return std::optional<uomul::MapStats>{};
     }
 
-    if (selectionMode_ == MapSelectionMode::tiles)
-    {
-        if (!tileSelection_)
-        {
-            return std::optional<uomul::MapStats>{};
-        }
-
-        auto stats = reader_->statsTiles(*tileSelection_);
-        if (!stats)
-        {
-            error_ = stats.error();
-            return std::unexpected(stats.error());
-        }
-
-        return std::optional<uomul::MapStats>{std::move(*stats)};
-    }
-
-    if (!blockSelection_)
+    if (selectionMask_.empty())
     {
         return std::optional<uomul::MapStats>{};
     }
 
-    auto stats = reader_->statsBlocks(*blockSelection_);
-    if (!stats)
-    {
-        error_ = stats.error();
-        return std::unexpected(stats.error());
-    }
-
-    return std::optional<uomul::MapStats>{std::move(*stats)};
+    return std::optional<uomul::MapStats>{makeStats(collectSelectionSamples(*this))};
 }
 
 std::expected<void, uomul::Error> MapWorkspace::updateHover(uomul::TileCoord tile)
@@ -604,25 +1029,164 @@ void MapWorkspace::clearSelectedTile() noexcept
     selectedValue_.reset();
 }
 
-void MapWorkspace::setSelectionMode(MapSelectionMode mode) noexcept
+void MapWorkspace::setSelectionMode(MapSelectionMode mode)
 {
+    if (selectionMode_ == mode)
+    {
+        return;
+    }
+
+    if (mode == MapSelectionMode::blocks && selectionMask_.granularity() == ToolSelectionGranularity::tiles)
+    {
+        selectionMask_.convertTilesToCoveringBlocks(dimensions_);
+        tileSelection_.reset();
+        blockSelection_.reset();
+        selectionMode_ = mode;
+        return;
+    }
+
+    if (mode == MapSelectionMode::tiles && selectionMask_.granularity() == ToolSelectionGranularity::blocks)
+    {
+        selectionMask_.convertBlocksToTiles(dimensions_);
+        tileSelection_.reset();
+        blockSelection_.reset();
+        selectionMode_ = mode;
+        return;
+    }
+
     selectionMode_ = mode;
     tileSelection_.reset();
     blockSelection_.reset();
+    selectionMask_.setGranularity(mode == MapSelectionMode::tiles ? ToolSelectionGranularity::tiles
+                                                                  : ToolSelectionGranularity::blocks);
 }
 
-void MapWorkspace::setTileSelection(uomul::TileRegion region) noexcept
+void MapWorkspace::setTileSelection(uomul::TileRegion region)
 {
     tileSelection_ = clampTileRegion(region, dimensions_);
     blockSelection_.reset();
     selectionMode_ = MapSelectionMode::tiles;
+    selectionMask_.replaceTileRegion(*tileSelection_, dimensions_);
 }
 
-void MapWorkspace::setBlockSelection(uomul::BlockRegion region) noexcept
+void MapWorkspace::applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode)
+{
+    const uomul::TileRegion clamped = clampTileRegion(region, dimensions_);
+    if (mode == SelectionCombineMode::replace)
+    {
+        setTileSelection(clamped);
+        return;
+    }
+
+    MapSelectionMask selection;
+    selection.replaceTileRegion(clamped, dimensions_);
+    selectionMode_ = MapSelectionMode::tiles;
+    tileSelection_.reset();
+    blockSelection_.reset();
+    if (mode == SelectionCombineMode::add)
+    {
+        selectionMask_.add(selection);
+    }
+    else
+    {
+        selectionMask_.subtract(selection);
+    }
+}
+
+void MapWorkspace::setBlockSelection(uomul::BlockRegion region)
 {
     blockSelection_ = clampBlockRegion(region, dimensions_);
     tileSelection_.reset();
     selectionMode_ = MapSelectionMode::blocks;
+    selectionMask_.replaceBlockRegion(*blockSelection_, dimensions_);
+}
+
+void MapWorkspace::applyBlockSelection(uomul::BlockRegion region, SelectionCombineMode mode)
+{
+    const uomul::BlockRegion clamped = clampBlockRegion(region, dimensions_);
+    if (mode == SelectionCombineMode::replace)
+    {
+        setBlockSelection(clamped);
+        return;
+    }
+
+    MapSelectionMask selection;
+    selection.replaceBlockRegion(clamped, dimensions_);
+    selectionMode_ = MapSelectionMode::blocks;
+    tileSelection_.reset();
+    blockSelection_.reset();
+    if (mode == SelectionCombineMode::add)
+    {
+        selectionMask_.add(selection);
+    }
+    else
+    {
+        selectionMask_.subtract(selection);
+    }
+}
+
+void MapWorkspace::applyLassoSelection(const std::vector<uomul::TileCoord> & path, SelectionCombineMode mode)
+{
+    MapSelectionMask selection;
+    selection.setGranularity(selectionMask_.granularity());
+    selection.replaceLasso(path, dimensions_);
+    if (mode == SelectionCombineMode::replace)
+    {
+        selectionMask_ = std::move(selection);
+    }
+    else if (mode == SelectionCombineMode::add)
+    {
+        selectionMask_.add(selection);
+    }
+    else
+    {
+        selectionMask_.subtract(selection);
+    }
+    selectionMode_ =
+        selectionMask_.granularity() == ToolSelectionGranularity::tiles ? MapSelectionMode::tiles : MapSelectionMode::blocks;
+    tileSelection_.reset();
+    blockSelection_.reset();
+}
+
+void MapWorkspace::clearSelection()
+{
+    tileSelection_.reset();
+    blockSelection_.reset();
+    selectionMask_.clear();
+}
+
+void MapWorkspace::selectAll()
+{
+    tileSelection_.reset();
+    blockSelection_.reset();
+    selectionMask_.selectAll(dimensions_);
+    selectionMode_ =
+        selectionMask_.granularity() == ToolSelectionGranularity::tiles ? MapSelectionMode::tiles : MapSelectionMode::blocks;
+}
+
+void MapWorkspace::invertSelection()
+{
+    selectionMask_.invert(dimensions_);
+    tileSelection_.reset();
+    blockSelection_.reset();
+}
+
+void MapWorkspace::convertTileSelectionToBlocks()
+{
+    selectionMask_.convertTilesToCoveringBlocks(dimensions_);
+    tileSelection_.reset();
+    blockSelection_.reset();
+    selectionMode_ = MapSelectionMode::blocks;
+}
+
+const MapSelectionMask & MapWorkspace::selectionMask() const noexcept
+{
+    return selectionMask_;
+}
+
+std::optional<uomul::TileRegion> MapWorkspace::selectionBounds() const
+{
+    return selectionMask_.tileBounds(dimensions_);
 }
 
 const uomul::MapReader * MapWorkspace::reader() const noexcept
@@ -779,13 +1343,74 @@ std::expected<void, uomul::Error> MapWorkspace::applyEdit(const EditOperation & 
     const auto selectionMode = selectionMode_;
     const auto tileSelection = tileSelection_;
     const auto blockSelection = blockSelection_;
+    const auto selectionMask = selectionMask_;
     replaceDocument(std::move(*opened), *outputPath, originalPath_, *outputPath);
     selectionMode_ = selectionMode;
     tileSelection_ = tileSelection;
     blockSelection_ = blockSelection;
+    selectionMask_ = selectionMask;
     error_.reset();
 
     return {};
+}
+
+std::expected<MapEditResult, uomul::Error> MapWorkspace::applyCountedEdit(const CountedEditOperation & operation)
+{
+    if (!reader_)
+    {
+        const auto failure = fail(makeWorkspaceError(mapPath_, "no map is open"));
+        return std::unexpected(failure.error());
+    }
+
+    const auto sourcePath = mapPath_;
+    auto outputPath = createWorkingPath(sourcePath);
+    if (!outputPath)
+    {
+        const auto failure = fail(outputPath.error());
+        return std::unexpected(failure.error());
+    }
+
+    auto editor = uomul::MapEditor::create(sourcePath, *outputPath, dimensions_);
+    if (!editor)
+    {
+        const auto failure = fail(editor.error());
+        return std::unexpected(failure.error());
+    }
+
+    auto changed = operation(*editor, *this);
+    if (!changed)
+    {
+        const auto failure = fail(changed.error());
+        return std::unexpected(failure.error());
+    }
+
+    if (auto committed = editor->commit(); !committed)
+    {
+        const auto failure = fail(committed.error());
+        return std::unexpected(failure.error());
+    }
+
+    auto opened = uomul::MapReader::open(*outputPath, dimensions_);
+    if (!opened)
+    {
+        std::error_code ignoredError;
+        std::filesystem::remove(*outputPath, ignoredError);
+        const auto failure = fail(opened.error());
+        return std::unexpected(failure.error());
+    }
+
+    const auto selectionMode = selectionMode_;
+    const auto tileSelection = tileSelection_;
+    const auto blockSelection = blockSelection_;
+    const auto selectionMask = selectionMask_;
+    replaceDocument(std::move(*opened), *outputPath, originalPath_, *outputPath);
+    selectionMode_ = selectionMode;
+    tileSelection_ = tileSelection;
+    blockSelection_ = blockSelection;
+    selectionMask_ = selectionMask;
+    error_.reset();
+
+    return MapEditResult{.changedTiles = *changed};
 }
 
 std::expected<void, uomul::Error> MapWorkspace::fail(uomul::Error error)

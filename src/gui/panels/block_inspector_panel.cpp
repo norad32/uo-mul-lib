@@ -1,19 +1,19 @@
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/views/world/tile_labels.h"
-#include "gui_model/providers/data_providers.h"
 #include "gui_model/persistence/preferences.h"
-#include "gui_model/world/map_canvas_state.h"
+#include "gui_model/providers/data_providers.h"
 #include "gui_model/workspaces/map_workspace.h"
+#include "gui_model/world/map_canvas_state.h"
 #include "gui_model/world/map_color.h"
 #include "gui_model/world/map_context.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
+#include <GL/gl.h>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <algorithm>
-#include <GL/gl.h>
 #include <imgui.h>
 #include <optional>
 #include <string>
@@ -105,15 +105,15 @@ void uploadTexture(MapCanvasCachedTexture & texture)
 }
 
 void drawTileCell(const uomul::MapBlock & block,
-                   uomul::BlockCoord blockCoordinate,
-                   MapWorkspace & workspace,
-                   const RadarColorProvider & radarColors,
-                   const TextureProvider & textures,
-                   MapViewTileSource tileSource,
-                   BlockInspectorPanelState & state,
-                   std::size_t row,
-                   std::size_t column,
-                   ImVec2 gridOrigin)
+                  uomul::BlockCoord blockCoordinate,
+                  MapWorkspace & workspace,
+                  const RadarColorProvider & radarColors,
+                  const TextureProvider & textures,
+                  MapViewTileSource tileSource,
+                  BlockInspectorPanelState & state,
+                  std::size_t row,
+                  std::size_t column,
+                  ImVec2 gridOrigin)
 {
     const std::size_t index = (row * uomul::mapBlockDimension) + column;
     const uomul::MapTile tile = block.at(index);
@@ -230,16 +230,7 @@ void drawBlock(const uomul::MapBlock & block,
                           coordinate.c_str());
         for (std::size_t column = 0; column < uomul::mapBlockDimension; column++)
         {
-            drawTileCell(block,
-                         blockCoordinate,
-                         workspace,
-                         radarColors,
-                         textures,
-                         tileSource,
-                         state,
-                         row,
-                         column,
-                         gridOrigin);
+            drawTileCell(block, blockCoordinate, workspace, radarColors, textures, tileSource, state, row, column, gridOrigin);
         }
     }
 
@@ -271,9 +262,7 @@ void refreshBlock(const uomul::MapReader & reader,
     }
 }
 
-void invalidateTexturePreviews(BlockInspectorPanelState & state,
-                               const TextureProvider & textures,
-                               MapViewTileSource tileSource)
+void invalidateTexturePreviews(BlockInspectorPanelState & state, const TextureProvider & textures, MapViewTileSource tileSource)
 {
     if (state.textureProviderRevision == textures.status().revision && state.textureSource == tileSource)
     {
@@ -376,13 +365,8 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
                         (blockCoordinate.y * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U);
             if (state.block)
             {
-                drawBlock(*state.block,
-                          blockCoordinate,
-                          workspace,
-                          providers.radarColors(),
-                          providers.textures(),
-                          tileSource,
-                          state);
+                drawBlock(
+                    *state.block, blockCoordinate, workspace, providers.radarColors(), providers.textures(), tileSource, state);
                 if (context.selectedTile && context.selectedValue)
                 {
                     const uomul::TileCoord tileCoordinate = *context.selectedTile;

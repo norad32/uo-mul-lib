@@ -225,7 +225,10 @@ TEST_CASE("DataProviders_Should_ReadConfiguredTiledataMapAndStaticRecords")
     const auto & tiledata = providers.tiledata();
     REQUIRE(tiledata.status().state == uo_mule::gui::ProviderAssetState::available);
     REQUIRE(tiledata.layout() == uomul::TiledataLayout::extended64);
-    REQUIRE(tiledata.mapTile(3U)->record.name == "grass");
+    const auto mapTile = tiledata.mapTile(3U);
+    REQUIRE(mapTile.has_value());
+    const auto mapTileValue = mapTile.value_or(uo_mule::gui::ProviderMapTile{});
+    REQUIRE(mapTileValue.record.name == "grass");
     REQUIRE(tiledata.staticTile(0U).has_value());
     REQUIRE(tiledata.status(3U).state == uo_mule::gui::ProviderAssetState::available);
     REQUIRE(tiledata.staticStatus(0U).state == uo_mule::gui::ProviderAssetState::available);

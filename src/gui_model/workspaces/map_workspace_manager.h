@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <unordered_map>
+#include <utility>
 
 namespace uo_mule::gui
 {
@@ -39,6 +40,21 @@ public:
     void setSelectionMode(MapSelectionMode mode) noexcept { active_->setSelectionMode(mode); }
     void setTileSelection(uomul::TileRegion region) noexcept { active_->setTileSelection(region); }
     void setBlockSelection(uomul::BlockRegion region) noexcept { active_->setBlockSelection(region); }
+    void applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode) { active_->applyTileSelection(region, mode); }
+    void applyBlockSelection(uomul::BlockRegion region, SelectionCombineMode mode)
+    {
+        active_->applyBlockSelection(region, mode);
+    }
+    void applyLassoSelection(const std::vector<uomul::TileCoord> & path, SelectionCombineMode mode)
+    {
+        active_->applyLassoSelection(path, mode);
+    }
+    void clearSelection() { active_->clearSelection(); }
+    void selectAll() { active_->selectAll(); }
+    void invertSelection() { active_->invertSelection(); }
+    void convertTileSelectionToBlocks() { active_->convertTileSelectionToBlocks(); }
+    [[nodiscard]] const MapSelectionMask & selectionMask() const noexcept { return active_->selectionMask(); }
+    [[nodiscard]] std::optional<uomul::TileRegion> selectionBounds() const { return active_->selectionBounds(); }
     [[nodiscard]] const std::optional<uomul::TileRegion> & tileSelection() const noexcept { return active_->tileSelection(); }
     [[nodiscard]] const std::optional<uomul::BlockRegion> & blockSelection() const noexcept
     {
@@ -71,6 +87,21 @@ public:
     [[nodiscard]] std::expected<void, uomul::Error> replaceZ(std::int8_t from, std::int8_t to, MapEditScope scope)
     {
         return active_->replaceZ(from, to, scope);
+    }
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error> fillMasked(uomul::MapTile value, FillMode mode)
+    {
+        return active_->fillMasked(value, mode);
+    }
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error>
+    replaceMasked(ReplaceMode mode, uomul::MapTile source, uomul::MapTile target)
+    {
+        return active_->replaceMasked(mode, source, target);
+    }
+    [[nodiscard]] std::expected<std::size_t, uomul::Error> fuzzySelect(const FuzzySelectionOptions & options,
+                                                                       uomul::TileCoord origin,
+                                                                       const FuzzyTiledataNameLookup & tiledataNameLookup = {})
+    {
+        return active_->fuzzySelect(options, origin, tiledataNameLookup);
     }
 
     [[nodiscard]] std::expected<void, uomul::Error>

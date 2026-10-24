@@ -1,8 +1,9 @@
+#include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_descriptors.h"
+#include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/tiledata_document.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/source/tiledata_source.h"
-#include "gui_model/tile_sources/tile_source_contracts.h"
 #include "uomul/tiledata/tiledata.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
@@ -35,6 +36,7 @@ TEST_CASE("TiledataLayout_Should_ResolveExactFixtureSize")
     REQUIRE_FALSE(uo_mule::gui::resolveTiledataLayout(fixturePath(), uo_mule::gui::TiledataLayoutSelection::legacy32));
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE("TiledataDocument_Should_OpenReadOnlyAndReuseDescriptorIdentity")
 {
     REQUIRE(std::filesystem::is_regular_file(fixturePath()));
@@ -42,9 +44,16 @@ TEST_CASE("TiledataDocument_Should_OpenReadOnlyAndReuseDescriptorIdentity")
     REQUIRE(document);
     REQUIRE(document->readOnly());
     REQUIRE_FALSE(document->dirty());
-    REQUIRE(document->reader()->readMapTile(3)->name == "grass");
+    const auto & reader = document->reader();
+    REQUIRE(reader.has_value());
+    if (reader)
+    {
+        const auto mapTile = reader->readMapTile(3);
+        REQUIRE(mapTile);
+        REQUIRE(mapTile.value_or(uomul::MapTileRecord{}).name == "grass");
+    }
 
-    uo_mule::gui::DocumentDescriptorRegistry registry;
+    const uo_mule::gui::DocumentDescriptorRegistry registry;
     const auto summary = registry.createSummary({
         .kind = uo_mule::gui::DocumentKind::tiledata,
         .source = uo_mule::gui::makeDocumentSourceIdentity({fixturePath()}),
