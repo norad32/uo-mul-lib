@@ -205,6 +205,45 @@ TEST_CASE("toolState_Should_StoreFillAndIndependentReplaceOptions")
     REQUIRE(state.replaceTarget() == uomul::MapTile{.id = 2345, .z = 34});
 }
 
+TEST_CASE("toolState_Should_RoundTripPersistedOptionsWithoutSelectionMembership")
+{
+    ToolState source;
+    const ToolRegistry registry;
+    const ToolContext context{.mapDocumentOpen = true, .mapEditable = true};
+    REQUIRE(source.activate(ToolId::replace, context, registry).accepted);
+    REQUIRE(source.setSelectionGranularity(ToolSelectionGranularity::blocks, context, registry).accepted);
+    source.setActiveTile({.id = 1234, .z = -12});
+    REQUIRE(source.setFillIdEnabled(true).accepted);
+    REQUIRE(source.setFillZEnabled(false).accepted);
+    REQUIRE(source.setReplaceIdEnabled(false).accepted);
+    REQUIRE(source.setReplaceSourceId(22).accepted);
+    REQUIRE(source.setReplaceTargetZ(5).accepted);
+    source.setFuzzyScope(uo_mule::gui::FuzzyScope::wholeMap);
+    source.setFuzzyIdEnabled(true);
+    REQUIRE(source.setFuzzyId(77).accepted);
+    source.setFuzzyNameEnabled(true);
+    source.setFuzzyName("granite floor");
+
+    uo_mule::gui::ToolPreferences persisted;
+    source.savePreferences(persisted);
+    ToolState restored;
+    restored.loadPreferences(persisted);
+
+    REQUIRE(restored.activeTool() == ToolId::replace);
+    REQUIRE(restored.selectionGranularity() == ToolSelectionGranularity::blocks);
+    REQUIRE(restored.activeTile() == uomul::MapTile{.id = 1234, .z = -12});
+    REQUIRE(restored.fillIdEnabled());
+    REQUIRE_FALSE(restored.fillZEnabled());
+    REQUIRE_FALSE(restored.replaceIdEnabled());
+    REQUIRE(restored.replaceZEnabled());
+    REQUIRE(restored.replaceSource() == uomul::MapTile{.id = 22, .z = 0});
+    REQUIRE(restored.replaceTarget() == uomul::MapTile{.id = 0, .z = 5});
+    REQUIRE(restored.fuzzyOptions().scope == uo_mule::gui::FuzzyScope::wholeMap);
+    REQUIRE(restored.fuzzyOptions().id == 77);
+    REQUIRE(restored.fuzzyOptions().name == "granite floor");
+    REQUIRE_FALSE(restored.tilePickRequested());
+}
+
 TEST_CASE("toolState_Should_TrackActiveTilePickerSource")
 {
     ToolState state;

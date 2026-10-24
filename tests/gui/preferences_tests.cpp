@@ -121,3 +121,46 @@ TEST_CASE("preferences_Should_PersistLastActiveProfile")
     REQUIRE(uo_mule::gui::loadPreferences(preferencesFile).activeDataProfile == "Classic UO Felucca");
     std::filesystem::remove_all(preferencesFile.parent_path());
 }
+
+TEST_CASE("savePreferences_Should_RoundTripToolOptionsWithoutSelectionState")
+{
+    const auto preferencesFile = std::filesystem::temp_directory_path() / "pref-tools" / "preferences.conf";
+    std::filesystem::remove_all(preferencesFile.parent_path());
+    uo_mule::gui::Preferences expected;
+    expected.tools.activeTool = uo_mule::gui::ToolId::replace;
+    expected.tools.selectionGranularity = uo_mule::gui::ToolSelectionGranularity::blocks;
+    expected.tools.activeTileSet = true;
+    expected.tools.activeTile = {.id = 1234, .z = -12};
+    expected.tools.fillIdEnabled = true;
+    expected.tools.fillZEnabled = false;
+    expected.tools.replaceIdEnabled = false;
+    expected.tools.replaceZEnabled = true;
+    expected.tools.replaceSource = {.id = 22, .z = 3};
+    expected.tools.replaceTarget = {.id = 44, .z = 5};
+    expected.tools.fuzzy.scope = uo_mule::gui::FuzzyScope::wholeMap;
+    expected.tools.fuzzy.idEnabled = true;
+    expected.tools.fuzzy.id = 77;
+    expected.tools.fuzzy.zEnabled = true;
+    expected.tools.fuzzy.z = -4;
+    expected.tools.fuzzy.nameEnabled = true;
+    expected.tools.fuzzy.name = "granite floor";
+
+    uo_mule::gui::savePreferences(expected, preferencesFile);
+    const auto actual = uo_mule::gui::loadPreferences(preferencesFile);
+
+    REQUIRE(actual.tools.activeTool == uo_mule::gui::ToolId::replace);
+    REQUIRE(actual.tools.selectionGranularity == uo_mule::gui::ToolSelectionGranularity::blocks);
+    REQUIRE(actual.tools.activeTileSet);
+    REQUIRE(actual.tools.activeTile == uomul::MapTile{.id = 1234, .z = -12});
+    REQUIRE(actual.tools.fillIdEnabled);
+    REQUIRE_FALSE(actual.tools.fillZEnabled);
+    REQUIRE_FALSE(actual.tools.replaceIdEnabled);
+    REQUIRE(actual.tools.replaceZEnabled);
+    REQUIRE(actual.tools.replaceSource == uomul::MapTile{.id = 22, .z = 3});
+    REQUIRE(actual.tools.replaceTarget == uomul::MapTile{.id = 44, .z = 5});
+    REQUIRE(actual.tools.fuzzy.scope == uo_mule::gui::FuzzyScope::wholeMap);
+    REQUIRE(actual.tools.fuzzy.id == 77);
+    REQUIRE(actual.tools.fuzzy.z == -4);
+    REQUIRE(actual.tools.fuzzy.name == "granite floor");
+    std::filesystem::remove_all(preferencesFile.parent_path());
+}

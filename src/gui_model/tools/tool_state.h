@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui_model/tools/tool_contracts.h"
+#include "gui_model/persistence/preferences.h"
 #include "uomul/map/map.h"
 #include <optional>
 
@@ -58,6 +59,8 @@ public:
     [[nodiscard]] ToolStateChange setPickedTileId(std::int32_t id) noexcept;
     void requestTilePick(TilePickTarget target = TilePickTarget::activeTile) noexcept;
     void clearTilePickRequest() noexcept;
+    void loadPreferences(const ToolPreferences & preferences) noexcept;
+    void savePreferences(ToolPreferences & preferences) const noexcept;
 
 private:
     ToolId activeTool_ = ToolId::move;

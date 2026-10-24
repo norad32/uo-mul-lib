@@ -11,6 +11,7 @@ namespace uo_mule::gui
 WorkbenchState::WorkbenchState(Preferences initialPreferences) :
     preferences(std::move(initialPreferences)), persistedPreferences(preferences)
 {
+    toolState.loadPreferences(preferences.tools);
     workspace.canvasState().zoom = defaultMapCanvasZoom;
     registerDefaultCommands(commands);
     session.updateProfile(activeProfile);

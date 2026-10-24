@@ -24,6 +24,62 @@ namespace uo_mule::gui
 namespace
 {
 
+[[nodiscard]] std::string_view toolName(ToolId tool) noexcept
+{
+    switch (tool)
+    {
+    case ToolId::move: return "pan";
+    case ToolId::rectangleSelect: return "rectangle";
+    case ToolId::lassoSelect: return "free";
+    case ToolId::fuzzySelect: return "fuzzy";
+    case ToolId::fill: return "fill";
+    case ToolId::replace: return "replace";
+    }
+    return "pan";
+}
+
+[[nodiscard]] ToolId parseTool(std::string_view value) noexcept
+{
+    if (value == "rectangle") return ToolId::rectangleSelect;
+    if (value == "free") return ToolId::lassoSelect;
+    if (value == "fuzzy") return ToolId::fuzzySelect;
+    if (value == "fill") return ToolId::fill;
+    if (value == "replace") return ToolId::replace;
+    return ToolId::move;
+}
+
+[[nodiscard]] std::string_view granularityName(ToolSelectionGranularity granularity) noexcept
+{
+    return granularity == ToolSelectionGranularity::blocks ? "blocks" : "tiles";
+}
+
+[[nodiscard]] ToolSelectionGranularity parseGranularity(std::string_view value) noexcept
+{
+    return value == "blocks" ? ToolSelectionGranularity::blocks : ToolSelectionGranularity::tiles;
+}
+
+[[nodiscard]] std::string_view fuzzyScopeName(FuzzyScope scope) noexcept
+{
+    return scope == FuzzyScope::wholeMap ? "whole" : "contiguous";
+}
+
+[[nodiscard]] FuzzyScope parseFuzzyScope(std::string_view value) noexcept
+{
+    return value == "whole" ? FuzzyScope::wholeMap : FuzzyScope::contiguous;
+}
+
+[[nodiscard]] std::int32_t parseInteger(const std::string & value, std::int32_t fallback) noexcept
+{
+    try
+    {
+        return static_cast<std::int32_t>(std::stol(value));
+    }
+    catch (...)
+    {
+        return fallback;
+    }
+}
+
 std::atomic<std::uint64_t> temporaryFileCounter = 0;
 constexpr std::uint32_t maximumTemporaryFileAttempts = 128;
 
@@ -152,6 +208,12 @@ Preferences loadPreferences(const std::filesystem::path & path)
             continue;
         }
 
+        if (key == "tool_fuzzy_name")
+        {
+            file >> std::quoted(preferences.tools.fuzzy.name);
+            continue;
+        }
+
         if (!(file >> value))
         {
             break;
@@ -201,6 +263,26 @@ Preferences loadPreferences(const std::filesystem::path & path)
         {
             preferences.mapViewTileSource = value == "radarcol" ? MapViewTileSource::radarcol : MapViewTileSource::textures;
         }
+        else if (key == "tool_active") preferences.tools.activeTool = parseTool(value);
+        else if (key == "tool_region") preferences.tools.selectionGranularity = parseGranularity(value);
+        else if (key == "tool_active_tile_set") preferences.tools.activeTileSet = value == "1";
+        else if (key == "tool_active_tile_id") preferences.tools.activeTile.id = static_cast<std::uint16_t>(std::clamp(parseInteger(value, 0), 0, 65535));
+        else if (key == "tool_active_tile_z") preferences.tools.activeTile.z = static_cast<std::int8_t>(std::clamp(parseInteger(value, 0), -128, 127));
+        else if (key == "tool_fill_id") preferences.tools.fillIdEnabled = value == "1";
+        else if (key == "tool_fill_z") preferences.tools.fillZEnabled = value == "1";
+        else if (key == "tool_replace_id") preferences.tools.replaceIdEnabled = value == "1";
+        else if (key == "tool_replace_z") preferences.tools.replaceZEnabled = value == "1";
+        else if (key == "tool_replace_source_id") preferences.tools.replaceSource.id = static_cast<std::uint16_t>(std::clamp(parseInteger(value, 0), 0, 65535));
+        else if (key == "tool_replace_source_z") preferences.tools.replaceSource.z = static_cast<std::int8_t>(std::clamp(parseInteger(value, 0), -128, 127));
+        else if (key == "tool_replace_target_id") preferences.tools.replaceTarget.id = static_cast<std::uint16_t>(std::clamp(parseInteger(value, 0), 0, 65535));
+        else if (key == "tool_replace_target_z") preferences.tools.replaceTarget.z = static_cast<std::int8_t>(std::clamp(parseInteger(value, 0), -128, 127));
+        else if (key == "tool_fuzzy_scope") preferences.tools.fuzzy.scope = parseFuzzyScope(value);
+        else if (key == "tool_fuzzy_id_enabled") preferences.tools.fuzzy.idEnabled = value == "1";
+        else if (key == "tool_fuzzy_id") preferences.tools.fuzzy.id = static_cast<std::uint16_t>(std::clamp(parseInteger(value, 0), 0, 65535));
+        else if (key == "tool_fuzzy_z_enabled") preferences.tools.fuzzy.zEnabled = value == "1";
+        else if (key == "tool_fuzzy_z") preferences.tools.fuzzy.z = static_cast<std::int8_t>(std::clamp(parseInteger(value, 0), -128, 127));
+        else if (key == "tool_fuzzy_name_enabled") preferences.tools.fuzzy.nameEnabled = value == "1";
+        else if (key == "tool_fuzzy_name") preferences.tools.fuzzy.name = value;
     }
     return preferences;
 }
@@ -230,6 +312,26 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
     contents << "workspace_fullscreen " << static_cast<int>(preferences.workspaceFullscreen) << '\n';
     contents << "map_view_tile_source "
              << (preferences.mapViewTileSource == MapViewTileSource::radarcol ? "radarcol" : "textures") << '\n';
+    contents << "tool_active " << toolName(preferences.tools.activeTool) << '\n';
+    contents << "tool_region " << granularityName(preferences.tools.selectionGranularity) << '\n';
+    contents << "tool_active_tile_set " << static_cast<int>(preferences.tools.activeTileSet) << '\n';
+    contents << "tool_active_tile_id " << preferences.tools.activeTile.id << '\n';
+    contents << "tool_active_tile_z " << static_cast<int>(preferences.tools.activeTile.z) << '\n';
+    contents << "tool_fill_id " << static_cast<int>(preferences.tools.fillIdEnabled) << '\n';
+    contents << "tool_fill_z " << static_cast<int>(preferences.tools.fillZEnabled) << '\n';
+    contents << "tool_replace_id " << static_cast<int>(preferences.tools.replaceIdEnabled) << '\n';
+    contents << "tool_replace_z " << static_cast<int>(preferences.tools.replaceZEnabled) << '\n';
+    contents << "tool_replace_source_id " << preferences.tools.replaceSource.id << '\n';
+    contents << "tool_replace_source_z " << static_cast<int>(preferences.tools.replaceSource.z) << '\n';
+    contents << "tool_replace_target_id " << preferences.tools.replaceTarget.id << '\n';
+    contents << "tool_replace_target_z " << static_cast<int>(preferences.tools.replaceTarget.z) << '\n';
+    contents << "tool_fuzzy_scope " << fuzzyScopeName(preferences.tools.fuzzy.scope) << '\n';
+    contents << "tool_fuzzy_id_enabled " << static_cast<int>(preferences.tools.fuzzy.idEnabled) << '\n';
+    contents << "tool_fuzzy_id " << preferences.tools.fuzzy.id << '\n';
+    contents << "tool_fuzzy_z_enabled " << static_cast<int>(preferences.tools.fuzzy.zEnabled) << '\n';
+    contents << "tool_fuzzy_z " << static_cast<int>(preferences.tools.fuzzy.z) << '\n';
+    contents << "tool_fuzzy_name_enabled " << static_cast<int>(preferences.tools.fuzzy.nameEnabled) << '\n';
+    contents << "tool_fuzzy_name " << std::quoted(preferences.tools.fuzzy.name) << '\n';
     TemporaryPreferencesFile temporaryFile(path);
     temporaryFile.write(contents.str());
     temporaryFile.commit(path);

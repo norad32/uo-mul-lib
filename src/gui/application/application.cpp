@@ -460,6 +460,7 @@ int Application::run()
         }
         assets::saveAssetState(assets::assetStatePath(), state.assetStateRecords);
     }
+    state.toolState.savePreferences(state.preferences.tools);
     savePreferences(state.preferences);
 
     SPDLOG_LOGGER_INFO(logger_, "GUI closed");

@@ -398,4 +398,35 @@ void ToolState::clearTilePickRequest() noexcept
     tilePickTarget_ = TilePickTarget::activeTile;
 }
 
+void ToolState::loadPreferences(const ToolPreferences & preferences) noexcept
+{
+    activeTool_ = preferences.activeTool;
+    selectionGranularity_ = preferences.selectionGranularity;
+    activeTile_ = preferences.activeTileSet ? std::optional<uomul::MapTile>{preferences.activeTile} : std::nullopt;
+    fillIdEnabled_ = preferences.fillIdEnabled;
+    fillZEnabled_ = preferences.fillZEnabled;
+    replaceIdEnabled_ = preferences.replaceIdEnabled;
+    replaceZEnabled_ = preferences.replaceZEnabled;
+    replaceSource_ = preferences.replaceSource;
+    replaceTarget_ = preferences.replaceTarget;
+    fuzzyOptions_ = preferences.fuzzy;
+    tilePickRequested_ = false;
+    tilePickTarget_ = TilePickTarget::activeTile;
+}
+
+void ToolState::savePreferences(ToolPreferences & preferences) const noexcept
+{
+    preferences.activeTool = activeTool_;
+    preferences.selectionGranularity = selectionGranularity_;
+    preferences.activeTileSet = activeTile_.has_value();
+    preferences.activeTile = activeTile_.value_or(uomul::MapTile{});
+    preferences.fillIdEnabled = fillIdEnabled_;
+    preferences.fillZEnabled = fillZEnabled_;
+    preferences.replaceIdEnabled = replaceIdEnabled_;
+    preferences.replaceZEnabled = replaceZEnabled_;
+    preferences.replaceSource = replaceSource_;
+    preferences.replaceTarget = replaceTarget_;
+    preferences.fuzzy = fuzzyOptions_;
+}
+
 } // namespace uo_mule::gui
