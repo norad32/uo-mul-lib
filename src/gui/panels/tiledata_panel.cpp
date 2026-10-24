@@ -167,6 +167,7 @@ texturePreview(TiledataPanelState & state, const TextureProvider & textures, std
     adapter.descriptor.sourceTooltip = "Source: " + (status.sourceIdentity.path(SourceRole::primary) == nullptr
                                                          ? std::string("Unavailable")
                                                          : status.sourceIdentity.path(SourceRole::primary)->string());
+    adapter.descriptor.itemPicked = state.itemPicked;
     adapter.descriptor.cacheContext = std::to_string(static_cast<int>(state.browserKind)) + "|" +
                                       std::to_string(static_cast<int>(idFormat)) +
                                       "|revision=" + std::to_string(status.revision);

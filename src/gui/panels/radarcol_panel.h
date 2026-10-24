@@ -20,6 +20,7 @@ struct RadarcolPanelState
 {
     assets::AssetWindowState assetView;
     std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
+    std::function<void(const assets::AssetItemId &)> itemPicked;
 };
 
 void drawRadarcolPanel(RadarcolPanelState & state, const RadarColorProvider & provider, bool & visible, IdFormat idFormat);

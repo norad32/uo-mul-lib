@@ -5,6 +5,7 @@
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <unordered_map>
 
@@ -23,6 +24,7 @@ struct TiledataPanelState
     TiledataBrowserKind browserKind = TiledataBrowserKind::map;
     std::unordered_map<std::uint32_t, ProviderTexture> texturePreviews;
     std::uint64_t texturePreviewRevision = 0;
+    std::function<void(const assets::AssetItemId &)> itemPicked;
 };
 
 void drawTiledataPanel(TiledataPanelState & state,

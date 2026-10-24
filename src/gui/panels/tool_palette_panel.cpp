@@ -8,6 +8,7 @@
 #include "imgui.h"
 #include <algorithm>
 #include <cstddef>
+#include <optional>
 #include <string>
 
 namespace uo_mule::gui
@@ -168,13 +169,13 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
             ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
         }
     }
-    if (ImGui::Button("Pick from Canvas"))
+    if (ImGui::Button("Pick"))
     {
         state.toolState.requestTilePick();
     }
     if (state.toolState.tilePickRequested())
     {
-        drawPlaceholder("Click a map tile to sample ID and Z.");
+        drawPlaceholder("Click a tile or item in Canvas, Radarcol, Texmaps, or Tiledata.");
     }
     ImGui::End();
 }

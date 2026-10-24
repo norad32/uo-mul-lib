@@ -181,3 +181,11 @@ TEST_CASE("toolState_Should_ValidateManualActiveTileFields")
     REQUIRE_FALSE(state.setActiveTileZ(128).accepted);
     REQUIRE(state.activeTile() == uomul::MapTile{.id = 1234, .z = -12});
 }
+
+TEST_CASE("toolState_Should_TrackActiveTilePickerSource")
+{
+    ToolState state;
+
+    state.requestTilePick();
+    REQUIRE(state.tilePickRequested());
+}

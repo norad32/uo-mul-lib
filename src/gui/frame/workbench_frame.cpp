@@ -220,6 +220,22 @@ void drawMapPanels(WorkbenchState & state,
                    RadarcolPanelState & radarcolState,
                    TexmapsPanelState & texmapsState)
 {
+    const auto pickAssetItem = [&state](const assets::AssetItemId & item)
+    {
+        if (!state.toolState.tilePickRequested())
+        {
+            return;
+        }
+        if (const auto id = assets::itemIndex(item))
+        {
+            static_cast<void>(state.toolState.setActiveTileId(static_cast<std::int32_t>(*id)));
+            state.toolState.clearTilePickRequest();
+        }
+    };
+    state.radarcolState.itemPicked = pickAssetItem;
+    state.texmapsState.itemPicked = pickAssetItem;
+    state.tiledataState.itemPicked = pickAssetItem;
+
     if (state.panelRegistry.find(PanelId::toolPalette)->visible)
     {
         drawToolPalettePanel(state, state.panelRegistry.find(PanelId::toolPalette)->visible);

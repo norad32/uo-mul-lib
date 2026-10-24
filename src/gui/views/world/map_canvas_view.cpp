@@ -1571,7 +1571,7 @@ bool updateTilePick(MapWorkspace & workspace,
 {
     const bool altClick = canvasHovered && ImGui::GetIO().KeyAlt && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     const bool requestedPick = toolState.tilePickRequested() && canvasHovered &&
-                              ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+                               ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     if ((!altClick && !requestedPick) || !currentTile || !workspace.hoveredValue())
     {
         return false;

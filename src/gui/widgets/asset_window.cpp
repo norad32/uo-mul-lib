@@ -444,6 +444,10 @@ void drawSelectionMarquee(const AssetWindowState & state)
 
 void updateSelectionOnClick(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
 {
+    if (adapter.descriptor.itemPicked)
+    {
+        adapter.descriptor.itemPicked(item.id);
+    }
     const ImGuiIO & io = ImGui::GetIO();
     const bool multiple = adapter.descriptor.capabilities.selection == AssetSelectionMode::multiple;
     if (!multiple)
