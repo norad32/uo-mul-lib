@@ -23,6 +23,8 @@ constexpr float detailsHeight = 140.0F;
 constexpr float detailsPadding = 12.0F;
 constexpr float halfWidth = 0.5F;
 constexpr float selectedBorderThickness = 2.0F;
+constexpr float stagedMarkerPadding = 5.0F;
+constexpr float stagedMarkerRadius = 3.0F;
 constexpr std::size_t maximumSelectionPreviews = 9U;
 
 [[nodiscard]] std::string windowName(const AssetAdapterDescriptor & descriptor)
@@ -521,6 +523,7 @@ void drawItem(const AssetAdapter & adapter,
 {
     ImGui::PushID(item.id.value.c_str());
     const bool selected = contains(state.selection, item.id);
+    bool rightClicked = false;
     ImGui::BeginDisabled(item.state != AssetItemState::available);
     ImVec2 itemMin;
     ImVec2 itemMax;
@@ -533,19 +536,38 @@ void drawItem(const AssetAdapter & adapter,
         {
             updateSelectionOnClick(adapter, state, item, index);
         }
+        rightClicked = handleSelection && ImGui::IsItemClicked(ImGuiMouseButton_Right);
     }
     else if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F)) && handleSelection)
     {
         updateSelectionOnClick(adapter, state, item, index);
     }
+    else
+    {
+        rightClicked = handleSelection && ImGui::IsItemClicked(ImGuiMouseButton_Right);
+    }
     ImGui::EndDisabled();
+    if (rightClicked && !contains(state.selection, item.id))
+    {
+        selectSingleAt(state.selection, item.id, index);
+    }
     if (adapter.renderItem)
     {
         appendDragSelection(state, item, index, itemMin, itemMax);
+        if (adapter.descriptor.itemStaged && adapter.descriptor.itemStaged(item.id))
+        {
+            const ImVec2 marker(itemMax.x - stagedMarkerPadding, itemMin.y + stagedMarkerPadding);
+            ImGui::GetWindowDrawList()->AddCircleFilled(marker, stagedMarkerRadius, theme::packedColor(theme::warning));
+        }
         if (contains(state.selection, item.id))
         {
             drawSelectionOutline(itemMin, itemMax);
         }
+    }
+    if (adapter.descriptor.itemContextMenu && ImGui::BeginPopupContextItem("AssetItemContext", ImGuiMouseButton_Right))
+    {
+        adapter.descriptor.itemContextMenu(item.id);
+        ImGui::EndPopup();
     }
     drawItemTooltip(adapter, state, item);
     ImGui::PopID();

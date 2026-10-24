@@ -753,8 +753,7 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
             static_cast<void>(state.operationController.resolveDirty(PendingChangesAction::save));
             record->radarcol->requestIntent({
                 .kind = RadarcolDocumentIntentKind::save,
-                .colorIndex = 0,
-                .color = 0,
+                .colorEdits = {},
                 .outputPath = {},
                 .overwriteOutput = false,
             });
@@ -780,8 +779,7 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
             static_cast<void>(state.operationController.resolveDirty(PendingChangesAction::discard));
             record->radarcol->requestIntent({
                 .kind = RadarcolDocumentIntentKind::discard,
-                .colorIndex = 0,
-                .color = 0,
+                .colorEdits = {},
                 .outputPath = {},
                 .overwriteOutput = false,
             });

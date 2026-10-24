@@ -6,27 +6,33 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace uo_mule::gui
 {
 
 enum class RadarcolDocumentIntentKind : std::uint8_t
 {
-    beginEdit,
-    editColor,
+    editColors,
     save,
     discard,
     saveAs,
 };
 
-struct RadarcolDocumentIntent
+struct RadarcolColorEdit
 {
-    RadarcolDocumentIntentKind kind = RadarcolDocumentIntentKind::beginEdit;
     std::uint32_t colorIndex = 0;
     uomul::RadarColor color = 0;
+};
+
+struct RadarcolDocumentIntent
+{
+    RadarcolDocumentIntentKind kind = RadarcolDocumentIntentKind::editColors;
+    std::vector<RadarcolColorEdit> colorEdits;
     std::filesystem::path outputPath;
     bool overwriteOutput = false;
 };
@@ -41,6 +47,9 @@ struct RadarcolDocument
     [[nodiscard]] const std::filesystem::path & sourcePath() const noexcept { return sourcePath_; }
     [[nodiscard]] const std::filesystem::path & outputPath() const noexcept { return outputPath_; }
     [[nodiscard]] const std::optional<uomul::RadarColReader> & reader() const noexcept { return reader_; }
+    [[nodiscard]] std::optional<uomul::RadarColor> rawColor(std::uint32_t index) const;
+    [[nodiscard]] bool hasStagedColor(std::uint32_t index) const noexcept;
+    [[nodiscard]] std::uint64_t displayRevision() const noexcept { return displayRevision_; }
     [[nodiscard]] const std::string & error() const noexcept { return error_; }
     [[nodiscard]] DocumentAccess access() const noexcept { return access_; }
     [[nodiscard]] bool readOnly() const noexcept { return access_ == DocumentAccess::readOnly; }
@@ -61,7 +70,7 @@ private:
                      DocumentAccess access,
                      std::string error);
     [[nodiscard]] std::expected<void, uomul::Error> beginEditing(const std::filesystem::path & output, bool outputOverwrite);
-    [[nodiscard]] std::expected<void, uomul::Error> editColor(std::uint32_t index, uomul::RadarColor color);
+    [[nodiscard]] std::expected<void, uomul::Error> editColors(const std::vector<RadarcolColorEdit> & edits);
     [[nodiscard]] std::expected<void, uomul::Error> save();
     [[nodiscard]] std::expected<void, uomul::Error> discard();
     [[nodiscard]] std::expected<void, uomul::Error> saveAs(const std::filesystem::path & output, bool outputOverwrite);
@@ -75,6 +84,8 @@ private:
     DocumentAccess access_ = DocumentAccess::editable;
     bool dirtyState_ = false;
     bool overwriteOutput_ = false;
+    std::map<std::uint32_t, uomul::RadarColor> stagedColors_;
+    std::uint64_t displayRevision_ = 0;
     std::optional<RadarcolDocumentIntent> pendingIntent_;
 };
 

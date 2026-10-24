@@ -28,7 +28,12 @@ RadarcolDocument::RadarcolDocument(DocumentId id,
                                    std::optional<uomul::RadarColReader> reader,
                                    DocumentAccess access,
                                    std::string error) :
-    id_(id), sourcePath_(std::move(sourcePath)), reader_(std::move(reader)), error_(std::move(error)), access_(access)
+    id_(id),
+    sourcePath_(std::move(sourcePath)),
+    outputPath_(sourcePath_),
+    reader_(std::move(reader)),
+    error_(std::move(error)),
+    access_(access)
 {
 }
 
@@ -55,11 +60,8 @@ std::expected<void, uomul::Error> RadarcolDocument::handleIntent(const RadarcolD
     std::expected<void, uomul::Error> result;
     switch (intent.kind)
     {
-        case RadarcolDocumentIntentKind::beginEdit :
-            result = beginEditing(intent.outputPath, intent.overwriteOutput);
-            break;
-        case RadarcolDocumentIntentKind::editColor :
-            result = editColor(intent.colorIndex, intent.color);
+        case RadarcolDocumentIntentKind::editColors :
+            result = editColors(intent.colorEdits);
             break;
         case RadarcolDocumentIntentKind::save :
             result = save();
@@ -90,7 +92,9 @@ void RadarcolDocument::setAccess(DocumentAccess value) noexcept
     {
         editor_->abort();
         editor_.reset();
+        stagedColors_.clear();
         dirtyState_ = false;
+        displayRevision_++;
     }
 }
 
@@ -132,17 +136,95 @@ std::expected<void, uomul::Error> RadarcolDocument::beginEditing(const std::file
     return {};
 }
 
-std::expected<void, uomul::Error> RadarcolDocument::editColor(std::uint32_t index, uomul::RadarColor color)
+std::optional<uomul::RadarColor> RadarcolDocument::rawColor(std::uint32_t index) const
 {
+    if (const auto staged = stagedColors_.find(index); staged != stagedColors_.end())
+    {
+        return staged->second;
+    }
+
+    if (!reader_)
+    {
+        return std::nullopt;
+    }
+
+    const auto value = reader_->readRawColor(index);
+    return value ? std::optional<uomul::RadarColor>(*value) : std::nullopt;
+}
+
+bool RadarcolDocument::hasStagedColor(std::uint32_t index) const noexcept
+{
+    return stagedColors_.contains(index);
+}
+
+std::expected<void, uomul::Error> RadarcolDocument::editColors(const std::vector<RadarcolColorEdit> & edits)
+{
+    if (readOnly())
+    {
+        return fail(makeDocumentError(sourcePath_, "configured Radarcol source is read-only"));
+    }
+    if (!reader_)
+    {
+        return fail(makeDocumentError(sourcePath_, "Radarcol source is not available"));
+    }
+    if (edits.empty())
+    {
+        return fail(makeDocumentError(sourcePath_, "Radarcol color edit cannot be empty"));
+    }
+
+    for (const auto & edit : edits)
+    {
+        if (edit.colorIndex >= reader_->colorCount())
+        {
+            return fail(makeDocumentError(sourcePath_, "Radarcol color index is outside the source table"));
+        }
+        if (edit.color > uomul::RadarColorConverter::colorMask)
+        {
+            return fail(makeDocumentError(sourcePath_, "Radarcol color must be a 15-bit RGB555 value"));
+        }
+    }
+
+    bool startedEditor = false;
     if (!editor_)
     {
-        return fail(makeDocumentError(sourcePath_, "Radarcol editing has not started"));
+        auto staged = uomul::RadarColEditor::create(sourcePath_, sourcePath_, {.overwriteOutput = true});
+        if (!staged)
+        {
+            return fail(staged.error());
+        }
+        editor_.emplace(std::move(*staged));
+        outputPath_ = sourcePath_;
+        startedEditor = true;
     }
-    if (auto edited = editor_->editRawColor(index, color); !edited)
+
+    for (const auto & edit : edits)
     {
-        return fail(edited.error());
+        const auto current = rawColor(edit.colorIndex);
+        if (!current || *current == edit.color)
+        {
+            continue;
+        }
+        if (auto staged = editor_->editRawColor(edit.colorIndex, edit.color); !staged)
+        {
+            return fail(staged.error());
+        }
+        if (auto committed = reader_->readRawColor(edit.colorIndex); committed && *committed == edit.color)
+        {
+            stagedColors_.erase(edit.colorIndex);
+        }
+        else
+        {
+            stagedColors_.insert_or_assign(edit.colorIndex, edit.color);
+        }
     }
-    dirtyState_ = true;
+
+    dirtyState_ = !stagedColors_.empty();
+    if (!dirtyState_ && startedEditor)
+    {
+        editor_->abort();
+        editor_.reset();
+    }
+    displayRevision_++;
     return {};
 }
 
@@ -150,7 +232,7 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
 {
     if (!editor_)
     {
-        return fail(makeDocumentError(outputPath_, "Radarcol editing has not started"));
+        return fail(makeDocumentError(outputPath_, "Radarcol has no staged changes"));
     }
     auto inPlace = uomul::detail::MulCommon::pathsExactlyMatch(sourcePath_, outputPath_);
     if (!inPlace)
@@ -167,7 +249,9 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
     {
         editor_->abort();
         editor_.reset();
+        stagedColors_.clear();
         dirtyState_ = false;
+        displayRevision_++;
         if (*inPlace)
         {
             auto restored = uomul::RadarColReader::open(sourcePath_);
@@ -183,14 +267,18 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
     if (!opened)
     {
         editor_.reset();
+        stagedColors_.clear();
         dirtyState_ = false;
+        displayRevision_++;
         return fail(opened.error());
     }
 
     sourcePath_ = outputPath_;
     reader_ = std::move(*opened);
     editor_.reset();
+    stagedColors_.clear();
     dirtyState_ = false;
+    displayRevision_++;
     return {};
 }
 
@@ -201,7 +289,9 @@ std::expected<void, uomul::Error> RadarcolDocument::discard()
         editor_->abort();
         editor_.reset();
     }
+    stagedColors_.clear();
     dirtyState_ = false;
+    displayRevision_++;
     return {};
 }
 

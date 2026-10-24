@@ -187,6 +187,8 @@ struct AssetAdapterDescriptor
     std::function<std::string(const AssetItemId &)> formatSelectionId;
     std::function<void(const AssetItemId &, float)> renderSelectionPreview;
     std::function<void(const AssetItemId &)> itemPicked;
+    std::function<void(const AssetItemId &)> itemContextMenu;
+    std::function<bool(const AssetItemId &)> itemStaged;
     float selectionPreviewSize = 0.0F;
     std::function<void()> inlinePresentationControl;
     AssetSourceContext source;

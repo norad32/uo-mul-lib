@@ -66,56 +66,39 @@ void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
         ImGui::TextUnformatted(iconLabel(IconId::readOnly, strings::configuredMetadataReadOnly()).c_str());
         return;
     }
-    if (!document.editing())
+    ImGui::TextUnformatted(document.dirty() ? "Editing" : strings::readyToEdit());
+    ImGui::BeginDisabled(!document.editing() || !document.dirty());
+    if (ImGui::Button(iconLabel(IconId::save, "Save").c_str()))
     {
-        ImGui::TextUnformatted(strings::readyToEdit());
-        if (ImGui::Button(strings::beginEditing()))
-        {
-            document.requestIntent({
-                .kind = RadarcolDocumentIntentKind::beginEdit,
-                .colorIndex = 0,
-                .color = 0,
-                .outputPath = document.sourcePath(),
-                .overwriteOutput = true,
-            });
-        }
-        ImGui::SameLine();
-        if (ImGui::Button(iconLabel(IconId::save, strings::saveAs()).c_str()))
-        {
-            requestFileBrowser(browser,
-                               {
-                                   .mode = FileBrowserMode::saveFile,
-                                   .target = FileBrowserTarget::radarcolOutput,
-                                   .initialPath = document.sourcePath(),
-                                   .extension = ".mul",
-                                   .title = "Save Radarcol As",
-                               });
-        }
+        document.requestIntent({
+            .kind = RadarcolDocumentIntentKind::save,
+            .colorEdits = {},
+            .outputPath = {},
+            .overwriteOutput = false,
+        });
     }
-    if (document.editing())
+    ImGui::SameLine();
+    if (ImGui::Button(iconLabel(IconId::cancel, strings::discardChanges()).c_str()))
     {
-        ImGui::TextUnformatted("Editing");
-        if (ImGui::Button(iconLabel(IconId::save, "Save").c_str()))
-        {
-            document.requestIntent({
-                .kind = RadarcolDocumentIntentKind::save,
-                .colorIndex = 0,
-                .color = 0,
-                .outputPath = {},
-                .overwriteOutput = false,
-            });
-        }
-        ImGui::SameLine();
-        if (ImGui::Button(iconLabel(IconId::cancel, strings::discardChanges()).c_str()))
-        {
-            document.requestIntent({
-                .kind = RadarcolDocumentIntentKind::discard,
-                .colorIndex = 0,
-                .color = 0,
-                .outputPath = {},
-                .overwriteOutput = false,
-            });
-        }
+        document.requestIntent({
+            .kind = RadarcolDocumentIntentKind::discard,
+            .colorEdits = {},
+            .outputPath = {},
+            .overwriteOutput = false,
+        });
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button(iconLabel(IconId::save, strings::saveAs()).c_str()))
+    {
+        requestFileBrowser(browser,
+                           {
+                               .mode = FileBrowserMode::saveFile,
+                               .target = FileBrowserTarget::radarcolOutput,
+                               .initialPath = document.sourcePath(),
+                               .extension = ".mul",
+                               .title = "Save Radarcol As",
+                           });
     }
     if (!document.error().empty())
     {

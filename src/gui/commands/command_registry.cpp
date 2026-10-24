@@ -387,8 +387,7 @@ void registerDefaultCommands(CommandRegistry & registry)
             {
                 active->radarcol->requestIntent({
                     .kind = RadarcolDocumentIntentKind::save,
-                    .colorIndex = 0,
-                    .color = 0,
+                    .colorEdits = {},
                     .outputPath = {},
                     .overwriteOutput = false,
                 });

@@ -26,6 +26,7 @@ set(GUI_MODEL_SOURCES
     source/tiledata_source.cpp
     session/workbench_session.cpp
     input/coordinate_parser.cpp
+    input/radarcol_color_input.cpp
     model/assets/asset_window_contracts.cpp
     output/output_set_transaction.cpp
     world/map_context.cpp
