@@ -72,6 +72,16 @@ void MapSelectionMask::clear() noexcept
     selected_.clear();
 }
 
+void MapSelectionMask::selectTile(uomul::TileCoord coordinate, uomul::Dimensions dimensions)
+{
+    if (coordinate.x >= dimensions.widthTiles || coordinate.y >= dimensions.heightTiles)
+    {
+        return;
+    }
+    granularity_ = ToolSelectionGranularity::tiles;
+    selected_.insert(tileKey(coordinate));
+}
+
 void MapSelectionMask::setGranularity(ToolSelectionGranularity granularity)
 {
     if (granularity_ != granularity)

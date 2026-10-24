@@ -1,5 +1,6 @@
 #include "gui_model/tools/tool_state.h"
 #include <limits>
+#include <utility>
 
 namespace uo_mule::gui
 {
@@ -68,6 +69,11 @@ const uomul::MapTile & ToolState::replaceSource() const noexcept
 const uomul::MapTile & ToolState::replaceTarget() const noexcept
 {
     return replaceTarget_;
+}
+
+const FuzzySelectionOptions & ToolState::fuzzyOptions() const noexcept
+{
+    return fuzzyOptions_;
 }
 
 bool ToolState::tilePickRequested() const noexcept
@@ -186,6 +192,63 @@ ToolStateChange ToolState::setReplaceTargetZ(std::int32_t z) noexcept
     return setTileZ(replaceTarget_, z);
 }
 
+void ToolState::setFuzzyScope(FuzzyScope scope) noexcept
+{
+    fuzzyOptions_.scope = scope;
+}
+
+void ToolState::setFuzzyIdEnabled(bool enabled) noexcept
+{
+    fuzzyOptions_.idEnabled = enabled;
+}
+
+ToolStateChange ToolState::setFuzzyId(std::int32_t id) noexcept
+{
+    if (id < 0 || id > std::numeric_limits<std::uint16_t>::max())
+    {
+        return {.accepted = false, .changed = false, .reason = "Tile ID must be between 0 and 65535"};
+    }
+    const auto next = static_cast<std::uint16_t>(id);
+    const bool changed = fuzzyOptions_.id != next;
+    fuzzyOptions_.id = next;
+    return {.accepted = true, .changed = changed, .reason = {}};
+}
+
+void ToolState::setFuzzyZEnabled(bool enabled) noexcept
+{
+    fuzzyOptions_.zEnabled = enabled;
+}
+
+ToolStateChange ToolState::setFuzzyZ(std::int32_t z) noexcept
+{
+    if (z < std::numeric_limits<std::int8_t>::min() || z > std::numeric_limits<std::int8_t>::max())
+    {
+        return {.accepted = false, .changed = false, .reason = "Tile Z must be between -128 and 127"};
+    }
+    const auto next = static_cast<std::int8_t>(z);
+    const bool changed = fuzzyOptions_.z != next;
+    fuzzyOptions_.z = next;
+    return {.accepted = true, .changed = changed, .reason = {}};
+}
+
+void ToolState::setFuzzyNameEnabled(bool enabled) noexcept
+{
+    fuzzyOptions_.nameEnabled = enabled;
+}
+
+void ToolState::setFuzzyName(std::string name)
+{
+    fuzzyOptions_.name = std::move(name);
+}
+
+void ToolState::setPickedTileName(std::string name)
+{
+    fuzzyOptions_.name = std::move(name);
+    fuzzyOptions_.nameEnabled = true;
+    tilePickRequested_ = false;
+    tilePickTarget_ = TilePickTarget::activeTile;
+}
+
 ToolStateChange ToolState::setReplaceTargetFromActiveTile() noexcept
 {
     if (!activeTile_)
@@ -223,6 +286,16 @@ void ToolState::setPickedTile(uomul::MapTile tile) noexcept
     case TilePickTarget::replaceTarget:
         replaceTarget_ = tile;
         break;
+    case TilePickTarget::fuzzyId:
+        fuzzyOptions_.id = tile.id;
+        fuzzyOptions_.idEnabled = true;
+        break;
+    case TilePickTarget::fuzzyZ:
+        fuzzyOptions_.z = tile.z;
+        fuzzyOptions_.zEnabled = true;
+        break;
+    case TilePickTarget::fuzzyName:
+        break;
     }
     tilePickRequested_ = false;
     tilePickTarget_ = TilePickTarget::activeTile;
@@ -241,6 +314,15 @@ ToolStateChange ToolState::setPickedTileId(std::int32_t id) noexcept
         break;
     case TilePickTarget::replaceTarget:
         result = setReplaceTargetId(id);
+        break;
+    case TilePickTarget::fuzzyId:
+        result = setFuzzyId(id);
+        break;
+    case TilePickTarget::fuzzyZ:
+        result = {.accepted = false, .changed = false, .reason = "Z picking requires a canvas tile"};
+        break;
+    case TilePickTarget::fuzzyName:
+        result = {.accepted = false, .changed = false, .reason = "Name picking requires Tiledata"};
         break;
     }
     if (result.accepted)

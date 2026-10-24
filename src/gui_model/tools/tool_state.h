@@ -16,6 +16,7 @@ public:
     [[nodiscard]] FillMode fillMode() const noexcept;
     [[nodiscard]] ReplaceMode replaceMode() const noexcept;
     [[nodiscard]] const uomul::MapTile & replaceSource() const noexcept;
+    [[nodiscard]] const FuzzySelectionOptions & fuzzyOptions() const noexcept;
     [[nodiscard]] const uomul::MapTile & replaceTarget() const noexcept;
     [[nodiscard]] bool tilePickRequested() const noexcept;
     [[nodiscard]] TilePickTarget tilePickTarget() const noexcept;
@@ -35,6 +36,14 @@ public:
     [[nodiscard]] ToolStateChange setReplaceSourceZ(std::int32_t z) noexcept;
     [[nodiscard]] ToolStateChange setReplaceTargetId(std::int32_t id) noexcept;
     [[nodiscard]] ToolStateChange setReplaceTargetZ(std::int32_t z) noexcept;
+    void setFuzzyScope(FuzzyScope scope) noexcept;
+    void setFuzzyIdEnabled(bool enabled) noexcept;
+    [[nodiscard]] ToolStateChange setFuzzyId(std::int32_t id) noexcept;
+    void setFuzzyZEnabled(bool enabled) noexcept;
+    [[nodiscard]] ToolStateChange setFuzzyZ(std::int32_t z) noexcept;
+    void setFuzzyNameEnabled(bool enabled) noexcept;
+    void setFuzzyName(std::string name);
+    void setPickedTileName(std::string name);
     [[nodiscard]] ToolStateChange setReplaceSourceFromActiveTile() noexcept;
     [[nodiscard]] ToolStateChange setReplaceTargetFromActiveTile() noexcept;
     void setPickedTile(uomul::MapTile tile) noexcept;
@@ -50,6 +59,7 @@ private:
     ReplaceMode replaceMode_ = ReplaceMode::idAndZ;
     uomul::MapTile replaceSource_{};
     uomul::MapTile replaceTarget_{};
+    FuzzySelectionOptions fuzzyOptions_{};
     bool tilePickRequested_ = false;
     TilePickTarget tilePickTarget_ = TilePickTarget::activeTile;
 };

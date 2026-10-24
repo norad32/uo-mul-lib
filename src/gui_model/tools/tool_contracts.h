@@ -50,6 +50,26 @@ enum class TilePickTarget : std::uint8_t
     activeTile,
     replaceSource,
     replaceTarget,
+    fuzzyId,
+    fuzzyZ,
+    fuzzyName,
+};
+
+enum class FuzzyScope : std::uint8_t
+{
+    contiguous,
+    wholeMap,
+};
+
+struct FuzzySelectionOptions
+{
+    FuzzyScope scope = FuzzyScope::contiguous;
+    bool idEnabled = false;
+    std::uint16_t id = 0;
+    bool zEnabled = false;
+    std::int8_t z = 0;
+    bool nameEnabled = false;
+    std::string name;
 };
 
 struct ToolContext

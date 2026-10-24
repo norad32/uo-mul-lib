@@ -7,9 +7,11 @@
 #include "gui_model/tools/tool_contracts.h"
 #include "imgui.h"
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <ranges>
 #include <string>
 
 namespace uo_mule::gui
@@ -158,6 +160,82 @@ void drawReplaceOptions(WorkbenchState & state)
     }
 }
 
+void drawFuzzyOptions(WorkbenchState & state)
+{
+    const FuzzySelectionOptions & options = state.toolState.fuzzyOptions();
+    ImGui::TextUnformatted("Fuzzy scope");
+    if (ImGui::RadioButton("Contiguous##fuzzy.scope.contiguous", options.scope == FuzzyScope::contiguous))
+    {
+        state.toolState.setFuzzyScope(FuzzyScope::contiguous);
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Whole map##fuzzy.scope.whole", options.scope == FuzzyScope::wholeMap))
+    {
+        state.toolState.setFuzzyScope(FuzzyScope::wholeMap);
+    }
+
+    bool idEnabled = options.idEnabled;
+    if (ImGui::Checkbox("ID##fuzzy.id.enabled", &idEnabled))
+    {
+        state.toolState.setFuzzyIdEnabled(idEnabled);
+    }
+    ImGui::SameLine();
+    std::uint16_t id = options.id;
+    const bool hexadecimalIds = state.preferences.idFormat == IdFormat::hexadecimal;
+    const char * idInputFormat = hexadecimalIds ? "%04X" : "%u";
+    const ImGuiInputTextFlags idInputFlags = hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal
+                                                            : ImGuiInputTextFlags_CharsDecimal;
+    if (ImGui::InputScalar("##fuzzy.id.value",
+                           ImGuiDataType_U16,
+                           &id,
+                           nullptr,
+                           nullptr,
+                           idInputFormat,
+                           idInputFlags))
+    {
+        static_cast<void>(state.toolState.setFuzzyId(static_cast<std::int32_t>(id)));
+    }
+    ImGui::SameLine();
+    drawPickButton(state, "Pick##fuzzy.id.pick", TilePickTarget::fuzzyId);
+
+    bool zEnabled = options.zEnabled;
+    if (ImGui::Checkbox("Z##fuzzy.z.enabled", &zEnabled))
+    {
+        state.toolState.setFuzzyZEnabled(zEnabled);
+    }
+    ImGui::SameLine();
+    int z = static_cast<int>(options.z);
+    if (ImGui::InputInt("##fuzzy.z.value", &z, 0, 0, ImGuiInputTextFlags_CharsDecimal))
+    {
+        static_cast<void>(state.toolState.setFuzzyZ(z));
+    }
+    ImGui::SameLine();
+    drawPickButton(state, "Pick##fuzzy.z.pick", TilePickTarget::fuzzyZ);
+
+    const bool tiledataAvailable = state.providers.tiledata().status().state == ProviderAssetState::available;
+    ImGui::BeginDisabled(!tiledataAvailable);
+    bool nameEnabled = options.nameEnabled;
+    if (ImGui::Checkbox("Tiledata name##fuzzy.name.enabled", &nameEnabled))
+    {
+        state.toolState.setFuzzyNameEnabled(nameEnabled);
+    }
+    ImGui::SameLine();
+    std::array<char, 128> name{};
+    const auto copyLength = std::min(options.name.size(), name.size() - 1U);
+    std::ranges::copy_n(options.name.begin(), static_cast<std::ptrdiff_t>(copyLength), name.begin());
+    if (ImGui::InputText("##fuzzy.name.value", name.data(), name.size()))
+    {
+        state.toolState.setFuzzyName(std::string(name.data()));
+    }
+    ImGui::SameLine();
+    drawPickButton(state, "Pick##fuzzy.name.pick", TilePickTarget::fuzzyName);
+    ImGui::EndDisabled();
+    if (!tiledataAvailable)
+    {
+        drawPlaceholder("Tiledata names unavailable.");
+    }
+}
+
 void drawToolButton(WorkbenchState & state, const ToolDescriptor & tool, const ToolContext & context, float width)
 {
     const ToolAvailability availability = tool.availability(context);
@@ -235,6 +313,10 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
         else if (state.toolState.activeTool() == ToolId::replace)
         {
             drawReplaceOptions(state);
+        }
+        else if (state.toolState.activeTool() == ToolId::fuzzySelect)
+        {
+            drawFuzzyOptions(state);
         }
         else
         {

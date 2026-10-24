@@ -238,3 +238,33 @@ TEST_CASE("toolState_ShouldRouteReplacePicksAndCopyActiveTileToTarget")
     REQUIRE(state.setReplaceTargetFromActiveTile().accepted);
     REQUIRE(state.replaceTarget() == uomul::MapTile{.id = 100, .z = -5});
 }
+
+TEST_CASE("toolState_ShouldStoreFuzzyOptionsAndBounds")
+{
+    ToolState state;
+
+    state.setFuzzyScope(uo_mule::gui::FuzzyScope::wholeMap);
+    state.setFuzzyIdEnabled(true);
+    state.setFuzzyZEnabled(true);
+    state.setFuzzyNameEnabled(true);
+    REQUIRE(state.setFuzzyId(4321).accepted);
+    REQUIRE(state.setFuzzyZ(-9).accepted);
+    state.setFuzzyName("  Granite   floor ");
+
+    REQUIRE(state.fuzzyOptions().scope == uo_mule::gui::FuzzyScope::wholeMap);
+    REQUIRE(state.fuzzyOptions().idEnabled);
+    REQUIRE(state.fuzzyOptions().id == 4321);
+    REQUIRE(state.fuzzyOptions().zEnabled);
+    REQUIRE(state.fuzzyOptions().z == -9);
+    REQUIRE(state.fuzzyOptions().nameEnabled);
+    REQUIRE(state.fuzzyOptions().name == "  Granite   floor ");
+    REQUIRE_FALSE(state.setFuzzyId(-1).accepted);
+    REQUIRE_FALSE(state.setFuzzyId(65536).accepted);
+    REQUIRE_FALSE(state.setFuzzyZ(-129).accepted);
+    REQUIRE_FALSE(state.setFuzzyZ(128).accepted);
+
+    state.requestTilePick(uo_mule::gui::TilePickTarget::fuzzyName);
+    state.setPickedTileName("granite floor");
+    REQUIRE(state.fuzzyOptions().nameEnabled);
+    REQUIRE(state.fuzzyOptions().name == "granite floor");
+}

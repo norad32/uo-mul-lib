@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <unordered_map>
+#include <utility>
 
 namespace uo_mule::gui
 {
@@ -97,6 +98,13 @@ public:
     replaceMasked(ReplaceMode mode, uomul::MapTile source, uomul::MapTile target)
     {
         return active_->replaceMasked(mode, source, target);
+    }
+    [[nodiscard]] std::expected<std::size_t, uomul::Error>
+    fuzzySelect(FuzzySelectionOptions options,
+                uomul::TileCoord origin,
+                const FuzzyTiledataNameLookup & tiledataNameLookup = {})
+    {
+        return active_->fuzzySelect(std::move(options), origin, tiledataNameLookup);
     }
 
     [[nodiscard]] std::expected<void, uomul::Error>

@@ -220,7 +220,7 @@ void drawMapPanels(WorkbenchState & state,
                    RadarcolPanelState & radarcolState,
                    TexmapsPanelState & texmapsState)
 {
-    const auto pickAssetItem = [&state](const assets::AssetItemId & item)
+    const auto pickAssetItem = [&state](const assets::AssetItemId & item, bool tiledataSource)
     {
         if (!state.toolState.tilePickRequested())
         {
@@ -228,12 +228,25 @@ void drawMapPanels(WorkbenchState & state,
         }
         if (const auto id = assets::itemIndex(item))
         {
+            if (state.toolState.tilePickTarget() == TilePickTarget::fuzzyName)
+            {
+                if (!tiledataSource)
+                {
+                    return;
+                }
+                const auto tile = state.providers.tiledata().mapTile(static_cast<std::uint16_t>(*id));
+                if (tile)
+                {
+                    state.toolState.setPickedTileName(tile->record.name);
+                }
+                return;
+            }
             static_cast<void>(state.toolState.setPickedTileId(static_cast<std::int32_t>(*id)));
         }
     };
-    state.radarcolState.itemPicked = pickAssetItem;
-    state.texmapsState.itemPicked = pickAssetItem;
-    state.tiledataState.itemPicked = pickAssetItem;
+    state.radarcolState.itemPicked = [&pickAssetItem](const assets::AssetItemId & item) { pickAssetItem(item, false); };
+    state.texmapsState.itemPicked = [&pickAssetItem](const assets::AssetItemId & item) { pickAssetItem(item, false); };
+    state.tiledataState.itemPicked = [&pickAssetItem](const assets::AssetItemId & item) { pickAssetItem(item, true); };
 
     if (state.panelRegistry.find(PanelId::toolPalette)->visible)
     {
@@ -507,7 +520,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
              [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); },
              [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
              [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
-             [&state]
+             [&state](uomul::TileCoord origin)
              {
                  if (state.toolState.activeTool() == ToolId::fill)
                  {
@@ -542,8 +555,32 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
                          state.operationStatusSeverity = NotificationSeverity::error;
                      }
                  }
+                 if (state.toolState.activeTool() == ToolId::fuzzySelect)
+                 {
+                     const FuzzyTiledataNameLookup nameLookup = [&state](std::uint16_t id) -> std::optional<std::string>
+                     {
+                         const auto tile = state.providers.tiledata().mapTile(id);
+                         return tile ? std::optional<std::string>{tile->record.name} : std::nullopt;
+                     };
+                     const auto result = state.workspace.fuzzySelect(state.toolState.fuzzyOptions(), origin, nameLookup);
+                     if (result)
+                     {
+                         state.operationStatus = "Selected " + std::to_string(*result) + " tiles";
+                         state.operationStatusSeverity = NotificationSeverity::success;
+                     }
+                     else
+                     {
+                         state.operationStatus = result.error().message;
+                         state.operationStatusSeverity = NotificationSeverity::error;
+                     }
+                 }
              },
-             [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
+              [&state](std::uint16_t id) -> std::optional<std::string>
+              {
+                  const auto tile = state.providers.tiledata().mapTile(id);
+                  return tile ? std::optional<std::string>{tile->record.name} : std::nullopt;
+              },
+              [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
             visible);
         if (!visible)
         {

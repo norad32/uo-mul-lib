@@ -30,6 +30,7 @@ public:
     void forEachSelectedBlock(const std::function<void(uomul::BlockCoord)> & callback) const;
 
     void clear() noexcept;
+    void selectTile(uomul::TileCoord coordinate, uomul::Dimensions dimensions);
     void setGranularity(ToolSelectionGranularity granularity);
     void replaceTileRegion(uomul::TileRegion region, uomul::Dimensions dimensions);
     void replaceBlockRegion(uomul::BlockRegion region, uomul::Dimensions dimensions);

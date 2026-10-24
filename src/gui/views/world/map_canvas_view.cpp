@@ -1567,7 +1567,8 @@ void updateSelectionDrag(MapWorkspace & workspace,
 bool updateTilePick(MapWorkspace & workspace,
                     ToolState & toolState,
                     std::optional<uomul::TileCoord> currentTile,
-                    bool canvasHovered)
+                    bool canvasHovered,
+                    const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup)
 {
     const bool altClick = canvasHovered && ImGui::GetIO().KeyAlt && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     const bool requestedPick = toolState.tilePickRequested() && canvasHovered &&
@@ -1575,6 +1576,15 @@ bool updateTilePick(MapWorkspace & workspace,
     if ((!altClick && !requestedPick) || !currentTile || !workspace.hoveredValue())
     {
         return false;
+    }
+
+    if (toolState.tilePickRequested() && toolState.tilePickTarget() == TilePickTarget::fuzzyName)
+    {
+        if (const auto name = tiledataNameLookup(workspace.hoveredValue()->id))
+        {
+            toolState.setPickedTileName(*name);
+        }
+        return true;
     }
 
     toolState.setPickedTile(*workspace.hoveredValue());
@@ -1585,16 +1595,17 @@ bool updateEditTool(const ToolState & toolState,
                     std::optional<uomul::TileCoord> currentTile,
                     bool canvasHovered,
                     bool tilePickHandled,
-                    const std::function<void()> & executeEdit)
+                    const std::function<void(uomul::TileCoord)> & executeEdit)
 {
-    if ((toolState.activeTool() != ToolId::fill && toolState.activeTool() != ToolId::replace) ||
+    if ((toolState.activeTool() != ToolId::fill && toolState.activeTool() != ToolId::replace &&
+         toolState.activeTool() != ToolId::fuzzySelect) ||
         tilePickHandled || ImGui::IsKeyDown(ImGuiKey_Space) || ImGui::GetIO().KeyAlt || !canvasHovered || !currentTile ||
         !ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
         return false;
     }
 
-    executeEdit();
+    executeEdit(*currentTile);
     return true;
 }
 
@@ -1649,7 +1660,8 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
                        const std::function<void()> & activateDocument,
                        const std::function<void()> & openMap,
                        const std::function<void()> & createMap,
-                       const std::function<void()> & executeEdit,
+                       const std::function<void(uomul::TileCoord)> & executeEdit,
+                       const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
                        bool & visible)
 {
@@ -1723,7 +1735,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
         updateNavigation(state, toolState, mouse, canvasOrigin, canvasHovered, minimumZoom);
         currentTile = tileAtMouse(mouse, canvasOrigin, canvasSize, state, dimensions, canvasHovered);
         updateHover(workspace, currentTile);
-        const bool tilePickHandled = updateTilePick(workspace, toolState, currentTile, canvasHovered);
+        const bool tilePickHandled = updateTilePick(workspace, toolState, currentTile, canvasHovered, tiledataNameLookup);
         const bool editHandled = updateEditTool(toolState, currentTile, canvasHovered, tilePickHandled, executeEdit);
         updateSelectionDrag(workspace, state, toolState, currentTile, dimensions, canvasHovered, tilePickHandled || editHandled);
     }

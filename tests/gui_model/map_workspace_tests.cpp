@@ -438,6 +438,72 @@ TEST_CASE("mapWorkspace_Should_RejectMaskedEditsWithoutSelectionAndKeepCleanStat
     REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == initialTile);
 }
 
+TEST_CASE("mapWorkspace_ShouldFuzzySelectContiguousAndWholeMapWithAndPredicates")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "fuzzy.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+    auto editor = uomul::MapEditor::create(mapPath, directory.path() / "fuzzy-staged.mul", testDimensions);
+    REQUIRE(editor);
+    REQUIRE(editor->editTile({.x = 1, .y = 1}, {.id = 20, .z = 5}));
+    REQUIRE(editor->editTile({.x = 2, .y = 1}, {.id = 20, .z = 5}));
+    REQUIRE(editor->editTile({.x = 1, .y = 2}, {.id = 20, .z = 5}));
+    REQUIRE(editor->editTile({.x = 10, .y = 10}, {.id = 20, .z = 5}));
+    REQUIRE(editor->commit());
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(directory.path() / "fuzzy-staged.mul", testDimensions));
+    uo_mule::gui::FuzzySelectionOptions options{
+        .scope = uo_mule::gui::FuzzyScope::contiguous,
+        .idEnabled = true,
+        .id = 20,
+        .zEnabled = true,
+        .z = 5,
+        .nameEnabled = true,
+        .name = "  Granite   Floor ",
+    };
+    const auto names = [](std::uint16_t id) -> std::optional<std::string>
+    {
+        return id == 20 ? std::optional<std::string>{"granite floor"} : std::optional<std::string>{"grass"};
+    };
+
+    REQUIRE(workspace.fuzzySelect(options, {.x = 1, .y = 1}, names) == 3);
+    REQUIRE(workspace.selectionMask().size() == 3);
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 1, .y = 1}));
+    REQUIRE_FALSE(workspace.selectionMask().contains(uomul::TileCoord{.x = 10, .y = 10}));
+
+    options.scope = uo_mule::gui::FuzzyScope::wholeMap;
+    REQUIRE(workspace.fuzzySelect(options, {.x = 1, .y = 1}, names) == 4);
+    REQUIRE(workspace.selectionMask().size() == 4);
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 10, .y = 10}));
+}
+
+TEST_CASE("mapWorkspace_ShouldRejectUnavailableFuzzyNameAndBlockMode")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "fuzzy-rejected.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    uo_mule::gui::FuzzySelectionOptions nameOptions{
+        .nameEnabled = true,
+        .name = "grass",
+    };
+    REQUIRE_FALSE(workspace.fuzzySelect(nameOptions, {.x = 0, .y = 0}));
+    REQUIRE(workspace.error());
+    REQUIRE(workspace.error()->message == "Tiledata name matching is unavailable");
+
+    workspace.setBlockSelection({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}});
+    uo_mule::gui::FuzzySelectionOptions idOptions{
+        .idEnabled = true,
+        .id = initialTile.id,
+        .name = {},
+    };
+    REQUIRE_FALSE(workspace.fuzzySelect(idOptions, {.x = 0, .y = 0}));
+    REQUIRE(workspace.error());
+    REQUIRE(workspace.error()->message == "Fuzzy Select supports tiles only");
+}
+
 TEST_CASE("mapWorkspaceManager_Should_PreserveIndependentMapAndCanvasState")
 {
     // These values describe the persisted view state used by this round-trip test.
