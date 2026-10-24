@@ -57,6 +57,14 @@ void createRadarcol(const std::filesystem::path & path, std::uint16_t firstColor
     }
 }
 
+void createTiledata(const std::filesystem::path & path)
+{
+    auto editor = uomul::TiledataEditor::createEmpty(path, uomul::TiledataLayout::extended64);
+    REQUIRE(editor);
+    REQUIRE(editor->editMapTile(3, {.name = "grass"}));
+    REQUIRE(editor->commit());
+}
+
 uo_mule::gui::DataProfile profileWithRadarcol(const std::filesystem::path & path)
 {
     uo_mule::gui::DataProfile profile;
@@ -212,8 +220,9 @@ TEST_CASE("DataProviders_Should_ExposeStableUnavailableMetadataSourceStatus")
 
 TEST_CASE("DataProviders_Should_ReadConfiguredTiledataMapAndStaticRecords")
 {
-    const auto path = std::filesystem::path(UOMUL_SOURCE_DIR) / "testfiles" / "tiledata.mul";
-    REQUIRE(std::filesystem::is_regular_file(path));
+    const TemporaryDirectory directory;
+    const auto path = directory.path() / "tiledata.mul";
+    createTiledata(path);
 
     uo_mule::gui::DataProfile profile;
     profile.sourceRoot = path.parent_path();

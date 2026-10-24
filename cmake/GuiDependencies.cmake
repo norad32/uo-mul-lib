@@ -18,6 +18,7 @@ add_library(
     "${IMGUI_SOURCE_DIR}/imgui_widgets.cpp"
     "${IMGUI_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
     "${IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp")
+target_compile_definitions(imgui PUBLIC IMGUI_USE_WCHAR32=1)
 target_include_directories(
     imgui SYSTEM
     PUBLIC

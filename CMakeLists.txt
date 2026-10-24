@@ -187,7 +187,8 @@ endif()
 
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
-    set(clang_tidy_targets core logger uomul)
+    # The logger target is coupled to distro spdlog/fmt headers, which are not part of our lint scope.
+    set(clang_tidy_targets core uomul)
     if(BUILD_CLI
        OR BUILD_GUI
        OR BUILD_CLI_TESTS)

@@ -86,11 +86,7 @@ TEST_CASE("guiResourceLookup_ShouldPreferEnvironmentOverride")
     std::ofstream(overridePath).put('o');
 
     const uo_mule::gui::GuiResourceLookup lookup(
-        directory.path() / "bin/application",
-        installed.filename(),
-        source,
-        installed.filename(),
-        source);
+        directory.path() / "bin/application", installed.filename(), source, installed.filename(), source);
     const EnvironmentOverride override("IM_CPP_FONT_PATH", overridePath);
 
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == overridePath);
@@ -107,8 +103,7 @@ TEST_CASE("guiResourceLookup_ShouldPreferInstalledPathBeforeBuildTreePath")
     std::ofstream(installed).put('i');
     std::ofstream(source).put('s');
 
-    const uo_mule::gui::GuiResourceLookup lookup(
-        executable, "../installed.ttf", source, "../installed.ttf", source);
+    const uo_mule::gui::GuiResourceLookup lookup(executable, "../installed.ttf", source, "../installed.ttf", source);
 
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == installed);
 }
@@ -131,10 +126,10 @@ TEST_CASE("guiResourceLookup_ShouldReportMissingResource")
     clearOverrides();
     TemporaryDirectory directory;
     const uo_mule::gui::GuiResourceLookup lookup(directory.path() / "bin/application",
-                                                  "../missing-icon.xpm",
-                                                  directory.path() / "missing-icon.xpm",
-                                                  "../missing.ttf",
-                                                  directory.path() / "missing.ttf");
+                                                 "../missing-icon.xpm",
+                                                 directory.path() / "missing-icon.xpm",
+                                                 "../missing.ttf",
+                                                 directory.path() / "missing.ttf");
 
     REQUIRE_FALSE(lookup.find(uo_mule::gui::GuiResourceId::applicationIcon).has_value());
     REQUIRE_FALSE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont).has_value());

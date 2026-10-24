@@ -831,22 +831,24 @@ std::expected<void, Error> TexMapsEditor::clearTexture(std::uint32_t id)
         const bool restored =
             detail::MulCommon::writeExact(impl_->descriptor(impl_->indexId), previous.data(), previous.size(), offset);
 
+        bool truncated = true;
         if (id >= oldCount)
         {
-            static_cast<void>(::ftruncate(impl_->descriptor(impl_->indexId), oldSize));
+            truncated = ::ftruncate(impl_->descriptor(impl_->indexId), oldSize) == 0;
             impl_->entries.resize(oldCount);
         }
 
-        if (!restored)
+        if (!restored || !truncated)
         {
             impl_->active = false;
         }
 
-        return std::unexpected(detail::MulCommon::makeError(
-            ErrorCode::io,
-            impl_->stagedPath(impl_->indexId),
-            offset,
-            restored ? "could not clear texture index entry" : "texture clear failed and staged rollback was incomplete"));
+        return std::unexpected(detail::MulCommon::makeError(ErrorCode::io,
+                                                            impl_->stagedPath(impl_->indexId),
+                                                            offset,
+                                                            restored && truncated
+                                                                ? "could not clear texture index entry"
+                                                                : "texture clear failed and staged rollback was incomplete"));
     }
 
     impl_->entries.at(id) = {};
