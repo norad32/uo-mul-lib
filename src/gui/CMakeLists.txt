@@ -14,9 +14,12 @@ include(GuiDependencies)
 add_library(
     gui
     application/application.cpp
+    application/gui_resources.cpp
     commands/command_registry.cpp
     commands/menu_bar.cpp
     presentation/dialog/dialog_presentation.cpp
+    presentation/fonts/imgui_fonts.cpp
+    presentation/icons/iconography.cpp
     dialogs/file_browser_dialog.cpp
     dialogs/file_selector_dialog.cpp
     dialogs/map_facet_dialog.cpp
@@ -29,6 +32,7 @@ add_library(
     frame/workbench_frame.cpp
     presentation/formatting/file_size.cpp
     panels/block_inspector_panel.cpp
+    panels/icon_gallery_panel.cpp
     panels/tile_inspector_panel.cpp
     panels/log_panel.cpp
     panels/radarcol_panel.cpp
@@ -65,11 +69,19 @@ file(
     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
     "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}/app_icon.xpm"
 )
+file(
+    RELATIVE_PATH
+    MATERIAL_DESIGN_ICONS_INSTALL_RELATIVE_PATH
+    "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}"
+    "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}/fonts/materialdesignicons-webfont.ttf"
+)
 target_compile_definitions(
     gui
     PRIVATE
         APPLICATION_ICON_INSTALL_RELATIVE_PATH="${APPLICATION_ICON_INSTALL_RELATIVE_PATH}"
         APPLICATION_ICON_SOURCE_PATH="${APPLICATION_SOURCE_DIR}/assets/app_icon.xpm"
+        MATERIAL_DESIGN_ICONS_INSTALL_RELATIVE_PATH="${MATERIAL_DESIGN_ICONS_INSTALL_RELATIVE_PATH}"
+        MATERIAL_DESIGN_ICONS_SOURCE_PATH="${APPLICATION_SOURCE_DIR}/assets/fonts/materialdesignicons-webfont.ttf"
 )
 if(ENABLE_COVERAGE)
     target_link_options(

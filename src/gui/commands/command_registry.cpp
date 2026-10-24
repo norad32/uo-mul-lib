@@ -576,6 +576,15 @@ void registerDefaultCommands(CommandRegistry & registry)
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tiledata)); });
+    add(registry,
+        CommandId::panelIconGallery,
+        "view.panel.icon-gallery",
+        "Icon Gallery",
+        "Windows",
+        "Show or hide the semantic icon gallery",
+        "",
+        enabled,
+        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::iconGallery)); });
 
     add(registry,
         CommandId::selectionTiles,
@@ -614,7 +623,7 @@ void registerDefaultCommands(CommandRegistry & registry)
     add(registry,
         CommandId::selectionAll,
         "selection.all",
-        "Select All",
+        "All",
         "Select",
         "Select all tiles or blocks at the active granularity",
         "Ctrl+A",
@@ -623,7 +632,7 @@ void registerDefaultCommands(CommandRegistry & registry)
     add(registry,
         CommandId::selectionNone,
         "selection.none",
-        "Select None",
+        "None",
         "Select",
         "Clear the current selection",
         "Ctrl+Shift+A",

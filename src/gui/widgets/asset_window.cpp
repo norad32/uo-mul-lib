@@ -1,4 +1,5 @@
 #include "gui/widgets/asset_window.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
@@ -69,7 +70,12 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
         std::array<char, filterBufferSize> filterBuffer{};
         const std::size_t length = std::min(state.query.filter.size(), filterBuffer.size() - 1U);
         std::copy_n(state.query.filter.data(), length, filterBuffer.data());
-        ImGui::TextUnformatted(strings::filter());
+        const std::string filterLabel = iconFontAvailable() ? iconGlyph(IconId::filter) : strings::filter();
+        ImGui::TextUnformatted(filterLabel.c_str());
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", strings::filter());
+        }
         ImGui::SameLine();
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * halfWidth);
         if (ImGui::InputText("##AssetFilter", filterBuffer.data(), filterBuffer.size()))
@@ -152,14 +158,26 @@ void drawPresentationControls(const AssetAdapter & adapter, AssetWindowState & s
     {
         return;
     }
-    if (ImGui::RadioButton(strings::grid(), state.presentation == AssetPresentation::grid))
+    std::string gridLabel = iconFontAvailable() ? iconGlyph(IconId::apps) : strings::grid();
+    gridLabel += "##AssetPresentationGrid";
+    if (ImGui::RadioButton(gridLabel.c_str(), state.presentation == AssetPresentation::grid))
     {
         setPresentation(adapter, state, AssetPresentation::grid);
     }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("%s", strings::grid());
+    }
     ImGui::SameLine();
-    if (ImGui::RadioButton(strings::table(), state.presentation == AssetPresentation::table))
+    std::string tableLabel = iconFontAvailable() ? iconGlyph(IconId::formatListBulleted) : strings::table();
+    tableLabel += "##AssetPresentationTable";
+    if (ImGui::RadioButton(tableLabel.c_str(), state.presentation == AssetPresentation::table))
     {
         setPresentation(adapter, state, AssetPresentation::table);
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("%s", strings::table());
     }
     if (adapter.descriptor.inlinePresentationControl)
     {

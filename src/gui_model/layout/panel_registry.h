@@ -15,6 +15,7 @@ enum class PanelId : std::uint8_t
     radarcol,
     texmaps,
     tiledata,
+    iconGallery,
 };
 
 struct PanelDescriptor

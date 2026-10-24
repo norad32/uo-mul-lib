@@ -90,6 +90,12 @@ if(BUILD_GUI)
         FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/app_icon.xpm"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}"
         COMPONENT Runtime)
+    install(
+        FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-webfont.ttf"
+              "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-font.json"
+              "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Apache-2.0.txt"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}/fonts"
+        COMPONENT Runtime)
     if(BUILD_GUI_RUNTIME OR INSTALL_GUI)
         if(BUILD_GUI_RUNTIME)
             set(GUI_DESKTOP_EXECUTABLE "${GUI_EXECUTABLE_NAME}")
@@ -116,6 +122,12 @@ if(BUILD_GUI_RUNTIME)
     install(
         FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/app_icon.xpm"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}"
+        COMPONENT Gui)
+    install(
+        FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-webfont.ttf"
+              "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-font.json"
+              "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Apache-2.0.txt"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}/fonts"
         COMPONENT Gui)
 endif()
 

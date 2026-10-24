@@ -2,6 +2,7 @@
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/shell/welcome_greetings.h"
@@ -380,7 +381,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     ImGui::Separator();
 
     ImGui::Spacing();
-    dialogHeading("Recent Files");
+    dialogHeading(iconLabel(IconId::bookmark, "Recent Files").c_str());
     ImGui::Spacing();
 
     if (state.session.recentFiles().empty())
@@ -404,7 +405,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
-    dialogHeading("Profile");
+    dialogHeading(iconLabel(IconId::account, "Profile").c_str());
     if (ImGui::BeginTable("###welcome.details", 2, ImGuiTableFlags_SizingStretchProp))
     {
         ImGui::TableNextColumn();
@@ -413,7 +414,8 @@ void drawWelcomeScreen(WorkbenchState & state)
         ImGui::EndTable();
     }
 
-    if (ImGui::Button("Preferences"))
+    const std::string preferencesLabel = iconLabel(IconId::preferences, "Preferences");
+    if (ImGui::Button(preferencesLabel.c_str()))
     {
         static_cast<void>(state.commands.execute(CommandId::dataPaths, state));
     }
@@ -423,7 +425,10 @@ void drawWelcomeScreen(WorkbenchState & state)
     }
 
     const float actionButtonHeight = ImGui::GetFrameHeight();
-    const float actionButtonTextWidth = std::max(ImGui::CalcTextSize("Open").x, ImGui::CalcTextSize("New").x);
+    const std::string openLabel = iconLabel(IconId::folder, "Open");
+    const std::string newLabel = iconLabel(IconId::fileDocumentPlus, "New");
+    const float actionButtonTextWidth =
+        std::max(ImGui::CalcTextSize(openLabel.c_str()).x, ImGui::CalcTextSize(newLabel.c_str()).x);
     const float actionButtonWidth = actionButtonTextWidth + (ImGui::GetStyle().FramePadding.x * 2.0F);
     const float footerHeight = actionButtonHeight + ImGui::GetStyle().ItemSpacing.y + welcomeFooterBottomPadding;
     const float availableHeight = ImGui::GetContentRegionAvail().y;
@@ -451,7 +456,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     {
         ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - actionRowWidth);
     }
-    if (ImGui::Button("Open", ImVec2(actionWidth, actionButtonHeight)))
+    if (ImGui::Button(openLabel.c_str(), ImVec2(actionWidth, actionButtonHeight)))
     {
         static_cast<void>(state.commands.execute(CommandId::fileOpen, state));
     }
@@ -459,7 +464,7 @@ void drawWelcomeScreen(WorkbenchState & state)
     {
         ImGui::SameLine();
     }
-    if (ImGui::Button("New", ImVec2(actionWidth, actionButtonHeight)))
+    if (ImGui::Button(newLabel.c_str(), ImVec2(actionWidth, actionButtonHeight)))
     {
         static_cast<void>(state.commands.execute(CommandId::fileNew, state));
     }

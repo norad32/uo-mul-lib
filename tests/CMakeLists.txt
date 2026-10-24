@@ -78,6 +78,7 @@ if(BUILD_GUI_TESTS AND BUILD_GUI)
                 logger
                 uomul
                 options)
+    target_compile_definitions(gui_tests PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     apply_common_compile_options(gui_tests)
     apply_unit_test_compile_options(gui_tests)
     if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")

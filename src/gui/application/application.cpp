@@ -1,8 +1,10 @@
 #include "gui/application/application.h"
+#include "gui/application/gui_resources.h"
 #include "core/app_info.h"
 #include "gui/commands/menu_bar.h"
 #include "gui/frame/workbench_frame.h"
 #include "gui/persistence/layout_store.h"
+#include "gui/presentation/fonts/imgui_fonts.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/state/workbench_state.h"
 #include "gui_model/persistence/asset_state_store.h"
@@ -13,8 +15,6 @@
 #include <GLFW/glfw3.h>
 #include <array>
 #include <cstddef>
-#include <cstdlib>
-#include <filesystem>
 #include <fstream>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -26,7 +26,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <system_error>
 #include <utility>
 
 namespace uo_mule::gui
@@ -58,27 +57,8 @@ using AppIconPixels = std::array<unsigned char, appIconWidth * appIconHeight * a
 
 [[nodiscard]] std::ifstream openAppIcon()
 {
-    if (const char * path = std::getenv("IM_CPP_ICON_PATH"); path != nullptr)
-    {
-        std::ifstream file(path);
-        if (file)
-        {
-            return file;
-        }
-    }
-
-    std::error_code error;
-    const std::filesystem::path executablePath = std::filesystem::read_symlink("/proc/self/exe", error);
-
-    if (!error)
-    {
-        std::ifstream file(executablePath.parent_path() / APPLICATION_ICON_INSTALL_RELATIVE_PATH);
-        if (file)
-        {
-            return file;
-        }
-    }
-    return std::ifstream(APPLICATION_ICON_SOURCE_PATH);
+    const auto path = defaultGuiResourceLookup().find(GuiResourceId::applicationIcon);
+    return path.has_value() ? std::ifstream(*path) : std::ifstream{};
 }
 
 [[nodiscard]] unsigned char parseHexDigit(char value)
@@ -394,6 +374,11 @@ int Application::run()
     glfwMakeContextCurrent(window.get());
     glfwSwapInterval(1);
     const ImGuiContext guiContext;
+    const ImGuiFontState fontState = configureImGuiFonts(defaultGuiResourceLookup().find(GuiResourceId::materialDesignIconsFont));
+    if (!fontState.iconFontAvailable)
+    {
+        SPDLOG_LOGGER_WARN(logger_, "{}", fontState.diagnostic);
+    }
     ImGui::StyleColorsDark();
     theme::applyImGuiStyle();
     const GlfwBackend glfwBackend(window.get());

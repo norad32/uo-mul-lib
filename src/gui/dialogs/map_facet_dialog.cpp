@@ -1,6 +1,7 @@
 #include "gui/dialogs/map_facet_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/theme/theme.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
@@ -103,13 +104,14 @@ MapFacetDialogResult drawMapFacetDialog(NewFileDialogState & state)
     }
 
     beginDialogFooter({"Select", "Cancel"});
-    if ((dialogButton("Select", validDimensions) || ImGui::IsKeyPressed(ImGuiKey_Enter)) && validDimensions)
+    if ((dialogButton(iconLabel(IconId::ok, "Select").c_str(), validDimensions) || ImGui::IsKeyPressed(ImGuiKey_Enter)) &&
+        validDimensions)
     {
         endDialogFooter();
         return MapFacetDialogResult::accept;
     }
     ImGui::SameLine();
-    if (dialogButton("Cancel"))
+    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
         endDialogFooter();
         return MapFacetDialogResult::cancel;
