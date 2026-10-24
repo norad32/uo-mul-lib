@@ -132,13 +132,13 @@ jobs:
         run: cmake --preset debug -DCMAKE_CXX_COMPILER=g++-14 -DENABLE_CLANG_TIDY=OFF
 
       - name: Build coverage tests
-        run: cmake --build --preset debug --parallel 2
+        run: cmake --build --preset debug --target all --parallel 2
 
       - name: Run coverage tests
         run: ctest --preset debug
 
       - name: Generate coverage summary
-        run: gcovr --gcov-executable gcov-14 --merge-mode-functions=merge-use-line-min --root . --filter 'src/' --txt-summary > build/debug/coverage.txt
+        run: gcovr --gcov-executable gcov-14 --merge-mode-functions=merge-use-line-min --root . --filter 'src/' --txt-summary build/debug > build/debug/coverage.txt
 
       - name: Upload coverage report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

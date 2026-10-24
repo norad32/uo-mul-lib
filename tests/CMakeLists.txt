@@ -5,12 +5,12 @@ list(APPEND CMAKE_MODULE_PATH "${Catch2_DIR}")
 include(Catch)
 
 if(BUILD_CORE_TESTS)
-        file(
-            GLOB_RECURSE
-            core_test_sources
-            CONFIGURE_DEPENDS
-            "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
-            "${CMAKE_CURRENT_SOURCE_DIR}/uomul/*.cpp")
+    file(
+        GLOB_RECURSE
+        core_test_sources
+        CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/uomul/*.cpp")
     add_executable(uomul_tests ${core_test_sources})
     target_link_libraries(
         uomul_tests
@@ -19,7 +19,8 @@ if(BUILD_CORE_TESTS)
                 core
                 logger
                 options)
-    target_compile_definitions(uomul_tests PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+    target_compile_definitions(uomul_tests
+                               PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     apply_common_compile_options(uomul_tests)
     apply_unit_test_compile_options(uomul_tests)
     if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -78,7 +79,8 @@ if(BUILD_GUI_TESTS AND BUILD_GUI)
                 logger
                 uomul
                 options)
-    target_compile_definitions(gui_tests PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+    target_compile_definitions(gui_tests
+                               PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     apply_common_compile_options(gui_tests)
     apply_unit_test_compile_options(gui_tests)
     if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -104,7 +106,8 @@ if(BUILD_GUI_TESTS)
                 logger
                 uomul
                 options)
-    target_compile_definitions(gui_model_tests PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+    target_compile_definitions(gui_model_tests
+                               PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     apply_common_compile_options(gui_model_tests)
     apply_unit_test_compile_options(gui_model_tests)
     catch_discover_tests(gui_model_tests)
