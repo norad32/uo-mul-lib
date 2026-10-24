@@ -88,6 +88,8 @@ struct WorkbenchState
     FileBrowserState fileBrowser;
     FileSelectorState fileSelector;
     std::optional<MapCanvasStatus> lastHoveredCanvasStatus;
+    std::string hoveredPanelContext;
+    std::string activeAssetPanelContext;
     std::string operationStatus;
     NotificationSeverity operationStatusSeverity = NotificationSeverity::info;
     std::string pendingClipboardText;

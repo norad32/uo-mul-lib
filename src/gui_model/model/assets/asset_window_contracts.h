@@ -15,6 +15,8 @@
 namespace uo_mule::gui::assets
 {
 
+inline constexpr std::string_view assetValueDragPayloadType = "uo_mule.asset-value";
+
 enum class AssetPresentation : std::uint8_t
 {
     grid,
@@ -142,11 +144,18 @@ struct AssetExtensionSlot
     std::function<void()> draw;
 };
 
+struct AssetDragPayloadValue
+{
+    std::uint32_t item = 0;
+    std::uint32_t value = 0;
+};
+
 struct AssetDragPayload
 {
     std::string type;
     AssetSourceContext source;
     std::vector<AssetItemId> items;
+    std::vector<AssetDragPayloadValue> values;
 };
 
 struct AssetWindowState
@@ -170,6 +179,14 @@ struct AssetWindowState
     float selectionDragStartY = 0.0F;
     bool selectionDragActive = false;
     bool detailsCollapsed = false;
+    std::function<void()> selectAll;
+    std::function<void()> selectNone;
+    std::function<void()> invertSelection;
+    std::optional<AssetItemId> requestedItem;
+    std::optional<std::size_t> requestedItemIndex;
+    std::optional<AssetItemId> highlightedItem;
+    double highlightUntil = 0.0;
+    std::function<void(bool)> focusResult;
 };
 
 void resetContext(AssetWindowState & state) noexcept;
@@ -187,8 +204,11 @@ struct AssetAdapterDescriptor
     std::function<std::string(const AssetItemId &)> formatSelectionId;
     std::function<void(const AssetItemId &, float)> renderSelectionPreview;
     std::function<void(const AssetItemId &)> itemPicked;
+    std::function<void(const AssetItemId &)> itemDoubleClicked;
     std::function<bool(const AssetItemId &)> itemSourcePicked;
     std::function<void(const AssetItemId &)> itemContextMenu;
+    std::string acceptedDragPayloadType;
+    std::function<void(const AssetItemId &, const AssetDragPayloadValue &)> itemValueDropped;
     std::function<bool(const AssetItemId &)> itemStaged;
     float selectionPreviewSize = 0.0F;
     std::function<void()> inlinePresentationControl;
@@ -198,8 +218,11 @@ struct AssetAdapterDescriptor
     std::size_t itemCount = 0;
     std::size_t fixedCellWidth = 0;
     std::size_t fixedCellHeight = 0;
+    std::optional<float> gridItemSpacing;
     std::vector<AssetAction> actions;
     std::vector<AssetExtensionSlot> extensionSlots;
+    std::function<void()> presentationTrailingControl;
+    std::function<void(std::string_view)> hoveredContext;
 };
 
 using AssetRangeLoader = std::function<std::vector<AssetItem>(const AssetRangeRequest &, const AssetQuery &)>;

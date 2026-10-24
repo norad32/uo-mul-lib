@@ -47,6 +47,8 @@ public:
 private:
     [[nodiscard]] static std::uint64_t tileKey(uomul::TileCoord coordinate) noexcept;
     [[nodiscard]] static std::uint64_t blockKey(uomul::BlockCoord coordinate) noexcept;
+    void replaceBlockLasso(const std::vector<uomul::TileCoord> & path, uomul::Dimensions dimensions);
+    void replaceTileLasso(const std::vector<uomul::TileCoord> & path, uomul::Dimensions dimensions);
 
     ToolSelectionGranularity granularity_ = ToolSelectionGranularity::tiles;
     std::unordered_set<std::uint64_t> selected_;

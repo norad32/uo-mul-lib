@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <functional>
 #include <imgui.h>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <vector>
@@ -26,6 +27,10 @@ constexpr float selectedBorderThickness = 2.0F;
 constexpr float stagedMarkerPadding = 5.0F;
 constexpr float stagedMarkerRadius = 3.0F;
 constexpr std::size_t maximumSelectionPreviews = 9U;
+constexpr double assetHighlightDuration = 1.5;
+constexpr float assetHighlightMinimumAlpha = 0.35F;
+constexpr float assetHighlightBorderThickness = 3.0F;
+constexpr float assetScrollCenter = 0.5F;
 
 [[nodiscard]] std::string windowName(const AssetAdapterDescriptor & descriptor)
 {
@@ -129,7 +134,9 @@ void syncPresentation(const AssetAdapter & adapter, AssetWindowState & state)
     if (state.presentationContext != key)
     {
         state.presentationContext = key;
+        const auto requestedItem = state.requestedItem;
         resetContext(state);
+        state.requestedItem = requestedItem;
         const auto stored = state.presentations.find(key);
         state.presentation = stored == state.presentations.end() ? adapter.descriptor.defaultPresentation : stored->second;
     }
@@ -160,26 +167,32 @@ void drawPresentationControls(const AssetAdapter & adapter, AssetWindowState & s
     {
         return;
     }
-    std::string gridLabel = iconFontAvailable() ? iconGlyph(IconId::apps) : strings::grid();
-    gridLabel += "##AssetPresentationGrid";
-    if (ImGui::RadioButton(gridLabel.c_str(), state.presentation == AssetPresentation::grid))
+    const auto drawPresentationOption =
+        [&adapter, &state](IconId icon, const char * tooltip, AssetPresentation presentation, const char * id)
     {
-        setPresentation(adapter, state, AssetPresentation::grid);
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("%s", strings::grid());
-    }
+        const std::string symbol = iconFontAvailable() ? iconGlyph(icon) : tooltip;
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(symbol.c_str());
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("%s", tooltip);
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton(id, state.presentation == presentation))
+        {
+            setPresentation(adapter, state, presentation);
+        }
+    };
+
+    drawPresentationOption(IconId::apps, strings::grid(), AssetPresentation::grid, "##AssetPresentationGrid");
     ImGui::SameLine();
-    std::string tableLabel = iconFontAvailable() ? iconGlyph(IconId::formatListBulleted) : strings::table();
-    tableLabel += "##AssetPresentationTable";
-    if (ImGui::RadioButton(tableLabel.c_str(), state.presentation == AssetPresentation::table))
+    drawPresentationOption(IconId::formatListBulleted, strings::table(), AssetPresentation::table, "##AssetPresentationTable");
+    if (adapter.descriptor.presentationTrailingControl)
     {
-        setPresentation(adapter, state, AssetPresentation::table);
-    }
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("%s", strings::table());
+        ImGui::SameLine(0.0F, 0.0F);
+        ImGui::TextUnformatted("     ");
+        ImGui::SameLine(0.0F, 0.0F);
+        adapter.descriptor.presentationTrailingControl();
     }
     if (adapter.descriptor.inlinePresentationControl)
     {
@@ -519,6 +532,124 @@ void drawSelectionOutline(const ImVec2 & itemMin, const ImVec2 & itemMax)
         itemMin, itemMax, theme::packedColor(theme::selection), 0.0F, ImDrawFlags_None, selectedBorderThickness);
 }
 
+struct AssetItemInteraction
+{
+    ImVec2 minimum;
+    ImVec2 maximum;
+    bool rendered = false;
+    bool doubleClicked = false;
+    bool rightClicked = false;
+};
+
+AssetItemInteraction drawItemControl(const AssetAdapter & adapter,
+                                     AssetWindowState & state,
+                                     const AssetItem & item,
+                                     std::size_t index,
+                                     bool handleSelection)
+{
+    AssetItemInteraction interaction;
+    ImGui::BeginDisabled(item.state != AssetItemState::available);
+    if (adapter.renderItem)
+    {
+        interaction.rendered = true;
+        adapter.renderItem(item, contains(state.selection, item.id));
+        interaction.minimum = ImGui::GetItemRectMin();
+        interaction.maximum = ImGui::GetItemRectMax();
+        if (handleSelection && ImGui::IsItemClicked())
+        {
+            updateSelectionOnClick(adapter, state, item, index);
+        }
+        interaction.doubleClicked =
+            handleSelection && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && ImGui::IsItemHovered();
+        interaction.rightClicked = handleSelection && ImGui::IsItemClicked(ImGuiMouseButton_Right);
+    }
+    else if (ImGui::Selectable(
+                 item.label.c_str(), contains(state.selection, item.id), ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F)) &&
+             handleSelection)
+    {
+        updateSelectionOnClick(adapter, state, item, index);
+    }
+    else
+    {
+        interaction.rightClicked = handleSelection && ImGui::IsItemClicked(ImGuiMouseButton_Right);
+    }
+    ImGui::EndDisabled();
+    return interaction;
+}
+
+void drawItemDragSource(const AssetAdapter & adapter, const AssetWindowState & state)
+{
+    if (!adapter.makeDragPayload || !ImGui::BeginDragDropSource())
+    {
+        return;
+    }
+    const auto payload = adapter.makeDragPayload(state.selection);
+    if (payload && payload->values.size() == 1U)
+    {
+        ImGui::SetDragDropPayload(payload->type.c_str(), payload->values.data(), sizeof(AssetDragPayloadValue));
+        ImGui::TextUnformatted("Radarcol color");
+    }
+    ImGui::EndDragDropSource();
+}
+
+void drawItemDecorations(const AssetAdapter & adapter,
+                         AssetWindowState & state,
+                         const AssetItem & item,
+                         std::size_t index,
+                         const AssetItemInteraction & interaction)
+{
+    if (!interaction.rendered)
+    {
+        return;
+    }
+    appendDragSelection(state, item, index, interaction.minimum, interaction.maximum);
+    if (adapter.descriptor.itemStaged && adapter.descriptor.itemStaged(item.id))
+    {
+        const ImVec2 marker(interaction.maximum.x - stagedMarkerPadding, interaction.minimum.y + stagedMarkerPadding);
+        ImGui::GetWindowDrawList()->AddCircleFilled(marker, stagedMarkerRadius, theme::packedColor(theme::mauve));
+    }
+    if (contains(state.selection, item.id))
+    {
+        drawSelectionOutline(interaction.minimum, interaction.maximum);
+    }
+    if (state.highlightedItem && *state.highlightedItem == item.id && ImGui::GetTime() < state.highlightUntil)
+    {
+        const float pulse = 0.5F + (0.5F * std::sin(static_cast<float>(ImGui::GetTime() * 10.0)));
+        const auto highlightColor = theme::withAlpha(theme::yellow, assetHighlightMinimumAlpha + (pulse * 0.65F));
+        ImGui::GetWindowDrawList()->AddRect(interaction.minimum,
+                                            interaction.maximum,
+                                            theme::packedColor(highlightColor),
+                                            0.0F,
+                                            ImDrawFlags_None,
+                                            assetHighlightBorderThickness);
+    }
+}
+
+void drawItemDropTarget(const AssetAdapter & adapter, const AssetItem & item)
+{
+    if (!adapter.descriptor.itemValueDropped || adapter.descriptor.acceptedDragPayloadType.empty() ||
+        !ImGui::BeginDragDropTarget())
+    {
+        return;
+    }
+    if (const ImGuiPayload * payload = ImGui::AcceptDragDropPayload(adapter.descriptor.acceptedDragPayloadType.c_str());
+        payload != nullptr && payload->DataSize == sizeof(AssetDragPayloadValue))
+    {
+        const auto & value = *static_cast<const AssetDragPayloadValue *>(payload->Data);
+        adapter.descriptor.itemValueDropped(item.id, value);
+    }
+    ImGui::EndDragDropTarget();
+}
+
+void drawItemContextMenu(const AssetAdapter & adapter, const AssetItem & item)
+{
+    if (adapter.descriptor.itemContextMenu && ImGui::BeginPopupContextItem("AssetItemContext", ImGuiMouseButton_Right))
+    {
+        adapter.descriptor.itemContextMenu(item.id);
+        ImGui::EndPopup();
+    }
+}
+
 void drawItem(const AssetAdapter & adapter,
               AssetWindowState & state,
               const AssetItem & item,
@@ -526,53 +657,19 @@ void drawItem(const AssetAdapter & adapter,
               bool handleSelection = true)
 {
     ImGui::PushID(item.id.value.c_str());
-    const bool selected = contains(state.selection, item.id);
-    bool rightClicked = false;
-    ImGui::BeginDisabled(item.state != AssetItemState::available);
-    ImVec2 itemMin;
-    ImVec2 itemMax;
-    if (adapter.renderItem)
+    const AssetItemInteraction interaction = drawItemControl(adapter, state, item, index, handleSelection);
+    if (interaction.doubleClicked && adapter.descriptor.itemDoubleClicked)
     {
-        adapter.renderItem(item, selected);
-        itemMin = ImGui::GetItemRectMin();
-        itemMax = ImGui::GetItemRectMax();
-        if (handleSelection && ImGui::IsItemClicked())
-        {
-            updateSelectionOnClick(adapter, state, item, index);
-        }
-        rightClicked = handleSelection && ImGui::IsItemClicked(ImGuiMouseButton_Right);
+        adapter.descriptor.itemDoubleClicked(item.id);
     }
-    else if (ImGui::Selectable(item.label.c_str(), selected, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F)) && handleSelection)
-    {
-        updateSelectionOnClick(adapter, state, item, index);
-    }
-    else
-    {
-        rightClicked = handleSelection && ImGui::IsItemClicked(ImGuiMouseButton_Right);
-    }
-    ImGui::EndDisabled();
-    if (rightClicked && !contains(state.selection, item.id))
+    if (interaction.rightClicked && !contains(state.selection, item.id))
     {
         selectSingleAt(state.selection, item.id, index);
     }
-    if (adapter.renderItem)
-    {
-        appendDragSelection(state, item, index, itemMin, itemMax);
-        if (adapter.descriptor.itemStaged && adapter.descriptor.itemStaged(item.id))
-        {
-            const ImVec2 marker(itemMax.x - stagedMarkerPadding, itemMin.y + stagedMarkerPadding);
-            ImGui::GetWindowDrawList()->AddCircleFilled(marker, stagedMarkerRadius, theme::packedColor(theme::warning));
-        }
-        if (contains(state.selection, item.id))
-        {
-            drawSelectionOutline(itemMin, itemMax);
-        }
-    }
-    if (adapter.descriptor.itemContextMenu && ImGui::BeginPopupContextItem("AssetItemContext", ImGuiMouseButton_Right))
-    {
-        adapter.descriptor.itemContextMenu(item.id);
-        ImGui::EndPopup();
-    }
+    drawItemDragSource(adapter, state);
+    drawItemDecorations(adapter, state, item, index, interaction);
+    drawItemDropTarget(adapter, item);
+    drawItemContextMenu(adapter, item);
     drawItemTooltip(adapter, state, item);
     ImGui::PopID();
 }
@@ -581,7 +678,7 @@ void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
 {
     updateSelectionDragState(adapter, state);
 
-    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    const float spacing = adapter.descriptor.gridItemSpacing.value_or(ImGui::GetStyle().ItemSpacing.x);
     const float availableWidth = ImGui::GetContentRegionAvail().x;
     const float cellWidth = static_cast<float>(adapter.descriptor.fixedCellWidth);
     const float cellHeight = static_cast<float>(adapter.descriptor.fixedCellHeight);
@@ -592,9 +689,16 @@ void drawGrid(const AssetAdapter & adapter, AssetWindowState & state)
         return;
     }
 
-    const float rowHeight = cellHeight + ImGui::GetStyle().ItemSpacing.y;
+    const float rowSpacing = adapter.descriptor.gridItemSpacing.value_or(ImGui::GetStyle().ItemSpacing.y);
+    const float rowHeight = cellHeight + rowSpacing;
     const float viewportHeight = ImGui::GetContentRegionAvail().y;
     const float contentHeight = static_cast<float>(layout.rows) * rowHeight;
+    if (state.requestedItemIndex)
+    {
+        const std::size_t targetRow = *state.requestedItemIndex / layout.columns;
+        ImGui::SetScrollY(static_cast<float>(targetRow) * rowHeight);
+        state.requestedItemIndex.reset();
+    }
     const float scrollY = ImGui::GetScrollY();
     const std::size_t firstRow = std::min(layout.rows, static_cast<std::size_t>(std::floor(scrollY / rowHeight)));
     const std::size_t visibleRows = static_cast<std::size_t>(std::ceil(viewportHeight / rowHeight)) + 1U;
@@ -723,6 +827,10 @@ void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
 
     ImGuiListClipper clipper;
     clipper.Begin(static_cast<int>(adapter.descriptor.itemCount), rowHeight);
+    if (state.requestedItemIndex)
+    {
+        clipper.IncludeItemByIndex(static_cast<int>(*state.requestedItemIndex));
+    }
     while (clipper.Step())
     {
         const std::size_t first = static_cast<std::size_t>(clipper.DisplayStart);
@@ -735,6 +843,11 @@ void drawTable(const AssetAdapter & adapter, AssetWindowState & state)
             if (index < items.size())
             {
                 drawTableRow(adapter, state, items.at(index), first + index);
+                if (state.requestedItemIndex && *state.requestedItemIndex == first + index)
+                {
+                    ImGui::SetScrollHereY(assetScrollCenter);
+                    state.requestedItemIndex.reset();
+                }
             }
             else
             {
@@ -762,7 +875,9 @@ void resetQueryCacheIfNeeded(const AssetAdapter & adapter, AssetWindowState & st
         return;
     }
 
+    const auto requestedItem = state.requestedItem;
     resetContext(state);
+    state.requestedItem = requestedItem;
     state.queryCacheContext = queryContext;
 }
 
@@ -834,6 +949,63 @@ void drawAssetContent(const AssetAdapter & adapter, const AssetAdapter & queryAd
     drawDetails(adapter, state);
 }
 
+void selectAllAssetItems(const AssetAdapter & adapter, AssetWindowState & state)
+{
+    if (!adapter.loadRange || adapter.descriptor.itemCount == 0U)
+    {
+        return;
+    }
+    const auto items = adapter.loadRange(
+        {.first = 0U, .count = adapter.descriptor.itemCount, .presentation = state.presentation}, state.query);
+    state.selection.selected.clear();
+    for (const auto & item : items)
+    {
+        if (item.state == AssetItemState::available)
+        {
+            state.selection.selected.push_back(item.id);
+        }
+    }
+    if (state.selection.selected.empty())
+    {
+        state.selection.anchor.reset();
+        state.selection.anchorIndex.reset();
+    }
+    else
+    {
+        state.selection.anchor = state.selection.selected.front();
+        state.selection.anchorIndex = 0U;
+    }
+}
+
+void clearAssetSelection(AssetWindowState & state)
+{
+    state.selection = {};
+}
+
+void invertAssetSelection(const AssetAdapter & adapter, AssetWindowState & state)
+{
+    if (!adapter.loadRange || adapter.descriptor.itemCount == 0U)
+    {
+        return;
+    }
+    const auto items = adapter.loadRange(
+        {.first = 0U, .count = adapter.descriptor.itemCount, .presentation = state.presentation}, state.query);
+    const AssetSelection previous = state.selection;
+    state.selection = {};
+    for (const auto & item : items)
+    {
+        if (item.state == AssetItemState::available && !contains(previous, item.id))
+        {
+            state.selection.selected.push_back(item.id);
+        }
+    }
+    if (!state.selection.selected.empty())
+    {
+        state.selection.anchor = state.selection.selected.front();
+        state.selection.anchorIndex = 0U;
+    }
+}
+
 } // namespace
 
 AssetGridLayout gridLayout(std::size_t itemCount, float availableWidth, float cellWidth, float spacing) noexcept
@@ -847,6 +1019,88 @@ AssetGridLayout gridLayout(std::size_t itemCount, float availableWidth, float ce
         std::max(1.0F, std::floor((std::max(0.0F, availableWidth) + std::max(0.0F, spacing)) / effectiveCellWidth)));
     return {.columns = columns, .rows = (itemCount + columns - 1U) / columns};
 }
+
+namespace
+{
+void processRequestedItem(const AssetAdapter & adapter, AssetWindowState & state, const AssetAdapter & queryAdapter)
+{
+    if (!state.requestedItem)
+    {
+        return;
+    }
+    const AssetItemId requestedItem = *state.requestedItem;
+    bool itemVisible = false;
+    std::optional<std::size_t> requestedIndex;
+    if (!state.query.filter.empty() || adapter.descriptor.queryWhenEmpty)
+    {
+        const auto match = std::ranges::find(state.filteredItems, requestedItem, &AssetItem::id);
+        itemVisible = match != state.filteredItems.end();
+        if (itemVisible)
+        {
+            requestedIndex = static_cast<std::size_t>(std::distance(state.filteredItems.begin(), match));
+        }
+    }
+    else if (const auto index = itemIndex(requestedItem);
+             index && *index < queryAdapter.descriptor.itemCount && queryAdapter.loadRange)
+    {
+        const auto items =
+            queryAdapter.loadRange({.first = *index, .count = 1U, .presentation = state.presentation}, state.query);
+        itemVisible = !items.empty() && items.front().state == AssetItemState::available && items.front().id == requestedItem;
+        requestedIndex = *index;
+    }
+    if (itemVisible)
+    {
+        state.highlightedItem = requestedItem;
+        state.highlightUntil = ImGui::GetTime() + assetHighlightDuration;
+        state.requestedItemIndex = requestedIndex;
+    }
+    else if (state.focusResult)
+    {
+        state.focusResult(false);
+    }
+    state.requestedItem.reset();
+}
+
+void expireAssetHighlight(AssetWindowState & state)
+{
+    if (state.highlightedItem && ImGui::GetTime() >= state.highlightUntil)
+    {
+        state.highlightedItem.reset();
+    }
+}
+
+void installSelectionCommands(const AssetAdapter & queryAdapter, AssetWindowState & state)
+{
+    state.selectAll = [queryAdapter, &state] { selectAllAssetItems(queryAdapter, state); };
+    state.selectNone = [&state] { clearAssetSelection(state); };
+    state.invertSelection = [queryAdapter, &state] { invertAssetSelection(queryAdapter, state); };
+}
+
+void dispatchAssetSelectionShortcuts(const AssetWindowState & state)
+{
+    if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) || ImGui::GetIO().WantTextInput ||
+        !ImGui::GetIO().KeyCtrl)
+    {
+        return;
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_A, false))
+    {
+        if (ImGui::GetIO().KeyShift)
+        {
+            state.selectNone();
+        }
+        else
+        {
+            state.selectAll();
+        }
+    }
+    else if (ImGui::IsKeyPressed(ImGuiKey_I, false))
+    {
+        state.invertSelection();
+    }
+}
+
+} // namespace
 
 void drawAssetWindow(const AssetAdapter & adapter,
                      AssetWindowState & state,
@@ -864,12 +1118,22 @@ void drawAssetWindow(const AssetAdapter & adapter,
     {
         becameVisible();
     }
+    const bool windowHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    const bool windowFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+    if (adapter.descriptor.hoveredContext && (windowHovered || windowFocused))
+    {
+        adapter.descriptor.hoveredContext(adapter.descriptor.title);
+    }
 
     syncPresentation(adapter, state);
     AssetAdapter queryAdapter = adapter;
     resetQueryCacheIfNeeded(adapter, state);
     updateSearchItems(adapter, state);
     applyFilteredQuery(adapter, state, queryAdapter);
+    processRequestedItem(adapter, state, queryAdapter);
+    expireAssetHighlight(state);
+    installSelectionCommands(queryAdapter, state);
+    dispatchAssetSelectionShortcuts(state);
     if (!adapter.descriptor.sourceTooltip.empty())
     {
         const ImVec2 windowMin = ImGui::GetWindowPos();

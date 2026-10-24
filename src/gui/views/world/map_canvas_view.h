@@ -31,6 +31,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspace,
                        const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
                        const std::function<bool(uomul::MapTile)> & colorSourcePicked,
                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
+                       const std::function<void()> & clearActiveAssetPanel,
                        bool & visible);
 
 } // namespace uo_mule::gui

@@ -1,6 +1,7 @@
 #include "gui/commands/menu_bar.h"
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/map_workflow_dialog.h"
+#include "gui/panels/radarcol_panel.h"
 #include "gui/presentation/icons/iconography.h"
 #include "gui/state/workbench_state.h"
 #include "gui/workflows/file_operations.h"
@@ -149,7 +150,6 @@ void drawWindowsMenu(WorkbenchState & state)
 
 void drawEditMenu(WorkbenchState & state)
 {
-    static_cast<void>(state);
     if (!ImGui::BeginMenu("Edit"))
     {
         return;
@@ -159,11 +159,11 @@ void drawEditMenu(WorkbenchState & state)
     ImGui::MenuItem("Redo");
     ImGui::Separator();
     ImGui::MenuItem("Cut");
-    ImGui::MenuItem("Copy");
     ImGui::MenuItem("Paste");
     ImGui::EndDisabled();
+    drawCommandItem(state, CommandId::assetCopy);
     ImGui::Separator();
-    drawCommandItem(state, CommandId::radarcolEditColors);
+    drawCommandItem(state, CommandId::assetEdit);
     ImGui::Separator();
     drawCommandItem(state, CommandId::dataPaths);
     ImGui::EndMenu();
@@ -235,6 +235,11 @@ void handleEscape(WorkbenchState & state, bool showMainMenu)
     if (state.radarcolState.colorPicker.sourceMode)
     {
         cancelRadarcolColorSource(state.radarcolState);
+        return;
+    }
+    if (state.radarcolState.colorPicker.open)
+    {
+        state.radarcolState.colorPicker.open = false;
         return;
     }
     const bool fileOperationHandled = handleFileOperationsEscape(state);

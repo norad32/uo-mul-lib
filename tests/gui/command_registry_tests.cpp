@@ -12,6 +12,21 @@
 using uo_mule::gui::CommandId;
 using uo_mule::gui::WorkbenchState;
 
+namespace
+{
+
+void requireAssetCommandEnabled(const WorkbenchState & state, CommandId command)
+{
+    REQUIRE(state.commands.availability(command, state).enabled);
+}
+
+void requireAssetCommandExecuted(WorkbenchState & state, CommandId command)
+{
+    REQUIRE(state.commands.execute(command, state));
+}
+
+} // namespace
+
 TEST_CASE("defaultCommands_Should_ExposeStableIdsAndMetadata")
 {
     const WorkbenchState state;
@@ -129,6 +144,28 @@ TEST_CASE("selectionCommands_Should_ExposeStandardSelectionShortcuts")
     REQUIRE(state.commands.find(CommandId::selectionAll)->defaultShortcut == "Ctrl+A");
     REQUIRE(state.commands.find(CommandId::selectionNone)->defaultShortcut == "Ctrl+Shift+A");
     REQUIRE(state.commands.find(CommandId::selectionInvert)->defaultShortcut == "Ctrl+I");
+}
+
+TEST_CASE("selectionCommands_Should_TargetTheLastActiveAssetPanel")
+{
+    WorkbenchState state;
+    state.activeAssetPanelContext = "Texmaps";
+    bool all = false;
+    bool none = false;
+    bool invert = false;
+    state.texmapsState.assetView.selectAll = [&all] { all = true; };
+    state.texmapsState.assetView.selectNone = [&none] { none = true; };
+    state.texmapsState.assetView.invertSelection = [&invert] { invert = true; };
+
+    requireAssetCommandEnabled(state, CommandId::selectionAll);
+    requireAssetCommandEnabled(state, CommandId::selectionNone);
+    requireAssetCommandEnabled(state, CommandId::selectionInvert);
+    requireAssetCommandExecuted(state, CommandId::selectionAll);
+    requireAssetCommandExecuted(state, CommandId::selectionNone);
+    requireAssetCommandExecuted(state, CommandId::selectionInvert);
+    REQUIRE(all);
+    REQUIRE(none);
+    REQUIRE(invert);
 }
 
 TEST_CASE("selectionCommands_Should_OperateOnTheActiveMapMask")

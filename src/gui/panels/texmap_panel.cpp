@@ -178,6 +178,7 @@ loadTextureDetails(const TextureProvider & provider, const assets::AssetItemId &
     { drawTextureAsset(state, provider, item, size); };
     adapter.descriptor.selectionPreviewSize = thumbnailSize;
     adapter.descriptor.itemPicked = state.itemPicked;
+    adapter.descriptor.hoveredContext = state.hoveredContext;
     adapter.descriptor.itemSourcePicked = [&state](const assets::AssetItemId & item)
     {
         const auto id = assets::itemIndex(item);

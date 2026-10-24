@@ -2,6 +2,7 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/panels/radarcol_panel.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/state/workbench_state.h"
 #include "gui/views/world/map_canvas_view.h"
@@ -10,7 +11,9 @@
 #include "gui_model/documents/map_document.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/input/coordinate_parser.h"
+#include "gui_model/input/radarcol_color_input.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/tools/tool_contracts.h"
@@ -20,9 +23,12 @@
 #include "gui_model/world/map_context.h"
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <uomul/radarcol/radarcol.h>
 #include <utility>
 #include <vector>
 
@@ -140,6 +146,158 @@ CommandAvailability requiresRadarcolColorEditor(const WorkbenchState & state)
         return {.enabled = false, .disabledReason = "Select one or more Radarcol colors"};
     }
     return enabled(state);
+}
+
+[[nodiscard]] const assets::AssetSelection * activeRadarcolSelection(const WorkbenchState & state)
+{
+    const auto * active = state.session.activeDocumentRecord();
+    if (active != nullptr && active->radarcol)
+    {
+        const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
+        return view == state.radarcolState.documentAssetViews.end() ? nullptr : &view->second.selection;
+    }
+    return &state.radarcolState.assetView.selection;
+}
+
+CommandAvailability requiresAssetSelection(const WorkbenchState & state)
+{
+    const auto * selection = activeRadarcolSelection(state);
+    if (selection == nullptr || selection->selected.empty())
+    {
+        return {.enabled = false, .disabledReason = "Select one or more asset items"};
+    }
+    return enabled(state);
+}
+
+[[nodiscard]] assets::AssetWindowState * hoveredAssetWindow(WorkbenchState & state)
+{
+    const std::string_view context =
+        !state.activeAssetPanelContext.empty() ? state.activeAssetPanelContext : state.hoveredPanelContext;
+    if (context == "Radarcol" && state.panelRegistry.find(PanelId::radarcol)->visible)
+    {
+        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+        {
+            const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
+            return view == state.radarcolState.documentAssetViews.end() ? nullptr : &view->second;
+        }
+        return &state.radarcolState.assetView;
+    }
+    if (context == "Texmaps" && state.panelRegistry.find(PanelId::texmaps)->visible)
+    {
+        return &state.texmapsState.assetView;
+    }
+    if (context == "Tiledata" && state.panelRegistry.find(PanelId::tiledata)->visible)
+    {
+        return &state.tiledataState.assetView;
+    }
+    return nullptr;
+}
+
+[[nodiscard]] const assets::AssetWindowState * hoveredAssetWindow(const WorkbenchState & state)
+{
+    const std::string_view context =
+        !state.activeAssetPanelContext.empty() ? state.activeAssetPanelContext : state.hoveredPanelContext;
+    if (context == "Radarcol" && state.panelRegistry.find(PanelId::radarcol)->visible)
+    {
+        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+        {
+            const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
+            return view == state.radarcolState.documentAssetViews.end() ? nullptr : &view->second;
+        }
+        return &state.radarcolState.assetView;
+    }
+    if (context == "Texmaps" && state.panelRegistry.find(PanelId::texmaps)->visible)
+    {
+        return &state.texmapsState.assetView;
+    }
+    if (context == "Tiledata" && state.panelRegistry.find(PanelId::tiledata)->visible)
+    {
+        return &state.tiledataState.assetView;
+    }
+    return nullptr;
+}
+
+CommandAvailability requiresSelectionCommand(const WorkbenchState & state)
+{
+    const auto * asset = hoveredAssetWindow(state);
+    return asset != nullptr && asset->selectAll ? enabled(state) : requiresMapDocument(state);
+}
+
+void executeSelectionAll(WorkbenchState & state)
+{
+    if (const auto * asset = hoveredAssetWindow(state); asset != nullptr && asset->selectAll)
+    {
+        asset->selectAll();
+        return;
+    }
+    state.workspace.selectAll();
+}
+
+void executeSelectionNone(WorkbenchState & state)
+{
+    if (const auto * asset = hoveredAssetWindow(state); asset != nullptr && asset->selectNone)
+    {
+        asset->selectNone();
+        return;
+    }
+    state.workspace.clearSelection();
+}
+
+void executeSelectionInvert(WorkbenchState & state)
+{
+    if (const auto * asset = hoveredAssetWindow(state); asset != nullptr && asset->invertSelection)
+    {
+        asset->invertSelection();
+        return;
+    }
+    state.workspace.invertSelection();
+}
+
+void copyActiveRadarcolSelection(WorkbenchState & state)
+{
+    const auto * selection = activeRadarcolSelection(state);
+    if (selection == nullptr || selection->selected.empty())
+    {
+        return;
+    }
+
+    std::string csv = "ID,RGBHex,Raw\n";
+    const auto appendColor = [&csv](std::uint32_t index, std::optional<uomul::RadarColor> color)
+    {
+        if (color)
+        {
+            csv += std::to_string(index) + "," + formatRadarcolRgbHex(*color) + "," + formatRadarcolRaw(*color) + "\n";
+        }
+    };
+    const auto * active = state.session.activeDocumentRecord();
+    if (active != nullptr && active->radarcol)
+    {
+        const auto kind = state.radarcolState.documentBrowserKinds[active->radarcol->id()];
+        for (const auto & item : selection->selected)
+        {
+            if (const auto index = assets::itemIndex(item))
+            {
+                appendColor(*index,
+                            active->radarcol->rawColor(
+                                kind == RadarcolBrowserKind::statics ? uomul::radarStaticColorOffset + *index : *index));
+            }
+        }
+    }
+    else
+    {
+        for (const auto & item : selection->selected)
+        {
+            if (const auto index = assets::itemIndex(item))
+            {
+                appendColor(
+                    *index,
+                    state.providers.radarColors().rawColor(state.radarcolState.browserKind == RadarcolBrowserKind::statics
+                                                               ? uomul::radarStaticColorOffset + *index
+                                                               : *index));
+            }
+        }
+    }
+    state.pendingClipboardText = std::move(csv);
 }
 
 void openDialog(WorkbenchState & state, MapFileDialogMode mode)
@@ -296,7 +454,9 @@ const std::vector<Command> & CommandRegistry::commands() const noexcept
     return commands_;
 }
 
-void registerDefaultCommands(CommandRegistry & registry)
+namespace
+{
+void registerToolCommands(CommandRegistry & registry)
 {
     add(
         registry,
@@ -358,7 +518,10 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Shift+R",
         [](const WorkbenchState & state) { return requiresTool(ToolId::replace, state); },
         [](WorkbenchState & state) { activateTool(state, ToolId::replace); });
+}
 
+void registerFileOpenCommands(CommandRegistry & registry)
+{
     add(registry,
         CommandId::fileOpen,
         "file.open",
@@ -412,12 +575,16 @@ void registerDefaultCommands(CommandRegistry & registry)
                 });
             }
         });
+}
+
+void registerAssetCommands(CommandRegistry & registry)
+{
     add(registry,
-        CommandId::radarcolEditColors,
-        "radarcol.edit-colors",
-        "Edit selected Radarcol colors...",
+        CommandId::assetEdit,
+        "asset.edit",
+        "Edit...",
         "Edit",
-        "Edit the selected colors in the active standalone Radarcol document",
+        "Edit the selected asset items",
         "Ctrl+E",
         requiresRadarcolColorEditor,
         [](WorkbenchState & state)
@@ -434,15 +601,40 @@ void registerDefaultCommands(CommandRegistry & registry)
             }
         });
     add(registry,
+        CommandId::assetCopy,
+        "asset.copy",
+        "Copy",
+        "Edit",
+        "Copy the selected asset items",
+        "Ctrl+C",
+        requiresAssetSelection,
+        [](WorkbenchState & state) { copyActiveRadarcolSelection(state); });
+}
+
+void registerFileSaveCommands(CommandRegistry & registry)
+{
+    add(registry,
         CommandId::fileSaveAs,
         "file.save-as",
         "Save As...",
         "File",
-        "Save staged map changes",
+        "Save staged document changes to a new file",
         "Ctrl+Shift+S",
-        requiresMapForSave,
+        requiresSaveableDocument,
         [](WorkbenchState & state)
         {
+            if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+            {
+                requestFileBrowser(state.fileBrowser,
+                                   {
+                                       .mode = FileBrowserMode::saveFile,
+                                       .target = FileBrowserTarget::radarcolOutput,
+                                       .initialPath = active->radarcol->sourcePath(),
+                                       .extension = ".mul",
+                                       .title = "Save Radarcol As",
+                                   });
+                return;
+            }
             if (state.workspace.dirty())
             {
                 state.menuBarState.fileDialog.savePath.fill('\0');
@@ -469,22 +661,26 @@ void registerDefaultCommands(CommandRegistry & registry)
                 openDialog(state, MapFileDialogMode::error);
             }
         });
-    add(
-        registry,
+    add(registry,
         CommandId::fileDiscard,
         "file.discard",
         "Discard",
         "File",
-        "Discard staged map changes",
+        "Discard staged document changes",
         "",
-        [](const WorkbenchState & state)
-        {
-            return state.workspace.dirty()
-                       ? enabled(state)
-                       : CommandAvailability{.enabled = false, .disabledReason = "There are no staged changes"};
-        },
+        requiresSaveableDocument,
         [](WorkbenchState & state)
         {
+            if (auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+            {
+                active->radarcol->requestIntent({
+                    .kind = RadarcolDocumentIntentKind::discard,
+                    .colorEdits = {},
+                    .outputPath = {},
+                    .overwriteOutput = false,
+                });
+                return;
+            }
             const auto discarded = state.workspace.discard();
             if (!discarded)
             {
@@ -505,6 +701,10 @@ void registerDefaultCommands(CommandRegistry & registry)
         "",
         enabled,
         [](WorkbenchState & state) { requestClose(state, PendingMapOperationKind::close); });
+}
+
+void registerFileCloseCommands(CommandRegistry & registry)
+{
     add(registry,
         CommandId::fileQuit,
         "file.quit",
@@ -514,7 +714,18 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Ctrl+Q",
         enabled,
         [](WorkbenchState & state) { requestClose(state, PendingMapOperationKind::quit); });
+}
 
+void registerFileCommands(CommandRegistry & registry)
+{
+    registerFileOpenCommands(registry);
+    registerAssetCommands(registry);
+    registerFileSaveCommands(registry);
+    registerFileCloseCommands(registry);
+}
+
+void registerViewCommands(CommandRegistry & registry)
+{
     add(registry,
         CommandId::viewTileIds,
         "view.display.tile-ids",
@@ -560,7 +771,10 @@ void registerDefaultCommands(CommandRegistry & registry)
         "F11",
         enabled,
         [](WorkbenchState & state) { state.fullscreenToggleRequested = true; });
+}
 
+void registerPanelCommands(CommandRegistry & registry)
+{
     add(registry,
         CommandId::panelToolPalette,
         "view.panel.tool-palette",
@@ -624,7 +838,10 @@ void registerDefaultCommands(CommandRegistry & registry)
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::iconGallery)); });
+}
 
+void registerSelectionCommands(CommandRegistry & registry)
+{
     add(registry,
         CommandId::selectionTiles,
         "selection.tiles",
@@ -666,8 +883,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Select",
         "Select all tiles or blocks at the active granularity",
         "Ctrl+A",
-        requiresMapDocument,
-        [](WorkbenchState & state) { state.workspace.selectAll(); });
+        requiresSelectionCommand,
+        executeSelectionAll);
     add(registry,
         CommandId::selectionNone,
         "selection.none",
@@ -675,8 +892,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Select",
         "Clear the current selection",
         "Ctrl+Shift+A",
-        requiresMapDocument,
-        [](WorkbenchState & state) { state.workspace.clearSelection(); });
+        requiresSelectionCommand,
+        executeSelectionNone);
     add(registry,
         CommandId::selectionInvert,
         "selection.invert",
@@ -684,8 +901,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Select",
         "Invert the current selection",
         "Ctrl+I",
-        requiresMapDocument,
-        [](WorkbenchState & state) { state.workspace.invertSelection(); });
+        requiresSelectionCommand,
+        executeSelectionInvert);
     add(registry,
         CommandId::dataPaths,
         "data.paths",
@@ -712,6 +929,10 @@ void registerDefaultCommands(CommandRegistry & registry)
             state.preferences.workspaceFullscreen = false;
             state.layoutResetRequested = true;
         });
+}
+
+void registerWorldCommands(CommandRegistry & registry)
+{
     add(registry,
         CommandId::resetAssetState,
         "view.reset-asset-state",
@@ -795,6 +1016,18 @@ void registerDefaultCommands(CommandRegistry & registry)
             state.pendingClipboardText = "Tile ID: " + strings::formatId(context.activeValue->id, state.preferences.idFormat) +
                                          "\nElevation: " + std::to_string(static_cast<int>(context.activeValue->z));
         });
+}
+
+} // namespace
+
+void registerDefaultCommands(CommandRegistry & registry)
+{
+    registerToolCommands(registry);
+    registerFileCommands(registry);
+    registerViewCommands(registry);
+    registerPanelCommands(registry);
+    registerSelectionCommands(registry);
+    registerWorldCommands(registry);
 }
 
 } // namespace uo_mule::gui

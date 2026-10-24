@@ -46,6 +46,7 @@ constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) | static_cast<unsigned int>(ImGuiWindowFlags_NoInputs) |
     static_cast<unsigned int>(ImGuiWindowFlags_NoNav) | static_cast<unsigned int>(ImGuiWindowFlags_NoFocusOnAppearing) |
     static_cast<unsigned int>(ImGuiWindowFlags_NoBringToFrontOnFocus));
+constexpr float dialogCenterPivot = 0.5F;
 
 [[nodiscard]] const char * popupName(MapFileDialogMode mode) noexcept
 {
@@ -777,8 +778,77 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewFileDialogState & stat
     endDialogFooter();
 }
 
+void drawCloseDirtyDialog(MapWorkspaceManager & workspace, NewFileDialogState & state)
+{
+    std::string filename = workspace.originalPath().filename().string();
+    if (filename.empty())
+    {
+        filename = "map";
+    }
+    ImGui::Text("Save changes to \"%s\" before closing?", filename.c_str());
+    ImGui::TextColored(
+        theme::imguiColor(theme::mutedText), "%s", "If you close without saving, your changes will be discarded.");
+
+    beginDialogFooter({"Close without saving", "Cancel", "Save"});
+    if (dialogButton(iconLabel(IconId::close, "Close without saving").c_str()))
+    {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::discard));
+        }
+        executeOperation(workspace, state, PendingChangesAction::discard, std::nullopt, state.operationOverwriteOutput);
+    }
+
+    ImGui::SameLine();
+    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
+    {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->cancel());
+        }
+        closeDialog(state);
+    }
+
+    ImGui::SameLine();
+    if (dialogButton(iconLabel(IconId::save, "Save").c_str()))
+    {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
+        }
+        const auto saved = workspace.save(workspace.originalPath(), false);
+        if (!saved)
+        {
+            if (state.controller != nullptr)
+            {
+                static_cast<void>(state.controller->completeSave(false));
+            }
+            showError(state, saved.error());
+            endDialogFooter();
+            return;
+        }
+        const auto transition = state.controller == nullptr
+                                    ? OperationTransition{.kind = OperationTransitionKind::execute, .error = {}}
+                                    : state.controller->completeSave(true);
+        if (transition.kind == OperationTransitionKind::execute)
+        {
+            executeOperation(workspace, state, PendingChangesAction::cancel, std::nullopt, state.operationOverwriteOutput);
+        }
+        else
+        {
+            closeDialog(state);
+        }
+    }
+    endDialogFooter();
+}
+
 void drawDirtyDialog(MapWorkspaceManager & workspace, NewFileDialogState & state)
 {
+    if (state.operation.kind == PendingMapOperationKind::close || state.operation.kind == PendingMapOperationKind::quit)
+    {
+        drawCloseDirtyDialog(workspace, state);
+        return;
+    }
     ImGui::TextWrapped("The current map has staged changes. Save, save as, discard, or cancel this operation?");
 
     beginDialogFooter({"Save", "Save As...", "Discard", "Cancel"});
@@ -1146,6 +1216,10 @@ void drawNewFileDialog(MapWorkspaceManager & workspace,
 
     const DialogWindowSpec dialogSpec =
         currentMode == MapFileDialogMode::selectMapFacet ? mapFacetDialogSpec() : mapDialogSpec();
+    if (currentMode == MapFileDialogMode::dirtyChanges)
+    {
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(dialogCenterPivot, dialogCenterPivot));
+    }
     if (!beginDialog(popupName(currentMode), nullptr, dialogSpec, ImGuiWindowFlags_AlwaysAutoResize))
     {
         state.mode = MapFileDialogMode::none;
