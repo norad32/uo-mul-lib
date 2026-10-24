@@ -1,4 +1,5 @@
 #include "gui_model/tools/tool_state.h"
+#include <limits>
 
 namespace uo_mule::gui
 {
@@ -68,6 +69,34 @@ void ToolState::setActiveTile(uomul::MapTile tile) noexcept
 {
     activeTile_ = tile;
     tilePickRequested_ = false;
+}
+
+ToolStateChange ToolState::setActiveTileId(std::int32_t id) noexcept
+{
+    if (id < 0 || id > std::numeric_limits<std::uint16_t>::max())
+    {
+        return {.accepted = false, .changed = false, .reason = "Tile ID must be between 0 and 65535"};
+    }
+
+    const uomul::MapTile previous = activeTile_.value_or(uomul::MapTile{});
+    const uomul::MapTile next{.id = static_cast<std::uint16_t>(id), .z = previous.z};
+    const bool changed = !activeTile_ || previous != next;
+    activeTile_ = next;
+    return {.accepted = true, .changed = changed, .reason = {}};
+}
+
+ToolStateChange ToolState::setActiveTileZ(std::int32_t z) noexcept
+{
+    if (z < std::numeric_limits<std::int8_t>::min() || z > std::numeric_limits<std::int8_t>::max())
+    {
+        return {.accepted = false, .changed = false, .reason = "Tile Z must be between -128 and 127"};
+    }
+
+    const uomul::MapTile previous = activeTile_.value_or(uomul::MapTile{});
+    const uomul::MapTile next{.id = previous.id, .z = static_cast<std::int8_t>(z)};
+    const bool changed = !activeTile_ || previous != next;
+    activeTile_ = next;
+    return {.accepted = true, .changed = changed, .reason = {}};
 }
 
 void ToolState::requestTilePick() noexcept

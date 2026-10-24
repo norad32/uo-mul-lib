@@ -22,6 +22,8 @@ public:
                                                             const ToolContext & context,
                                                             const ToolRegistry & registry);
     void setActiveTile(uomul::MapTile tile) noexcept;
+    [[nodiscard]] ToolStateChange setActiveTileId(std::int32_t id) noexcept;
+    [[nodiscard]] ToolStateChange setActiveTileZ(std::int32_t z) noexcept;
     void requestTilePick() noexcept;
     void clearTilePickRequest() noexcept;
 

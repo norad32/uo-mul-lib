@@ -167,3 +167,17 @@ TEST_CASE("toolState_Should_StoreActiveTileAndClearPickRequest")
     REQUIRE(state.activeTile() == uomul::MapTile{.id = 321, .z = -7});
     REQUIRE_FALSE(state.tilePickRequested());
 }
+
+TEST_CASE("toolState_Should_ValidateManualActiveTileFields")
+{
+    ToolState state;
+
+    REQUIRE(state.setActiveTileId(1234).accepted);
+    REQUIRE(state.setActiveTileZ(-12).accepted);
+    REQUIRE(state.activeTile() == uomul::MapTile{.id = 1234, .z = -12});
+    REQUIRE_FALSE(state.setActiveTileId(-1).accepted);
+    REQUIRE_FALSE(state.setActiveTileId(65536).accepted);
+    REQUIRE_FALSE(state.setActiveTileZ(-129).accepted);
+    REQUIRE_FALSE(state.setActiveTileZ(128).accepted);
+    REQUIRE(state.activeTile() == uomul::MapTile{.id = 1234, .z = -12});
+}

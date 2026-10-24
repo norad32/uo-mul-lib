@@ -111,15 +111,62 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
         drawPlaceholder("Tool-specific options will appear here.");
     }
 
-    drawSectionHeading("Active Tile");
-    if (state.toolState.activeTile())
+    if (state.toolState.activeTool() == ToolId::rectangleSelect || state.toolState.activeTool() == ToolId::lassoSelect)
     {
-        const uomul::MapTile tile = *state.toolState.activeTile();
-        ImGui::Text("ID: %u  Z: %d", static_cast<unsigned int>(tile.id), static_cast<int>(tile.z));
+        const bool blocks = state.toolState.selectionGranularity() == ToolSelectionGranularity::blocks;
+        ImGui::TextUnformatted("Selection granularity");
+        if (ImGui::RadioButton("Tiles", !blocks))
+        {
+            const auto result = state.toolState.setSelectionGranularity(ToolSelectionGranularity::tiles,
+                                                                          context,
+                                                                          state.toolRegistry);
+            if (result.accepted)
+            {
+                if (state.workspace.selectionMode() != MapSelectionMode::tiles)
+                {
+                    state.workspace.setSelectionMode(MapSelectionMode::tiles);
+                }
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Blocks", blocks))
+        {
+            const auto result = state.toolState.setSelectionGranularity(ToolSelectionGranularity::blocks,
+                                                                          context,
+                                                                          state.toolRegistry);
+            if (result.accepted)
+            {
+                if (state.workspace.selectionMode() != MapSelectionMode::blocks)
+                {
+                    state.workspace.setSelectionMode(MapSelectionMode::blocks);
+                }
+            }
+        }
     }
-    else
+
+    drawSectionHeading("Active Tile");
+    const uomul::MapTile activeTile = state.toolState.activeTile().value_or(uomul::MapTile{});
+    std::uint16_t tileId = activeTile.id;
+    int tileZ = static_cast<int>(activeTile.z);
+    const bool hexadecimalIds = state.preferences.idFormat == IdFormat::hexadecimal;
+    const char * idInputFormat = hexadecimalIds ? "%04X" : "%u";
+    const ImGuiInputTextFlags idInputFlags = hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal
+                                                            : ImGuiInputTextFlags_CharsDecimal;
+    if (ImGui::InputScalar("ID", ImGuiDataType_U16, &tileId, nullptr, nullptr, idInputFormat, idInputFlags))
     {
-        drawPlaceholder("No active tile");
+        const auto result = state.toolState.setActiveTileId(static_cast<std::int32_t>(tileId));
+        if (!result.accepted)
+        {
+            ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
+        }
+    }
+    if (ImGui::InputInt("Z", &tileZ, 0, 0, ImGuiInputTextFlags_CharsDecimal))
+    {
+        const auto result = state.toolState.setActiveTileZ(tileZ);
+        if (!result.accepted)
+        {
+            ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
+        }
     }
     if (ImGui::Button("Pick from Canvas"))
     {

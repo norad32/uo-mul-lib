@@ -607,6 +607,20 @@ void MapWorkspace::clearSelectedTile() noexcept
 
 void MapWorkspace::setSelectionMode(MapSelectionMode mode)
 {
+    if (selectionMode_ == mode)
+    {
+        return;
+    }
+
+    if (mode == MapSelectionMode::blocks && selectionMask_.granularity() == ToolSelectionGranularity::tiles)
+    {
+        selectionMask_.convertTilesToCoveringBlocks(dimensions_);
+        tileSelection_.reset();
+        blockSelection_.reset();
+        selectionMode_ = mode;
+        return;
+    }
+
     selectionMode_ = mode;
     tileSelection_.reset();
     blockSelection_.reset();
