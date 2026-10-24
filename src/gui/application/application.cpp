@@ -1,6 +1,6 @@
 #include "gui/application/application.h"
-#include "gui/application/gui_resources.h"
 #include "core/app_info.h"
+#include "gui/application/gui_resources.h"
 #include "gui/commands/menu_bar.h"
 #include "gui/frame/workbench_frame.h"
 #include "gui/persistence/layout_store.h"
@@ -374,7 +374,8 @@ int Application::run()
     glfwMakeContextCurrent(window.get());
     glfwSwapInterval(1);
     const ImGuiContext guiContext;
-    const ImGuiFontState fontState = configureImGuiFonts(defaultGuiResourceLookup().find(GuiResourceId::materialDesignIconsFont));
+    const ImGuiFontState fontState =
+        configureImGuiFonts(defaultGuiResourceLookup().find(GuiResourceId::materialDesignIconsFont));
     if (!fontState.iconFontAvailable)
     {
         SPDLOG_LOGGER_WARN(logger_, "{}", fontState.diagnostic);

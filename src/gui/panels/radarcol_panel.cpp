@@ -1,6 +1,6 @@
 #include "gui/panels/radarcol_panel.h"
-#include "gui/presentation/icons/iconography.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/widgets/asset_window.h"

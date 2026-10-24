@@ -1,7 +1,7 @@
 #include "gui/dialogs/preferences_dialog.h"
-#include "gui/presentation/icons/iconography.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/input/bounded_buffer.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
@@ -243,13 +243,15 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
 
 void drawMetadataSection(PreferencesDialogState & state)
 {
-    if (!ImGui::CollapsingHeader(iconLabel(IconId::fileBrowserDialog, "Metadata Paths").c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+    if (!ImGui::CollapsingHeader(iconLabel(IconId::fileBrowserDialog, "Metadata Paths").c_str(),
+                                 ImGuiTreeNodeFlags_DefaultOpen))
     {
         return;
     }
 
     dialogFieldLabel("Search folder");
-    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, "Choose folder...##MetadataSearch").c_str()) && state.browser != nullptr)
+    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, "Choose folder...##MetadataSearch").c_str()) &&
+        state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
                            {
