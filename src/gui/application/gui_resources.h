@@ -1,15 +1,16 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 
 namespace uo_mule::gui
 {
 
-enum class GuiResourceId
+enum class GuiResourceId : std::uint8_t
 {
     applicationIcon,
-    materialDesignIconsFont
+    materialDesignIconsFont,
 };
 
 class GuiResourceLookup
@@ -24,7 +25,7 @@ public:
     [[nodiscard]] std::optional<std::filesystem::path> find(GuiResourceId resource) const;
 
 private:
-    [[nodiscard]] std::optional<std::filesystem::path> environmentOverride(GuiResourceId resource) const;
+    [[nodiscard]] static std::optional<std::filesystem::path> environmentOverride(GuiResourceId resource);
     [[nodiscard]] std::filesystem::path installPath(GuiResourceId resource) const;
     [[nodiscard]] const std::filesystem::path & sourcePath(GuiResourceId resource) const;
 

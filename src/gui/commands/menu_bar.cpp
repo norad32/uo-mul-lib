@@ -21,45 +21,45 @@ namespace
 {
     switch (id)
     {
-    case CommandId::fileOpen:
-        return IconId::folder;
-    case CommandId::fileSave:
-    case CommandId::fileSaveAs:
-        return IconId::save;
-    case CommandId::fileDiscard:
-    case CommandId::fileClose:
-        return IconId::cancel;
-    case CommandId::viewTileIds:
-        return IconId::tileId;
-    case CommandId::toolMove:
-        return IconId::pan;
-    case CommandId::toolRectangleSelect:
-        return IconId::selection;
-    case CommandId::toolLassoSelect:
-        return IconId::lasso;
-    case CommandId::toolFuzzySelect:
-        return IconId::autoFix;
-    case CommandId::toolFill:
-        return IconId::formatColorFill;
-    case CommandId::toolReplace:
-        return IconId::replace;
-    case CommandId::selectionTiles:
-        return IconId::squareMedium;
-    case CommandId::selectionBlocks:
-        return IconId::square;
-    case CommandId::selectionAll:
-        return IconId::selectAll;
-    case CommandId::selectionNone:
-        return IconId::selectRemove;
-    case CommandId::selectionInvert:
-        return IconId::selectInverse;
-    case CommandId::dataPaths:
-        return IconId::preferences;
-    case CommandId::mapFit:
-    case CommandId::mapFitSelection:
-        return IconId::fitView;
-    default:
-        return std::nullopt;
+        case CommandId::fileOpen :
+            return IconId::folder;
+        case CommandId::fileSave :
+        case CommandId::fileSaveAs :
+            return IconId::save;
+        case CommandId::fileDiscard :
+        case CommandId::fileClose :
+            return IconId::cancel;
+        case CommandId::viewTileIds :
+            return IconId::tileId;
+        case CommandId::toolMove :
+            return IconId::pan;
+        case CommandId::toolRectangleSelect :
+            return IconId::selection;
+        case CommandId::toolLassoSelect :
+            return IconId::lasso;
+        case CommandId::toolFuzzySelect :
+            return IconId::autoFix;
+        case CommandId::toolFill :
+            return IconId::formatColorFill;
+        case CommandId::toolReplace :
+            return IconId::replace;
+        case CommandId::selectionTiles :
+            return IconId::squareMedium;
+        case CommandId::selectionBlocks :
+            return IconId::square;
+        case CommandId::selectionAll :
+            return IconId::selectAll;
+        case CommandId::selectionNone :
+            return IconId::selectRemove;
+        case CommandId::selectionInvert :
+            return IconId::selectInverse;
+        case CommandId::dataPaths :
+            return IconId::preferences;
+        case CommandId::mapFit :
+        case CommandId::mapFitSelection :
+            return IconId::fitView;
+        default :
+            return std::nullopt;
     }
 }
 

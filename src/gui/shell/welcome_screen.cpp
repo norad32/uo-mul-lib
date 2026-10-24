@@ -1,8 +1,8 @@
 #include "gui/shell/welcome_screen.h"
-#include "gui/presentation/icons/iconography.h"
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/shell/welcome_greetings.h"
@@ -427,7 +427,8 @@ void drawWelcomeScreen(WorkbenchState & state)
     const float actionButtonHeight = ImGui::GetFrameHeight();
     const std::string openLabel = iconLabel(IconId::folder, "Open");
     const std::string newLabel = iconLabel(IconId::fileDocumentPlus, "New");
-    const float actionButtonTextWidth = std::max(ImGui::CalcTextSize(openLabel.c_str()).x, ImGui::CalcTextSize(newLabel.c_str()).x);
+    const float actionButtonTextWidth =
+        std::max(ImGui::CalcTextSize(openLabel.c_str()).x, ImGui::CalcTextSize(newLabel.c_str()).x);
     const float actionButtonWidth = actionButtonTextWidth + (ImGui::GetStyle().FramePadding.x * 2.0F);
     const float footerHeight = actionButtonHeight + ImGui::GetStyle().ItemSpacing.y + welcomeFooterBottomPadding;
     const float availableHeight = ImGui::GetContentRegionAvail().y;

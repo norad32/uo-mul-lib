@@ -32,18 +32,18 @@ constexpr std::size_t fuzzyNameBufferSize = 128U;
 {
     switch (tool)
     {
-    case ToolId::move:
-        return IconId::pan;
-    case ToolId::rectangleSelect:
-        return IconId::selection;
-    case ToolId::lassoSelect:
-        return IconId::lasso;
-    case ToolId::fuzzySelect:
-        return IconId::autoFix;
-    case ToolId::fill:
-        return IconId::formatColorFill;
-    case ToolId::replace:
-        return IconId::replace;
+        case ToolId::move :
+            return IconId::pan;
+        case ToolId::rectangleSelect :
+            return IconId::selection;
+        case ToolId::lassoSelect :
+            return IconId::lasso;
+        case ToolId::fuzzySelect :
+            return IconId::autoFix;
+        case ToolId::fill :
+            return IconId::formatColorFill;
+        case ToolId::replace :
+            return IconId::replace;
     }
     return std::nullopt;
 }
@@ -327,7 +327,7 @@ void drawToolButton(WorkbenchState & state, const ToolDescriptor & tool, const T
 
     ImGui::PushID(static_cast<int>(tool.id));
     const std::string buttonLabel = iconOnly ? "##tool" : toolButtonLabel(tool, iconFontAvailable());
-    const ImVec2 buttonSize(iconOnly ? width : width, iconOnly ? width : 44.0F);
+    const ImVec2 buttonSize(width, iconOnly ? width : 44.0F);
     const bool clicked = ImGui::Button(buttonLabel.c_str(), buttonSize);
     if (iconOnly)
     {
@@ -338,11 +338,8 @@ void drawToolButton(WorkbenchState & state, const ToolDescriptor & tool, const T
         const ImVec2 buttonMaximum = ImGui::GetItemRectMax();
         const ImVec2 glyphPosition((buttonMinimum.x + buttonMaximum.x - glyphSize.x) * 0.5F,
                                    (buttonMinimum.y + buttonMaximum.y - glyphSize.y) * 0.5F);
-        ImGui::GetWindowDrawList()->AddText(paletteFont,
-                                            iconSize,
-                                            glyphPosition,
-                                            ImGui::GetColorU32(ImGuiCol_Text),
-                                            glyph.c_str());
+        ImGui::GetWindowDrawList()->AddText(
+            paletteFont, iconSize, glyphPosition, ImGui::GetColorU32(ImGuiCol_Text), glyph.c_str());
     }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
     {
@@ -372,9 +369,9 @@ void drawToolGrid(WorkbenchState & state, const ToolContext & context)
     const float iconButtonSize = (ImGui::GetFontSize() * 2.0F) + (ImGui::GetStyle().FramePadding.x * 2.0F) + 4.0F;
     const float minimumButtonWidth = iconOnly ? iconButtonSize : 104.0F;
     const int columns = std::max(1, static_cast<int>((availableWidth + buttonSpacing) / (minimumButtonWidth + buttonSpacing)));
-    const float buttonWidth = iconOnly
-                                 ? iconButtonSize
-                                 : (availableWidth - (static_cast<float>(columns - 1) * buttonSpacing)) / static_cast<float>(columns);
+    const float buttonWidth =
+        iconOnly ? iconButtonSize
+                 : (availableWidth - (static_cast<float>(columns - 1) * buttonSpacing)) / static_cast<float>(columns);
 
     drawSectionHeading("Tools");
     std::size_t index = 0;

@@ -1,8 +1,11 @@
 #include "gui/presentation/icons/iconography.h"
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <cstdint>
 #include <set>
 #include <string>
+
+// NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers,readability-function-cognitive-complexity)
 
 TEST_CASE("iconography_ShouldHaveOneValidMappingPerSemanticId")
 {
@@ -16,8 +19,8 @@ TEST_CASE("iconography_ShouldHaveOneValidMappingPerSemanticId")
         REQUIRE(mapping.codepoint <= 0x10FFFFU);
         REQUIRE(mapping.outlineCodepoint > 0U);
         REQUIRE(mapping.outlineCodepoint <= 0x10FFFFU);
-        REQUIRE(!(mapping.codepoint >= 0xD800U && mapping.codepoint <= 0xDFFFU));
-        REQUIRE(!(mapping.outlineCodepoint >= 0xD800U && mapping.outlineCodepoint <= 0xDFFFU));
+        REQUIRE((mapping.codepoint < 0xD800U || mapping.codepoint > 0xDFFFU));
+        REQUIRE((mapping.outlineCodepoint < 0xD800U || mapping.outlineCodepoint > 0xDFFFU));
         REQUIRE(ids.insert(mapping.id).second);
         REQUIRE_FALSE(uo_mule::gui::iconName(mapping.id).empty());
         REQUIRE_FALSE(uo_mule::gui::iconName(mapping.id, uo_mule::gui::IconVariant::outline).empty());
@@ -60,13 +63,19 @@ TEST_CASE("iconography_ShouldDeriveImGuiRangesFromMappings")
     REQUIRE(ranges.size() == (mappings.size() * 4U) + 1U);
     REQUIRE(ranges.back() == 0U);
 
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
     for (std::size_t index = 0; index < mappings.size(); index++)
     {
-        REQUIRE(ranges[index * 4U] == mappings[index].codepoint);
-        REQUIRE(ranges[(index * 4U) + 1U] == mappings[index].codepoint);
-        REQUIRE(ranges[(index * 4U) + 2U] == mappings[index].outlineCodepoint);
-        REQUIRE(ranges[(index * 4U) + 3U] == mappings[index].outlineCodepoint);
+        REQUIRE(ranges[index * 4U] ==
+                mappings[index].codepoint); // NOLINT(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
+        REQUIRE(ranges[(index * 4U) + 1U] ==
+                mappings[index].codepoint); // NOLINT(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
+        REQUIRE(ranges[(index * 4U) + 2U] ==
+                mappings[index].outlineCodepoint); // NOLINT(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
+        REQUIRE(ranges[(index * 4U) + 3U] ==
+                mappings[index].outlineCodepoint); // NOLINT(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
     }
+    // NOLINTEND(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
 }
 
 TEST_CASE("iconography_ShouldPreserveTextWhenFontIsUnavailable")
@@ -78,3 +87,5 @@ TEST_CASE("iconography_ShouldPreserveTextWhenFontIsUnavailable")
     REQUIRE(available.ends_with(" Save"));
     REQUIRE(available.size() > std::string(" Save").size());
 }
+
+// NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers,readability-function-cognitive-complexity)

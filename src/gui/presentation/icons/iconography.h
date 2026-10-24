@@ -90,13 +90,13 @@ enum class IconId : std::uint8_t
     fileDocumentPlus,
     eyeClosed,
     eye,
-    selectRemove
+    selectRemove,
 };
 
 enum class IconVariant : std::uint8_t
 {
     filled,
-    outline
+    outline,
 };
 
 struct IconMapping
@@ -115,10 +115,7 @@ struct IconMapping
 void setIconFontAvailable(bool available) noexcept;
 [[nodiscard]] std::string iconLabel(IconId id, std::string_view label, bool iconFontAvailable);
 [[nodiscard]] std::string iconLabel(IconId id, std::string_view label);
-[[nodiscard]] std::string iconLabel(IconId id,
-                                    IconVariant variant,
-                                    std::string_view label,
-                                    bool iconFontAvailable);
+[[nodiscard]] std::string iconLabel(IconId id, IconVariant variant, std::string_view label, bool iconFontAvailable);
 [[nodiscard]] std::string iconLabel(IconId id, IconVariant variant, std::string_view label);
 [[nodiscard]] std::span<const std::uint32_t> imguiIconGlyphRanges() noexcept;
 

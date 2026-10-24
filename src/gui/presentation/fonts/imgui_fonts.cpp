@@ -1,7 +1,9 @@
 #include "gui/presentation/fonts/imgui_fonts.h"
 #include "gui/presentation/icons/iconography.h"
-#include <imgui.h>
 #include <cstdint>
+#include <filesystem>
+#include <imgui.h>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -34,10 +36,10 @@ ImGuiFontState configureImGuiFonts(const std::optional<std::filesystem::path> & 
 {
     largeIconFont = nullptr;
     setIconFontAvailable(false);
-    ImGuiIO & io = ImGui::GetIO();
+    const ImGuiIO & io = ImGui::GetIO();
     ImFontConfig defaultConfig;
     defaultConfig.SizePixels = defaultFontSize;
-    ImFont * defaultFont = io.Fonts->AddFontDefault(&defaultConfig);
+    const ImFont * defaultFont = io.Fonts->AddFontDefault(&defaultConfig);
     if (defaultFont == nullptr)
     {
         return {.iconFontAvailable = false, .diagnostic = "ImGui default font could not be initialized"};
@@ -50,22 +52,21 @@ ImGuiFontState configureImGuiFonts(const std::optional<std::filesystem::path> & 
     ImFontConfig config;
     config.MergeMode = true;
     config.SizePixels = defaultFontSize;
-    const ImFont * mergedFont = io.Fonts->AddFontFromFileTTF(iconFontPath->string().c_str(),
-                                                             defaultFontSize,
-                                                             &config,
-                                                             imguiGlyphRanges().data());
+    const ImFont * mergedFont =
+        io.Fonts->AddFontFromFileTTF(iconFontPath->string().c_str(), defaultFontSize, &config, imguiGlyphRanges().data());
     if (mergedFont == nullptr)
     {
-        return {.iconFontAvailable = false,
-                .diagnostic = "Material Design Icons font could not be loaded from " + iconFontPath->string()};
+        return {
+            .iconFontAvailable = false,
+            .diagnostic = "Material Design Icons font could not be loaded from " + iconFontPath->string(),
+        };
     }
 
     ImFontConfig largeConfig;
-    largeConfig.SizePixels = defaultFontSize * 2.0F;
-    largeIconFont = io.Fonts->AddFontFromFileTTF(iconFontPath->string().c_str(),
-                                                  defaultFontSize * 2.0F,
-                                                  &largeConfig,
-                                                  imguiGlyphRanges().data());
+    constexpr float largeFontSize = defaultFontSize * 2.0F;
+    largeConfig.SizePixels = largeFontSize;
+    largeIconFont =
+        io.Fonts->AddFontFromFileTTF(iconFontPath->string().c_str(), largeFontSize, &largeConfig, imguiGlyphRanges().data());
     setIconFontAvailable(true);
     return {.iconFontAvailable = true, .diagnostic = {}};
 }

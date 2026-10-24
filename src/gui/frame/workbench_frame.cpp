@@ -12,8 +12,8 @@
 #include "gui/panels/tiledata_panel.h"
 #include "gui/panels/tool_palette_panel.h"
 #include "gui/persistence/layout_store.h"
-#include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/icons/iconography.h"
+#include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/shell/welcome_screen.h"
 #include "gui/state/notification_state.h"
@@ -270,11 +270,11 @@ void drawMapPanels(WorkbenchState & state,
     if (mapActive && state.panelRegistry.find(PanelId::tileInspector)->visible)
     {
         drawTileInspectorPanel(workspace,
-                                context,
-                                state.providers,
-                                state.preferences.idFormat,
+                               context,
+                               state.providers,
+                               state.preferences.idFormat,
                                iconFontAvailable(),
-                                state.panelRegistry.find(PanelId::tileInspector)->visible);
+                               state.panelRegistry.find(PanelId::tileInspector)->visible);
     }
     if (mapActive && state.panelRegistry.find(PanelId::blockInspector)->visible)
     {
@@ -959,7 +959,7 @@ void beginGuiFrame()
     static GLFWcursor * cursor = []
     {
         static std::array<unsigned char, 4> pixels{0U, 0U, 0U, 0U};
-        GLFWimage image{1, 1, pixels.data()};
+        const GLFWimage image{.width = 1, .height = 1, .pixels = pixels.data()};
         return glfwCreateCursor(&image, 0, 0);
     }();
     return cursor;
@@ -982,18 +982,18 @@ void beginGuiFrame()
     }
     switch (state.toolState.activeTool())
     {
-    case ToolId::rectangleSelect:
-        return IconId::selection;
-    case ToolId::lassoSelect:
-        return IconId::lasso;
-    case ToolId::fuzzySelect:
-        return IconId::autoFix;
-    case ToolId::fill:
-        return IconId::formatColorFill;
-    case ToolId::replace:
-        return IconId::replace;
-    case ToolId::move:
-        return IconId::pan;
+        case ToolId::rectangleSelect :
+            return IconId::selection;
+        case ToolId::lassoSelect :
+            return IconId::lasso;
+        case ToolId::fuzzySelect :
+            return IconId::autoFix;
+        case ToolId::fill :
+            return IconId::formatColorFill;
+        case ToolId::replace :
+            return IconId::replace;
+        case ToolId::move :
+            return IconId::pan;
     }
     return std::nullopt;
 }

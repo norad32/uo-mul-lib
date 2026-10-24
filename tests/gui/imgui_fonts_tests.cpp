@@ -15,6 +15,8 @@ public:
 
     ImGuiContextScope(const ImGuiContextScope &) = delete;
     ImGuiContextScope & operator=(const ImGuiContextScope &) = delete;
+    ImGuiContextScope(ImGuiContextScope &&) = delete;
+    ImGuiContextScope & operator=(ImGuiContextScope &&) = delete;
 };
 
 } // namespace

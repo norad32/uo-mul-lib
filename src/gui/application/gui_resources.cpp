@@ -1,5 +1,7 @@
 #include "gui/application/gui_resources.h"
 #include <cstdlib>
+#include <filesystem>
+#include <optional>
 #include <system_error>
 #include <utility>
 
@@ -18,10 +20,10 @@ namespace
 {
     switch (resource)
     {
-    case GuiResourceId::applicationIcon:
-        return "IM_CPP_ICON_PATH";
-    case GuiResourceId::materialDesignIconsFont:
-        return "IM_CPP_FONT_PATH";
+        case GuiResourceId::applicationIcon :
+            return "IM_CPP_ICON_PATH";
+        case GuiResourceId::materialDesignIconsFont :
+            return "IM_CPP_FONT_PATH";
     }
     return nullptr;
 }
@@ -41,7 +43,7 @@ GuiResourceLookup::GuiResourceLookup(std::filesystem::path executablePath,
 {
 }
 
-std::optional<std::filesystem::path> GuiResourceLookup::environmentOverride(GuiResourceId resource) const
+std::optional<std::filesystem::path> GuiResourceLookup::environmentOverride(GuiResourceId resource)
 {
     const char * variable = environmentVariable(resource);
     if (variable == nullptr)
@@ -61,9 +63,8 @@ std::optional<std::filesystem::path> GuiResourceLookup::environmentOverride(GuiR
 
 std::filesystem::path GuiResourceLookup::installPath(GuiResourceId resource) const
 {
-    const std::filesystem::path relativePath = resource == GuiResourceId::applicationIcon
-                                                   ? applicationIconInstallPath_
-                                                   : materialDesignIconsInstallPath_;
+    const std::filesystem::path relativePath =
+        resource == GuiResourceId::applicationIcon ? applicationIconInstallPath_ : materialDesignIconsInstallPath_;
     return executablePath_.empty() ? std::filesystem::path{}
                                    : (executablePath_.parent_path() / relativePath).lexically_normal();
 }
@@ -80,13 +81,13 @@ std::optional<std::filesystem::path> GuiResourceLookup::find(GuiResourceId resou
         return overridePath;
     }
 
-    const std::filesystem::path installedPath = installPath(resource);
+    std::filesystem::path installedPath = installPath(resource);
     if (isUsableFile(installedPath))
     {
         return installedPath;
     }
 
-    const std::filesystem::path developmentPath = sourcePath(resource);
+    std::filesystem::path developmentPath = sourcePath(resource);
     if (isUsableFile(developmentPath))
     {
         return developmentPath;
@@ -99,11 +100,11 @@ GuiResourceLookup defaultGuiResourceLookup()
 {
     std::error_code error;
     const std::filesystem::path executablePath = std::filesystem::read_symlink("/proc/self/exe", error);
-    return GuiResourceLookup(error ? std::filesystem::path{} : executablePath,
-                             APPLICATION_ICON_INSTALL_RELATIVE_PATH,
-                             APPLICATION_ICON_SOURCE_PATH,
-                             MATERIAL_DESIGN_ICONS_INSTALL_RELATIVE_PATH,
-                             MATERIAL_DESIGN_ICONS_SOURCE_PATH);
+    return {error ? std::filesystem::path{} : executablePath,
+            APPLICATION_ICON_INSTALL_RELATIVE_PATH,
+            APPLICATION_ICON_SOURCE_PATH,
+            MATERIAL_DESIGN_ICONS_INSTALL_RELATIVE_PATH,
+            MATERIAL_DESIGN_ICONS_SOURCE_PATH};
 }
 
 } // namespace uo_mule::gui

@@ -30,11 +30,13 @@ PanelRegistry::PanelRegistry() :
         {.id = PanelId::radarcol, .stableId = "panel.radarcol", .title = "Radarcol", .defaultVisible = true, .visible = true},
         {.id = PanelId::texmaps, .stableId = "panel.texmaps", .title = "Texmaps", .defaultVisible = true, .visible = true},
         {.id = PanelId::tiledata, .stableId = "panel.tiledata", .title = "Tiledata", .defaultVisible = true, .visible = true},
-        {.id = PanelId::iconGallery,
-         .stableId = "panel.icon-gallery",
-         .title = "Icon Gallery",
-         .defaultVisible = false,
-         .visible = false},
+        {
+            .id = PanelId::iconGallery,
+            .stableId = "panel.icon-gallery",
+            .title = "Icon Gallery",
+            .defaultVisible = false,
+            .visible = false,
+        },
     })
 {
 }

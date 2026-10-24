@@ -1,8 +1,8 @@
 #include "gui/dialogs/file_browser_dialog.h"
-#include "gui/presentation/icons/iconography.h"
 #include "core/app_info.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
 #include "gui/presentation/formatting/file_size.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/input/bounded_buffer.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
@@ -975,9 +975,9 @@ std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
         ImGui::SameLine();
 
         const std::string confirmButtonLabel = iconLabel(IconId::save, confirmLabel);
-        const float buttonWidth = ImGui::CalcTextSize(confirmButtonLabel.c_str()).x + (ImGui::GetStyle().FramePadding.x * 2.0F) +
-                                   ImGui::GetStyle().ItemSpacing.x + ImGui::CalcTextSize(cancelButtonLabel.c_str()).x +
-                                  (ImGui::GetStyle().FramePadding.x * 2.0F);
+        const float buttonWidth = ImGui::CalcTextSize(confirmButtonLabel.c_str()).x +
+                                  (ImGui::GetStyle().FramePadding.x * 2.0F) + ImGui::GetStyle().ItemSpacing.x +
+                                  ImGui::CalcTextSize(cancelButtonLabel.c_str()).x + (ImGui::GetStyle().FramePadding.x * 2.0F);
         const float inputWidth =
             std::max(120.0F, ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemSpacing.x);
         ImGui::SetNextItemWidth(inputWidth);
@@ -996,9 +996,8 @@ std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
     }
     else
     {
-        const std::string confirmButtonLabel = state.request.mode == FileBrowserMode::openFile
-                                                   ? iconLabel(IconId::folder, confirmLabel)
-                                                   : confirmLabel;
+        const std::string confirmButtonLabel =
+            state.request.mode == FileBrowserMode::openFile ? iconLabel(IconId::folder, confirmLabel) : confirmLabel;
         beginDialogFooter({confirmButtonLabel.c_str(), cancelButtonLabel.c_str()});
         std::optional<DialogResult> result;
         if (dialogButton(confirmButtonLabel.c_str()))

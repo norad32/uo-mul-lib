@@ -1,7 +1,7 @@
 #include "gui/dialogs/file_selector_dialog.h"
-#include "gui/presentation/icons/iconography.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include <algorithm>
@@ -162,8 +162,8 @@ std::optional<DialogResult> drawFileSelector(FileSelectorState & state)
     const bool canAccept =
         state.selectedCandidate < state.candidates.size() && state.candidates.at(state.selectedCandidate).openable;
     beginDialogFooter({"Open", "Cancel"});
-        if (dialogButton(iconLabel(IconId::folder, "Open").c_str(), canAccept) ||
-            (canAccept && ImGui::IsKeyPressed(ImGuiKey_Enter)))
+    if (dialogButton(iconLabel(IconId::folder, "Open").c_str(), canAccept) ||
+        (canAccept && ImGui::IsKeyPressed(ImGuiKey_Enter)))
     {
         endDialogFooter();
         ImGui::EndPopup();
