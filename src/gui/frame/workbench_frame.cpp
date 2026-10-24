@@ -13,6 +13,7 @@
 #include "gui/panels/tool_palette_panel.h"
 #include "gui/persistence/layout_store.h"
 #include "gui/presentation/strings/ui_strings.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/shell/welcome_screen.h"
 #include "gui/state/notification_state.h"
@@ -258,7 +259,7 @@ void drawMapPanels(WorkbenchState & state,
     }
     if (state.panelRegistry.find(PanelId::iconGallery)->visible)
     {
-        drawIconGalleryPanel(state.panelRegistry.find(PanelId::iconGallery)->visible, state.iconFontAvailable);
+        drawIconGalleryPanel(state.panelRegistry.find(PanelId::iconGallery)->visible, iconFontAvailable());
     }
 
     MapWorkspace & workspace = state.workspace.active();
@@ -269,10 +270,11 @@ void drawMapPanels(WorkbenchState & state,
     if (mapActive && state.panelRegistry.find(PanelId::tileInspector)->visible)
     {
         drawTileInspectorPanel(workspace,
-                               context,
-                               state.providers,
-                               state.preferences.idFormat,
-                               state.panelRegistry.find(PanelId::tileInspector)->visible);
+                                context,
+                                state.providers,
+                                state.preferences.idFormat,
+                               iconFontAvailable(),
+                                state.panelRegistry.find(PanelId::tileInspector)->visible);
     }
     if (mapActive && state.panelRegistry.find(PanelId::blockInspector)->visible)
     {
@@ -465,7 +467,8 @@ void drawStartupScreen(WorkbenchState & state)
         ImGui::End();
         return;
     }
-    ImGui::TextUnformatted("Configure Preferences");
+    const std::string configureLabel = iconLabel(IconId::preferences, "Configure Preferences");
+    ImGui::TextUnformatted(configureLabel.c_str());
     ImGui::Separator();
     ImGui::TextUnformatted(
         "Maps are available without a profile. Embedded Radarcol is used until an external source is configured.");
@@ -473,7 +476,8 @@ void drawStartupScreen(WorkbenchState & state)
     ImGui::Text("Profile status: %s", profileReadiness.c_str());
     const std::string startupRadarcolSource(strings::providerSourceName(state.providers.radarColors().status().source));
     ImGui::Text("Radarcol source: %s", startupRadarcolSource.c_str());
-    if (ImGui::Button("Open Preferences"))
+    const std::string preferencesLabel = iconLabel(IconId::preferences, "Open Preferences");
+    if (ImGui::Button(preferencesLabel.c_str()))
     {
         requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
     }
@@ -732,7 +736,8 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
         return;
     }
     ImGui::TextUnformatted("This document has staged changes.");
-    if (ImGui::Button("Save"))
+    const std::string saveLabel = iconLabel(IconId::save, "Save");
+    if (ImGui::Button(saveLabel.c_str()))
     {
         DocumentRecord * record = nullptr;
         for (auto & candidate : state.session.documentsMutable())
@@ -758,7 +763,8 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Discard"))
+    const std::string discardLabel = iconLabel(IconId::cancel, "Discard");
+    if (ImGui::Button(discardLabel.c_str()))
     {
         DocumentRecord * record = nullptr;
         for (auto & candidate : state.session.documentsMutable())
@@ -784,7 +790,8 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Cancel"))
+    const std::string cancelLabel = iconLabel(IconId::cancel, "Cancel");
+    if (ImGui::Button(cancelLabel.c_str()))
     {
         state.pendingAssetCloseDecision.reset();
         state.pendingAssetCloseAction.reset();
@@ -945,6 +952,97 @@ void beginGuiFrame()
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+}
+
+[[nodiscard]] GLFWcursor * transparentCursor()
+{
+    static GLFWcursor * cursor = []
+    {
+        static std::array<unsigned char, 4> pixels{0U, 0U, 0U, 0U};
+        GLFWimage image{1, 1, pixels.data()};
+        return glfwCreateCursor(&image, 0, 0);
+    }();
+    return cursor;
+}
+
+[[nodiscard]] std::optional<IconId> toolCursorIcon(const WorkbenchState & state)
+{
+    if (state.toolState.tilePickRequested())
+    {
+        return IconId::eyedropper;
+    }
+    const MapCanvasViewState & canvasState = state.workspace.canvasState();
+    if (!canvasState.cursorHovered)
+    {
+        return std::nullopt;
+    }
+    if (canvasState.panning || state.toolState.activeTool() == ToolId::move)
+    {
+        return IconId::pan;
+    }
+    switch (state.toolState.activeTool())
+    {
+    case ToolId::rectangleSelect:
+        return IconId::selection;
+    case ToolId::lassoSelect:
+        return IconId::lasso;
+    case ToolId::fuzzySelect:
+        return IconId::autoFix;
+    case ToolId::fill:
+        return IconId::formatColorFill;
+    case ToolId::replace:
+        return IconId::replace;
+    case ToolId::move:
+        return IconId::pan;
+    }
+    return std::nullopt;
+}
+
+void drawToolCursor(GLFWwindow * window, const WorkbenchState & state)
+{
+    static bool customCursorActive = false;
+    const std::optional<IconId> icon = toolCursorIcon(state);
+    if (!icon.has_value())
+    {
+        if (customCursorActive)
+        {
+            glfwSetCursor(window, nullptr);
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            customCursorActive = false;
+        }
+        return;
+    }
+    if (!iconFontAvailable())
+    {
+        if (customCursorActive)
+        {
+            glfwSetCursor(window, nullptr);
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            customCursorActive = false;
+        }
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        return;
+    }
+
+    if (GLFWcursor * cursor = transparentCursor(); cursor != nullptr)
+    {
+        glfwSetCursor(window, cursor);
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        customCursorActive = true;
+    }
+    else
+    {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+        customCursorActive = true;
+    }
+    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+    const std::string glyph = iconGlyph(*icon);
+    const ImVec2 mousePosition = ImGui::GetIO().MousePos;
+    ImGui::GetForegroundDrawList()->AddText(ImGui::GetFont(),
+                                            ImGui::GetFontSize(),
+                                            ImVec2(mousePosition.x + 1.0F, mousePosition.y + 1.0F),
+                                            ImGui::GetColorU32(ImGuiCol_Text),
+                                            glyph.c_str());
 }
 
 void applyPendingClipboard(GLFWwindow * window, WorkbenchState & state)
@@ -1222,6 +1320,7 @@ void drawWorkbenchFrame(GLFWwindow * window, logger::GuiLogSink & logSink, Workb
     }
     applyPendingPreferenceChanges(state);
     applyPendingPersistence(state);
+    drawToolCursor(window, state);
 }
 
 } // namespace uo_mule::gui

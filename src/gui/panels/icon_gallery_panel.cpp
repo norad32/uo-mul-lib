@@ -8,11 +8,11 @@ namespace uo_mule::gui
 namespace
 {
 
-[[nodiscard]] std::string displayGlyph(IconId id, bool iconFontAvailable)
+[[nodiscard]] std::string displayGlyph(IconId id, IconVariant variant, bool iconFontAvailable)
 {
     if (iconFontAvailable)
     {
-        return iconGlyph(id);
+        return iconGlyph(id, variant);
     }
     return "[" + std::string(iconName(id)) + "]";
 }
@@ -37,21 +37,30 @@ void drawIconGalleryPanel(bool & visible, bool iconFontAvailable)
     std::size_t index = 0;
     for (const IconMapping & mapping : iconMappings())
     {
-        const std::string glyph = displayGlyph(mapping.id, iconFontAvailable);
+        const std::string filledGlyph = displayGlyph(mapping.id, IconVariant::filled, iconFontAvailable);
+        const std::string outlineGlyph = displayGlyph(mapping.id, IconVariant::outline, iconFontAvailable);
         const std::string idSuffix = "##icon-gallery-" + std::to_string(index++);
         ImGui::TextUnformatted(iconName(mapping.id).data());
         ImGui::SameLine(180.0F);
-        ImGui::TextUnformatted(glyph.c_str());
+        ImGui::TextUnformatted("filled");
         ImGui::SameLine(230.0F);
-        ImGui::Button((glyph + idSuffix + "-normal").c_str());
+        ImGui::Button((filledGlyph + idSuffix + "-filled-normal").c_str());
         ImGui::SameLine();
-        ImGui::Selectable((glyph + idSuffix + "-active").c_str(), true, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F));
+        ImGui::Selectable((filledGlyph + idSuffix + "-filled-active").c_str(), true, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F));
         ImGui::SameLine();
         ImGui::BeginDisabled();
-        ImGui::Button((glyph + idSuffix + "-disabled").c_str());
+        ImGui::Button((filledGlyph + idSuffix + "-filled-disabled").c_str());
         ImGui::EndDisabled();
         ImGui::SameLine();
-        ImGui::Text("%s", iconName(mapping.id).data());
+        ImGui::TextUnformatted("outline");
+        ImGui::SameLine();
+        ImGui::Button((outlineGlyph + idSuffix + "-outline-normal").c_str());
+        ImGui::SameLine();
+        ImGui::Selectable((outlineGlyph + idSuffix + "-outline-active").c_str(), true, ImGuiSelectableFlags_None, ImVec2(0.0F, 0.0F));
+        ImGui::SameLine();
+        ImGui::BeginDisabled();
+        ImGui::Button((outlineGlyph + idSuffix + "-outline-disabled").c_str());
+        ImGui::EndDisabled();
     }
 
     ImGui::End();

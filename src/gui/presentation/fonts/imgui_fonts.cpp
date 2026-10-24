@@ -11,6 +11,7 @@ namespace
 {
 
 constexpr float defaultFontSize = 13.0F;
+ImFont * largeIconFont = nullptr;
 
 [[nodiscard]] const std::vector<ImWchar> & imguiGlyphRanges()
 {
@@ -31,6 +32,8 @@ constexpr float defaultFontSize = 13.0F;
 
 ImGuiFontState configureImGuiFonts(const std::optional<std::filesystem::path> & iconFontPath)
 {
+    largeIconFont = nullptr;
+    setIconFontAvailable(false);
     ImGuiIO & io = ImGui::GetIO();
     ImFontConfig defaultConfig;
     defaultConfig.SizePixels = defaultFontSize;
@@ -57,7 +60,19 @@ ImGuiFontState configureImGuiFonts(const std::optional<std::filesystem::path> & 
                 .diagnostic = "Material Design Icons font could not be loaded from " + iconFontPath->string()};
     }
 
+    ImFontConfig largeConfig;
+    largeConfig.SizePixels = defaultFontSize * 2.0F;
+    largeIconFont = io.Fonts->AddFontFromFileTTF(iconFontPath->string().c_str(),
+                                                  defaultFontSize * 2.0F,
+                                                  &largeConfig,
+                                                  imguiGlyphRanges().data());
+    setIconFontAvailable(true);
     return {.iconFontAvailable = true, .diagnostic = {}};
+}
+
+ImFont * iconFontLarge() noexcept
+{
+    return largeIconFont;
 }
 
 } // namespace uo_mule::gui

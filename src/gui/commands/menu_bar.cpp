@@ -1,6 +1,7 @@
 #include "gui/commands/menu_bar.h"
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/map_workflow_dialog.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/state/workbench_state.h"
 #include "gui/workflows/file_operations.h"
 #include "gui_model/layout/panel_registry.h"
@@ -8,12 +9,69 @@
 #include "gui_model/tools/tool_contracts.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include <imgui.h>
+#include <optional>
 #include <string>
 
 namespace uo_mule::gui
 {
 namespace
 {
+
+[[nodiscard]] std::optional<IconId> commandIcon(CommandId id)
+{
+    switch (id)
+    {
+    case CommandId::fileOpen:
+        return IconId::folder;
+    case CommandId::fileSave:
+    case CommandId::fileSaveAs:
+        return IconId::save;
+    case CommandId::fileDiscard:
+    case CommandId::fileClose:
+        return IconId::cancel;
+    case CommandId::viewTileIds:
+        return IconId::tileId;
+    case CommandId::toolMove:
+        return IconId::pan;
+    case CommandId::toolRectangleSelect:
+        return IconId::selection;
+    case CommandId::toolLassoSelect:
+        return IconId::lasso;
+    case CommandId::toolFuzzySelect:
+        return IconId::autoFix;
+    case CommandId::toolFill:
+        return IconId::formatColorFill;
+    case CommandId::toolReplace:
+        return IconId::replace;
+    case CommandId::selectionTiles:
+        return IconId::squareMedium;
+    case CommandId::selectionBlocks:
+        return IconId::square;
+    case CommandId::selectionAll:
+        return IconId::selectAll;
+    case CommandId::selectionNone:
+        return IconId::selectRemove;
+    case CommandId::selectionInvert:
+        return IconId::selectInverse;
+    case CommandId::dataPaths:
+        return IconId::preferences;
+    case CommandId::mapFit:
+    case CommandId::mapFitSelection:
+        return IconId::fitView;
+    default:
+        return std::nullopt;
+    }
+}
+
+[[nodiscard]] std::string commandLabel(const Command & command)
+{
+    const auto icon = commandIcon(command.id);
+    if (!iconFontAvailable() || !icon.has_value())
+    {
+        return command.label;
+    }
+    return iconLabel(*icon, command.label);
+}
 
 void drawCommandItem(WorkbenchState & state, CommandId id, bool selected = false)
 {
@@ -24,8 +82,9 @@ void drawCommandItem(WorkbenchState & state, CommandId id, bool selected = false
     }
     const CommandAvailability commandState = state.commands.availability(id, state);
     const std::string shortcut = command->defaultShortcut;
+    const std::string label = commandLabel(*command);
     const bool activated =
-        ImGui::MenuItem(command->label.c_str(), shortcut.empty() ? nullptr : shortcut.c_str(), selected, commandState.enabled);
+        ImGui::MenuItem(label.c_str(), shortcut.empty() ? nullptr : shortcut.c_str(), selected, commandState.enabled);
     if (activated)
     {
         static_cast<void>(state.commands.execute(id, state));

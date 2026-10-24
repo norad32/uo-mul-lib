@@ -1,4 +1,5 @@
 #include "gui/panels/tile_inspector_panel.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/widgets/texture_preview.h"
@@ -30,7 +31,10 @@ void drawColorPreview(MapColor color)
     ImGui::Dummy(ImVec2(assetPreviewSize, assetPreviewSize));
 }
 
-void drawTileDetails(const MapContextSnapshot & context, const DataProviders & providers, IdFormat idFormat)
+void drawTileDetails(const MapContextSnapshot & context,
+                     const DataProviders & providers,
+                     IdFormat idFormat,
+                     bool iconFontAvailable)
 {
     const auto & tileValue = context.activeTile;
     const auto & dataValue = context.activeValue;
@@ -67,8 +71,10 @@ void drawTileDetails(const MapContextSnapshot & context, const DataProviders & p
     ImGui::Text("Tile: (%u, %u)", tile.x, tile.y);
     ImGui::Text("Block: (%u, %u)", block.x, block.y);
     const std::string idLabel = strings::formatId(value.id, idFormat);
-    ImGui::Text("ID: %s", idLabel.c_str());
-    ImGui::Text("Elevation: %d", static_cast<int>(value.z));
+    const std::string tileIdLabel = iconLabel(IconId::tileId, "ID", iconFontAvailable);
+    ImGui::Text("%s: %s", tileIdLabel.c_str(), idLabel.c_str());
+    const std::string elevationLabel = iconLabel(IconId::elevation, "Elevation", iconFontAvailable);
+    ImGui::Text("%s: %d", elevationLabel.c_str(), static_cast<int>(value.z));
     ImGui::EndGroup();
 }
 
@@ -76,9 +82,10 @@ void drawTileDetails(const MapContextSnapshot & context, const DataProviders & p
 
 void drawTileInspectorPanel(const MapWorkspace & workspace,
                             const MapContextSnapshot & context,
-                            const DataProviders & providers,
-                            IdFormat idFormat,
-                            bool & visible)
+                             const DataProviders & providers,
+                             IdFormat idFormat,
+                             bool iconFontAvailable,
+                             bool & visible)
 {
     const bool contentsVisible = ImGui::Begin("Tile Inspector###view.tile-inspector", &visible);
 
@@ -94,7 +101,7 @@ void drawTileInspectorPanel(const MapWorkspace & workspace,
         }
         else
         {
-            drawTileDetails(context, providers, idFormat);
+            drawTileDetails(context, providers, idFormat, iconFontAvailable);
         }
     }
 

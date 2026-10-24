@@ -4,6 +4,8 @@
 #include <optional>
 #include <string>
 
+struct ImFont;
+
 namespace uo_mule::gui
 {
 
@@ -14,5 +16,6 @@ struct ImGuiFontState
 };
 
 [[nodiscard]] ImGuiFontState configureImGuiFonts(const std::optional<std::filesystem::path> & iconFontPath);
+[[nodiscard]] ImFont * iconFontLarge() noexcept;
 
 } // namespace uo_mule::gui

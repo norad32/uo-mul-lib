@@ -10,8 +10,9 @@ namespace uo_mule::gui
 
 void drawTileInspectorPanel(const MapWorkspace & workspace,
                             const MapContextSnapshot & context,
-                            const DataProviders & providers,
-                            IdFormat idFormat,
-                            bool & visible);
+                             const DataProviders & providers,
+                             IdFormat idFormat,
+                             bool iconFontAvailable,
+                             bool & visible);
 
 } // namespace uo_mule::gui

@@ -1,4 +1,5 @@
 #include "gui/dialogs/map_workflow_dialog.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_facet_dialog.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
@@ -470,7 +471,7 @@ void drawOpenDialog(MapWorkspaceManager & workspace, NewFileDialogState & state)
         ImGui::TextColored(theme::imguiColor(theme::warning), "Dimensions must be positive multiples of 8 tiles.");
     }
     beginDialogFooter({"Open", "Cancel"});
-    if (dialogButton("Open", state.openPath.front() != '\0' && validDimensions))
+    if (dialogButton(iconLabel(IconId::folder, "Open").c_str(), state.openPath.front() != '\0' && validDimensions))
     {
         const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
         if (dimensions)
@@ -485,7 +486,7 @@ void drawOpenDialog(MapWorkspaceManager & workspace, NewFileDialogState & state)
     }
 
     ImGui::SameLine();
-    if (dialogButton("Cancel"))
+    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
         state.operation = {};
         closeDialog(state);
@@ -508,7 +509,7 @@ void drawNewTypeDialog(NewFileDialogState & state)
     }
 
     beginDialogFooter({"Choose location", "Cancel"});
-    if (dialogButton("Choose location"))
+    if (dialogButton(iconLabel(IconId::fileBrowserDialog, "Choose location").c_str()))
     {
         FileBrowserTarget target = FileBrowserTarget::newMapOutput;
         switch (state.newFileKind)
@@ -536,7 +537,7 @@ void drawNewTypeDialog(NewFileDialogState & state)
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (dialogButton("Cancel"))
+    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
         closeDialog(state);
     }
@@ -580,7 +581,7 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewFileDialogState & state)
     }
 
     beginDialogFooter({"Create", "Cancel"});
-    if (dialogButton("Create", state.newMapPath.front() != '\0' && validDimensions && validTile))
+    if (dialogButton(iconLabel(IconId::ok, "Create").c_str(), state.newMapPath.front() != '\0' && validDimensions && validTile))
     {
         const auto dimensions = resolveDimensions(state.newMapFacet, state.newMapWidth, state.newMapHeight);
         if (dimensions)
@@ -607,7 +608,7 @@ void drawNewMapForm(MapWorkspaceManager & workspace, NewFileDialogState & state)
 
     ImGui::SameLine();
 
-    if (dialogButton("Cancel"))
+    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
         state.operation = {};
         closeDialog(state);
@@ -709,7 +710,7 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewFileDialogState & stat
     }
 
     beginDialogFooter({"Save", "Cancel"});
-    if (dialogButton("Save", state.savePath.front() != '\0'))
+    if (dialogButton(iconLabel(IconId::save, "Save").c_str(), state.savePath.front() != '\0'))
     {
         const std::filesystem::path path(state.savePath.data());
         std::error_code outputError;
@@ -768,7 +769,7 @@ void drawSaveAsDialog(MapWorkspaceManager & workspace, NewFileDialogState & stat
 
     ImGui::SameLine();
 
-    if (dialogButton("Cancel"))
+    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
         state.saveForPendingOperation = false;
         closeDialog(state);
@@ -781,7 +782,7 @@ void drawDirtyDialog(MapWorkspaceManager & workspace, NewFileDialogState & state
     ImGui::TextWrapped("The current map has staged changes. Save, save as, discard, or cancel this operation?");
 
     beginDialogFooter({"Save", "Save As...", "Discard", "Cancel"});
-    if (dialogButton("Save"))
+    if (dialogButton(iconLabel(IconId::save, "Save").c_str()))
     {
         if (state.controller != nullptr)
         {
@@ -814,7 +815,7 @@ void drawDirtyDialog(MapWorkspaceManager & workspace, NewFileDialogState & state
 
     ImGui::SameLine();
 
-    if (dialogButton("Save As..."))
+    if (dialogButton(iconLabel(IconId::save, "Save As...").c_str()))
     {
         if (state.controller != nullptr)
         {
@@ -836,7 +837,7 @@ void drawDirtyDialog(MapWorkspaceManager & workspace, NewFileDialogState & state
 
     ImGui::SameLine();
 
-    if (dialogButton("Discard"))
+    if (dialogButton(iconLabel(IconId::cancel, "Discard").c_str()))
     {
         if (state.controller != nullptr)
         {
@@ -848,7 +849,7 @@ void drawDirtyDialog(MapWorkspaceManager & workspace, NewFileDialogState & state
 
     ImGui::SameLine();
 
-    if (dialogButton("Cancel"))
+    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
         if (state.controller != nullptr)
         {
@@ -934,7 +935,7 @@ void drawOverwriteDialog(MapWorkspaceManager & workspace, NewFileDialogState & s
     ImGui::TextWrapped("The file already exists:\n%s\nReplace it?", path.string().c_str());
 
     beginDialogFooter({"Overwrite", "Cancel"});
-    if (dialogButton("Overwrite"))
+    if (dialogButton(iconLabel(IconId::ok, "Overwrite").c_str()))
     {
         if (state.controller != nullptr)
         {
@@ -954,7 +955,7 @@ void drawOverwriteDialog(MapWorkspaceManager & workspace, NewFileDialogState & s
 
     ImGui::SameLine();
 
-    if (dialogButton("Cancel"))
+    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
         if (state.controller != nullptr)
         {
@@ -994,7 +995,7 @@ void drawErrorDialog(NewFileDialogState & state)
 {
     ImGui::TextColored(theme::imguiColor(theme::error), "%s", state.error.c_str());
     beginDialogFooter({"OK"});
-    if (dialogButton("OK"))
+    if (dialogButton(iconLabel(IconId::ok, "OK").c_str()))
     {
         if (state.controller != nullptr && state.controller->request().kind == OperationKind::saveAs &&
             state.controller->phase() == OperationPhase::awaitingSave)

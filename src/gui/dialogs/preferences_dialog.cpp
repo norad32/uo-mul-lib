@@ -1,4 +1,5 @@
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
 #include "gui/presentation/input/bounded_buffer.h"
@@ -159,7 +160,7 @@ void drawProfileSection(PreferencesDialogState & state)
 
     ImGui::SameLine();
 
-    if (ImGui::Button("Save Profile"))
+    if (ImGui::Button(iconLabel(IconId::save, "Save Profile").c_str()))
     {
         state.workingProfile.name = state.profileName.data();
         state.profileSaveRequested = true;
@@ -201,7 +202,7 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
     ImGui::InputText(
         "##Path", path->second.data(), path->second.size(), ImGuiInputTextFlags_ElideLeft | ImGuiInputTextFlags_ReadOnly);
     ImGui::SameLine();
-    if (ImGui::Button("Browse...##MetadataPath") && state.browser != nullptr)
+    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, "Browse...##MetadataPath").c_str()) && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
                            {
@@ -242,13 +243,13 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
 
 void drawMetadataSection(PreferencesDialogState & state)
 {
-    if (!ImGui::CollapsingHeader("Metadata Paths", ImGuiTreeNodeFlags_DefaultOpen))
+    if (!ImGui::CollapsingHeader(iconLabel(IconId::fileBrowserDialog, "Metadata Paths").c_str(), ImGuiTreeNodeFlags_DefaultOpen))
     {
         return;
     }
 
     dialogFieldLabel("Search folder");
-    if (ImGui::Button("Choose folder...##MetadataSearch") && state.browser != nullptr)
+    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, "Choose folder...##MetadataSearch").c_str()) && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
                            {
@@ -267,7 +268,7 @@ void drawMetadataSection(PreferencesDialogState & state)
         drawMetadataPath(state, role);
     }
 
-    if (ImGui::Button("Validate metadata"))
+    if (ImGui::Button(iconLabel(IconId::warning, "Validate metadata").c_str()))
     {
         validateWorkingProfile(state);
         state.message = state.validation.hasErrors() ? "Metadata validation found errors" : "Metadata validation passed";
@@ -284,7 +285,7 @@ void drawMetadataSection(PreferencesDialogState & state)
 
 void drawSettingsSection(PreferencesDialogState & state)
 {
-    if (!ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
+    if (!ImGui::CollapsingHeader(iconLabel(IconId::settings, "Settings").c_str(), ImGuiTreeNodeFlags_DefaultOpen))
     {
         return;
     }
@@ -373,7 +374,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
 {
     if (!state.visible && state.closeRequested)
     {
-        const std::string title = "Preferences###dialog.preferences";
+        const std::string title = iconLabel(IconId::preferences, "Preferences###dialog.preferences");
         ImGui::OpenPopup(title.c_str());
         if (ImGui::BeginPopupModal(title.c_str()))
         {
@@ -391,7 +392,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
 
     bool profileChanged = false;
     state.browser = &browser;
-    const std::string title = "Preferences###dialog.preferences";
+    const std::string title = iconLabel(IconId::preferences, "Preferences###dialog.preferences");
     if (!beginDialog(title.c_str(), &state.visible, largeDialogSpec(), ImGuiWindowFlags_NoResize))
     {
         return false;
@@ -437,7 +438,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
     }
     ImGui::SameLine();
 
-    if (dialogButton("Cancel"))
+    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
         state.visible = false;
     }

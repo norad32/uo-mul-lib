@@ -27,6 +27,7 @@ TEST_CASE("imguiFonts_ShouldKeepDefaultFontWhenIconFontIsMissing")
     REQUIRE_FALSE(state.iconFontAvailable);
     REQUIRE_FALSE(state.diagnostic.empty());
     REQUIRE(ImGui::GetIO().Fonts->Fonts.Size == 1);
+    REQUIRE(uo_mule::gui::iconFontLarge() == nullptr);
 }
 
 TEST_CASE("imguiFonts_ShouldMergeVendoredIconFontIntoDefaultFont")
@@ -38,5 +39,6 @@ TEST_CASE("imguiFonts_ShouldMergeVendoredIconFontIntoDefaultFont")
 
     REQUIRE(state.iconFontAvailable);
     REQUIRE(state.diagnostic.empty());
-    REQUIRE(ImGui::GetIO().Fonts->Fonts.Size == 1);
+    REQUIRE(ImGui::GetIO().Fonts->Fonts.Size == 2);
+    REQUIRE(uo_mule::gui::iconFontLarge() != nullptr);
 }

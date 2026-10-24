@@ -1732,6 +1732,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
                        bool & visible)
 {
     MapCanvasViewState & state = workspaceManager.canvasState();
+    state.cursorHovered = false;
     if (!state.releaseTexture)
     {
         state.releaseTexture = [](std::uint32_t texture)
@@ -1786,6 +1787,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
     const bool canvasHovered = canvasContentsVisible && ImGui::IsWindowHovered() &&
                                ImGui::IsMouseHoveringRect(canvasOrigin, canvasMaximum, false) &&
                                !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId) && !ImGui::GetIO().WantTextInput;
+    state.cursorHovered = hasDocument && canvasHovered;
     const ImVec2 mouse = ImGui::GetIO().MousePos;
     std::optional<uomul::TileCoord> currentTile;
     std::optional<uomul::Error> visibleReadError;
@@ -1815,11 +1817,6 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
                              hasDocument ? canvasContentExtent(dimensions.heightTiles, state.zoom, canvasSize.y)
                                          : canvasSize.y);
     ImGui::Dummy(contentSize);
-
-    if (state.panning)
-    {
-        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-    }
 
     if (canvasContentsVisible && canvasHovered)
     {

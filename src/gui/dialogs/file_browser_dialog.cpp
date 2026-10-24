@@ -1,4 +1,5 @@
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/presentation/icons/iconography.h"
 #include "core/app_info.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
 #include "gui/presentation/formatting/file_size.h"
@@ -776,31 +777,56 @@ void cancelFileBrowser(FileBrowserState & state)
 namespace
 {
 
+[[nodiscard]] bool drawBrowserToolbarButton(IconId icon, std::string_view label, std::string_view stableId)
+{
+    std::string buttonLabel = iconFontAvailable() ? iconGlyph(icon) : std::string(label);
+    buttonLabel += "##";
+    buttonLabel += stableId;
+    const bool clicked = ImGui::Button(buttonLabel.c_str());
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("%.*s", static_cast<int>(label.size()), label.data());
+    }
+    return clicked;
+}
+
 void drawBrowserToolbar(FileBrowserState & state)
 {
-    if (ImGui::Button("Back") && state.historyIndex > 0U)
+    if (drawBrowserToolbarButton(IconId::arrowLeft, "Back", "browser.back") && state.historyIndex > 0U)
     {
         --state.historyIndex;
         navigate(state, state.history.at(state.historyIndex), false);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Forward") && state.historyIndex + 1U < state.history.size())
+    if (drawBrowserToolbarButton(IconId::arrowRight, "Forward", "browser.forward") &&
+        state.historyIndex + 1U < state.history.size())
     {
         state.historyIndex++;
         navigate(state, state.history.at(state.historyIndex), false);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Up"))
+    if (drawBrowserToolbarButton(IconId::arrowUp, "Up", "browser.up"))
     {
         navigate(state, state.directory.parent_path(), true);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Refresh"))
+    if (drawBrowserToolbarButton(IconId::refresh, "Refresh", "browser.refresh"))
     {
         navigate(state, state.directory, false);
     }
     ImGui::SameLine();
-    ImGui::Checkbox("Hidden", &state.showHidden);
+    const std::string hiddenLabel = iconFontAvailable() ? iconGlyph(IconId::eye) : "Show hidden";
+    ImGui::TextUnformatted(hiddenLabel.c_str());
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Show hidden");
+    }
+    ImGui::SameLine();
+    ImGui::Checkbox("##browser.show-hidden", &state.showHidden);
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Show hidden");
+    }
 
     ImGui::SetNextItemWidth(-1.0F);
     if (ImGui::InputText("##Location", state.location.data(), state.location.size(), ImGuiInputTextFlags_EnterReturnsTrue))
@@ -939,6 +965,7 @@ std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
     {
         confirmLabel = "Save";
     }
+    const std::string cancelButtonLabel = iconLabel(IconId::cancel, "Cancel");
 
     if (state.request.mode == FileBrowserMode::saveFile)
     {
@@ -947,20 +974,21 @@ std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
         ImGui::TextUnformatted("Filename");
         ImGui::SameLine();
 
-        const float buttonWidth = ImGui::CalcTextSize(confirmLabel).x + (ImGui::GetStyle().FramePadding.x * 2.0F) +
-                                  ImGui::GetStyle().ItemSpacing.x + ImGui::CalcTextSize("Cancel").x +
+        const std::string confirmButtonLabel = iconLabel(IconId::save, confirmLabel);
+        const float buttonWidth = ImGui::CalcTextSize(confirmButtonLabel.c_str()).x + (ImGui::GetStyle().FramePadding.x * 2.0F) +
+                                   ImGui::GetStyle().ItemSpacing.x + ImGui::CalcTextSize(cancelButtonLabel.c_str()).x +
                                   (ImGui::GetStyle().FramePadding.x * 2.0F);
         const float inputWidth =
             std::max(120.0F, ImGui::GetContentRegionAvail().x - buttonWidth - ImGui::GetStyle().ItemSpacing.x);
         ImGui::SetNextItemWidth(inputWidth);
         ImGui::InputText("##Filename", state.filename.data(), state.filename.size());
         ImGui::SameLine();
-        if (dialogButton(confirmLabel))
+        if (dialogButton(confirmButtonLabel.c_str()))
         {
             return complete(state);
         }
         ImGui::SameLine();
-        if (dialogButton("Cancel"))
+        if (dialogButton(cancelButtonLabel.c_str()))
         {
             cancelFileBrowser(state);
             return DialogResult{.id = DialogId::fileBrowser, .action = DialogAction::cancel, .payload = {}};
@@ -968,16 +996,19 @@ std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
     }
     else
     {
-        beginDialogFooter({confirmLabel, "Cancel"});
+        const std::string confirmButtonLabel = state.request.mode == FileBrowserMode::openFile
+                                                   ? iconLabel(IconId::folder, confirmLabel)
+                                                   : confirmLabel;
+        beginDialogFooter({confirmButtonLabel.c_str(), cancelButtonLabel.c_str()});
         std::optional<DialogResult> result;
-        if (dialogButton(confirmLabel))
+        if (dialogButton(confirmButtonLabel.c_str()))
         {
             result = complete(state);
         }
         else
         {
             ImGui::SameLine();
-            if (dialogButton("Cancel"))
+            if (dialogButton(cancelButtonLabel.c_str()))
             {
                 cancelFileBrowser(state);
                 result = DialogResult{.id = DialogId::fileBrowser, .action = DialogAction::cancel, .payload = {}};
@@ -1005,8 +1036,9 @@ std::optional<DialogResult> drawFileBrowser(FileBrowserState & state)
         return std::nullopt;
     }
 
-    const std::string title =
-        state.request.title.empty() ? "Open File###dialog.file-browser" : state.request.title + "###dialog.file-browser";
+    const std::string title = state.request.title.empty()
+                                  ? iconLabel(IconId::fileBrowserDialog, "Open File###dialog.file-browser")
+                                  : iconLabel(IconId::fileBrowserDialog, state.request.title + "###dialog.file-browser");
     if (!beginDialog(title.c_str(),
                      &state.visible,
                      browserDialogSpec(),

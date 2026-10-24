@@ -1,4 +1,5 @@
 #include "gui/panels/radarcol_panel.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
@@ -62,7 +63,7 @@ void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
 {
     if (document.readOnly())
     {
-        ImGui::TextUnformatted(strings::configuredMetadataReadOnly());
+        ImGui::TextUnformatted(iconLabel(IconId::readOnly, strings::configuredMetadataReadOnly()).c_str());
         return;
     }
     if (!document.editing())
@@ -79,7 +80,7 @@ void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
             });
         }
         ImGui::SameLine();
-        if (ImGui::Button(strings::saveAs()))
+        if (ImGui::Button(iconLabel(IconId::save, strings::saveAs()).c_str()))
         {
             requestFileBrowser(browser,
                                {
@@ -94,7 +95,7 @@ void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
     if (document.editing())
     {
         ImGui::TextUnformatted("Editing");
-        if (ImGui::Button("Save"))
+        if (ImGui::Button(iconLabel(IconId::save, "Save").c_str()))
         {
             document.requestIntent({
                 .kind = RadarcolDocumentIntentKind::save,
@@ -105,7 +106,7 @@ void drawEditControls(RadarcolDocument & document, FileBrowserState & browser)
             });
         }
         ImGui::SameLine();
-        if (ImGui::Button(strings::discardChanges()))
+        if (ImGui::Button(iconLabel(IconId::cancel, strings::discardChanges()).c_str()))
         {
             document.requestIntent({
                 .kind = RadarcolDocumentIntentKind::discard,

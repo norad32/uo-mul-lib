@@ -375,7 +375,6 @@ int Application::run()
     glfwSwapInterval(1);
     const ImGuiContext guiContext;
     const ImGuiFontState fontState = configureImGuiFonts(defaultGuiResourceLookup().find(GuiResourceId::materialDesignIconsFont));
-    state.iconFontAvailable = fontState.iconFontAvailable;
     if (!fontState.iconFontAvailable)
     {
         SPDLOG_LOGGER_WARN(logger_, "{}", fontState.diagnostic);
