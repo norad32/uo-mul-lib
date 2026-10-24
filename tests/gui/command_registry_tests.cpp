@@ -74,7 +74,7 @@ TEST_CASE("toolCommands_Should_ExposeSharedActivationMetadata")
     const auto * move = state.commands.find(CommandId::toolMove);
     REQUIRE(move != nullptr);
     REQUIRE(move->stableId == "tool.move");
-    REQUIRE(move->defaultShortcut == "M");
+    REQUIRE(move->defaultShortcut == "P");
     REQUIRE(state.commands.find(CommandId::toolReplace)->defaultShortcut == "Shift+R");
 }
 
@@ -89,7 +89,7 @@ TEST_CASE("toolCommands_Should_ActivateThroughRegistryWhenMapIsOpen")
 
     REQUIRE(state.commands.execute(CommandId::toolRectangleSelect, state));
     REQUIRE(state.toolState.activeTool() == uo_mule::gui::ToolId::rectangleSelect);
-    REQUIRE(state.commands.executeShortcut("M", state));
+    REQUIRE(state.commands.executeShortcut("P", state));
     REQUIRE(state.toolState.activeTool() == uo_mule::gui::ToolId::move);
 
     static_cast<void>(state.workspace.closeMap());

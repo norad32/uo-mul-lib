@@ -986,6 +986,15 @@ void MapWorkspace::setSelectionMode(MapSelectionMode mode)
         return;
     }
 
+    if (mode == MapSelectionMode::tiles && selectionMask_.granularity() == ToolSelectionGranularity::blocks)
+    {
+        selectionMask_.convertBlocksToTiles(dimensions_);
+        tileSelection_.reset();
+        blockSelection_.reset();
+        selectionMode_ = mode;
+        return;
+    }
+
     selectionMode_ = mode;
     tileSelection_.reset();
     blockSelection_.reset();

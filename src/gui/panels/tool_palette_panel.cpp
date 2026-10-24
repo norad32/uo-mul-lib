@@ -87,42 +87,50 @@ void drawPickButton(WorkbenchState & state, const char * label, TilePickTarget t
 
 void drawFillOptions(WorkbenchState & state)
 {
-    ImGui::TextUnformatted("Fill mode");
-    const FillMode mode = state.toolState.fillMode();
-    if (ImGui::RadioButton("ID##fill.mode.id", mode == FillMode::id))
+    ImGui::TextUnformatted("Mode");
+    bool idEnabled = state.toolState.fillIdEnabled();
+    if (ImGui::Checkbox("ID##fill.mode.id", &idEnabled))
     {
-        state.toolState.setFillMode(FillMode::id);
+        const auto result = state.toolState.setFillIdEnabled(idEnabled);
+        if (!result.accepted)
+        {
+            drawPlaceholder(result.reason.c_str());
+        }
     }
     ImGui::SameLine();
-    if (ImGui::RadioButton("Z##fill.mode.z", mode == FillMode::z))
+    bool zEnabled = state.toolState.fillZEnabled();
+    if (ImGui::Checkbox("Z##fill.mode.z", &zEnabled))
     {
-        state.toolState.setFillMode(FillMode::z);
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("ID + Z##fill.mode.id-z", mode == FillMode::idAndZ))
-    {
-        state.toolState.setFillMode(FillMode::idAndZ);
+        const auto result = state.toolState.setFillZEnabled(zEnabled);
+        if (!result.accepted)
+        {
+            drawPlaceholder(result.reason.c_str());
+        }
     }
     drawPlaceholder("Target uses Active Tile.");
 }
 
 void drawReplaceOptions(WorkbenchState & state)
 {
-    ImGui::TextUnformatted("Replace mode");
-    const ReplaceMode mode = state.toolState.replaceMode();
-    if (ImGui::RadioButton("ID##replace.mode.id", mode == ReplaceMode::id))
+    ImGui::TextUnformatted("Mode");
+    bool idEnabled = state.toolState.replaceIdEnabled();
+    if (ImGui::Checkbox("ID##replace.mode.id", &idEnabled))
     {
-        state.toolState.setReplaceMode(ReplaceMode::id);
+        const auto result = state.toolState.setReplaceIdEnabled(idEnabled);
+        if (!result.accepted)
+        {
+            drawPlaceholder(result.reason.c_str());
+        }
     }
     ImGui::SameLine();
-    if (ImGui::RadioButton("Z##replace.mode.z", mode == ReplaceMode::z))
+    bool zEnabled = state.toolState.replaceZEnabled();
+    if (ImGui::Checkbox("Z##replace.mode.z", &zEnabled))
     {
-        state.toolState.setReplaceMode(ReplaceMode::z);
-    }
-    ImGui::SameLine();
-    if (ImGui::RadioButton("ID + Z##replace.mode.id-z", mode == ReplaceMode::idAndZ))
-    {
-        state.toolState.setReplaceMode(ReplaceMode::idAndZ);
+        const auto result = state.toolState.setReplaceZEnabled(zEnabled);
+        if (!result.accepted)
+        {
+            drawPlaceholder(result.reason.c_str());
+        }
     }
     drawTileInput(state,
                   "Source",
@@ -163,7 +171,7 @@ void drawReplaceOptions(WorkbenchState & state)
 void drawFuzzyOptions(WorkbenchState & state)
 {
     const FuzzySelectionOptions & options = state.toolState.fuzzyOptions();
-    ImGui::TextUnformatted("Fuzzy scope");
+    ImGui::TextUnformatted("Scope");
     if (ImGui::RadioButton("Contiguous##fuzzy.scope.contiguous", options.scope == FuzzyScope::contiguous))
     {
         state.toolState.setFuzzyScope(FuzzyScope::contiguous);
@@ -299,6 +307,7 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
         }
     }
 
+    ImGui::NewLine();
     drawSectionHeading("Tool Options");
     const ToolDescriptor * activeTool = state.toolRegistry.find(state.toolState.activeTool());
     if (activeTool != nullptr)
@@ -318,16 +327,12 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
         {
             drawFuzzyOptions(state);
         }
-        else
-        {
-            drawPlaceholder("Tool-specific options will appear here.");
-        }
     }
 
     if (state.toolState.activeTool() == ToolId::rectangleSelect || state.toolState.activeTool() == ToolId::lassoSelect)
     {
         const bool blocks = state.toolState.selectionGranularity() == ToolSelectionGranularity::blocks;
-        ImGui::TextUnformatted("Selection granularity");
+        ImGui::TextUnformatted("Region");
         if (ImGui::RadioButton("Tiles", !blocks))
         {
             const auto result = state.toolState.setSelectionGranularity(ToolSelectionGranularity::tiles,

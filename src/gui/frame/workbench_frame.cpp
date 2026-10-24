@@ -85,7 +85,7 @@ struct ToolShortcut
 };
 
 constexpr std::array<ToolShortcut, 6> toolShortcuts{
-    ToolShortcut{ImGuiKey_M, "M"},
+    ToolShortcut{ImGuiKey_P, "P"},
     ToolShortcut{ImGuiKey_R, "R"},
     ToolShortcut{ImGuiKey_F, "F"},
     ToolShortcut{ImGuiKey_U, "U"},

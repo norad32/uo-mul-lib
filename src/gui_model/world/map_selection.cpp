@@ -91,6 +91,36 @@ void MapSelectionMask::setGranularity(ToolSelectionGranularity granularity)
     }
 }
 
+void MapSelectionMask::convertBlocksToTiles(uomul::Dimensions dimensions)
+{
+    if (granularity_ != ToolSelectionGranularity::blocks)
+    {
+        return;
+    }
+
+    std::unordered_set<std::uint64_t> tiles;
+    for (const std::uint64_t key : selected_)
+    {
+        const uomul::BlockCoord block{
+            .x = static_cast<std::uint32_t>(key >> 32U),
+            .y = static_cast<std::uint32_t>(key & 0xFFFFFFFFU),
+        };
+        const std::uint32_t minX = block.x * uomul::mapBlockDimension;
+        const std::uint32_t minY = block.y * uomul::mapBlockDimension;
+        const std::uint32_t maxX = std::min(dimensions.widthTiles, minX + uomul::mapBlockDimension);
+        const std::uint32_t maxY = std::min(dimensions.heightTiles, minY + uomul::mapBlockDimension);
+        for (std::uint32_t y = minY; y < maxY; y++)
+        {
+            for (std::uint32_t x = minX; x < maxX; x++)
+            {
+                tiles.insert(tileKey({.x = x, .y = y}));
+            }
+        }
+    }
+    granularity_ = ToolSelectionGranularity::tiles;
+    selected_ = std::move(tiles);
+}
+
 void MapSelectionMask::replaceTileRegion(uomul::TileRegion region, uomul::Dimensions dimensions)
 {
     granularity_ = ToolSelectionGranularity::tiles;
@@ -135,12 +165,130 @@ void MapSelectionMask::replaceLasso(const std::vector<uomul::TileCoord> & path, 
 
     if (granularity_ == ToolSelectionGranularity::blocks)
     {
+        std::uint32_t minX = dimensions.widthTiles - 1U;
+        std::uint32_t minY = dimensions.heightTiles - 1U;
+        std::uint32_t maxX = 0U;
+        std::uint32_t maxY = 0U;
         for (const uomul::TileCoord point : path)
         {
-            if (point.x < dimensions.widthTiles && point.y < dimensions.heightTiles)
+            minX = std::min(minX, point.x);
+            minY = std::min(minY, point.y);
+            maxX = std::max(maxX, point.x);
+            maxY = std::max(maxY, point.y);
+        }
+        minX = std::min(minX, dimensions.widthTiles - 1U);
+        minY = std::min(minY, dimensions.heightTiles - 1U);
+        maxX = std::min(maxX, dimensions.widthTiles - 1U);
+        maxY = std::min(maxY, dimensions.heightTiles - 1U);
+
+        const auto pointInPolygon = [&path](double x, double y)
+        {
+            bool inside = false;
+            std::size_t previous = path.size() - 1U;
+            for (std::size_t current = 0; current < path.size(); current++)
             {
-                selected_.insert(blockKey({.x = point.x / uomul::mapBlockDimension,
-                                           .y = point.y / uomul::mapBlockDimension}));
+                const double currentY = static_cast<double>(path.at(current).y);
+                const double previousY = static_cast<double>(path.at(previous).y);
+                if ((currentY > y) != (previousY > y))
+                {
+                    const double currentX = static_cast<double>(path.at(current).x);
+                    const double previousX = static_cast<double>(path.at(previous).x);
+                    const double intersection = ((previousX - currentX) * (y - currentY) /
+                                                 (previousY - currentY)) + currentX;
+                    if (x < intersection)
+                    {
+                        inside = !inside;
+                    }
+                }
+                previous = current;
+            }
+            return inside;
+        };
+
+        const auto orientation = [](double ax, double ay, double bx, double by, double cx, double cy)
+        {
+            return ((bx - ax) * (cy - ay)) - ((by - ay) * (cx - ax));
+        };
+        const auto segmentsIntersect = [&orientation](double aX,
+                                                       double aY,
+                                                       double bX,
+                                                       double bY,
+                                                       double cX,
+                                                       double cY,
+                                                       double dX,
+                                                       double dY)
+        {
+            constexpr double epsilon = 1.0e-9;
+            const double first = orientation(aX, aY, bX, bY, cX, cY);
+            const double second = orientation(aX, aY, bX, bY, dX, dY);
+            const double third = orientation(cX, cY, dX, dY, aX, aY);
+            const double fourth = orientation(cX, cY, dX, dY, bX, bY);
+            return ((first > epsilon && second < -epsilon) || (first < -epsilon && second > epsilon) ||
+                    std::abs(first) <= epsilon || std::abs(second) <= epsilon) &&
+                   ((third > epsilon && fourth < -epsilon) || (third < -epsilon && fourth > epsilon) ||
+                    std::abs(third) <= epsilon || std::abs(fourth) <= epsilon);
+        };
+
+        for (std::uint32_t blockY = minY / uomul::mapBlockDimension;
+             blockY <= maxY / uomul::mapBlockDimension;
+             blockY++)
+        {
+            for (std::uint32_t blockX = minX / uomul::mapBlockDimension;
+                 blockX <= maxX / uomul::mapBlockDimension;
+                 blockX++)
+            {
+                const std::uint32_t blockMinX = blockX * uomul::mapBlockDimension;
+                const std::uint32_t blockMinY = blockY * uomul::mapBlockDimension;
+                const std::uint32_t blockMaxX = std::min(dimensions.widthTiles, blockMinX + uomul::mapBlockDimension);
+                const std::uint32_t blockMaxY = std::min(dimensions.heightTiles, blockMinY + uomul::mapBlockDimension);
+                const double rectangleMinX = static_cast<double>(blockMinX);
+                const double rectangleMinY = static_cast<double>(blockMinY);
+                const double rectangleMaxX = static_cast<double>(blockMaxX);
+                const double rectangleMaxY = static_cast<double>(blockMaxY);
+                bool intersects = pointInPolygon(rectangleMinX, rectangleMinY) ||
+                                  pointInPolygon(rectangleMaxX, rectangleMinY) ||
+                                  pointInPolygon(rectangleMinX, rectangleMaxY) ||
+                                  pointInPolygon(rectangleMaxX, rectangleMaxY);
+                for (std::size_t edge = 0; edge < path.size() && !intersects; edge++)
+                {
+                    const std::size_t next = (edge + 1U) % path.size();
+                    intersects = segmentsIntersect(static_cast<double>(path.at(edge).x),
+                                                   static_cast<double>(path.at(edge).y),
+                                                   static_cast<double>(path.at(next).x),
+                                                   static_cast<double>(path.at(next).y),
+                                                   rectangleMinX,
+                                                   rectangleMinY,
+                                                   rectangleMaxX,
+                                                   rectangleMinY) ||
+                                 segmentsIntersect(static_cast<double>(path.at(edge).x),
+                                                   static_cast<double>(path.at(edge).y),
+                                                   static_cast<double>(path.at(next).x),
+                                                   static_cast<double>(path.at(next).y),
+                                                   rectangleMaxX,
+                                                   rectangleMinY,
+                                                   rectangleMaxX,
+                                                   rectangleMaxY) ||
+                                 segmentsIntersect(static_cast<double>(path.at(edge).x),
+                                                   static_cast<double>(path.at(edge).y),
+                                                   static_cast<double>(path.at(next).x),
+                                                   static_cast<double>(path.at(next).y),
+                                                   rectangleMaxX,
+                                                   rectangleMaxY,
+                                                   rectangleMinX,
+                                                   rectangleMaxY) ||
+                                 segmentsIntersect(static_cast<double>(path.at(edge).x),
+                                                   static_cast<double>(path.at(edge).y),
+                                                   static_cast<double>(path.at(next).x),
+                                                   static_cast<double>(path.at(next).y),
+                                                   rectangleMinX,
+                                                   rectangleMaxY,
+                                                   rectangleMinX,
+                                                   rectangleMinY);
+                }
+                if (intersects)
+                {
+                    selected_.insert(blockKey({.x = blockX, .y = blockY}));
+                }
             }
         }
         return;

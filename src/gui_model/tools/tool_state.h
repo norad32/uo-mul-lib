@@ -15,6 +15,10 @@ public:
     [[nodiscard]] const std::optional<uomul::MapTile> & activeTile() const noexcept;
     [[nodiscard]] FillMode fillMode() const noexcept;
     [[nodiscard]] ReplaceMode replaceMode() const noexcept;
+    [[nodiscard]] bool fillIdEnabled() const noexcept;
+    [[nodiscard]] bool fillZEnabled() const noexcept;
+    [[nodiscard]] bool replaceIdEnabled() const noexcept;
+    [[nodiscard]] bool replaceZEnabled() const noexcept;
     [[nodiscard]] const uomul::MapTile & replaceSource() const noexcept;
     [[nodiscard]] const FuzzySelectionOptions & fuzzyOptions() const noexcept;
     [[nodiscard]] const uomul::MapTile & replaceTarget() const noexcept;
@@ -32,6 +36,10 @@ public:
     [[nodiscard]] ToolStateChange setActiveTileZ(std::int32_t z) noexcept;
     void setFillMode(FillMode mode) noexcept;
     void setReplaceMode(ReplaceMode mode) noexcept;
+    [[nodiscard]] ToolStateChange setFillIdEnabled(bool enabled) noexcept;
+    [[nodiscard]] ToolStateChange setFillZEnabled(bool enabled) noexcept;
+    [[nodiscard]] ToolStateChange setReplaceIdEnabled(bool enabled) noexcept;
+    [[nodiscard]] ToolStateChange setReplaceZEnabled(bool enabled) noexcept;
     [[nodiscard]] ToolStateChange setReplaceSourceId(std::int32_t id) noexcept;
     [[nodiscard]] ToolStateChange setReplaceSourceZ(std::int32_t z) noexcept;
     [[nodiscard]] ToolStateChange setReplaceTargetId(std::int32_t id) noexcept;
@@ -57,6 +65,10 @@ private:
     std::optional<uomul::MapTile> activeTile_;
     FillMode fillMode_ = FillMode::idAndZ;
     ReplaceMode replaceMode_ = ReplaceMode::idAndZ;
+    bool fillIdEnabled_ = true;
+    bool fillZEnabled_ = true;
+    bool replaceIdEnabled_ = true;
+    bool replaceZEnabled_ = true;
     uomul::MapTile replaceSource_{};
     uomul::MapTile replaceTarget_{};
     FuzzySelectionOptions fuzzyOptions_{};

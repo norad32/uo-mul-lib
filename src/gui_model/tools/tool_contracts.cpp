@@ -115,10 +115,10 @@ void registerDefaultTools(ToolRegistry & registry)
     registry.registerTool({
         .id = ToolId::move,
         .stableId = "tool.move",
-        .label = "Move",
+        .label = "Pan",
         .category = ToolCategory::navigation,
         .description = "Pan the world view",
-        .defaultShortcut = "M",
+        .defaultShortcut = "P",
     });
     registry.registerTool({
         .id = ToolId::rectangleSelect,
@@ -131,7 +131,7 @@ void registerDefaultTools(ToolRegistry & registry)
     registry.registerTool({
         .id = ToolId::lassoSelect,
         .stableId = "tool.lasso-select",
-        .label = "Lasso Select",
+        .label = "Free Select",
         .category = ToolCategory::selection,
         .description = "Select a freehand tile or block area",
         .defaultShortcut = "F",

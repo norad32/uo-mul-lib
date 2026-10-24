@@ -53,13 +53,26 @@ const std::optional<uomul::MapTile> & ToolState::activeTile() const noexcept
 
 FillMode ToolState::fillMode() const noexcept
 {
-    return fillMode_;
+    if (fillIdEnabled_ && fillZEnabled_)
+    {
+        return FillMode::idAndZ;
+    }
+    return fillIdEnabled_ ? FillMode::id : FillMode::z;
 }
 
 ReplaceMode ToolState::replaceMode() const noexcept
 {
-    return replaceMode_;
+    if (replaceIdEnabled_ && replaceZEnabled_)
+    {
+        return ReplaceMode::idAndZ;
+    }
+    return replaceIdEnabled_ ? ReplaceMode::id : ReplaceMode::z;
 }
+
+bool ToolState::fillIdEnabled() const noexcept { return fillIdEnabled_; }
+bool ToolState::fillZEnabled() const noexcept { return fillZEnabled_; }
+bool ToolState::replaceIdEnabled() const noexcept { return replaceIdEnabled_; }
+bool ToolState::replaceZEnabled() const noexcept { return replaceZEnabled_; }
 
 const uomul::MapTile & ToolState::replaceSource() const noexcept
 {
@@ -165,11 +178,51 @@ ToolStateChange ToolState::setActiveTileZ(std::int32_t z) noexcept
 void ToolState::setFillMode(FillMode mode) noexcept
 {
     fillMode_ = mode;
+    fillIdEnabled_ = mode == FillMode::id || mode == FillMode::idAndZ;
+    fillZEnabled_ = mode == FillMode::z || mode == FillMode::idAndZ;
 }
 
 void ToolState::setReplaceMode(ReplaceMode mode) noexcept
 {
     replaceMode_ = mode;
+    replaceIdEnabled_ = mode == ReplaceMode::id || mode == ReplaceMode::idAndZ;
+    replaceZEnabled_ = mode == ReplaceMode::z || mode == ReplaceMode::idAndZ;
+}
+
+namespace
+{
+
+ToolStateChange setEnabled(bool & value, bool enabled, bool otherEnabled) noexcept
+{
+    if (!enabled && !otherEnabled)
+    {
+        return {.accepted = false, .changed = false, .reason = "Enable ID or Z"};
+    }
+    const bool changed = value != enabled;
+    value = enabled;
+    return {.accepted = true, .changed = changed, .reason = {}};
+}
+
+} // namespace
+
+ToolStateChange ToolState::setFillIdEnabled(bool enabled) noexcept
+{
+    return setEnabled(fillIdEnabled_, enabled, fillZEnabled_);
+}
+
+ToolStateChange ToolState::setFillZEnabled(bool enabled) noexcept
+{
+    return setEnabled(fillZEnabled_, enabled, fillIdEnabled_);
+}
+
+ToolStateChange ToolState::setReplaceIdEnabled(bool enabled) noexcept
+{
+    return setEnabled(replaceIdEnabled_, enabled, replaceZEnabled_);
+}
+
+ToolStateChange ToolState::setReplaceZEnabled(bool enabled) noexcept
+{
+    return setEnabled(replaceZEnabled_, enabled, replaceIdEnabled_);
 }
 
 ToolStateChange ToolState::setReplaceSourceId(std::int32_t id) noexcept

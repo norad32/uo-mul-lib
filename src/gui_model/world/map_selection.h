@@ -32,6 +32,7 @@ public:
     void clear() noexcept;
     void selectTile(uomul::TileCoord coordinate, uomul::Dimensions dimensions);
     void setGranularity(ToolSelectionGranularity granularity);
+    void convertBlocksToTiles(uomul::Dimensions dimensions);
     void replaceTileRegion(uomul::TileRegion region, uomul::Dimensions dimensions);
     void replaceBlockRegion(uomul::BlockRegion region, uomul::Dimensions dimensions);
     void replaceLasso(const std::vector<uomul::TileCoord> & path, uomul::Dimensions dimensions);
