@@ -122,6 +122,7 @@ public:
     void invertSelection();
     void convertTileSelectionToBlocks();
     [[nodiscard]] const MapSelectionMask & selectionMask() const noexcept;
+    [[nodiscard]] std::optional<uomul::TileRegion> selectionBounds() const;
 
     [[nodiscard]] const uomul::MapReader * reader() const noexcept;
     [[nodiscard]] uomul::Dimensions dimensions() const noexcept;

@@ -26,6 +26,7 @@ struct MapContextSnapshot
     MapSelectionMode selectionMode = MapSelectionMode::tiles;
     std::optional<uomul::TileRegion> tileSelection;
     std::optional<uomul::BlockRegion> blockSelection;
+    std::optional<uomul::TileRegion> selectionBounds;
 };
 
 [[nodiscard]] MapContextSnapshot makeMapContextSnapshot(const MapWorkspace & workspace,

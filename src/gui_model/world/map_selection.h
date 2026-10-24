@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <unordered_set>
 #include <vector>
 
@@ -26,6 +27,7 @@ public:
     [[nodiscard]] bool empty() const noexcept;
     [[nodiscard]] bool contains(uomul::TileCoord coordinate) const noexcept;
     [[nodiscard]] bool contains(uomul::BlockCoord coordinate) const noexcept;
+    [[nodiscard]] std::optional<uomul::TileRegion> tileBounds(uomul::Dimensions dimensions) const;
     void forEachSelectedTile(const std::function<void(uomul::TileCoord)> & callback) const;
     void forEachSelectedBlock(const std::function<void(uomul::BlockCoord)> & callback) const;
 

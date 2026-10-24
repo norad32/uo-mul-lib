@@ -565,7 +565,7 @@ void drawSelection(ImDrawList & drawList,
         drawMarchingPolyline(lassoPoints, 1.0F, 4.0F);
     }
 
-    std::optional<uomul::TileRegion> selection = workspace.tileSelection();
+    std::optional<uomul::TileRegion> selection = workspace.selectionBounds();
 
     if (workspace.selectionMode() == MapSelectionMode::blocks && workspace.blockSelection())
     {
@@ -1250,25 +1250,7 @@ void applyNavigationRequest(MapCanvasViewState & state, const MapWorkspace & wor
 
     const auto selectionBounds = [](const MapWorkspace & selectionWorkspace) -> std::optional<uomul::TileRegion>
     {
-        if (selectionWorkspace.selectionMode() == MapSelectionMode::tiles && selectionWorkspace.tileSelection())
-        {
-            return selectionWorkspace.tileSelection();
-        }
-        if (selectionWorkspace.selectionMode() == MapSelectionMode::blocks && selectionWorkspace.blockSelection())
-        {
-            const auto blocks = *selectionWorkspace.blockSelection();
-            return uomul::TileRegion{
-                .min = {.x = blocks.min.x * uomul::mapBlockDimension, .y = blocks.min.y * uomul::mapBlockDimension},
-                .maxExclusive =
-                    {
-                        .x = std::min(selectionWorkspace.dimensions().widthTiles,
-                                      blocks.maxExclusive.x * uomul::mapBlockDimension),
-                        .y = std::min(selectionWorkspace.dimensions().heightTiles,
-                                      blocks.maxExclusive.y * uomul::mapBlockDimension),
-                    },
-            };
-        }
-        return std::nullopt;
+        return selectionWorkspace.selectionBounds();
     };
 
     if (request == MapCanvasViewRequest::resetView || request == MapCanvasViewRequest::fitMap)

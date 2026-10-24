@@ -26,6 +26,7 @@ MapContextSnapshot makeMapContextSnapshot(const MapWorkspace & workspace, const 
     snapshot.selectionMode = workspace.selectionMode();
     snapshot.tileSelection = workspace.tileSelection();
     snapshot.blockSelection = workspace.blockSelection();
+    snapshot.selectionBounds = workspace.selectionBounds();
     if (document)
     {
         snapshot.documentId = document->id;

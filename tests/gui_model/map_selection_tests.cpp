@@ -77,6 +77,37 @@ TEST_CASE("selectionMask_Should_ConvertTilesToCoveringBlocks")
     REQUIRE(mask.contains(uomul::BlockCoord{.x = 1, .y = 1}));
 }
 
+TEST_CASE("selectionMask_Should_ConvertBlocksToClippedTiles")
+{
+    MapSelectionMask mask;
+    const uomul::Dimensions dimensions{.widthTiles = 9, .heightTiles = 10};
+    mask.setGranularity(ToolSelectionGranularity::blocks);
+    mask.replaceBlockRegion({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}}, dimensions);
+
+    mask.convertBlocksToTiles(dimensions);
+
+    REQUIRE(mask.granularity() == ToolSelectionGranularity::tiles);
+    REQUIRE(mask.size() == 2);
+    REQUIRE(mask.contains(uomul::TileCoord{.x = 8, .y = 8}));
+    REQUIRE(mask.contains(uomul::TileCoord{.x = 8, .y = 9}));
+    REQUIRE_FALSE(mask.contains(uomul::TileCoord{.x = 9, .y = 9}));
+}
+
+TEST_CASE("selectionMask_Should_ExposeSparseTileBounds")
+{
+    MapSelectionMask mask;
+    const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
+    mask.replaceTileRegion({.min = {.x = 5, .y = 7}, .maxExclusive = {.x = 6, .y = 8}}, dimensions);
+    mask.selectTile({.x = 12, .y = 2}, dimensions);
+
+    const auto bounds = mask.tileBounds(dimensions);
+    REQUIRE(bounds.has_value());
+    REQUIRE(bounds->min.x == 5);
+    REQUIRE(bounds->min.y == 2);
+    REQUIRE(bounds->maxExclusive.x == 13);
+    REQUIRE(bounds->maxExclusive.y == 8);
+}
+
 TEST_CASE("selectionMask_Should_IgnoreCombinesAtDifferentGranularities")
 {
     MapSelectionMask tiles;

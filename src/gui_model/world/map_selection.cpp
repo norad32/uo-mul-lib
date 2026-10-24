@@ -41,6 +41,62 @@ bool MapSelectionMask::contains(uomul::BlockCoord coordinate) const noexcept
     return granularity_ == ToolSelectionGranularity::blocks && selected_.contains(blockKey(coordinate));
 }
 
+std::optional<uomul::TileRegion> MapSelectionMask::tileBounds(uomul::Dimensions dimensions) const
+{
+    if (selected_.empty() || dimensions.widthTiles == 0U || dimensions.heightTiles == 0U)
+    {
+        return std::nullopt;
+    }
+
+    std::uint32_t minX = dimensions.widthTiles;
+    std::uint32_t minY = dimensions.heightTiles;
+    std::uint32_t maxExclusiveX = 0U;
+    std::uint32_t maxExclusiveY = 0U;
+    if (granularity_ == ToolSelectionGranularity::tiles)
+    {
+        forEachSelectedTile(
+            [&minX, &minY, &maxExclusiveX, &maxExclusiveY, dimensions](uomul::TileCoord tile)
+            {
+                if (tile.x >= dimensions.widthTiles || tile.y >= dimensions.heightTiles)
+                {
+                    return;
+                }
+                minX = std::min(minX, tile.x);
+                minY = std::min(minY, tile.y);
+                maxExclusiveX = std::max(maxExclusiveX, tile.x + 1U);
+                maxExclusiveY = std::max(maxExclusiveY, tile.y + 1U);
+            });
+    }
+    else
+    {
+        forEachSelectedBlock(
+            [&minX, &minY, &maxExclusiveX, &maxExclusiveY, dimensions](uomul::BlockCoord block)
+            {
+                const std::uint32_t blockMinX = block.x * uomul::mapBlockDimension;
+                const std::uint32_t blockMinY = block.y * uomul::mapBlockDimension;
+                if (blockMinX >= dimensions.widthTiles || blockMinY >= dimensions.heightTiles)
+                {
+                    return;
+                }
+                minX = std::min(minX, blockMinX);
+                minY = std::min(minY, blockMinY);
+                maxExclusiveX = std::max(maxExclusiveX,
+                                         std::min(dimensions.widthTiles, blockMinX + uomul::mapBlockDimension));
+                maxExclusiveY = std::max(maxExclusiveY,
+                                         std::min(dimensions.heightTiles, blockMinY + uomul::mapBlockDimension));
+            });
+    }
+
+    if (minX >= maxExclusiveX || minY >= maxExclusiveY)
+    {
+        return std::nullopt;
+    }
+    return uomul::TileRegion{
+        .min = {.x = minX, .y = minY},
+        .maxExclusive = {.x = maxExclusiveX, .y = maxExclusiveY},
+    };
+}
+
 void MapSelectionMask::forEachSelectedTile(const std::function<void(uomul::TileCoord)> & callback) const
 {
     if (!callback || granularity_ != ToolSelectionGranularity::tiles)

@@ -271,6 +271,45 @@ TEST_CASE("mapWorkspace_Should_ApplyLassoSelectionWithCombineModes")
     REQUIRE(workspace.selectionMask().size() == 8);
 }
 
+TEST_CASE("mapWorkspace_Should_ConvertBlockSelectionBackToClippedTiles")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "selection-conversion.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, {.widthTiles = 16, .heightTiles = 16}));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, {.widthTiles = 16, .heightTiles = 16}));
+    workspace.setBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}});
+    workspace.setSelectionMode(MapSelectionMode::tiles);
+
+    REQUIRE(workspace.selectionMode() == MapSelectionMode::tiles);
+    REQUIRE(workspace.selectionMask().size() == 64);
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 8, .y = 8}));
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 15, .y = 15}));
+}
+
+TEST_CASE("mapWorkspace_Should_ExposeSparseSelectionBoundsAndStats")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "selection-bounds.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    workspace.applyLassoSelection({{.x = 1, .y = 1}, {.x = 4, .y = 1}, {.x = 4, .y = 4}, {.x = 1, .y = 4}},
+                                  uo_mule::gui::SelectionCombineMode::replace);
+
+    const auto bounds = workspace.selectionBounds();
+    REQUIRE(bounds.has_value());
+    REQUIRE(bounds->min.x == 1);
+    REQUIRE(bounds->min.y == 1);
+    REQUIRE(bounds->maxExclusive.x == 4);
+    REQUIRE(bounds->maxExclusive.y == 4);
+    const auto stats = workspace.selectionStats();
+    REQUIRE(stats.has_value());
+    REQUIRE(stats->has_value());
+    REQUIRE(stats->value().tileCount == 9);
+}
+
 TEST_CASE("mapWorkspace_Should_StageEditsAndRequireExplicitDirtyResolution")
 {
     const TestDirectory directory;

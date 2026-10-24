@@ -57,6 +57,7 @@ public:
     void invertSelection() { active_->invertSelection(); }
     void convertTileSelectionToBlocks() { active_->convertTileSelectionToBlocks(); }
     [[nodiscard]] const MapSelectionMask & selectionMask() const noexcept { return active_->selectionMask(); }
+    [[nodiscard]] std::optional<uomul::TileRegion> selectionBounds() const { return active_->selectionBounds(); }
     [[nodiscard]] const std::optional<uomul::TileRegion> & tileSelection() const noexcept { return active_->tileSelection(); }
     [[nodiscard]] const std::optional<uomul::BlockRegion> & blockSelection() const noexcept
     {

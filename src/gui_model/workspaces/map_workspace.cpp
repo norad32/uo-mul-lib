@@ -10,8 +10,11 @@
 #include <expected>
 #include <filesystem>
 #include <limits>
+#include <map>
+#include <numeric>
 #include <optional>
 #include <queue>
+#include <ranges>
 #include <string>
 #include <system_error>
 #include <unordered_set>
@@ -882,36 +885,95 @@ std::expected<std::optional<uomul::MapStats>, uomul::Error> MapWorkspace::select
         return std::optional<uomul::MapStats>{};
     }
 
-    if (selectionMode_ == MapSelectionMode::tiles)
-    {
-        if (!tileSelection_)
-        {
-            return std::optional<uomul::MapStats>{};
-        }
-
-        auto stats = reader_->statsTiles(*tileSelection_);
-        if (!stats)
-        {
-            error_ = stats.error();
-            return std::unexpected(stats.error());
-        }
-
-        return std::optional<uomul::MapStats>{std::move(*stats)};
-    }
-
-    if (!blockSelection_)
+    if (selectionMask_.empty())
     {
         return std::optional<uomul::MapStats>{};
     }
 
-    auto stats = reader_->statsBlocks(*blockSelection_);
-    if (!stats)
+    std::map<std::int32_t, std::uint64_t> ids;
+    std::map<std::int32_t, std::uint64_t> zs;
+    std::vector<std::int32_t> elevations;
+    std::uint64_t tileCount = 0;
+    const auto addTile = [&ids, &zs, &elevations, &tileCount](uomul::MapTile tile)
     {
-        error_ = stats.error();
-        return std::unexpected(stats.error());
+        ids[static_cast<std::int32_t>(tile.id)]++;
+        zs[static_cast<std::int32_t>(tile.z)]++;
+        elevations.push_back(static_cast<std::int32_t>(tile.z));
+        tileCount++;
+    };
+
+    if (selectionMask_.granularity() == ToolSelectionGranularity::tiles)
+    {
+        selectionMask_.forEachSelectedTile(
+            [this, &addTile](uomul::TileCoord tile)
+            {
+                if (tile.x >= dimensions_.widthTiles || tile.y >= dimensions_.heightTiles)
+                {
+                    return;
+                }
+                const auto value = reader_->readTile(tile);
+                if (value)
+                {
+                    addTile(*value);
+                }
+            });
+    }
+    else
+    {
+        selectionMask_.forEachSelectedBlock(
+            [this, &addTile](uomul::BlockCoord block)
+            {
+                const auto value = reader_->readBlock(block);
+                if (!value)
+                {
+                    return;
+                }
+                const std::uint32_t minX = block.x * uomul::mapBlockDimension;
+                const std::uint32_t minY = block.y * uomul::mapBlockDimension;
+                const std::uint32_t maxX = std::min(dimensions_.widthTiles, minX + uomul::mapBlockDimension);
+                const std::uint32_t maxY = std::min(dimensions_.heightTiles, minY + uomul::mapBlockDimension);
+                for (std::uint32_t y = minY; y < maxY; y++)
+                {
+                    for (std::uint32_t x = minX; x < maxX; x++)
+                    {
+                        addTile(value->at(static_cast<std::size_t>((y % uomul::mapBlockDimension) *
+                                                                   uomul::mapBlockDimension +
+                                                                   (x % uomul::mapBlockDimension))));
+                    }
+                }
+            });
     }
 
-    return std::optional<uomul::MapStats>{std::move(*stats)};
+    uomul::MapStats stats;
+    stats.tileCount = tileCount;
+    for (const auto [value, count] : ids)
+    {
+        stats.tileIds.push_back({.value = value,
+                                 .count = count,
+                                 .percentage = tileCount == 0U
+                                                   ? 0.0
+                                                   : (100.0 * static_cast<double>(count) / static_cast<double>(tileCount))});
+    }
+    for (const auto [value, count] : zs)
+    {
+        stats.zs.push_back({.value = value,
+                            .count = count,
+                            .percentage = tileCount == 0U
+                                              ? 0.0
+                                              : (100.0 * static_cast<double>(count) / static_cast<double>(tileCount))});
+    }
+    if (!elevations.empty())
+    {
+        std::ranges::sort(elevations);
+        stats.averageZ = std::accumulate(elevations.begin(), elevations.end(), 0.0) /
+                         static_cast<double>(elevations.size());
+        stats.medianZ = elevations.size() % 2U == 0U
+                            ? (static_cast<double>(elevations.at(elevations.size() / 2U - 1U)) +
+                               static_cast<double>(elevations.at(elevations.size() / 2U))) /
+                                  2.0
+                            : static_cast<double>(elevations.at(elevations.size() / 2U));
+    }
+    return std::optional<uomul::MapStats>{std::move(stats)};
 }
 
 std::expected<void, uomul::Error> MapWorkspace::updateHover(uomul::TileCoord tile)
@@ -1123,6 +1185,11 @@ void MapWorkspace::convertTileSelectionToBlocks()
 const MapSelectionMask & MapWorkspace::selectionMask() const noexcept
 {
     return selectionMask_;
+}
+
+std::optional<uomul::TileRegion> MapWorkspace::selectionBounds() const
+{
+    return selectionMask_.tileBounds(dimensions_);
 }
 
 const uomul::MapReader * MapWorkspace::reader() const noexcept
