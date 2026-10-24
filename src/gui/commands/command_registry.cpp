@@ -515,55 +515,55 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state) { state.fullscreenToggleRequested = true; });
 
     add(registry,
-        CommandId::panelToolPalette,
+         CommandId::panelToolPalette,
         "view.panel.tool-palette",
         "Tool Palette",
-        "View",
+         "Windows",
         "Show or hide the tool palette",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::toolPalette)); });
     add(registry,
-        CommandId::panelTileInspector,
+         CommandId::panelTileInspector,
         "view.panel.tile-inspector",
         "Tile Inspector",
-        "View",
+         "Windows",
         "Show or hide the tile inspector",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tileInspector)); });
     add(registry,
-        CommandId::panelBlockInspector,
+         CommandId::panelBlockInspector,
         "view.panel.block-inspector",
         "Block Inspector",
-        "View",
+         "Windows",
         "Show or hide the block inspector",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::blockInspector)); });
     add(registry,
-        CommandId::panelRadarcol,
+         CommandId::panelRadarcol,
         "view.panel.radarcol",
         "Radarcol",
-        "View",
+         "Windows",
         "Show or hide radar colors",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
     add(registry,
-        CommandId::panelTexmaps,
+         CommandId::panelTexmaps,
         "view.panel.texmaps",
         "Texmaps",
-        "View",
+         "Windows",
         "Show or hide textures",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::texmaps)); });
     add(registry,
-        CommandId::panelTiledata,
+         CommandId::panelTiledata,
         "view.panel.tiledata",
         "Tiledata",
-        "View",
+         "Windows",
         "Show or hide Tiledata records",
         "",
         enabled,
@@ -573,20 +573,36 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::selectionTiles,
         "selection.tiles",
         "Tile selection",
-        "Selection",
+        "Select",
         "Select individual tiles",
         "",
         enabled,
-        [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::tiles); });
+        [](WorkbenchState & state)
+        {
+            const auto result = state.toolState.setSelectionGranularity(
+                ToolSelectionGranularity::tiles, toolContext(state), state.toolRegistry);
+            if (result.accepted)
+            {
+                state.workspace.setSelectionMode(MapSelectionMode::tiles);
+            }
+        });
     add(registry,
         CommandId::selectionBlocks,
         "selection.blocks",
         "Block selection",
-        "Selection",
+        "Select",
         "Select map blocks",
         "",
         enabled,
-        [](WorkbenchState & state) { state.workspace.setSelectionMode(MapSelectionMode::blocks); });
+        [](WorkbenchState & state)
+        {
+            const auto result = state.toolState.setSelectionGranularity(
+                ToolSelectionGranularity::blocks, toolContext(state), state.toolRegistry);
+            if (result.accepted)
+            {
+                state.workspace.setSelectionMode(MapSelectionMode::blocks);
+            }
+        });
     add(registry,
         CommandId::selectionAll,
         "selection.all",
@@ -618,7 +634,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::dataPaths,
         "data.paths",
         "Preferences...",
-        "Data",
+        "Edit",
         "Configure the active UO data profile",
         "",
         enabled,
@@ -653,7 +669,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapFit,
         "map.fit",
         "Fit Map",
-        "Map",
+        "World",
         "Fit the complete map in the canvas",
         "",
         requiresMapDocument,
@@ -662,7 +678,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapFitSelection,
         "map.fit-selection",
         "Fit Selection",
-        "Map",
+        "World",
         "Fit the current selection in the canvas",
         "",
         requiresMapDocument,
@@ -672,27 +688,17 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapCenterSelection,
         "map.center-selection",
         "Center Selection",
-        "Map",
+        "World",
         "Center the current selection in the canvas",
         "",
         requiresMapDocument,
         [](WorkbenchState & state)
         { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::centerSelection; });
     add(registry,
-        CommandId::mapResetView,
-        "map.reset-view",
-        "Reset View",
-        "Map",
-        "Reset map pan and zoom",
-        "",
-        requiresMapDocument,
-        [](WorkbenchState & state)
-        { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::resetView; });
-    add(registry,
         CommandId::mapGoToCoordinate,
         "map.go-to-coordinate",
         "Go to Coordinate...",
-        "Map",
+        "World",
         "Center the map on a tile coordinate",
         "Ctrl+G",
         requiresMapDocument,
@@ -701,7 +707,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapGoToBlockCoordinate,
         "map.go-to-block-coordinate",
         "Go to Block...",
-        "Map",
+        "World",
         "Center the map on a block coordinate",
         "",
         requiresMapDocument,
@@ -710,7 +716,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapCopyCoordinate,
         "map.copy-coordinate",
         "Copy Coordinate",
-        "Map",
+        "World",
         "Copy the active tile coordinate",
         "",
         requiresActiveLocation,
@@ -723,7 +729,7 @@ void registerDefaultCommands(CommandRegistry & registry)
         CommandId::mapCopyTileData,
         "map.copy-tile-data",
         "Copy Tile Data",
-        "Map",
+        "World",
         "Copy the active tile ID and elevation",
         "",
         requiresActiveLocation,

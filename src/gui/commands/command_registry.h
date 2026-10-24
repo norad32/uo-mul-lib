@@ -49,7 +49,6 @@ enum class CommandId : std::uint8_t
     mapFit,
     mapFitSelection,
     mapCenterSelection,
-    mapResetView,
     mapGoToCoordinate,
     mapGoToBlockCoordinate,
     mapCopyCoordinate,

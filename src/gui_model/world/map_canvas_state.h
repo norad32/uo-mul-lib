@@ -50,7 +50,6 @@ enum class MapCanvasViewRequest : std::uint8_t
     fitMap,
     fitSelection,
     centerSelection,
-    resetView,
 };
 
 struct MapCanvasNavigationRequest

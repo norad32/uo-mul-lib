@@ -37,6 +37,17 @@ TEST_CASE("defaultCommands_Should_ExposeStableIdsAndMetadata")
     REQUIRE(saveAs->defaultShortcut == "Ctrl+Shift+S");
 }
 
+TEST_CASE("defaultCommands_Should_ExposeOrientedMenuCategories")
+{
+    const WorkbenchState state;
+
+    REQUIRE(state.commands.find(CommandId::selectionAll)->category == "Select");
+    REQUIRE(state.commands.find(CommandId::mapFit)->category == "World");
+    REQUIRE(state.commands.find(CommandId::panelToolPalette)->category == "Windows");
+    REQUIRE(state.commands.find(CommandId::toolFill)->category == "Tools");
+    REQUIRE(state.commands.find(CommandId::dataPaths)->category == "Edit");
+}
+
 TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")
 {
     WorkbenchState state;
@@ -128,6 +139,28 @@ TEST_CASE("selectionCommands_Should_OperateOnTheActiveMapMask")
     REQUIRE(state.commands.execute(CommandId::selectionAll, state));
     REQUIRE(state.commands.execute(CommandId::selectionNone, state));
     REQUIRE(state.workspace.selectionMask().empty());
+
+    static_cast<void>(state.workspace.closeMap());
+    std::filesystem::remove(mapPath);
+}
+
+TEST_CASE("selectionCommands_Should_SynchronizeToolRegionWithWorkspace")
+{
+    WorkbenchState state;
+    const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
+    const auto mapPath = std::filesystem::temp_directory_path() / "uo-mule-selection-region-command-map.mul";
+    std::filesystem::remove(mapPath);
+    REQUIRE(state.workspace.createEmptyMap(mapPath, dimensions));
+    state.session.syncDocument(state.workspace);
+    REQUIRE(state.commands.execute(CommandId::toolRectangleSelect, state));
+
+    REQUIRE(state.commands.execute(CommandId::selectionBlocks, state));
+    REQUIRE(state.toolState.selectionGranularity() == uo_mule::gui::ToolSelectionGranularity::blocks);
+    REQUIRE(state.workspace.selectionMode() == uo_mule::gui::MapSelectionMode::blocks);
+
+    REQUIRE(state.commands.execute(CommandId::selectionTiles, state));
+    REQUIRE(state.toolState.selectionGranularity() == uo_mule::gui::ToolSelectionGranularity::tiles);
+    REQUIRE(state.workspace.selectionMode() == uo_mule::gui::MapSelectionMode::tiles);
 
     static_cast<void>(state.workspace.closeMap());
     std::filesystem::remove(mapPath);

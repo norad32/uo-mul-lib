@@ -1240,7 +1240,7 @@ void resetForDocument(const MapWorkspace & workspace, MapCanvasViewState & state
     state.scrollResetPending = true;
 }
 
-void applyNavigationRequest(MapCanvasViewState & state, const MapWorkspace & workspace, ImVec2 canvasSize, double minimumZoom)
+void applyNavigationRequest(MapCanvasViewState & state, const MapWorkspace & workspace, ImVec2 canvasSize)
 {
     const MapCanvasViewRequest request = state.navigationRequest.request;
     if (request == MapCanvasViewRequest::none || workspace.reader() == nullptr)
@@ -1253,10 +1253,9 @@ void applyNavigationRequest(MapCanvasViewState & state, const MapWorkspace & wor
         return selectionWorkspace.selectionBounds();
     };
 
-    if (request == MapCanvasViewRequest::resetView || request == MapCanvasViewRequest::fitMap)
+    if (request == MapCanvasViewRequest::fitMap)
     {
-        state.zoom = request == MapCanvasViewRequest::fitMap ? fitZoomForCanvas(workspace.dimensions(), canvasSize)
-                                                             : std::clamp(defaultMapCanvasZoom, minimumZoom, maximumCanvasZoom);
+        state.zoom = fitZoomForCanvas(workspace.dimensions(), canvasSize);
         state.panX =
             (static_cast<double>(canvasSize.x) - (static_cast<double>(workspace.dimensions().widthTiles) * state.zoom)) /
             coordinateCenterDivisor;
@@ -1725,7 +1724,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
     {
         workspace.clearHover();
     }
-    applyNavigationRequest(state, workspace, canvasSize, minimumZoom);
+    applyNavigationRequest(state, workspace, canvasSize);
     const ImVec2 contentSize(hasDocument ? canvasContentExtent(dimensions.widthTiles, state.zoom, canvasSize.x) : canvasSize.x,
                              hasDocument ? canvasContentExtent(dimensions.heightTiles, state.zoom, canvasSize.y)
                                          : canvasSize.y);
