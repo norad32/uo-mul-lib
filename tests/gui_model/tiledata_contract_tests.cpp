@@ -13,6 +13,18 @@
 namespace
 {
 
+void requireGrassTile(const std::optional<uomul::TiledataReader> & reader)
+{
+    REQUIRE(reader);
+    if (!reader)
+    {
+        return;
+    }
+    const auto mapTile = reader->readMapTile(3);
+    REQUIRE(mapTile);
+    REQUIRE(mapTile.value_or(uomul::MapTileRecord{}).name == "grass");
+}
+
 class TemporaryDirectory
 {
 public:
@@ -71,7 +83,6 @@ TEST_CASE("TiledataLayout_Should_ResolveExactFixtureSize")
     REQUIRE_FALSE(uo_mule::gui::resolveTiledataLayout(path, uo_mule::gui::TiledataLayoutSelection::legacy32));
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE("TiledataDocument_Should_OpenReadOnlyAndReuseDescriptorIdentity")
 {
     const TemporaryDirectory directory;
@@ -85,12 +96,7 @@ TEST_CASE("TiledataDocument_Should_OpenReadOnlyAndReuseDescriptorIdentity")
     REQUIRE_FALSE(document->dirty());
     const auto & reader = document->reader();
     REQUIRE(reader.has_value());
-    if (reader)
-    {
-        const auto mapTile = reader->readMapTile(3);
-        REQUIRE(mapTile);
-        REQUIRE(mapTile.value_or(uomul::MapTileRecord{}).name == "grass");
-    }
+    requireGrassTile(reader);
 
     const uo_mule::gui::DocumentDescriptorRegistry registry;
     const auto summary = registry.createSummary({

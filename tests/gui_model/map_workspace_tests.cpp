@@ -485,23 +485,35 @@ TEST_CASE("mapWorkspace_Should_RejectMaskedEditsWithoutSelectionAndKeepCleanStat
     REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == initialTile);
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
-TEST_CASE("mapWorkspace_ShouldFuzzySelectContiguousAndWholeMapWithAndPredicates")
+namespace
 {
-    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-    const TestDirectory directory;
-    const auto mapPath = directory.path() / "fuzzy.mul";
+
+void prepareFuzzySelectionWorkspace(const std::filesystem::path & directory, MapWorkspace & workspace)
+{
+    const auto mapPath = directory / "fuzzy.mul";
     REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
-    auto editor = uomul::MapEditor::create(mapPath, directory.path() / "fuzzy-staged.mul", testDimensions);
+    auto editor = uomul::MapEditor::create(mapPath, directory / "fuzzy-staged.mul", testDimensions);
     REQUIRE(editor);
+    if (!editor)
+    {
+        return;
+    }
     REQUIRE(editor->editTile({.x = 1, .y = 1}, {.id = 20, .z = 5}));
     REQUIRE(editor->editTile({.x = 2, .y = 1}, {.id = 20, .z = 5}));
     REQUIRE(editor->editTile({.x = 1, .y = 2}, {.id = 20, .z = 5}));
     REQUIRE(editor->editTile({.x = 10, .y = 10}, {.id = 20, .z = 5}));
     REQUIRE(editor->commit());
+    REQUIRE(workspace.openMap(directory / "fuzzy-staged.mul", testDimensions));
+}
 
+} // namespace
+
+TEST_CASE("mapWorkspace_ShouldFuzzySelectContiguousAndWholeMapWithAndPredicates")
+{
+    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    const TestDirectory directory;
     MapWorkspace workspace;
-    REQUIRE(workspace.openMap(directory.path() / "fuzzy-staged.mul", testDimensions));
+    prepareFuzzySelectionWorkspace(directory.path(), workspace);
     uo_mule::gui::FuzzySelectionOptions options{
         .scope = uo_mule::gui::FuzzyScope::contiguous,
         .idEnabled = true,
