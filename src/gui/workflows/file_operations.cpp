@@ -182,8 +182,16 @@ bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, 
     // standalone document.
     cancelFileDialog(state.menuBarState.fileDialog);
 
-    const DocumentKind kind = candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair;
-    const DocumentSourceIdentity source = candidate.kind == MulAssetKind::radarcol
+    DocumentKind kind = DocumentKind::texmapPair;
+    if (candidate.kind == MulAssetKind::radarcol)
+    {
+        kind = DocumentKind::radarcol;
+    }
+    else if (candidate.kind == MulAssetKind::tiledata)
+    {
+        kind = DocumentKind::tiledata;
+    }
+    const DocumentSourceIdentity source = candidate.kind == MulAssetKind::radarcol || candidate.kind == MulAssetKind::tiledata
                                               ? makeDocumentSourceIdentity({candidate.path})
                                               : makeRoleAwareDocumentSourceIdentity({
                                                     {.role = SourceRole::index, .path = candidate.path},
@@ -193,7 +201,7 @@ bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, 
         .kind = kind,
         .source = source,
         .displayName = candidate.path.filename().string(),
-        .access = candidate.kind == MulAssetKind::texmapsPair ? DocumentAccess::readOnly : DocumentAccess::editable,
+        .access = DocumentAccess::readOnly,
         .validation = candidate.validated ? DocumentValidationState::valid : DocumentValidationState::invalid,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
@@ -214,10 +222,7 @@ bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, 
     {
         state.notifications.add(NotificationSeverity::error, activated.error().message);
     }
-    state.session.recordRecentFile(candidate.path,
-                                   candidate.kind == MulAssetKind::radarcol ? DocumentKind::radarcol : DocumentKind::texmapPair,
-                                   candidate.companionPath,
-                                   candidate.itemCount);
+    state.session.recordRecentFile(candidate.path, kind, candidate.companionPath, candidate.itemCount);
     return false;
 }
 

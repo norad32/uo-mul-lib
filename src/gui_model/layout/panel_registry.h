@@ -13,6 +13,7 @@ enum class PanelId : std::uint8_t
     blockInspector,
     radarcol,
     texmaps,
+    tiledata,
 };
 
 struct PanelDescriptor

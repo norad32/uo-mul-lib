@@ -4,7 +4,7 @@
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/profile/data_profile.h"
 #include "uomul/facet_sizes.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>

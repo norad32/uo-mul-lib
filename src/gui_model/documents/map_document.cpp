@@ -2,12 +2,15 @@
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/radarcol_document.h"
+#include "gui_model/documents/tiledata_document.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/source/source_identity.h"
+#include "gui_model/source/tiledata_source.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "uomul/facet_sizes.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
+#include "uomul/tiledata/tiledata.h"
 #include <algorithm>
 #include <optional>
 #include <string>
@@ -61,8 +64,12 @@ void DocumentManager::sync(const MapWorkspace & workspace)
             .dimensions = workspace.dimensions(),
             .dirty = workspace.dirty(),
         };
-        record =
-            &documents_.emplace_back(DocumentRecord{.summary = map.summary(), .map = std::move(map), .radarcol = std::nullopt});
+        record = &documents_.emplace_back(DocumentRecord{
+            .summary = map.summary(),
+            .map = std::move(map),
+            .radarcol = std::nullopt,
+            .tiledata = std::nullopt,
+        });
     }
 
     if (!record->map)
@@ -90,6 +97,7 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
 {
     configuredRadarcolSource_ = configuredDocumentSourceIdentity(profile, DocumentKind::radarcol);
     configuredTexmapPairSource_ = configuredDocumentSourceIdentity(profile, DocumentKind::texmapPair);
+    configuredTiledataSource_ = configuredDocumentSourceIdentity(profile, DocumentKind::tiledata);
 
     for (auto & document : documents_)
     {
@@ -108,6 +116,9 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
             case DocumentKind::combined :
             case DocumentKind::unavailable :
                 break;
+            case DocumentKind::tiledata :
+                configured = configuredTiledataSource_.has_value() && identity.source == configuredTiledataSource_.value();
+                break;
         }
         if (identity.kind == DocumentKind::radarcol)
         {
@@ -118,7 +129,7 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
                 document.radarcol->setAccess(document.summary.access);
             }
         }
-        else if (identity.kind == DocumentKind::texmapPair)
+        else if (identity.kind == DocumentKind::texmapPair || identity.kind == DocumentKind::tiledata)
         {
             document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
             document.summary.access = DocumentAccess::readOnly;
@@ -150,6 +161,9 @@ DocumentId DocumentManager::open(DocumentSummary summary)
             configured =
                 configuredTexmapPairSource_.has_value() && summary.identity.source == configuredTexmapPairSource_.value();
             break;
+        case DocumentKind::tiledata :
+            configured = configuredTiledataSource_.has_value() && summary.identity.source == configuredTiledataSource_.value();
+            break;
         case DocumentKind::map :
         case DocumentKind::statics :
         case DocumentKind::combined :
@@ -161,6 +175,7 @@ DocumentId DocumentManager::open(DocumentSummary summary)
         summary.identity.kind == DocumentKind::radarcol && !configured ? DocumentAccess::editable : DocumentAccess::readOnly;
 
     std::optional<RadarcolDocument> radarcol;
+    std::optional<TiledataDocument> tiledata;
     if (summary.identity.kind == DocumentKind::radarcol && summary.identity.source.path(SourceRole::primary) != nullptr)
     {
         auto opened =
@@ -180,8 +195,30 @@ DocumentId DocumentManager::open(DocumentSummary summary)
         }
     }
 
-    DocumentRecord & record = documents_.emplace_back(
-        DocumentRecord{.summary = std::move(summary), .map = std::nullopt, .radarcol = std::move(radarcol)});
+    if (summary.identity.kind == DocumentKind::tiledata && summary.identity.source.path(SourceRole::primary) != nullptr)
+    {
+        const auto source = *summary.identity.source.path(SourceRole::primary);
+        const auto layout =
+            resolveTiledataLayout(source, TiledataLayoutSelection::autoDetect).value_or(uomul::TiledataLayout::extended64);
+        auto opened = TiledataDocument::open(summary.identity.id, source, layout);
+        if (opened)
+        {
+            summary.validation = DocumentValidationState::valid;
+            tiledata = std::move(*opened);
+        }
+        else
+        {
+            summary.validation = DocumentValidationState::invalid;
+            tiledata = TiledataDocument::invalid(summary.identity.id, source, layout, opened.error().message);
+        }
+    }
+
+    DocumentRecord & record = documents_.emplace_back(DocumentRecord{
+        .summary = std::move(summary),
+        .map = std::nullopt,
+        .radarcol = std::move(radarcol),
+        .tiledata = std::move(tiledata),
+    });
     activeId_ = record.summary.identity.id;
     return *activeId_;
 }

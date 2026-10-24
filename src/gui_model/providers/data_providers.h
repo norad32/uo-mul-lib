@@ -5,6 +5,7 @@
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_color.h"
 #include "uomul/radarcol/radarcol.h"
+#include "uomul/tiledata/tiledata.h"
 #include <cstdint>
 #include <expected>
 #include <memory>
@@ -48,7 +49,7 @@ struct ProviderRevisions
 {
     std::uint64_t radarColors = 0;
     std::uint64_t textures = 0;
-    std::uint64_t tileData = 0;
+    std::uint64_t tiledata = 0;
 
     bool operator==(const ProviderRevisions &) const = default;
 };
@@ -64,6 +65,18 @@ struct ProviderTexture
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::vector<MapColor> pixels;
+};
+
+struct ProviderMapTile
+{
+    std::uint16_t id = 0;
+    uomul::MapTileRecord record;
+};
+
+struct ProviderStaticTile
+{
+    std::uint32_t id = 0;
+    uomul::StaticTileRecord record;
 };
 
 struct ProviderTileData
@@ -94,13 +107,16 @@ public:
     [[nodiscard]] virtual std::optional<bool> hasTexture(std::uint32_t id) const = 0;
 };
 
-class TileDataProvider
+class TiledataProvider
 {
 public:
-    virtual ~TileDataProvider() = default;
+    virtual ~TiledataProvider() = default;
     [[nodiscard]] virtual ProviderStatus status() const = 0;
     [[nodiscard]] virtual ProviderStatus status(std::uint16_t id) const = 0;
-    [[nodiscard]] virtual std::optional<ProviderTileData> tile(std::uint16_t id) const = 0;
+    [[nodiscard]] virtual ProviderStatus staticStatus(std::uint32_t id) const = 0;
+    [[nodiscard]] virtual std::optional<uomul::TiledataLayout> layout() const = 0;
+    [[nodiscard]] virtual std::optional<ProviderMapTile> mapTile(std::uint16_t id) const = 0;
+    [[nodiscard]] virtual std::optional<ProviderStaticTile> staticTile(std::uint32_t id) const = 0;
 };
 
 class DataProviders
@@ -120,7 +136,7 @@ public:
     [[nodiscard]] ProviderRevisions revisions() const noexcept;
     [[nodiscard]] const RadarColorProvider & radarColors() const noexcept;
     [[nodiscard]] const TextureProvider & textures() const noexcept;
-    [[nodiscard]] const TileDataProvider & tileData() const noexcept;
+    [[nodiscard]] const TiledataProvider & tiledata() const noexcept;
 
 private:
     class Impl;

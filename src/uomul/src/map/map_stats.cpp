@@ -1,6 +1,6 @@
 #include "map_stats.h"
 #include "map_common.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <array>
 #include <cstddef>

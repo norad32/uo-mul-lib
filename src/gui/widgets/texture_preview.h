@@ -1,7 +1,7 @@
 #pragma once
 
 #include "gui_model/world/map_color.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <cstdint>
 #include <span>
 

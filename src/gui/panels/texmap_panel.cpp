@@ -143,6 +143,7 @@ loadTextureDetails(const TextureProvider & provider, const assets::AssetItemId &
                 std::string(strings::dimensions()) + ": " + std::to_string(texture->width) + "x" +
                     std::to_string(texture->height),
             },
+        .fieldTooltips = {},
     };
 }
 

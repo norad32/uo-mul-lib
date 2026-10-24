@@ -31,6 +31,15 @@ std::optional<DocumentSourceIdentity> configuredDocumentSourceIdentity(const Dat
             return makeRoleAwareDocumentSourceIdentity(
                 {{.role = SourceRole::index, .path = index}, {.role = SourceRole::data, .path = data}});
         }
+        case DocumentKind::tiledata :
+        {
+            const auto path = resolvedDataFilePath(profile, DataFileRole::tiledata);
+            if (path.empty())
+            {
+                return std::nullopt;
+            }
+            return makeDocumentSourceIdentity({path});
+        }
         case DocumentKind::map :
         case DocumentKind::statics :
         case DocumentKind::combined :

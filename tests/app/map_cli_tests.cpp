@@ -1,6 +1,6 @@
 #include "app/cli.h"
 #include "logger/logger.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>

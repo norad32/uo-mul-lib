@@ -60,7 +60,14 @@ function(apply_coverage_compile_options target_name)
         )
     endif()
 
-    target_compile_options(${target_name} PRIVATE ${COVERAGE_COMPILE_OPTIONS})
+    get_target_property(target_type ${target_name} TYPE)
+    if(target_type STREQUAL "INTERFACE_LIBRARY")
+        target_compile_options(${target_name}
+                               INTERFACE ${COVERAGE_COMPILE_OPTIONS})
+    else()
+        target_compile_options(${target_name}
+                               PRIVATE ${COVERAGE_COMPILE_OPTIONS})
+    endif()
 endfunction()
 
 function(apply_unit_test_compile_options target_name)

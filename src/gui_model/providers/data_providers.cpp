@@ -4,8 +4,10 @@
 #include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/embedded_radarcol.h"
 #include "gui_model/source/source_identity.h"
+#include "gui_model/source/tiledata_source.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
+#include "uomul/tiledata/tiledata.h"
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -292,7 +294,7 @@ private:
     bool synchronized_ = false;
 };
 
-class ProfileTileDataProvider final : public TileDataProvider
+class ProfileTiledataProvider final : public TiledataProvider
 {
 public:
     void sync(const DataProfile & profile) { sync(profile, false); }
@@ -302,26 +304,63 @@ public:
     void sync(const DataProfile & profile, bool force)
     {
         const auto path = resolvedDataFilePath(profile, DataFileRole::tiledata);
-        if (synchronized_ && !force && path == path_)
+        if (synchronized_ && !force && path == path_ && profile.tiledataLayout == layoutSelection_)
         {
             return;
         }
         path_ = path;
+        layoutSelection_ = profile.tiledataLayout;
+        reader_.reset();
         revision_++;
         synchronized_ = true;
-        status_ = path_.empty() ? unavailableStatus(revision_, "Tile data is not configured")
-                                : ProviderStatus{
-                                      .state = ProviderAssetState::unsupported,
-                                      .source = ProviderSourceKind::externalConfigured,
-                                      .message = "Tile data reading is not supported yet",
-                                      .sourceIdentity = makeDocumentSourceIdentity({path_}),
-                                      .revision = revision_,
-                                  };
+        if (path_.empty())
+        {
+            status_ = unavailableStatus(revision_, "Tiledata is not configured");
+            return;
+        }
+
+        const auto resolved = resolveTiledataLayout(path_, layoutSelection_);
+        if (!resolved)
+        {
+            status_ = {
+                .state = layoutSelection_ == TiledataLayoutSelection::autoDetect ? ProviderAssetState::unsupported
+                                                                                 : ProviderAssetState::invalid,
+                .source = ProviderSourceKind::externalConfigured,
+                .message = "Tiledata file does not match the selected layout",
+                .sourceIdentity = makeDocumentSourceIdentity({path_}),
+                .revision = revision_,
+            };
+            return;
+        }
+
+        auto opened = uomul::TiledataReader::open(path_, *resolved);
+        if (!opened)
+        {
+            status_ = {
+                .state = ProviderAssetState::invalid,
+                .source = ProviderSourceKind::externalConfigured,
+                .message = opened.error().message,
+                .sourceIdentity = makeDocumentSourceIdentity({path_}),
+                .revision = revision_,
+            };
+            return;
+        }
+        layout_ = resolved;
+        reader_ = std::move(*opened);
+        status_ = {
+            .state = ProviderAssetState::available,
+            .source = ProviderSourceKind::externalConfigured,
+            .message = {},
+            .sourceIdentity = makeDocumentSourceIdentity({path_}),
+            .revision = revision_,
+        };
     }
 
     void invalidate() noexcept
     {
         path_.clear();
+        reader_.reset();
+        layout_.reset();
         revision_++;
         status_ = unavailableStatus(revision_, "Tile data is not loaded");
         status_.sourceIdentity = makeDocumentSourceIdentity({path_});
@@ -330,17 +369,67 @@ public:
     [[nodiscard]] ProviderStatus status() const override { return status_; }
     [[nodiscard]] ProviderStatus status(std::uint16_t id) const override
     {
-        static_cast<void>(id);
+        if (status_.state != ProviderAssetState::available)
+        {
+            return status_;
+        }
+        const auto record = mapTile(id);
+        if (!record)
+        {
+            return {
+                .state = ProviderAssetState::empty,
+                .source = status_.source,
+                .message = "No MapTileRecord for ID",
+                .sourceIdentity = status_.sourceIdentity,
+                .revision = revision_,
+            };
+        }
         return status_;
     }
-    [[nodiscard]] std::optional<ProviderTileData> tile(std::uint16_t id) const override
+    [[nodiscard]] ProviderStatus staticStatus(std::uint32_t id) const override
     {
-        static_cast<void>(id);
-        return std::nullopt;
+        if (status_.state != ProviderAssetState::available)
+        {
+            return status_;
+        }
+        const auto record = staticTile(id);
+        if (!record)
+        {
+            return {
+                .state = ProviderAssetState::empty,
+                .source = status_.source,
+                .message = "No StaticTileRecord for ID",
+                .sourceIdentity = status_.sourceIdentity,
+                .revision = revision_,
+            };
+        }
+        return status_;
+    }
+    [[nodiscard]] std::optional<uomul::TiledataLayout> layout() const override { return layout_; }
+    [[nodiscard]] std::optional<ProviderMapTile> mapTile(std::uint16_t id) const override
+    {
+        if (!reader_)
+        {
+            return std::nullopt;
+        }
+        const auto record = reader_->readMapTile(id);
+        return record ? std::optional<ProviderMapTile>(ProviderMapTile{.id = id, .record = *record}) : std::nullopt;
+    }
+    [[nodiscard]] std::optional<ProviderStaticTile> staticTile(std::uint32_t id) const override
+    {
+        if (!reader_)
+        {
+            return std::nullopt;
+        }
+        const auto record = reader_->readStaticTile(id);
+        return record ? std::optional<ProviderStaticTile>(ProviderStaticTile{.id = id, .record = *record}) : std::nullopt;
     }
 
 private:
     std::filesystem::path path_;
+    TiledataLayoutSelection layoutSelection_ = TiledataLayoutSelection::autoDetect;
+    std::optional<uomul::TiledataLayout> layout_;
+    std::optional<uomul::TiledataReader> reader_;
     ProviderStatus status_;
     std::uint64_t revision_ = 0;
     bool synchronized_ = false;
@@ -353,7 +442,7 @@ class DataProviders::Impl
 public:
     ProfileRadarColorProvider radar;
     ProfileTextureProvider textures;
-    ProfileTileDataProvider tileData;
+    ProfileTiledataProvider tiledata;
 };
 
 DataProviders::DataProviders() : impl_(std::make_unique<Impl>())
@@ -367,7 +456,7 @@ void DataProviders::sync(const DataProfile & profile)
 {
     impl_->radar.sync(profile);
     impl_->textures.sync(profile);
-    impl_->tileData.sync(profile);
+    impl_->tiledata.sync(profile);
 }
 
 bool DataProviders::refresh(const DataProfile & profile)
@@ -375,7 +464,7 @@ bool DataProviders::refresh(const DataProfile & profile)
     const auto previous = revisions();
     impl_->radar.refresh(profile);
     impl_->textures.refresh(profile);
-    impl_->tileData.refresh(profile);
+    impl_->tiledata.refresh(profile);
     return revisions() != previous;
 }
 
@@ -383,7 +472,7 @@ void DataProviders::invalidate() noexcept
 {
     impl_->radar.invalidate();
     impl_->textures.invalidate();
-    impl_->tileData.invalidate();
+    impl_->tiledata.invalidate();
 }
 
 ProviderRevisions DataProviders::revisions() const noexcept
@@ -391,7 +480,7 @@ ProviderRevisions DataProviders::revisions() const noexcept
     return {
         .radarColors = impl_->radar.status().revision,
         .textures = impl_->textures.status().revision,
-        .tileData = impl_->tileData.status().revision,
+        .tiledata = impl_->tiledata.status().revision,
     };
 }
 
@@ -403,9 +492,9 @@ const TextureProvider & DataProviders::textures() const noexcept
 {
     return impl_->textures;
 }
-const TileDataProvider & DataProviders::tileData() const noexcept
+const TiledataProvider & DataProviders::tiledata() const noexcept
 {
-    return impl_->tileData;
+    return impl_->tiledata;
 }
 
 } // namespace uo_mule::gui

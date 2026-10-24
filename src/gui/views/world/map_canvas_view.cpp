@@ -6,7 +6,7 @@
 #include "gui_model/workspaces/map_workspace_manager.h"
 #include "gui_model/world/map_canvas_state.h"
 #include "gui_model/world/map_color.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <GL/gl.h>
 #include <algorithm>

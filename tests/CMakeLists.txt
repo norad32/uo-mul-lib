@@ -5,12 +5,12 @@ list(APPEND CMAKE_MODULE_PATH "${Catch2_DIR}")
 include(Catch)
 
 if(BUILD_CORE_TESTS)
-    file(
-        GLOB_RECURSE
-        core_test_sources
-        CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/uomul/*.cpp")
+        file(
+            GLOB_RECURSE
+            core_test_sources
+            CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/uomul/*.cpp")
     add_executable(uomul_tests ${core_test_sources})
     target_link_libraries(
         uomul_tests
@@ -19,6 +19,7 @@ if(BUILD_CORE_TESTS)
                 core
                 logger
                 options)
+    target_compile_definitions(uomul_tests PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     apply_common_compile_options(uomul_tests)
     apply_unit_test_compile_options(uomul_tests)
     if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -62,32 +63,32 @@ if(BUILD_CLI_TESTS AND (BUILD_CLI OR BUILD_GUI))
     catch_discover_tests(cli_tests)
 endif()
 
-if(BUILD_GUI_TESTS OR BUILD_CORE_TESTS)
-    if(BUILD_GUI_TESTS AND BUILD_GUI)
-        file(
-            GLOB_RECURSE
-            gui_test_sources
-            CONFIGURE_DEPENDS
-            "${CMAKE_CURRENT_SOURCE_DIR}/gui/*.cpp")
-        add_executable(gui_tests ${gui_test_sources})
-        target_link_libraries(
-            gui_tests
-            PRIVATE Catch2::Catch2WithMain
-                    gui
-                    core
-                    logger
-                    uomul
-                    options)
-        apply_common_compile_options(gui_tests)
-        apply_unit_test_compile_options(gui_tests)
-        if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-            apply_coverage_compile_options(gui_tests)
-            apply_unit_test_link_options(gui_tests)
-            apply_coverage_compile_options(gui)
-        endif()
-        catch_discover_tests(gui_tests)
+if(BUILD_GUI_TESTS AND BUILD_GUI)
+    file(
+        GLOB_RECURSE
+        gui_test_sources
+        CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/gui/*.cpp")
+    add_executable(gui_tests ${gui_test_sources})
+    target_link_libraries(
+        gui_tests
+        PRIVATE Catch2::Catch2WithMain
+                gui
+                core
+                logger
+                uomul
+                options)
+    apply_common_compile_options(gui_tests)
+    apply_unit_test_compile_options(gui_tests)
+    if(ENABLE_COVERAGE AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+        apply_coverage_compile_options(gui_tests)
+        apply_unit_test_link_options(gui_tests)
+        apply_coverage_compile_options(gui)
     endif()
+    catch_discover_tests(gui_tests)
+endif()
 
+if(BUILD_GUI_TESTS)
     file(
         GLOB_RECURSE
         gui_model_test_sources
@@ -102,6 +103,7 @@ if(BUILD_GUI_TESTS OR BUILD_CORE_TESTS)
                 logger
                 uomul
                 options)
+    target_compile_definitions(gui_model_tests PRIVATE UOMUL_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
     apply_common_compile_options(gui_model_tests)
     apply_unit_test_compile_options(gui_model_tests)
     catch_discover_tests(gui_model_tests)

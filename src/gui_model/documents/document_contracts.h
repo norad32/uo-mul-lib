@@ -1,5 +1,6 @@
 #pragma once
 
+#include "uomul/tiledata/tiledata.h"
 #include <cstdint>
 #include <string_view>
 
@@ -14,6 +15,7 @@ enum class DocumentKind : std::uint8_t
     texmapPair,
     statics,
     combined,
+    tiledata,
     unavailable,
 };
 
@@ -51,6 +53,7 @@ inline constexpr bool mapRequiresGlobalEditMode = false;
 inline constexpr bool configuredMetadataIsReadOnly = true;
 inline constexpr bool standaloneRadarcolIsEditable = true;
 inline constexpr bool standaloneTexmapPairIsEditable = false;
+inline constexpr bool standaloneTiledataIsEditable = false;
 inline constexpr bool genericOpenMutatesProfile = false;
 
 inline constexpr std::string_view genericOpenLabel = "File > Open...";
@@ -72,6 +75,8 @@ inline constexpr UnsupportedMulPolicy unsupportedMulPolicy = UnsupportedMulPolic
             return "Statics";
         case DocumentKind::combined :
             return "Combined";
+        case DocumentKind::tiledata :
+            return "Tiledata";
         case DocumentKind::unavailable :
             return "Unavailable";
     }
@@ -92,6 +97,8 @@ inline constexpr UnsupportedMulPolicy unsupportedMulPolicy = UnsupportedMulPolic
             return "statics";
         case DocumentKind::combined :
             return "combined";
+        case DocumentKind::tiledata :
+            return "tiledata";
         case DocumentKind::unavailable :
             return "unavailable";
     }

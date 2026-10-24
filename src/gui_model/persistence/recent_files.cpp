@@ -2,7 +2,7 @@
 #include "core/app_info.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/persistence/config_paths.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <algorithm>
 #include <chrono>
 #include <cstdint>

@@ -2,6 +2,7 @@
 
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/radarcol_document.h"
+#include "gui_model/documents/tiledata_document.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include <filesystem>
 #include <optional>
@@ -32,6 +33,7 @@ struct DocumentRecord
     DocumentSummary summary;
     std::optional<MapDocument> map;
     std::optional<RadarcolDocument> radarcol;
+    std::optional<TiledataDocument> tiledata;
 };
 
 class DocumentManager
@@ -65,6 +67,7 @@ private:
     std::optional<MapDocument> emptyMap_;
     std::optional<DocumentSourceIdentity> configuredRadarcolSource_;
     std::optional<DocumentSourceIdentity> configuredTexmapPairSource_;
+    std::optional<DocumentSourceIdentity> configuredTiledataSource_;
 };
 
 } // namespace uo_mule::gui

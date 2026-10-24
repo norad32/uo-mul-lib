@@ -7,7 +7,7 @@
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/workspaces/map_workspace.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>

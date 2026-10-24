@@ -450,6 +450,15 @@ void registerDefaultCommands(CommandRegistry & registry)
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::texmaps)); });
+    add(registry,
+        CommandId::panelTiledata,
+        "view.panel.tiledata",
+        "Tiledata",
+        "View",
+        "Show or hide Tiledata records",
+        "",
+        enabled,
+        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tiledata)); });
 
     add(registry,
         CommandId::selectionTiles,

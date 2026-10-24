@@ -8,6 +8,7 @@
 #include "gui/panels/radarcol_panel.h"
 #include "gui/panels/texmap_panel.h"
 #include "gui/panels/tile_inspector_panel.h"
+#include "gui/panels/tiledata_panel.h"
 #include "gui/persistence/layout_store.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
@@ -44,7 +45,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <uomul/map.h>
+#include <uomul/map/map.h>
 #include <utility>
 #include <vector>
 
@@ -121,6 +122,7 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         ImGui::DockBuilderDockWindow("Block Inspector###view.block-inspector", leftTopNode);
         ImGui::DockBuilderDockWindow("Texmaps###view.texmaps", rightNode);
         ImGui::DockBuilderDockWindow("Radarcol###view.radarcol", rightNode);
+        ImGui::DockBuilderDockWindow("Tiledata###view.tiledata", rightNode);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
     ImGui::DockSpace(dockSpaceId, ImVec2(viewport->WorkSize.x, availableDockHeight), dockSpaceFlags);
@@ -232,6 +234,15 @@ void drawMapPanels(WorkbenchState & state,
                          state.panelRegistry.find(PanelId::texmaps)->visible,
                          state.preferences,
                          state.pendingPreferenceChanges);
+    }
+    if (state.panelRegistry.find(PanelId::tiledata)->visible)
+    {
+        drawTiledataPanel(state.tiledataState,
+                          state.providers.tiledata(),
+                          state.providers.textures(),
+                          state.providers.radarColors(),
+                          state.panelRegistry.find(PanelId::tiledata)->visible,
+                          state.preferences.idFormat);
     }
 }
 
@@ -457,6 +468,24 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
                                   state.preferences.idFormat,
                                   windowName,
                                   [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
+        if (!visible)
+        {
+            requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
+        }
+        return;
+    }
+
+    if (document.summary.identity.kind == DocumentKind::tiledata && document.tiledata)
+    {
+        bool visible = true;
+        dockDocumentWindow();
+        drawTiledataDocumentPanel(state.tiledataState,
+                                  *document.tiledata,
+                                  state.providers.textures(),
+                                  state.providers.radarColors(),
+                                  visible,
+                                  state.preferences.idFormat,
+                                  windowName);
         if (!visible)
         {
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
@@ -801,6 +830,7 @@ void syncProviders(WorkbenchState & state)
     state.workspace.invalidateProviderCaches();
     assets::resetContext(state.radarcolState.assetView);
     assets::resetContext(state.texmapsState.assetView);
+    assets::resetContext(state.tiledataState.assetView);
 }
 
 [[nodiscard]] assets::AssetSourceContext
@@ -824,6 +854,8 @@ void restoreMetadataAssetState(WorkbenchState & state)
         metadataContext(DocumentKind::radarcol, state.providers.radarColors().status().sourceIdentity, "view.radarcol");
     const auto texmapContext =
         metadataContext(DocumentKind::texmapPair, state.providers.textures().status().sourceIdentity, "view.texmaps");
+    const auto tiledataContext =
+        metadataContext(DocumentKind::tiledata, state.providers.tiledata().status().sourceIdentity, "view.tiledata");
     if (const auto * record =
             assets::findAssetState(state.assetStateRecords, state.activeProfile.name, "default", radarContext);
         record != nullptr)
@@ -835,6 +867,12 @@ void restoreMetadataAssetState(WorkbenchState & state)
         record != nullptr)
     {
         assets::restoreAssetState(*record, state.texmapsState.assetView);
+    }
+    if (const auto * record =
+            assets::findAssetState(state.assetStateRecords, state.activeProfile.name, "default", tiledataContext);
+        record != nullptr)
+    {
+        assets::restoreAssetState(*record, state.tiledataState.assetView);
     }
     state.assetStateRestored = true;
 }
@@ -902,6 +940,7 @@ void applyPendingPersistence(WorkbenchState & state)
         assets::resetAssetState(state.assetStateRecords);
         assets::resetContext(state.radarcolState.assetView);
         assets::resetContext(state.texmapsState.assetView);
+        assets::resetContext(state.tiledataState.assetView);
         for (auto & [id, assetView] : state.radarcolState.documentAssetViews)
         {
             static_cast<void>(id);
@@ -921,6 +960,13 @@ void applyPendingPersistence(WorkbenchState & state)
     updateAssetStateRecord(
         state.assetStateRecords,
         assets::captureAssetState(state.activeProfile.name, "default", texmapContext, state.texmapsState.assetView));
+    updateAssetStateRecord(
+        state.assetStateRecords,
+        assets::captureAssetState(
+            state.activeProfile.name,
+            "default",
+            metadataContext(DocumentKind::tiledata, state.providers.tiledata().status().sourceIdentity, "view.tiledata"),
+            state.tiledataState.assetView));
 }
 
 [[nodiscard]] bool welcomeShell(const WorkbenchState & state) noexcept

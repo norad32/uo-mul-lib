@@ -1,13 +1,11 @@
 #include "map_test_helpers.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <ios>
-#include <iterator>
-#include <string>
 
 namespace
 {
@@ -22,24 +20,6 @@ constexpr std::uint32_t lowByteMask = 0xffU;
 
 namespace uomul::test
 {
-
-TestDirectory::TestDirectory()
-{
-    static std::uint64_t sequence = 0;
-    path_ = std::filesystem::temp_directory_path() / ("uomul-test-" + std::to_string(sequence++));
-    std::filesystem::remove_all(path_);
-    std::filesystem::create_directories(path_);
-}
-
-TestDirectory::~TestDirectory()
-{
-    std::filesystem::remove_all(path_);
-}
-
-const std::filesystem::path & TestDirectory::path() const
-{
-    return path_;
-}
 
 void writeFixture(const std::filesystem::path & path, std::uint32_t blocks)
 {
@@ -64,12 +44,6 @@ void writeFixture(const std::filesystem::path & path, std::uint32_t blocks)
             output.write(record.data(), static_cast<std::streamsize>(record.size()));
         }
     }
-}
-
-std::string readBytes(const std::filesystem::path & path)
-{
-    std::ifstream input(path, std::ios::binary);
-    return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
 }
 
 } // namespace uomul::test

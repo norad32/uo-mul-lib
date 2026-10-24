@@ -1,6 +1,6 @@
 #include <cstdint>
 #include <uomul/facet_sizes.h>
-#include <uomul/map.h>
+#include <uomul/map/map.h>
 
 namespace
 {

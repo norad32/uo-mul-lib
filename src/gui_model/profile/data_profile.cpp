@@ -132,6 +132,33 @@ std::optional<OutputCollisionPolicy> outputCollisionPolicyFromName(std::string_v
     return std::nullopt;
 }
 
+std::string_view tiledataLayoutSelectionName(TiledataLayoutSelection layout) noexcept
+{
+    switch (layout)
+    {
+        case TiledataLayoutSelection::autoDetect :
+            return "auto";
+        case TiledataLayoutSelection::legacy32 :
+            return "legacy32";
+        case TiledataLayoutSelection::extended64 :
+            return "extended64";
+    }
+    return "auto";
+}
+
+std::optional<TiledataLayoutSelection> tiledataLayoutSelectionFromName(std::string_view name) noexcept
+{
+    for (const auto layout :
+         {TiledataLayoutSelection::autoDetect, TiledataLayoutSelection::legacy32, TiledataLayoutSelection::extended64})
+    {
+        if (tiledataLayoutSelectionName(layout) == name)
+        {
+            return layout;
+        }
+    }
+    return std::nullopt;
+}
+
 std::filesystem::path resolvedDataFilePath(const DataProfile & profile, DataFileRole role)
 {
     const auto entry = profile.files.find(role);

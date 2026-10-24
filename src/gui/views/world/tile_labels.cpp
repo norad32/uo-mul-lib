@@ -1,6 +1,6 @@
 #include "gui/views/world/tile_labels.h"
 #include "gui_model/workspaces/map_workspace.h"
-#include "uomul/map.h"
+#include "uomul/map/map.h"
 #include <string>
 
 namespace uo_mule::gui

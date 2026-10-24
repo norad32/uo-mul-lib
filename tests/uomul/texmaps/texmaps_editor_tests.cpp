@@ -1,4 +1,4 @@
-#include "../map_test_helpers.h"
+#include "../test_helpers.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/texmaps/texmaps.h"
 #include <array>

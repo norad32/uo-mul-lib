@@ -201,6 +201,7 @@ loadRadarcolDetails(const RadarColorProvider & provider, const assets::AssetItem
                 std::string(strings::raw()) + ": " + strings::formatId(static_cast<std::uint32_t>(*color), idFormat),
                 std::string(strings::hexadecimal()) + ": " + colorToHex(*color),
             },
+        .fieldTooltips = {},
     };
 }
 
@@ -291,6 +292,7 @@ loadRadarcolDetails(const uomul::RadarColReader * reader, const assets::AssetIte
                 std::string(strings::raw()) + ": " + strings::formatId(static_cast<std::uint32_t>(*color), idFormat),
                 std::string(strings::hexadecimal()) + ": " + colorToHex(*color),
             },
+        .fieldTooltips = {},
     };
 }
 
