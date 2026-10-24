@@ -8,11 +8,13 @@
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/radarcol_document.h"
+#include "gui_model/input/radarcol_color_input.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -38,6 +40,219 @@ constexpr std::uint32_t radarColorByteMaximum = 255U;
 constexpr std::uint32_t radarColorByteRounding = 15U;
 constexpr std::size_t assetCellWidth = 72U;
 constexpr std::size_t assetCellHeight = 44U;
+constexpr float colorByteScale = 1.0F / 255.0F;
+
+[[nodiscard]] const char * pickerFormatName(RadarcolColorPickerFormat format) noexcept
+{
+    switch (format)
+    {
+        case RadarcolColorPickerFormat::rgb :
+            return "RGB";
+        case RadarcolColorPickerFormat::rgbHex :
+            return "RGB hex";
+        case RadarcolColorPickerFormat::raw :
+            return "Raw RGB555";
+    }
+    return "RGB";
+}
+
+template <std::size_t Size>
+void setPickerBuffer(std::array<char, Size> & buffer, const std::string & value)
+{
+    buffer.fill('\0');
+    const std::size_t length = std::min(value.size(), buffer.size() - 1U);
+    std::copy_n(value.data(), length, buffer.data());
+}
+
+void syncPickerBuffers(RadarcolColorPickerState & picker)
+{
+    const auto rgb = radarcolRgb888(picker.value);
+    setPickerBuffer(picker.red, std::to_string(rgb.red));
+    setPickerBuffer(picker.green, std::to_string(rgb.green));
+    setPickerBuffer(picker.blue, std::to_string(rgb.blue));
+    setPickerBuffer(picker.rgbHex, formatRadarcolRgbHex(picker.value));
+    setPickerBuffer(picker.raw, formatRadarcolRaw(picker.value));
+}
+
+[[nodiscard]] bool validHexCharacter(char value) noexcept
+{
+    return (value >= '0' && value <= '9') || (value >= 'a' && value <= 'f') || (value >= 'A' && value <= 'F');
+}
+
+int pickerHexFilter(ImGuiInputTextCallbackData * data)
+{
+    if (data->EventChar == '#' && data->CursorPos == 0 && data->BufTextLen == 0)
+    {
+        return 0;
+    }
+    return validHexCharacter(static_cast<char>(data->EventChar)) ? 0 : 1;
+}
+
+void drawPickerError(const RadarcolColorPickerState & picker)
+{
+    if (!picker.error.empty())
+    {
+        ImGui::TextColored(theme::imguiColor(theme::error), "%s", picker.error.c_str());
+    }
+}
+
+void updatePickerFromRgbFields(RadarcolColorPickerState & picker, std::uint8_t red, std::uint8_t green, std::uint8_t blue)
+{
+    picker.value = uomul::RadarColorConverter::fromRgb888(red, green, blue);
+    picker.error.clear();
+    syncPickerBuffers(picker);
+}
+
+void drawPickerRgbFields(RadarcolColorPickerState & picker)
+{
+    auto rgb = radarcolRgb888(picker.value);
+    std::uint8_t red = rgb.red;
+    std::uint8_t green = rgb.green;
+    std::uint8_t blue = rgb.blue;
+    bool changed = false;
+    changed =
+        ImGui::InputScalar("Red", ImGuiDataType_U8, &red, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal) || changed;
+    changed = ImGui::InputScalar("Green", ImGuiDataType_U8, &green, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal) ||
+              changed;
+    changed = ImGui::InputScalar("Blue", ImGuiDataType_U8, &blue, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal) ||
+              changed;
+    if (changed)
+    {
+        updatePickerFromRgbFields(picker, red, green, blue);
+    }
+}
+
+void drawPickerTextInput(RadarcolColorPickerState & picker)
+{
+    if (picker.format == RadarcolColorPickerFormat::rgb)
+    {
+        drawPickerRgbFields(picker);
+        return;
+    }
+
+    const std::string id = picker.format == RadarcolColorPickerFormat::rgbHex ? "RGB hex" : "Raw RGB555";
+    char * buffer = picker.format == RadarcolColorPickerFormat::rgbHex ? picker.rgbHex.data() : picker.raw.data();
+    const std::size_t bufferSize =
+        picker.format == RadarcolColorPickerFormat::rgbHex ? picker.rgbHex.size() : picker.raw.size();
+    if (ImGui::InputText(id.c_str(), buffer, bufferSize, ImGuiInputTextFlags_CallbackCharFilter, pickerHexFilter))
+    {
+        const auto parsed =
+            picker.format == RadarcolColorPickerFormat::rgbHex ? parseRadarcolRgbHex(buffer) : parseRadarcolRaw(buffer);
+        if (parsed)
+        {
+            picker.value = *parsed;
+            picker.error.clear();
+            syncPickerBuffers(picker);
+        }
+        else
+        {
+            picker.error = parsed.error();
+        }
+    }
+}
+
+void drawRadarcolColorPicker(RadarcolPanelState & state, RadarcolDocument & document)
+{
+    auto & picker = state.colorPicker;
+    if (!picker.open || picker.documentId != document.id())
+    {
+        return;
+    }
+
+    if (picker.positionPending)
+    {
+        const ImGuiViewport * viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5F, 0.5F));
+        picker.positionPending = false;
+    }
+    ImGui::SetNextWindowSize(ImVec2(430.0F, 520.0F), ImGuiCond_Always);
+    if (!ImGui::Begin("Radarcol Color Picker###dialog.radarcol-color-picker", &picker.open, ImGuiWindowFlags_NoCollapse))
+    {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Text("Editing %zu color%s", picker.targetIndices.size(), picker.targetIndices.size() == 1U ? "" : "s");
+    if (picker.mixed)
+    {
+        ImGui::TextUnformatted("Selected colors have different values; Apply assigns one value to all.");
+    }
+
+    auto rgb = radarcolRgb888(picker.value);
+    float color[3]{static_cast<float>(rgb.red) * colorByteScale,
+                   static_cast<float>(rgb.green) * colorByteScale,
+                   static_cast<float>(rgb.blue) * colorByteScale};
+    if (ImGui::ColorPicker3("##RadarcolPicker", color, ImGuiColorEditFlags_DisplayRGB))
+    {
+        const auto toByte = [](float value)
+        { return static_cast<std::uint8_t>(std::lround(std::clamp(value, 0.0F, 1.0F) * 255.0F)); };
+        updatePickerFromRgbFields(picker, toByte(color[0]), toByte(color[1]), toByte(color[2]));
+    }
+
+    const char * formatName = pickerFormatName(picker.format);
+    if (ImGui::BeginCombo("Format", formatName))
+    {
+        for (const auto format :
+             {RadarcolColorPickerFormat::rgb, RadarcolColorPickerFormat::rgbHex, RadarcolColorPickerFormat::raw})
+        {
+            const bool selected = picker.format == format;
+            if (ImGui::Selectable(pickerFormatName(format), selected))
+            {
+                picker.format = format;
+                picker.error.clear();
+                syncPickerBuffers(picker);
+            }
+            if (selected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+    drawPickerTextInput(picker);
+    drawPickerError(picker);
+
+    if (ImGui::Button("Use active tile"))
+    {
+        picker.value = state.activeTileColor ? state.activeTileColor().value_or(0) : 0;
+        picker.error.clear();
+        syncPickerBuffers(picker);
+    }
+    ImGui::SameLine();
+
+    if (ImGui::Button("Pick source"))
+    {
+        picker.sourceMode = true;
+        picker.open = false;
+        if (state.statusMessage)
+        {
+            state.statusMessage("Pick a map tile or asset. Press Esc to cancel.");
+        }
+    }
+
+    if (ImGui::Button("Apply") && picker.error.empty())
+    {
+        std::vector<RadarcolColorEdit> edits;
+        edits.reserve(picker.targetIndices.size());
+        for (const auto index : picker.targetIndices)
+        {
+            edits.push_back({.colorIndex = index, .color = picker.value});
+        }
+        document.requestIntent({
+            .kind = RadarcolDocumentIntentKind::editColors,
+            .colorEdits = std::move(edits),
+            .outputPath = {},
+            .overwriteOutput = false,
+        });
+        picker.open = false;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel"))
+    {
+        picker.open = false;
+    }
+    ImGui::End();
+}
 
 [[nodiscard]] ImVec4 colorToImVec4(uomul::RadarColor color) noexcept
 {
@@ -196,46 +411,45 @@ void drawRadarcolPreview(const RadarColorProvider & provider, const assets::Asse
     ImGui::ColorButton(id, colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(size, size));
 }
 
-void drawRadarcolPreview(const uomul::RadarColReader * reader, const assets::AssetItemId & item, float size, const char * id)
+void drawRadarcolPreview(const RadarcolDocument & document, const assets::AssetItemId & item, float size, const char * id)
 {
     const auto index = assets::itemIndex(item);
-    const auto color = reader != nullptr && index ? reader->readRawColor(*index).value_or(0) : uomul::RadarColor{};
+    const auto color = index ? document.rawColor(*index).value_or(0) : uomul::RadarColor{};
     ImGui::ColorButton(id, colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(size, size));
 }
 
 [[nodiscard]] std::vector<assets::AssetItem>
-loadRadarcolRange(const uomul::RadarColReader * reader, const assets::AssetRangeRequest & request, IdFormat idFormat)
+loadRadarcolRange(const RadarcolDocument & document, const assets::AssetRangeRequest & request, IdFormat idFormat)
 {
     std::vector<assets::AssetItem> items;
-    if (reader == nullptr)
+    if (!document.reader())
     {
         return items;
     }
-    const std::size_t end = std::min(request.first + request.count, static_cast<std::size_t>(reader->colorCount()));
+    const std::size_t end = std::min(request.first + request.count, static_cast<std::size_t>(document.reader()->colorCount()));
     for (std::size_t index = request.first; index < end; index++)
     {
+        const auto color = document.rawColor(static_cast<std::uint32_t>(index));
         items.push_back({
             .id = {.value = std::to_string(index)},
             .label = strings::formatId(static_cast<std::uint32_t>(index), idFormat),
-            .state = reader->readRawColor(static_cast<std::uint32_t>(index)).has_value() ? assets::AssetItemState::available
-                                                                                         : assets::AssetItemState::empty,
+            .state = color.has_value() ? assets::AssetItemState::available : assets::AssetItemState::empty,
             .stateMessage = {},
         });
     }
     return items;
 }
 
-[[nodiscard]] std::vector<assets::AssetSearchItem> loadRadarcolSearchItems(const uomul::RadarColReader * reader,
-                                                                           IdFormat idFormat)
+[[nodiscard]] std::vector<assets::AssetSearchItem> loadRadarcolSearchItems(const RadarcolDocument & document, IdFormat idFormat)
 {
     std::vector<assets::AssetSearchItem> items;
-    if (reader == nullptr)
+    if (!document.reader())
     {
         return items;
     }
-    for (std::size_t index = 0; index < static_cast<std::size_t>(reader->colorCount()); index++)
+    for (std::size_t index = 0; index < static_cast<std::size_t>(document.reader()->colorCount()); index++)
     {
-        const auto color = reader->readRawColor(static_cast<std::uint32_t>(index));
+        const auto color = document.rawColor(static_cast<std::uint32_t>(index));
         const auto formattedId = strings::formatId(static_cast<std::uint32_t>(index), idFormat);
         items.push_back({
             .item =
@@ -252,9 +466,9 @@ loadRadarcolRange(const uomul::RadarColReader * reader, const assets::AssetRange
 }
 
 [[nodiscard]] std::optional<assets::AssetDetails>
-loadRadarcolDetails(const uomul::RadarColReader * reader, const assets::AssetItemId & id, IdFormat idFormat)
+loadRadarcolDetails(const RadarcolDocument & document, const assets::AssetItemId & id, IdFormat idFormat)
 {
-    if (reader == nullptr)
+    if (!document.reader())
     {
         return std::nullopt;
     }
@@ -263,7 +477,7 @@ loadRadarcolDetails(const uomul::RadarColReader * reader, const assets::AssetIte
     {
         return std::nullopt;
     }
-    const auto color = reader->readRawColor(*index);
+    const auto color = document.rawColor(*index);
     if (!color)
     {
         return std::nullopt;
@@ -275,13 +489,14 @@ loadRadarcolDetails(const uomul::RadarColReader * reader, const assets::AssetIte
             {
                 std::string(strings::raw()) + ": " + strings::formatId(static_cast<std::uint32_t>(*color), idFormat),
                 std::string(strings::hexadecimal()) + ": " + colorToHex(*color),
+                document.hasStagedColor(*index) ? "Staged: yes" : "Staged: no",
             },
         .fieldTooltips = {},
     };
 }
 
 [[nodiscard]] assets::AssetAdapter
-makeAdapter(const RadarcolPanelState & state, const RadarColorProvider & provider, IdFormat idFormat, std::string viewId)
+makeAdapter(RadarcolPanelState & state, const RadarColorProvider & provider, IdFormat idFormat, std::string viewId)
 {
     const ProviderStatus status = provider.status();
     assets::AssetAdapter adapter;
@@ -300,6 +515,11 @@ makeAdapter(const RadarcolPanelState & state, const RadarColorProvider & provide
     { drawRadarcolPreview(provider, item, size, "##RadarcolSelectionColor"); };
     adapter.descriptor.selectionPreviewSize = swatchSize;
     adapter.descriptor.itemPicked = state.itemPicked;
+    adapter.descriptor.itemSourcePicked = [&state, &provider](const assets::AssetItemId & item)
+    {
+        const auto index = assets::itemIndex(item);
+        return index ? acceptRadarcolColorSource(state, provider.rawColor(*index).value_or(0)) : false;
+    };
     if (!status.message.empty())
     {
         adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
@@ -328,7 +548,44 @@ makeAdapter(const RadarcolPanelState & state, const RadarColorProvider & provide
     return adapter;
 }
 
-void drawRadarcolDocumentView(RadarcolDocument & document,
+void drawDocumentContextMenu(RadarcolPanelState & state, RadarcolDocument & document)
+{
+    const auto & selection = state.documentAssetViews.at(document.id()).selection;
+    if (!document.readOnly() && ImGui::MenuItem("Edit selected colors..."))
+    {
+        openRadarcolColorPicker(state, document, selection);
+    }
+    bool hasStaged = false;
+    for (const auto & item : selection.selected)
+    {
+        if (const auto index = assets::itemIndex(item); index && document.hasStagedColor(*index))
+        {
+            hasStaged = true;
+            break;
+        }
+    }
+    if (ImGui::MenuItem("Revert selected staged colors", nullptr, false, hasStaged))
+    {
+        std::vector<RadarcolColorEdit> edits;
+        edits.reserve(selection.selected.size());
+        for (const auto & item : selection.selected)
+        {
+            if (const auto index = assets::itemIndex(item))
+            {
+                edits.push_back({.colorIndex = *index, .color = 0});
+            }
+        }
+        document.requestIntent({
+            .kind = RadarcolDocumentIntentKind::revertColors,
+            .colorEdits = std::move(edits),
+            .outputPath = {},
+            .overwriteOutput = false,
+        });
+    }
+}
+
+void drawRadarcolDocumentView(RadarcolPanelState & state,
+                              RadarcolDocument & document,
                               assets::AssetWindowState & assetView,
                               bool & visible,
                               const std::function<void()> & drawEditing,
@@ -342,7 +599,8 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
     adapter.descriptor.windowIdentity = std::move(windowIdentity);
     adapter.descriptor.title = "Radarcol";
     adapter.descriptor.sourceTooltip = "Source: " + document.sourcePath().string();
-    adapter.descriptor.cacheContext = std::to_string(static_cast<int>(idFormat));
+    adapter.descriptor.cacheContext =
+        std::to_string(static_cast<int>(idFormat)) + "|revision=" + std::to_string(document.displayRevision());
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
     {
         return assets::itemIndex(item)
@@ -350,8 +608,13 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
             .value_or(item.value);
     };
     adapter.descriptor.renderSelectionPreview = [&document](const assets::AssetItemId & item, float size)
-    { drawRadarcolPreview(document.reader() ? &*document.reader() : nullptr, item, size, "##RadarcolSelectionColor"); };
+    { drawRadarcolPreview(document, item, size, "##RadarcolSelectionColor"); };
     adapter.descriptor.selectionPreviewSize = swatchSize;
+    adapter.descriptor.itemSourcePicked = [&state, &document](const assets::AssetItemId & item)
+    {
+        const auto index = assets::itemIndex(item);
+        return index ? acceptRadarcolColorSource(state, document.rawColor(*index).value_or(0)) : false;
+    };
     adapter.descriptor.source = {
         .kind = DocumentKind::radarcol,
         .contextKind = assets::AssetSourceContext::Kind::document,
@@ -372,18 +635,89 @@ void drawRadarcolDocumentView(RadarcolDocument & document,
         .label = "Editing",
         .draw = drawEditing,
     });
+    adapter.descriptor.itemContextMenu = [&state, &document](const assets::AssetItemId &)
+    { drawDocumentContextMenu(state, document); };
     adapter.loadRange = [&document, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
-    { return loadRadarcolRange(document.reader() ? &*document.reader() : nullptr, request, idFormat); };
-    adapter.loadSearchItems = [&document, idFormat]
-    { return loadRadarcolSearchItems(document.reader() ? &*document.reader() : nullptr, idFormat); };
+    { return loadRadarcolRange(document, request, idFormat); };
+    adapter.loadSearchItems = [&document, idFormat] { return loadRadarcolSearchItems(document, idFormat); };
     adapter.loadDetails = [&document, idFormat](const assets::AssetItemId & id)
-    { return loadRadarcolDetails(document.reader() ? &*document.reader() : nullptr, id, idFormat); };
+    { return loadRadarcolDetails(document, id, idFormat); };
+    adapter.descriptor.itemStaged = [&document](const assets::AssetItemId & item)
+    {
+        return assets::itemIndex(item)
+            .transform([&document](std::uint32_t index) { return document.hasStagedColor(index); })
+            .value_or(false);
+    };
     adapter.renderItem = [&document](const assets::AssetItem & item, bool)
-    { drawRadarcolPreview(document.reader() ? &*document.reader() : nullptr, item.id, swatchSize, "##RadarcolColor"); };
+    { drawRadarcolPreview(document, item.id, swatchSize, "##RadarcolColor"); };
     assets::drawAssetWindow(adapter, assetView, visible, becameVisible);
+    drawRadarcolColorPicker(state, document);
 }
 
 } // namespace
+
+void openRadarcolColorPicker(RadarcolPanelState & state, RadarcolDocument & document, const assets::AssetSelection & selection)
+{
+    if (document.readOnly() || !document.reader() || selection.selected.empty())
+    {
+        return;
+    }
+
+    RadarcolColorPickerState picker;
+    picker.documentId = document.id();
+    for (const auto & item : selection.selected)
+    {
+        if (const auto index = assets::itemIndex(item))
+        {
+            picker.targetIndices.push_back(*index);
+        }
+    }
+    if (picker.targetIndices.empty())
+    {
+        return;
+    }
+
+    picker.value = document.rawColor(picker.targetIndices.front()).value_or(0);
+    for (const auto index : picker.targetIndices)
+    {
+        if (document.rawColor(index).value_or(0) != picker.value)
+        {
+            picker.mixed = true;
+            break;
+        }
+    }
+    picker.open = true;
+    picker.sourceMode = false;
+    picker.positionPending = true;
+    syncPickerBuffers(picker);
+    state.colorPicker = std::move(picker);
+}
+
+bool acceptRadarcolColorSource(RadarcolPanelState & state, uomul::RadarColor color)
+{
+    if (!state.colorPicker.sourceMode)
+    {
+        return false;
+    }
+    state.colorPicker.value = color;
+    state.colorPicker.sourceMode = false;
+    state.colorPicker.open = true;
+    state.colorPicker.positionPending = true;
+    state.colorPicker.error.clear();
+    syncPickerBuffers(state.colorPicker);
+    return true;
+}
+
+void cancelRadarcolColorSource(RadarcolPanelState & state)
+{
+    if (!state.colorPicker.sourceMode)
+    {
+        return;
+    }
+    state.colorPicker.sourceMode = false;
+    state.colorPicker.open = true;
+    state.colorPicker.positionPending = true;
+}
 
 void drawRadarcolPanel(RadarcolPanelState & state, const RadarColorProvider & provider, bool & visible, IdFormat idFormat)
 {
@@ -400,6 +734,7 @@ void drawRadarcolDocumentPanel(RadarcolPanelState & state,
                                const std::function<void()> & becameVisible)
 {
     drawRadarcolDocumentView(
+        state,
         document,
         state.documentAssetViews[document.id()],
         visible,

@@ -29,6 +29,7 @@ struct TexmapsPanelState
     bool hideUnused = false;
     assets::AssetWindowState assetView;
     std::function<void(const assets::AssetItemId &)> itemPicked;
+    std::function<bool(std::uint32_t)> itemSourcePicked;
 };
 
 void drawTexmapsPanel(TexmapsPanelState & state,

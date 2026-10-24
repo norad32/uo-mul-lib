@@ -18,6 +18,7 @@ namespace uo_mule::gui
 enum class RadarcolDocumentIntentKind : std::uint8_t
 {
     editColors,
+    revertColors,
     save,
     discard,
     saveAs,
@@ -71,6 +72,7 @@ private:
                      std::string error);
     [[nodiscard]] std::expected<void, uomul::Error> beginEditing(const std::filesystem::path & output, bool outputOverwrite);
     [[nodiscard]] std::expected<void, uomul::Error> editColors(const std::vector<RadarcolColorEdit> & edits);
+    [[nodiscard]] std::expected<void, uomul::Error> revertColors(const std::vector<std::uint32_t> & indices);
     [[nodiscard]] std::expected<void, uomul::Error> save();
     [[nodiscard]] std::expected<void, uomul::Error> discard();
     [[nodiscard]] std::expected<void, uomul::Error> saveAs(const std::filesystem::path & output, bool outputOverwrite);

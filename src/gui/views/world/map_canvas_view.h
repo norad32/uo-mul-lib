@@ -29,6 +29,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspace,
                        const std::function<void()> & createMap,
                        const std::function<void(uomul::TileCoord)> & executeEdit,
                        const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
+                       const std::function<bool(uomul::MapTile)> & colorSourcePicked,
                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
                        bool & visible);
 

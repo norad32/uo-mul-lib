@@ -25,6 +25,7 @@ struct TiledataPanelState
     std::unordered_map<std::uint32_t, ProviderTexture> texturePreviews;
     std::uint64_t texturePreviewRevision = 0;
     std::function<void(const assets::AssetItemId &)> itemPicked;
+    std::function<bool(std::uint32_t, bool)> itemSourcePicked;
 };
 
 void drawTiledataPanel(TiledataPanelState & state,

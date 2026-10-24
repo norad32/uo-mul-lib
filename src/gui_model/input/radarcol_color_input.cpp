@@ -1,15 +1,22 @@
 #include "gui_model/input/radarcol_color_input.h"
+#include "uomul/radarcol/radarcol.h"
 #include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <format>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 namespace uo_mule::gui
 {
 namespace
 {
+
+constexpr std::uint32_t rgbByteMaximum = 255U;
+constexpr std::uint32_t rgbByteRounding = 15U;
+constexpr std::size_t rgbHexTextLength = 7U;
 
 [[nodiscard]] std::expected<std::uint32_t, std::string>
 parseUnsigned(std::string_view input, int base, std::string_view description)
@@ -30,7 +37,7 @@ parseUnsigned(std::string_view input, int base, std::string_view description)
 
 [[nodiscard]] std::uint8_t channelByte(std::uint32_t channel) noexcept
 {
-    return static_cast<std::uint8_t>(((channel * 255U) + 15U) / 31U);
+    return static_cast<std::uint8_t>(((channel * rgbByteMaximum) + rgbByteRounding) / uomul::RadarColorConverter::channelMask);
 }
 
 } // namespace
@@ -42,7 +49,7 @@ std::expected<std::uint8_t, std::string> parseRadarcolChannel(std::string_view i
     {
         return std::unexpected(value.error());
     }
-    if (*value > 255U)
+    if (*value > rgbByteMaximum)
     {
         return std::unexpected("RGB channels must be between 0 and 255");
     }
@@ -57,14 +64,22 @@ parseRadarcolRgbChannels(std::string_view red, std::string_view green, std::stri
     const auto blueValue = parseRadarcolChannel(blue);
     if (!redValue || !greenValue || !blueValue)
     {
-        return std::unexpected(!redValue ? redValue.error() : (!greenValue ? greenValue.error() : blueValue.error()));
+        if (!redValue)
+        {
+            return std::unexpected(redValue.error());
+        }
+        if (!greenValue)
+        {
+            return std::unexpected(greenValue.error());
+        }
+        return std::unexpected(blueValue.error());
     }
     return RadarcolRgb888{.red = *redValue, .green = *greenValue, .blue = *blueValue};
 }
 
 std::expected<uomul::RadarColor, std::string> parseRadarcolRgbHex(std::string_view input)
 {
-    if (input.size() != 7U || input.front() != '#')
+    if (input.size() != rgbHexTextLength || input.front() != '#')
     {
         return std::unexpected("RGB hex must use #RRGGBB");
     }

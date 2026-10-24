@@ -163,6 +163,8 @@ void drawEditMenu(WorkbenchState & state)
     ImGui::MenuItem("Paste");
     ImGui::EndDisabled();
     ImGui::Separator();
+    drawCommandItem(state, CommandId::radarcolEditColors);
+    ImGui::Separator();
     drawCommandItem(state, CommandId::dataPaths);
     ImGui::EndMenu();
 }
@@ -228,6 +230,11 @@ void handleEscape(WorkbenchState & state, bool showMainMenu)
 {
     if (!ImGui::IsKeyPressed(ImGuiKey_Escape, false))
     {
+        return;
+    }
+    if (state.radarcolState.colorPicker.sourceMode)
+    {
+        cancelRadarcolColorSource(state.radarcolState);
         return;
     }
     const bool fileOperationHandled = handleFileOperationsEscape(state);

@@ -9,6 +9,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace uo_mule::gui
 {
@@ -63,6 +64,17 @@ std::expected<void, uomul::Error> RadarcolDocument::handleIntent(const RadarcolD
         case RadarcolDocumentIntentKind::editColors :
             result = editColors(intent.colorEdits);
             break;
+        case RadarcolDocumentIntentKind::revertColors :
+        {
+            std::vector<std::uint32_t> indices;
+            indices.reserve(intent.colorEdits.size());
+            for (const auto & edit : intent.colorEdits)
+            {
+                indices.push_back(edit.colorIndex);
+            }
+            result = revertColors(indices);
+            break;
+        }
         case RadarcolDocumentIntentKind::save :
             result = save();
             break;
@@ -220,6 +232,57 @@ std::expected<void, uomul::Error> RadarcolDocument::editColors(const std::vector
 
     dirtyState_ = !stagedColors_.empty();
     if (!dirtyState_ && startedEditor)
+    {
+        editor_->abort();
+        editor_.reset();
+    }
+    displayRevision_++;
+    return {};
+}
+
+std::expected<void, uomul::Error> RadarcolDocument::revertColors(const std::vector<std::uint32_t> & indices)
+{
+    if (readOnly())
+    {
+        return fail(makeDocumentError(sourcePath_, "configured Radarcol source is read-only"));
+    }
+    if (!reader_)
+    {
+        return fail(makeDocumentError(sourcePath_, "Radarcol source is not available"));
+    }
+
+    for (const auto index : indices)
+    {
+        if (index >= reader_->colorCount())
+        {
+            return fail(makeDocumentError(sourcePath_, "Radarcol color index is outside the source table"));
+        }
+    }
+
+    for (const auto index : indices)
+    {
+        if (!stagedColors_.contains(index))
+        {
+            continue;
+        }
+        const auto committed = reader_->readRawColor(index);
+        if (!committed)
+        {
+            return fail(committed.error());
+        }
+        if (!editor_)
+        {
+            return fail(makeDocumentError(sourcePath_, "Radarcol editing has not started"));
+        }
+        if (auto reverted = editor_->editRawColor(index, *committed); !reverted)
+        {
+            return fail(reverted.error());
+        }
+        stagedColors_.erase(index);
+    }
+
+    dirtyState_ = !stagedColors_.empty();
+    if (!dirtyState_ && editor_)
     {
         editor_->abort();
         editor_.reset();

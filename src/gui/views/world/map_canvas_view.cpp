@@ -1635,8 +1635,15 @@ bool updateTilePick(const MapWorkspace & workspace,
                     ToolState & toolState,
                     std::optional<uomul::TileCoord> currentTile,
                     bool canvasHovered,
-                    const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup)
+                    const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
+                    const std::function<bool(uomul::MapTile)> & colorSourcePicked)
 {
+    const bool requestedColorPick = colorSourcePicked && canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+                                    currentTile && workspace.hoveredValue();
+    if (requestedColorPick && colorSourcePicked(*workspace.hoveredValue()))
+    {
+        return true;
+    }
     const bool altClick = canvasHovered && ImGui::GetIO().KeyAlt && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     const bool requestedPick = toolState.tilePickRequested() && canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     if ((!altClick && !requestedPick) || !currentTile || !workspace.hoveredValue())
@@ -1728,6 +1735,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
                        const std::function<void()> & createMap,
                        const std::function<void(uomul::TileCoord)> & executeEdit,
                        const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
+                       const std::function<bool(uomul::MapTile)> & colorSourcePicked,
                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
                        bool & visible)
 {
@@ -1803,7 +1811,8 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
         updateNavigation(state, toolState, mouse, canvasOrigin, canvasHovered, minimumZoom);
         currentTile = tileAtMouse(mouse, canvasOrigin, canvasSize, state, dimensions, canvasHovered);
         updateHover(workspace, currentTile);
-        const bool tilePickHandled = updateTilePick(workspace, toolState, currentTile, canvasHovered, tiledataNameLookup);
+        const bool tilePickHandled =
+            updateTilePick(workspace, toolState, currentTile, canvasHovered, tiledataNameLookup, colorSourcePicked);
         const bool editHandled = updateEditTool(toolState, currentTile, canvasHovered, tilePickHandled, executeEdit);
         updateSelectionDrag(
             workspace, state, toolState, currentTile, dimensions, canvasHovered, tilePickHandled || editHandled);

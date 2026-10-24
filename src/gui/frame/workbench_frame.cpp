@@ -72,7 +72,7 @@ constexpr float notificationTopMargin = 48.0F;
 constexpr float notificationMinimumWidth = 280.0F;
 constexpr float notificationMaximumWidth = 480.0F;
 constexpr float notificationMaximumHeightRatio = 0.5F;
-constexpr std::size_t shortcutCount = 8;
+constexpr std::size_t shortcutCount = 9;
 constexpr std::size_t graveShortcutIndex = 0;
 constexpr std::size_t saveAsShortcutIndex = 1;
 constexpr std::size_t saveShortcutIndex = 2;
@@ -81,6 +81,7 @@ constexpr std::size_t newShortcutIndex = 4;
 constexpr std::size_t quitShortcutIndex = 5;
 constexpr std::size_t goToShortcutIndex = 6;
 constexpr std::size_t fullscreenShortcutIndex = 7;
+constexpr std::size_t radarcolEditColorsShortcutIndex = 8;
 
 struct ToolShortcut
 {
@@ -252,6 +253,33 @@ void drawMapPanels(WorkbenchState & state,
     state.radarcolState.itemPicked = [&pickAssetItem](const assets::AssetItemId & item) { pickAssetItem(item, false); };
     state.texmapsState.itemPicked = [&pickAssetItem](const assets::AssetItemId & item) { pickAssetItem(item, false); };
     state.tiledataState.itemPicked = [&pickAssetItem](const assets::AssetItemId & item) { pickAssetItem(item, true); };
+    state.radarcolState.statusMessage = [&state](const std::string & message)
+    { state.notifications.add(NotificationSeverity::info, message); };
+    state.radarcolState.activeTileColor = [&state]() -> std::optional<uomul::RadarColor>
+    {
+        const auto activeTile = state.toolState.activeTile();
+        if (!activeTile)
+        {
+            return std::nullopt;
+        }
+        return state.providers.radarColors().rawColor(activeTile->id).value_or(0);
+    };
+    state.radarcolState.copyToClipboard = [&state](const std::string & text) { state.pendingClipboardText = text; };
+    state.radarcolState.useAsActiveTile = [&state](std::uint32_t id)
+    {
+        const auto result = state.toolState.setActiveTileId(static_cast<std::int32_t>(id));
+        if (!result.accepted)
+        {
+            state.notifications.add(NotificationSeverity::error, result.reason);
+        }
+    };
+    state.texmapsState.itemSourcePicked = [&state](std::uint32_t id)
+    { return acceptRadarcolColorSource(state.radarcolState, state.providers.radarColors().rawColor(id).value_or(0)); };
+    state.tiledataState.itemSourcePicked = [&state](std::uint32_t id, bool statics)
+    {
+        const std::uint32_t index = statics ? uomul::radarStaticColorOffset + id : id;
+        return acceptRadarcolColorSource(state.radarcolState, state.providers.radarColors().rawColor(index).value_or(0));
+    };
 
     if (state.panelRegistry.find(PanelId::toolPalette)->visible)
     {
@@ -587,6 +615,11 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
             mapEditCallback(state),
             tiledataNameCallback(state),
+            [&state](uomul::MapTile tile)
+            {
+                return acceptRadarcolColorSource(state.radarcolState,
+                                                 state.providers.radarColors().rawColor(tile.id).value_or(0));
+            },
             [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
             visible);
         if (!visible)
@@ -912,6 +945,7 @@ void applyPendingDocumentAction(WorkbenchState & state)
         std::pair{ImGuiKey_Q, "Ctrl+Q"},
         std::pair{ImGuiKey_G, "Ctrl+G"},
         std::pair{ImGuiKey_F11, "F11"},
+        std::pair{ImGuiKey_E, "Ctrl+E"},
     };
     const auto execute = [&state, &shortcuts](std::size_t index)
     { return state.commands.executeShortcut(shortcuts.at(index).second, state); };
@@ -930,6 +964,8 @@ void applyPendingDocumentAction(WorkbenchState & state)
         return execute(quitShortcutIndex);
     if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(goToShortcutIndex).first, false))
         return execute(goToShortcutIndex);
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(radarcolEditColorsShortcutIndex).first, false))
+        return execute(radarcolEditColorsShortcutIndex);
     return allowFullscreen && ImGui::IsKeyPressed(shortcuts.at(fullscreenShortcutIndex).first, false) &&
            execute(fullscreenShortcutIndex);
 }

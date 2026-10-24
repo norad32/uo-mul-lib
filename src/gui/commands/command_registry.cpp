@@ -123,6 +123,25 @@ CommandAvailability requiresSaveableDocument(const WorkbenchState & state)
     return {.enabled = false, .disabledReason = "This document cannot be edited"};
 }
 
+CommandAvailability requiresRadarcolColorEditor(const WorkbenchState & state)
+{
+    const auto * active = state.session.activeDocumentRecord();
+    if (active == nullptr || !active->radarcol)
+    {
+        return {.enabled = false, .disabledReason = "No standalone Radarcol document is active"};
+    }
+    if (active->radarcol->readOnly())
+    {
+        return {.enabled = false, .disabledReason = "Configured Radarcol sources are read-only"};
+    }
+    const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
+    if (view == state.radarcolState.documentAssetViews.end() || view->second.selection.selected.empty())
+    {
+        return {.enabled = false, .disabledReason = "Select one or more Radarcol colors"};
+    }
+    return enabled(state);
+}
+
 void openDialog(WorkbenchState & state, MapFileDialogMode mode)
 {
     state.menuBarState.fileDialog.mode = mode;
@@ -391,6 +410,27 @@ void registerDefaultCommands(CommandRegistry & registry)
                     .outputPath = {},
                     .overwriteOutput = false,
                 });
+            }
+        });
+    add(registry,
+        CommandId::radarcolEditColors,
+        "radarcol.edit-colors",
+        "Edit selected Radarcol colors...",
+        "Edit",
+        "Edit the selected colors in the active standalone Radarcol document",
+        "Ctrl+E",
+        requiresRadarcolColorEditor,
+        [](WorkbenchState & state)
+        {
+            auto * active = state.session.activeDocumentRecord();
+            if (active == nullptr || !active->radarcol)
+            {
+                return;
+            }
+            const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
+            if (view != state.radarcolState.documentAssetViews.end())
+            {
+                openRadarcolColorPicker(state.radarcolState, *active->radarcol, view->second.selection);
             }
         });
     add(registry,

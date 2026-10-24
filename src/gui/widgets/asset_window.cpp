@@ -464,6 +464,10 @@ void drawSelectionMarquee(const AssetWindowState & state)
 
 void updateSelectionOnClick(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
 {
+    if (adapter.descriptor.itemSourcePicked && adapter.descriptor.itemSourcePicked(item.id))
+    {
+        return;
+    }
     if (adapter.descriptor.itemPicked)
     {
         adapter.descriptor.itemPicked(item.id);

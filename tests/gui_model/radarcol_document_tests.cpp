@@ -1,5 +1,6 @@
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/radarcol_document.h"
+#include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
@@ -8,7 +9,6 @@
 #include <filesystem>
 #include <string>
 #include <system_error>
-#include <vector>
 
 namespace
 {
@@ -57,6 +57,15 @@ private:
     return document.rawColor(index).value_or(0U);
 }
 
+[[nodiscard]] std::uint16_t readCommittedColor(const uo_mule::gui::RadarcolDocument & document, std::uint32_t index)
+{
+    if (!document.reader())
+    {
+        return 0U;
+    }
+    return document.reader()->readRawColor(index).value_or(0U);
+}
+
 } // namespace
 
 TEST_CASE("radarcolDocument_Should_LazilyStageBatchAndRefreshReaderOnSave")
@@ -81,10 +90,9 @@ TEST_CASE("radarcolDocument_Should_LazilyStageBatchAndRefreshReaderOnSave")
     }));
     REQUIRE(document->editing());
     REQUIRE(document->dirty());
-    REQUIRE(document->hasStagedColor(3U));        // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-    REQUIRE(readColor(*document, 3U) == 0x1234U); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-    REQUIRE(document->reader()->readRawColor(3U).value_or(0U) ==
-            0U); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    REQUIRE(document->hasStagedColor(3U));            // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    REQUIRE(readColor(*document, 3U) == 0x1234U);     // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    REQUIRE(readCommittedColor(*document, 3U) == 0U); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 
     REQUIRE(document->handleIntent({
         .kind = uo_mule::gui::RadarcolDocumentIntentKind::save,
