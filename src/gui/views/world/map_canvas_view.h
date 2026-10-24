@@ -18,7 +18,9 @@ class MapWorkspaceManager;
 mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const RadarColorProvider & radarColors) noexcept;
 
 void drawMapCanvasView(MapWorkspaceManager & workspace,
+                       const TextureProvider & textures,
                        const RadarColorProvider & radarColors,
+                       MapViewTileSource tileSource,
                        const std::string & windowName,
                        const std::function<void()> & activateDocument,
                        const std::function<void()> & openMap,

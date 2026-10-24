@@ -2,6 +2,8 @@
 #include "gui/presentation/theme/theme.h"
 #include "gui/views/world/tile_labels.h"
 #include "gui_model/providers/data_providers.h"
+#include "gui_model/persistence/preferences.h"
+#include "gui_model/world/map_canvas_state.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_color.h"
 #include "gui_model/world/map_context.h"
@@ -10,6 +12,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <algorithm>
+#include <GL/gl.h>
 #include <imgui.h>
 #include <optional>
 #include <string>
@@ -24,14 +28,92 @@ constexpr float tileCellSize = 40.0F;
 constexpr float coordinateColumnWidth = 38.0F;
 constexpr float selectedBorderThickness = 2.0F;
 constexpr float gridLineThickness = 1.0F;
+constexpr int colorChannelMaximum = 255;
+constexpr std::uint8_t alphaChannelMaximum = 255U;
+
+[[nodiscard]] MapCanvasCachedTexture makeTextureCacheEntry(const TextureProvider & textures, std::uint32_t id)
+{
+    MapCanvasCachedTexture entry;
+    const auto texture = textures.texture(id);
+    if (!texture || texture->width == 0U || texture->height == 0U || texture->pixels.empty())
+    {
+        return entry;
+    }
+
+    entry.width = texture->width;
+    entry.height = texture->height;
+    entry.pixels = texture->pixels;
+    entry.rgbaPixels.reserve(entry.pixels.size() * 4U);
+    for (const MapColor pixel : entry.pixels)
+    {
+        entry.rgbaPixels.push_back(pixel.red);
+        entry.rgbaPixels.push_back(pixel.green);
+        entry.rgbaPixels.push_back(pixel.blue);
+        entry.rgbaPixels.push_back(alphaChannelMaximum);
+    }
+    return entry;
+}
+
+void uploadTexture(MapCanvasCachedTexture & texture)
+{
+    if (texture.pixels.empty())
+    {
+        return;
+    }
+    if (texture.gpuTexture == 0U)
+    {
+        GLuint handle = 0;
+        glGenTextures(1, &handle);
+        texture.gpuTexture = handle;
+    }
+    if (texture.gpuTexture == 0U)
+    {
+        return;
+    }
+    GLint previousTexture = 0;
+    GLint previousUnpackAlignment = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+    glBindTexture(GL_TEXTURE_2D, texture.gpuTexture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,
+                 GL_RGBA,
+                 static_cast<GLsizei>(texture.width),
+                 static_cast<GLsizei>(texture.height),
+                 0,
+                 GL_RGBA,
+                 GL_UNSIGNED_BYTE,
+                 texture.rgbaPixels.data());
+    glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
+}
+
+[[nodiscard]] ImU32 textureTint(MapDisplayMode mode, uomul::MapTile tile) noexcept
+{
+    if (mode != MapDisplayMode::combined)
+    {
+        return IM_COL32(255, 255, 255, 255);
+    }
+    const double brightness = 0.5 + (static_cast<double>(zGrayscale(tile.z)) / 255.0);
+    const auto channel = static_cast<std::uint8_t>(std::clamp(static_cast<int>(brightness * 255.0), 0, colorChannelMaximum));
+    return IM_COL32(channel, channel, channel, 255);
+}
 
 void drawTileCell(const uomul::MapBlock & block,
-                  uomul::BlockCoord blockCoordinate,
-                  MapWorkspace & workspace,
-                  const RadarColorProvider & radarColors,
-                  std::size_t row,
-                  std::size_t column,
-                  ImVec2 gridOrigin)
+                   uomul::BlockCoord blockCoordinate,
+                   MapWorkspace & workspace,
+                   const RadarColorProvider & radarColors,
+                   const TextureProvider & textures,
+                   MapViewTileSource tileSource,
+                   BlockInspectorPanelState & state,
+                   std::size_t row,
+                   std::size_t column,
+                   ImVec2 gridOrigin)
 {
     const std::size_t index = (row * uomul::mapBlockDimension) + column;
     const uomul::MapTile tile = block.at(index);
@@ -41,6 +123,12 @@ void drawTileCell(const uomul::MapBlock & block,
     };
     const bool selected = workspace.selectedTile() && workspace.selectedTile()->x == tileCoordinate.x &&
                           workspace.selectedTile()->y == tileCoordinate.y;
+    MapCanvasCachedTexture * texture = nullptr;
+    if (tileSource == MapViewTileSource::textures && workspace.displayMode() != MapDisplayMode::z)
+    {
+        texture = &state.textureCache.try_emplace(tile.id, makeTextureCacheEntry(textures, tile.id)).first->second;
+    }
+    const bool useTexture = texture != nullptr && !texture->pixels.empty();
     const MapColor mapColor = tileDisplayColor(workspace.displayMode(), tile, radarColors.mapColor(tile.id));
     const ImVec2 cellMinimum(gridOrigin.x + coordinateColumnWidth + (static_cast<float>(column) * tileCellSize),
                              gridOrigin.y + ImGui::GetTextLineHeightWithSpacing() + (static_cast<float>(row) * tileCellSize));
@@ -52,7 +140,30 @@ void drawTileCell(const uomul::MapBlock & block,
     ImGui::PopID();
 
     ImDrawList * drawList = ImGui::GetWindowDrawList();
-    drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
+    if (useTexture)
+    {
+        if (texture->gpuTexture == 0U)
+        {
+            uploadTexture(*texture);
+        }
+        if (texture->gpuTexture != 0U)
+        {
+            drawList->AddImage(static_cast<ImTextureID>(texture->gpuTexture),
+                               cellMinimum,
+                               cellMaximum,
+                               ImVec2(0.0F, 0.0F),
+                               ImVec2(1.0F, 1.0F),
+                               textureTint(workspace.displayMode(), tile));
+        }
+        else
+        {
+            drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
+        }
+    }
+    else
+    {
+        drawList->AddRectFilled(cellMinimum, cellMaximum, IM_COL32(mapColor.red, mapColor.green, mapColor.blue, 255));
+    }
     drawList->AddRect(
         cellMinimum, cellMaximum, theme::packedOpaqueColor(theme::border), 0.0F, ImDrawFlags_None, gridLineThickness);
     if (selected)
@@ -87,7 +198,10 @@ void drawTileCell(const uomul::MapBlock & block,
 void drawBlock(const uomul::MapBlock & block,
                uomul::BlockCoord blockCoordinate,
                MapWorkspace & workspace,
-               const RadarColorProvider & radarColors)
+               const RadarColorProvider & radarColors,
+               const TextureProvider & textures,
+               MapViewTileSource tileSource,
+               BlockInspectorPanelState & state)
 {
     const ImVec2 gridOrigin = ImGui::GetCursorScreenPos();
     ImDrawList * drawList = ImGui::GetWindowDrawList();
@@ -116,7 +230,16 @@ void drawBlock(const uomul::MapBlock & block,
                           coordinate.c_str());
         for (std::size_t column = 0; column < uomul::mapBlockDimension; column++)
         {
-            drawTileCell(block, blockCoordinate, workspace, radarColors, row, column, gridOrigin);
+            drawTileCell(block,
+                         blockCoordinate,
+                         workspace,
+                         radarColors,
+                         textures,
+                         tileSource,
+                         state,
+                         row,
+                         column,
+                         gridOrigin);
         }
     }
 
@@ -148,6 +271,27 @@ void refreshBlock(const uomul::MapReader & reader,
     }
 }
 
+void invalidateTexturePreviews(BlockInspectorPanelState & state,
+                               const TextureProvider & textures,
+                               MapViewTileSource tileSource)
+{
+    if (state.textureProviderRevision == textures.status().revision && state.textureSource == tileSource)
+    {
+        return;
+    }
+    for (auto & [id, texture] : state.textureCache)
+    {
+        static_cast<void>(id);
+        if (texture.gpuTexture != 0U && state.releaseTexture)
+        {
+            state.releaseTexture(texture.gpuTexture);
+        }
+    }
+    state.textureCache.clear();
+    state.textureProviderRevision = textures.status().revision;
+    state.textureSource = tileSource;
+}
+
 void drawBlockError(const uomul::Error & error)
 {
     ImGui::TextColored(theme::imguiColor(theme::error), "Block read error: %s", error.message.c_str());
@@ -155,12 +299,37 @@ void drawBlockError(const uomul::Error & error)
 
 } // namespace
 
+BlockInspectorPanelState::~BlockInspectorPanelState()
+{
+    if (!releaseTexture)
+    {
+        return;
+    }
+    for (auto & [id, texture] : textureCache)
+    {
+        static_cast<void>(id);
+        if (texture.gpuTexture != 0U)
+        {
+            releaseTexture(texture.gpuTexture);
+        }
+    }
+}
+
 void drawBlockInspectorPanel(MapWorkspace & workspace,
                              const MapContextSnapshot & context,
                              const DataProviders & providers,
+                             MapViewTileSource tileSource,
                              BlockInspectorPanelState & state,
                              bool & visible)
 {
+    if (!state.releaseTexture)
+    {
+        state.releaseTexture = [](std::uint32_t texture)
+        {
+            const GLuint handle = texture;
+            glDeleteTextures(1, &handle);
+        };
+    }
     const uomul::MapReader * reader = workspace.reader();
     if (reader == nullptr || (state.cacheValid && state.mapPath != workspace.mapPath()))
     {
@@ -169,6 +338,8 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
         state.error.reset();
         state.blockCoordinate.reset();
     }
+
+    invalidateTexturePreviews(state, providers.textures(), tileSource);
 
     const std::optional<uomul::TileCoord> inspectedTile = context.activeTile;
 
@@ -205,7 +376,13 @@ void drawBlockInspectorPanel(MapWorkspace & workspace,
                         (blockCoordinate.y * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U);
             if (state.block)
             {
-                drawBlock(*state.block, blockCoordinate, workspace, providers.radarColors());
+                drawBlock(*state.block,
+                          blockCoordinate,
+                          workspace,
+                          providers.radarColors(),
+                          providers.textures(),
+                          tileSource,
+                          state);
                 if (context.selectedTile && context.selectedValue)
                 {
                     const uomul::TileCoord tileCoordinate = *context.selectedTile;

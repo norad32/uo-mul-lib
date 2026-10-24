@@ -197,6 +197,10 @@ Preferences loadPreferences(const std::filesystem::path & path)
         {
             preferences.workspaceFullscreen = value == "1";
         }
+        else if (key == "map_view_tile_source")
+        {
+            preferences.mapViewTileSource = value == "radarcol" ? MapViewTileSource::radarcol : MapViewTileSource::textures;
+        }
     }
     return preferences;
 }
@@ -224,6 +228,8 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
     contents << "texmaps_hide_unused " << static_cast<int>(preferences.texmapsHideUnused) << '\n';
     contents << "texmaps_table_presentation " << static_cast<int>(preferences.texmapsTablePresentation) << '\n';
     contents << "workspace_fullscreen " << static_cast<int>(preferences.workspaceFullscreen) << '\n';
+    contents << "map_view_tile_source "
+             << (preferences.mapViewTileSource == MapViewTileSource::radarcol ? "radarcol" : "textures") << '\n';
     TemporaryPreferencesFile temporaryFile(path);
     temporaryFile.write(contents.str());
     temporaryFile.commit(path);

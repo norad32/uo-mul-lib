@@ -2,6 +2,8 @@
 
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/workspaces/map_workspace.h"
+#include "gui_model/world/map_color.h"
+#include "gui_model/persistence/preferences.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -23,6 +25,15 @@ struct MapCanvasCachedBlock
     std::optional<uomul::MapBlock> block;
     std::optional<uomul::Error> error;
     std::uint64_t lastUsed = 0;
+};
+
+struct MapCanvasCachedTexture
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<MapColor> pixels;
+    std::vector<std::uint8_t> rgbaPixels;
+    std::uint32_t gpuTexture = 0;
 };
 
 struct MapCanvasStatus
@@ -53,9 +64,20 @@ struct MapCanvasViewState
     MapCanvasViewState() = default;
     ~MapCanvasViewState()
     {
-        if (lodTexture != 0U && releaseTexture)
+        if (releaseTexture)
         {
-            releaseTexture(lodTexture);
+            if (lodTexture != 0U)
+            {
+                releaseTexture(lodTexture);
+            }
+            for (const auto & [id, texture] : textureCache)
+            {
+                static_cast<void>(id);
+                if (texture.gpuTexture != 0U)
+                {
+                    releaseTexture(texture.gpuTexture);
+                }
+            }
         }
     }
     MapCanvasViewState(const MapCanvasViewState &) = delete;
@@ -77,6 +99,8 @@ struct MapCanvasViewState
     std::uint64_t cacheClock = 0;
     std::vector<std::uint8_t> lodPixels;
     std::uint32_t lodTexture = 0;
+    std::unordered_map<std::uint32_t, MapCanvasCachedTexture> textureCache;
+    std::uint64_t textureProviderRevision = 0;
     std::function<void(std::uint32_t)> releaseTexture;
     std::uint32_t lodTextureWidth = 0;
     std::uint32_t lodTextureHeight = 0;
@@ -88,7 +112,9 @@ struct MapCanvasViewState
     double lodPanY = 0.0;
     double lodZoom = 0.0;
     MapDisplayMode lodDisplayMode = MapDisplayMode::tileIds;
+    std::uint64_t lodTextureRevision = 0;
     std::uint64_t lodRadarColorRevision = 0;
+    MapViewTileSource lodTileSource = MapViewTileSource::textures;
     std::optional<uomul::Error> lodReadError;
     bool lodCacheValid = false;
     std::filesystem::path documentPath;
