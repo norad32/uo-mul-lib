@@ -41,6 +41,32 @@ bool MapSelectionMask::contains(uomul::BlockCoord coordinate) const noexcept
     return granularity_ == ToolSelectionGranularity::blocks && selected_.contains(blockKey(coordinate));
 }
 
+void MapSelectionMask::forEachSelectedTile(const std::function<void(uomul::TileCoord)> & callback) const
+{
+    if (!callback || granularity_ != ToolSelectionGranularity::tiles)
+    {
+        return;
+    }
+
+    for (const std::uint64_t key : selected_)
+    {
+        callback({.x = static_cast<std::uint32_t>(key >> 32U), .y = static_cast<std::uint32_t>(key & 0xFFFFFFFFU)});
+    }
+}
+
+void MapSelectionMask::forEachSelectedBlock(const std::function<void(uomul::BlockCoord)> & callback) const
+{
+    if (!callback || granularity_ != ToolSelectionGranularity::blocks)
+    {
+        return;
+    }
+
+    for (const std::uint64_t key : selected_)
+    {
+        callback({.x = static_cast<std::uint32_t>(key >> 32U), .y = static_cast<std::uint32_t>(key & 0xFFFFFFFFU)});
+    }
+}
+
 void MapSelectionMask::clear() noexcept
 {
     selected_.clear();

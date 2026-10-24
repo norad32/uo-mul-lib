@@ -31,6 +31,27 @@ enum class ToolSelectionGranularity : std::uint8_t
     blocks,
 };
 
+enum class FillMode : std::uint8_t
+{
+    id,
+    z,
+    idAndZ,
+};
+
+enum class ReplaceMode : std::uint8_t
+{
+    id,
+    z,
+    idAndZ,
+};
+
+enum class TilePickTarget : std::uint8_t
+{
+    activeTile,
+    replaceSource,
+    replaceTarget,
+};
+
 struct ToolContext
 {
     bool mapDocumentOpen = false;

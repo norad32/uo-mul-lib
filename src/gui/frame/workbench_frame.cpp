@@ -228,8 +228,7 @@ void drawMapPanels(WorkbenchState & state,
         }
         if (const auto id = assets::itemIndex(item))
         {
-            static_cast<void>(state.toolState.setActiveTileId(static_cast<std::int32_t>(*id)));
-            state.toolState.clearTilePickRequest();
+            static_cast<void>(state.toolState.setPickedTileId(static_cast<std::int32_t>(*id)));
         }
     };
     state.radarcolState.itemPicked = pickAssetItem;
@@ -333,6 +332,20 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
         static_cast<unsigned int>(ImGuiWindowFlags_NoMove) | static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) | static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar));
     ImGui::Begin("Workbench Status###workbench.status", nullptr, statusFlags);
+    if (!state.operationStatus.empty())
+    {
+        ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+        if (state.operationStatusSeverity == NotificationSeverity::error)
+        {
+            color = theme::imguiColor(theme::error);
+        }
+        else if (state.operationStatusSeverity == NotificationSeverity::success)
+        {
+            color = theme::imguiColor(theme::success);
+        }
+        ImGui::TextColored(color, "%s", state.operationStatus.c_str());
+        ImGui::SameLine();
+    }
     bool hasCanvasStatus = false;
     if (state.lastHoveredCanvasStatus)
     {
@@ -490,11 +503,47 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             state.providers.textures(),
             state.providers.radarColors(),
             state.preferences.mapViewTileSource,
-            windowName,
-            [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); },
-            [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
-            [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
-            [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
+             windowName,
+             [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); },
+             [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
+             [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
+             [&state]
+             {
+                 if (state.toolState.activeTool() == ToolId::fill)
+                 {
+                     const auto result = state.workspace.fillMasked(
+                         state.toolState.activeTile().value_or(uomul::MapTile{}), state.toolState.fillMode());
+                     if (result)
+                     {
+                         state.operationStatus = "Filled " + std::to_string(result->changedTiles) + " tiles";
+                         state.operationStatusSeverity = NotificationSeverity::success;
+                     }
+                     else
+                     {
+                         state.operationStatus = result.error().message;
+                         state.operationStatusSeverity = NotificationSeverity::error;
+                     }
+                     return;
+                 }
+
+                 if (state.toolState.activeTool() == ToolId::replace)
+                 {
+                     const auto result = state.workspace.replaceMasked(state.toolState.replaceMode(),
+                                                                        state.toolState.replaceSource(),
+                                                                        state.toolState.replaceTarget());
+                     if (result)
+                     {
+                         state.operationStatus = "Replaced " + std::to_string(result->changedTiles) + " tiles";
+                         state.operationStatusSeverity = NotificationSeverity::success;
+                     }
+                     else
+                     {
+                         state.operationStatus = result.error().message;
+                         state.operationStatusSeverity = NotificationSeverity::error;
+                     }
+                 }
+             },
+             [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
             visible);
         if (!visible)
         {

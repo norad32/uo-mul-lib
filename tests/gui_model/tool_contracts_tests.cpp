@@ -182,10 +182,59 @@ TEST_CASE("toolState_Should_ValidateManualActiveTileFields")
     REQUIRE(state.activeTile() == uomul::MapTile{.id = 1234, .z = -12});
 }
 
+TEST_CASE("toolState_Should_StoreFillAndIndependentReplaceOptions")
+{
+    ToolState state;
+
+    REQUIRE(state.fillMode() == uo_mule::gui::FillMode::idAndZ);
+    REQUIRE(state.replaceMode() == uo_mule::gui::ReplaceMode::idAndZ);
+    state.setFillMode(uo_mule::gui::FillMode::id);
+    state.setReplaceMode(uo_mule::gui::ReplaceMode::z);
+    REQUIRE(state.setReplaceSourceId(1234).accepted);
+    REQUIRE(state.setReplaceSourceZ(-12).accepted);
+    REQUIRE(state.setReplaceTargetId(2345).accepted);
+    REQUIRE(state.setReplaceTargetZ(34).accepted);
+
+    REQUIRE(state.fillMode() == uo_mule::gui::FillMode::id);
+    REQUIRE(state.replaceMode() == uo_mule::gui::ReplaceMode::z);
+    REQUIRE(state.replaceSource() == uomul::MapTile{.id = 1234, .z = -12});
+    REQUIRE(state.replaceTarget() == uomul::MapTile{.id = 2345, .z = 34});
+    REQUIRE_FALSE(state.setReplaceSourceId(65536).accepted);
+    REQUIRE_FALSE(state.setReplaceTargetZ(-129).accepted);
+    REQUIRE(state.replaceSource() == uomul::MapTile{.id = 1234, .z = -12});
+    REQUIRE(state.replaceTarget() == uomul::MapTile{.id = 2345, .z = 34});
+}
+
 TEST_CASE("toolState_Should_TrackActiveTilePickerSource")
 {
     ToolState state;
 
     state.requestTilePick();
     REQUIRE(state.tilePickRequested());
+    REQUIRE(state.tilePickTarget() == uo_mule::gui::TilePickTarget::activeTile);
+    state.setPickedTile({.id = 321, .z = -7});
+    REQUIRE(state.activeTile() == uomul::MapTile{.id = 321, .z = -7});
+    REQUIRE_FALSE(state.tilePickRequested());
+}
+
+TEST_CASE("toolState_ShouldRouteReplacePicksAndCopyActiveTileToTarget")
+{
+    ToolState state;
+    state.setActiveTile({.id = 100, .z = -5});
+
+    REQUIRE(state.setReplaceSourceFromActiveTile().accepted);
+    REQUIRE(state.replaceSource() == uomul::MapTile{.id = 100, .z = -5});
+
+    state.requestTilePick(uo_mule::gui::TilePickTarget::replaceSource);
+    REQUIRE(state.tilePickTarget() == uo_mule::gui::TilePickTarget::replaceSource);
+    state.setPickedTile({.id = 200, .z = 10});
+    REQUIRE(state.replaceSource() == uomul::MapTile{.id = 200, .z = 10});
+    REQUIRE(state.activeTile() == uomul::MapTile{.id = 100, .z = -5});
+
+    state.requestTilePick(uo_mule::gui::TilePickTarget::replaceTarget);
+    REQUIRE(state.setPickedTileId(300).accepted);
+    REQUIRE(state.replaceTarget() == uomul::MapTile{.id = 300, .z = 0});
+    REQUIRE_FALSE(state.tilePickRequested());
+    REQUIRE(state.setReplaceTargetFromActiveTile().accepted);
+    REQUIRE(state.replaceTarget() == uomul::MapTile{.id = 100, .z = -5});
 }

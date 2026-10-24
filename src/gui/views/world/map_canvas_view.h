@@ -27,6 +27,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspace,
                        const std::function<void()> & activateDocument,
                        const std::function<void()> & openMap,
                        const std::function<void()> & createMap,
+                       const std::function<void()> & executeEdit,
                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
                        bool & visible);
 

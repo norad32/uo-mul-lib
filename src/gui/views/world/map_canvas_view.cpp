@@ -1577,7 +1577,24 @@ bool updateTilePick(MapWorkspace & workspace,
         return false;
     }
 
-    toolState.setActiveTile(*workspace.hoveredValue());
+    toolState.setPickedTile(*workspace.hoveredValue());
+    return true;
+}
+
+bool updateEditTool(const ToolState & toolState,
+                    std::optional<uomul::TileCoord> currentTile,
+                    bool canvasHovered,
+                    bool tilePickHandled,
+                    const std::function<void()> & executeEdit)
+{
+    if ((toolState.activeTool() != ToolId::fill && toolState.activeTool() != ToolId::replace) ||
+        tilePickHandled || ImGui::IsKeyDown(ImGuiKey_Space) || ImGui::GetIO().KeyAlt || !canvasHovered || !currentTile ||
+        !ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        return false;
+    }
+
+    executeEdit();
     return true;
 }
 
@@ -1632,6 +1649,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
                        const std::function<void()> & activateDocument,
                        const std::function<void()> & openMap,
                        const std::function<void()> & createMap,
+                       const std::function<void()> & executeEdit,
                        const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
                        bool & visible)
 {
@@ -1706,7 +1724,8 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
         currentTile = tileAtMouse(mouse, canvasOrigin, canvasSize, state, dimensions, canvasHovered);
         updateHover(workspace, currentTile);
         const bool tilePickHandled = updateTilePick(workspace, toolState, currentTile, canvasHovered);
-        updateSelectionDrag(workspace, state, toolState, currentTile, dimensions, canvasHovered, tilePickHandled);
+        const bool editHandled = updateEditTool(toolState, currentTile, canvasHovered, tilePickHandled, executeEdit);
+        updateSelectionDrag(workspace, state, toolState, currentTile, dimensions, canvasHovered, tilePickHandled || editHandled);
     }
     else
     {

@@ -4,6 +4,7 @@
 #include "uomul/map/map.h"
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <unordered_set>
 #include <vector>
 
@@ -25,6 +26,8 @@ public:
     [[nodiscard]] bool empty() const noexcept;
     [[nodiscard]] bool contains(uomul::TileCoord coordinate) const noexcept;
     [[nodiscard]] bool contains(uomul::BlockCoord coordinate) const noexcept;
+    void forEachSelectedTile(const std::function<void(uomul::TileCoord)> & callback) const;
+    void forEachSelectedBlock(const std::function<void(uomul::BlockCoord)> & callback) const;
 
     void clear() noexcept;
     void setGranularity(ToolSelectionGranularity granularity);

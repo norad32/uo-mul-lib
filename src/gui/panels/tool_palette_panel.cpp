@@ -8,6 +8,7 @@
 #include "imgui.h"
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <string>
 
@@ -37,6 +38,124 @@ void drawSectionHeading(const char * label)
 void drawPlaceholder(const char * text)
 {
     ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", text);
+}
+
+void drawTileInput(WorkbenchState & state,
+                   const char * label,
+                   const char * idLabel,
+                   const char * zLabel,
+                   uomul::MapTile tile,
+                   const std::function<ToolStateChange(std::int32_t)> & setId,
+                   const std::function<ToolStateChange(std::int32_t)> & setZ)
+{
+    const bool hexadecimalIds = state.preferences.idFormat == IdFormat::hexadecimal;
+    const char * idInputFormat = hexadecimalIds ? "%04X" : "%u";
+    const ImGuiInputTextFlags idInputFlags = hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal
+                                                            : ImGuiInputTextFlags_CharsDecimal;
+    std::uint16_t id = tile.id;
+    int z = static_cast<int>(tile.z);
+    ImGui::PushID(label);
+    ImGui::TextUnformatted(label);
+    if (ImGui::InputScalar(idLabel, ImGuiDataType_U16, &id, nullptr, nullptr, idInputFormat, idInputFlags))
+    {
+        const auto result = setId(static_cast<std::int32_t>(id));
+        if (!result.accepted)
+        {
+            ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
+        }
+    }
+    if (ImGui::InputInt(zLabel, &z, 0, 0, ImGuiInputTextFlags_CharsDecimal))
+    {
+        const auto result = setZ(z);
+        if (!result.accepted)
+        {
+            ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
+        }
+    }
+    ImGui::PopID();
+}
+
+void drawPickButton(WorkbenchState & state, const char * label, TilePickTarget target)
+{
+    if (ImGui::Button(label))
+    {
+        state.toolState.requestTilePick(target);
+    }
+}
+
+void drawFillOptions(WorkbenchState & state)
+{
+    ImGui::TextUnformatted("Fill mode");
+    const FillMode mode = state.toolState.fillMode();
+    if (ImGui::RadioButton("ID##fill.mode.id", mode == FillMode::id))
+    {
+        state.toolState.setFillMode(FillMode::id);
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Z##fill.mode.z", mode == FillMode::z))
+    {
+        state.toolState.setFillMode(FillMode::z);
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("ID + Z##fill.mode.id-z", mode == FillMode::idAndZ))
+    {
+        state.toolState.setFillMode(FillMode::idAndZ);
+    }
+    drawPlaceholder("Target uses Active Tile.");
+}
+
+void drawReplaceOptions(WorkbenchState & state)
+{
+    ImGui::TextUnformatted("Replace mode");
+    const ReplaceMode mode = state.toolState.replaceMode();
+    if (ImGui::RadioButton("ID##replace.mode.id", mode == ReplaceMode::id))
+    {
+        state.toolState.setReplaceMode(ReplaceMode::id);
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Z##replace.mode.z", mode == ReplaceMode::z))
+    {
+        state.toolState.setReplaceMode(ReplaceMode::z);
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("ID + Z##replace.mode.id-z", mode == ReplaceMode::idAndZ))
+    {
+        state.toolState.setReplaceMode(ReplaceMode::idAndZ);
+    }
+    drawTileInput(state,
+                  "Source",
+                  "ID##replace.source.id",
+                  "Z##replace.source.z",
+                  state.toolState.replaceSource(),
+                  [&state](std::int32_t id) { return state.toolState.setReplaceSourceId(id); },
+                  [&state](std::int32_t z) { return state.toolState.setReplaceSourceZ(z); });
+    drawPickButton(state, "Pick Source##replace.pick-source", TilePickTarget::replaceSource);
+    ImGui::SameLine();
+    if (ImGui::Button("From Active Tile##replace.source.active"))
+    {
+        const auto result = state.toolState.setReplaceSourceFromActiveTile();
+        if (!result.accepted)
+        {
+            drawPlaceholder(result.reason.c_str());
+        }
+    }
+    drawTileInput(state,
+                  "Target",
+                  "ID##replace.target.id",
+                  "Z##replace.target.z",
+                  state.toolState.replaceTarget(),
+                  [&state](std::int32_t id) { return state.toolState.setReplaceTargetId(id); },
+                  [&state](std::int32_t z) { return state.toolState.setReplaceTargetZ(z); });
+    drawPickButton(state, "Pick Target##replace.pick-target", TilePickTarget::replaceTarget);
+    ImGui::SameLine();
+    if (ImGui::Button("From Active Tile##replace.target.active"))
+    {
+        const auto result = state.toolState.setReplaceTargetFromActiveTile();
+        if (!result.accepted)
+        {
+            drawPlaceholder(result.reason.c_str());
+        }
+    }
 }
 
 void drawToolButton(WorkbenchState & state, const ToolDescriptor & tool, const ToolContext & context, float width)
@@ -109,7 +228,18 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
         ImGui::TextUnformatted(activeTool->label.c_str());
         ImGui::SameLine();
         ImGui::TextColored(theme::imguiColor(theme::mutedText), "(%s)", activeTool->defaultShortcut.c_str());
-        drawPlaceholder("Tool-specific options will appear here.");
+        if (state.toolState.activeTool() == ToolId::fill)
+        {
+            drawFillOptions(state);
+        }
+        else if (state.toolState.activeTool() == ToolId::replace)
+        {
+            drawReplaceOptions(state);
+        }
+        else
+        {
+            drawPlaceholder("Tool-specific options will appear here.");
+        }
     }
 
     if (state.toolState.activeTool() == ToolId::rectangleSelect || state.toolState.activeTool() == ToolId::lassoSelect)
@@ -171,7 +301,7 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
     }
     if (ImGui::Button("Pick"))
     {
-        state.toolState.requestTilePick();
+        state.toolState.requestTilePick(TilePickTarget::activeTile);
     }
     if (state.toolState.tilePickRequested())
     {

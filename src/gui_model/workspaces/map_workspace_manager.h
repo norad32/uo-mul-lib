@@ -89,6 +89,15 @@ public:
     {
         return active_->replaceZ(from, to, scope);
     }
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error> fillMasked(uomul::MapTile value, FillMode mode)
+    {
+        return active_->fillMasked(value, mode);
+    }
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error>
+    replaceMasked(ReplaceMode mode, uomul::MapTile source, uomul::MapTile target)
+    {
+        return active_->replaceMasked(mode, source, target);
+    }
 
     [[nodiscard]] std::expected<void, uomul::Error>
     openMap(const std::filesystem::path & path,

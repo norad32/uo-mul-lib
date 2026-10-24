@@ -19,6 +19,8 @@ using uo_mule::gui::MapSelectionMode;
 using uo_mule::gui::MapWorkspace;
 using uo_mule::gui::MapWorkspaceManager;
 using uo_mule::gui::PendingChangesAction;
+using uo_mule::gui::FillMode;
+using uo_mule::gui::ReplaceMode;
 
 constexpr uomul::Dimensions testDimensions{.widthTiles = 16, .heightTiles = 16};
 constexpr uomul::MapTile initialTile{.id = 17, .z = -4};
@@ -332,6 +334,108 @@ TEST_CASE("mapWorkspace_Should_RejectSelectionEditsWithoutSelectionAndDiscardBac
     REQUIRE(workspace.closeMap());
     REQUIRE(workspace.reader() == nullptr);
     REQUIRE(workspace.mapPath().empty());
+}
+
+TEST_CASE("mapWorkspace_Should_ApplyMaskedFillModesAndPreserveSparseTileSelection")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "masked-fill.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    workspace.setTileSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 3, .y = 3}});
+    workspace.applyTileSelection({.min = {.x = 2, .y = 2}, .maxExclusive = {.x = 3, .y = 3}},
+                                 uo_mule::gui::SelectionCombineMode::subtract);
+    REQUIRE(workspace.selectionMask().size() == 3);
+
+    const auto idFill = workspace.fillMasked({.id = 90, .z = 50}, FillMode::id);
+    REQUIRE(idFill);
+    REQUIRE(idFill->changedTiles == 3);
+    REQUIRE(workspace.selectionMask().size() == 3);
+    REQUIRE(workspace.selectionMask().contains(uomul::TileCoord{.x = 1, .y = 1}));
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 90, .z = initialTile.z});
+    REQUIRE(workspace.reader()->readTile({.x = 2, .y = 2}) == initialTile);
+
+    const auto zFill = workspace.fillMasked({.id = 80, .z = 51}, FillMode::z);
+    REQUIRE(zFill);
+    REQUIRE(zFill->changedTiles == 3);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 90, .z = 51});
+
+    const auto combinedFill = workspace.fillMasked({.id = 70, .z = 52}, FillMode::idAndZ);
+    REQUIRE(combinedFill);
+    REQUIRE(combinedFill->changedTiles == 3);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 70, .z = 52});
+    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == initialTile);
+    REQUIRE(workspace.dirty());
+}
+
+TEST_CASE("mapWorkspace_Should_ApplyMaskedReplaceModesToSparseTiles")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "masked-replace.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    workspace.setTileSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 3, .y = 3}});
+
+    const auto idReplace = workspace.replaceMasked(
+        ReplaceMode::id, initialTile, {.id = 30, .z = 99});
+    REQUIRE(idReplace);
+    REQUIRE(idReplace->changedTiles == 4);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 30, .z = initialTile.z});
+    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == initialTile);
+
+    const auto zReplace = workspace.replaceMasked(
+        ReplaceMode::z, {.id = 30, .z = initialTile.z}, {.id = 40, .z = 22});
+    REQUIRE(zReplace);
+    REQUIRE(zReplace->changedTiles == 4);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 30, .z = 22});
+
+    const auto combinedReplace = workspace.replaceMasked(
+        ReplaceMode::idAndZ, {.id = 30, .z = 22}, {.id = 40, .z = 23});
+    REQUIRE(combinedReplace);
+    REQUIRE(combinedReplace->changedTiles == 4);
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 40, .z = 23});
+    REQUIRE(workspace.reader()->readTile({.x = 0, .y = 0}) == initialTile);
+}
+
+TEST_CASE("mapWorkspace_Should_ApplyMaskedBlockEditsOnlyToSelectedBlocks")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "masked-blocks.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    workspace.setBlockSelection({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}});
+    workspace.applyBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}},
+                                  uo_mule::gui::SelectionCombineMode::add);
+
+    const auto result = workspace.fillMasked({.id = 61, .z = 62}, FillMode::idAndZ);
+    REQUIRE(result);
+    REQUIRE(result->changedTiles == 128);
+    REQUIRE(workspace.selectionMask().size() == 2);
+    REQUIRE(workspace.reader()->readTile({.x = 7, .y = 7}) == uomul::MapTile{.id = 61, .z = 62});
+    REQUIRE(workspace.reader()->readTile({.x = 8, .y = 8}) == uomul::MapTile{.id = 61, .z = 62});
+    REQUIRE(workspace.reader()->readTile({.x = 8, .y = 7}) == initialTile);
+}
+
+TEST_CASE("mapWorkspace_Should_RejectMaskedEditsWithoutSelectionAndKeepCleanState")
+{
+    const TestDirectory directory;
+    const auto mapPath = directory.path() / "masked-no-selection.mul";
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, testDimensions, initialTile));
+
+    MapWorkspace workspace;
+    REQUIRE(workspace.openMap(mapPath, testDimensions));
+    const auto result = workspace.fillMasked({.id = 11, .z = 12}, FillMode::idAndZ);
+
+    REQUIRE_FALSE(result);
+    REQUIRE(result.error().message == "selection scope requires a selection");
+    REQUIRE_FALSE(workspace.dirty());
+    REQUIRE(workspace.reader()->readTile({.x = 1, .y = 1}) == initialTile);
 }
 
 TEST_CASE("mapWorkspaceManager_Should_PreserveIndependentMapAndCanvasState")

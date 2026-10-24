@@ -4,6 +4,37 @@
 namespace uo_mule::gui
 {
 
+namespace
+{
+
+ToolStateChange setTileId(uomul::MapTile & tile, std::int32_t id) noexcept
+{
+    if (id < 0 || id > std::numeric_limits<std::uint16_t>::max())
+    {
+        return {.accepted = false, .changed = false, .reason = "Tile ID must be between 0 and 65535"};
+    }
+
+    const auto next = static_cast<std::uint16_t>(id);
+    const bool changed = tile.id != next;
+    tile.id = next;
+    return {.accepted = true, .changed = changed, .reason = {}};
+}
+
+ToolStateChange setTileZ(uomul::MapTile & tile, std::int32_t z) noexcept
+{
+    if (z < std::numeric_limits<std::int8_t>::min() || z > std::numeric_limits<std::int8_t>::max())
+    {
+        return {.accepted = false, .changed = false, .reason = "Tile Z must be between -128 and 127"};
+    }
+
+    const auto next = static_cast<std::int8_t>(z);
+    const bool changed = tile.z != next;
+    tile.z = next;
+    return {.accepted = true, .changed = changed, .reason = {}};
+}
+
+} // namespace
+
 ToolId ToolState::activeTool() const noexcept
 {
     return activeTool_;
@@ -19,9 +50,34 @@ const std::optional<uomul::MapTile> & ToolState::activeTile() const noexcept
     return activeTile_;
 }
 
+FillMode ToolState::fillMode() const noexcept
+{
+    return fillMode_;
+}
+
+ReplaceMode ToolState::replaceMode() const noexcept
+{
+    return replaceMode_;
+}
+
+const uomul::MapTile & ToolState::replaceSource() const noexcept
+{
+    return replaceSource_;
+}
+
+const uomul::MapTile & ToolState::replaceTarget() const noexcept
+{
+    return replaceTarget_;
+}
+
 bool ToolState::tilePickRequested() const noexcept
 {
     return tilePickRequested_;
+}
+
+TilePickTarget ToolState::tilePickTarget() const noexcept
+{
+    return tilePickTarget_;
 }
 
 ToolStateChange ToolState::activate(ToolId tool, const ToolContext & context, const ToolRegistry & registry)
@@ -69,6 +125,7 @@ void ToolState::setActiveTile(uomul::MapTile tile) noexcept
 {
     activeTile_ = tile;
     tilePickRequested_ = false;
+    tilePickTarget_ = TilePickTarget::activeTile;
 }
 
 ToolStateChange ToolState::setActiveTileId(std::int32_t id) noexcept
@@ -99,14 +156,111 @@ ToolStateChange ToolState::setActiveTileZ(std::int32_t z) noexcept
     return {.accepted = true, .changed = changed, .reason = {}};
 }
 
-void ToolState::requestTilePick() noexcept
+void ToolState::setFillMode(FillMode mode) noexcept
+{
+    fillMode_ = mode;
+}
+
+void ToolState::setReplaceMode(ReplaceMode mode) noexcept
+{
+    replaceMode_ = mode;
+}
+
+ToolStateChange ToolState::setReplaceSourceId(std::int32_t id) noexcept
+{
+    return setTileId(replaceSource_, id);
+}
+
+ToolStateChange ToolState::setReplaceSourceZ(std::int32_t z) noexcept
+{
+    return setTileZ(replaceSource_, z);
+}
+
+ToolStateChange ToolState::setReplaceTargetId(std::int32_t id) noexcept
+{
+    return setTileId(replaceTarget_, id);
+}
+
+ToolStateChange ToolState::setReplaceTargetZ(std::int32_t z) noexcept
+{
+    return setTileZ(replaceTarget_, z);
+}
+
+ToolStateChange ToolState::setReplaceTargetFromActiveTile() noexcept
+{
+    if (!activeTile_)
+    {
+        return {.accepted = false, .changed = false, .reason = "No active tile is available"};
+    }
+
+    const bool changed = replaceTarget_ != *activeTile_;
+    replaceTarget_ = *activeTile_;
+    return {.accepted = true, .changed = changed, .reason = {}};
+}
+
+ToolStateChange ToolState::setReplaceSourceFromActiveTile() noexcept
+{
+    if (!activeTile_)
+    {
+        return {.accepted = false, .changed = false, .reason = "No active tile is available"};
+    }
+
+    const bool changed = replaceSource_ != *activeTile_;
+    replaceSource_ = *activeTile_;
+    return {.accepted = true, .changed = changed, .reason = {}};
+}
+
+void ToolState::setPickedTile(uomul::MapTile tile) noexcept
+{
+    switch (tilePickTarget_)
+    {
+    case TilePickTarget::activeTile:
+        activeTile_ = tile;
+        break;
+    case TilePickTarget::replaceSource:
+        replaceSource_ = tile;
+        break;
+    case TilePickTarget::replaceTarget:
+        replaceTarget_ = tile;
+        break;
+    }
+    tilePickRequested_ = false;
+    tilePickTarget_ = TilePickTarget::activeTile;
+}
+
+ToolStateChange ToolState::setPickedTileId(std::int32_t id) noexcept
+{
+    ToolStateChange result;
+    switch (tilePickTarget_)
+    {
+    case TilePickTarget::activeTile:
+        result = setActiveTileId(id);
+        break;
+    case TilePickTarget::replaceSource:
+        result = setReplaceSourceId(id);
+        break;
+    case TilePickTarget::replaceTarget:
+        result = setReplaceTargetId(id);
+        break;
+    }
+    if (result.accepted)
+    {
+        tilePickRequested_ = false;
+        tilePickTarget_ = TilePickTarget::activeTile;
+    }
+    return result;
+}
+
+void ToolState::requestTilePick(TilePickTarget target) noexcept
 {
     tilePickRequested_ = true;
+    tilePickTarget_ = target;
 }
 
 void ToolState::clearTilePickRequest() noexcept
 {
     tilePickRequested_ = false;
+    tilePickTarget_ = TilePickTarget::activeTile;
 }
 
 } // namespace uo_mule::gui

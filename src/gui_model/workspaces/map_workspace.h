@@ -39,6 +39,11 @@ enum class MapEditScope : std::uint8_t
     wholeMap,
 };
 
+struct MapEditResult
+{
+    std::uint64_t changedTiles = 0;
+};
+
 [[nodiscard]] uomul::BlockCoord tileToBlock(uomul::TileCoord tile) noexcept;
 [[nodiscard]] uomul::TileCoord selectionInspectorTile(MapSelectionMode mode, uomul::TileCoord tile) noexcept;
 [[nodiscard]] std::optional<uomul::TileCoord> screenToTile(double screenX,
@@ -91,6 +96,9 @@ public:
     [[nodiscard]] std::expected<void, uomul::Error> fill(uomul::MapTile value, MapEditScope scope);
     [[nodiscard]] std::expected<void, uomul::Error> replaceTileId(std::uint16_t from, std::uint16_t to, MapEditScope scope);
     [[nodiscard]] std::expected<void, uomul::Error> replaceZ(std::int8_t from, std::int8_t to, MapEditScope scope);
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error> fillMasked(uomul::MapTile value, FillMode mode);
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error>
+    replaceMasked(ReplaceMode mode, uomul::MapTile source, uomul::MapTile target);
 
     [[nodiscard]] std::expected<std::optional<uomul::MapStats>, uomul::Error> selectionStats();
     [[nodiscard]] std::expected<void, uomul::Error> updateHover(uomul::TileCoord tile);
@@ -129,11 +137,14 @@ public:
 
 private:
     using EditOperation = std::function<std::expected<void, uomul::Error>(uomul::MapEditor &, const MapWorkspace &)>;
+    using CountedEditOperation =
+        std::function<std::expected<std::uint64_t, uomul::Error>(uomul::MapEditor &, const MapWorkspace &)>;
 
     [[nodiscard]] std::expected<void, uomul::Error> resolvePendingChanges(PendingChangesAction action,
                                                                           const std::optional<std::filesystem::path> & savePath,
                                                                           bool overwriteSave);
     [[nodiscard]] std::expected<void, uomul::Error> applyEdit(const EditOperation & operation);
+    [[nodiscard]] std::expected<MapEditResult, uomul::Error> applyCountedEdit(const CountedEditOperation & operation);
     [[nodiscard]] std::expected<void, uomul::Error> fail(uomul::Error error);
     void replaceDocument(uomul::MapReader reader,
                          std::filesystem::path path,
