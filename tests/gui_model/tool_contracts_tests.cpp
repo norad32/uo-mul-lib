@@ -1,5 +1,7 @@
+#include "gui_model/persistence/preferences.h"
 #include "gui_model/tools/tool_contracts.h"
 #include "gui_model/tools/tool_state.h"
+#include "uomul/map/map.h"
 #include <catch2/catch_test_macros.hpp>
 #include <set>
 #include <string>
@@ -11,6 +13,7 @@ using uo_mule::gui::ToolRegistry;
 using uo_mule::gui::ToolSelectionGranularity;
 using uo_mule::gui::ToolState;
 
+// NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 TEST_CASE("defaultTools_Should_ExposeStableMetadata")
 {
     const ToolRegistry registry;
@@ -52,8 +55,7 @@ TEST_CASE("editingTools_Should_RequireAnEditableMap")
     const ToolContext readOnlyContext{.mapDocumentOpen = true, .mapEditable = false};
 
     REQUIRE_FALSE(registry.availability(ToolId::fill, readOnlyContext).enabled);
-    REQUIRE(registry.availability(ToolId::replace, readOnlyContext).disabledReason ==
-            "The active map is not editable");
+    REQUIRE(registry.availability(ToolId::replace, readOnlyContext).disabledReason == "The active map is not editable");
 }
 
 TEST_CASE("fuzzySelect_Should_BeUnavailableForBlockGranularity")
@@ -66,8 +68,7 @@ TEST_CASE("fuzzySelect_Should_BeUnavailableForBlockGranularity")
     };
 
     REQUIRE_FALSE(registry.availability(ToolId::fuzzySelect, blockContext).enabled);
-    REQUIRE(registry.availability(ToolId::fuzzySelect, blockContext).disabledReason ==
-            "Fuzzy Select supports tiles only");
+    REQUIRE(registry.availability(ToolId::fuzzySelect, blockContext).disabledReason == "Fuzzy Select supports tiles only");
 }
 
 TEST_CASE("selectionTools_Should_BeAvailableForAnOpenMap")
@@ -307,3 +308,5 @@ TEST_CASE("toolState_ShouldStoreFuzzyOptionsAndBounds")
     REQUIRE(state.fuzzyOptions().nameEnabled);
     REQUIRE(state.fuzzyOptions().name == "granite floor");
 }
+
+// NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)

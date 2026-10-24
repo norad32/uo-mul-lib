@@ -1,5 +1,11 @@
 #include "gui_model/tools/tool_state.h"
+#include "gui_model/persistence/preferences.h"
+#include "gui_model/tools/tool_contracts.h"
+#include "uomul/map/map.h"
+#include <cstdint>
 #include <limits>
+#include <optional>
+#include <string>
 #include <utility>
 
 namespace uo_mule::gui
@@ -8,9 +14,11 @@ namespace uo_mule::gui
 namespace
 {
 
+constexpr std::int32_t maximumTileId = 65535;
+
 ToolStateChange setTileId(uomul::MapTile & tile, std::int32_t id) noexcept
 {
-    if (id < 0 || id > std::numeric_limits<std::uint16_t>::max())
+    if (id < 0 || id > maximumTileId)
     {
         return {.accepted = false, .changed = false, .reason = "Tile ID must be between 0 and 65535"};
     }
@@ -69,10 +77,22 @@ ReplaceMode ToolState::replaceMode() const noexcept
     return replaceIdEnabled_ ? ReplaceMode::id : ReplaceMode::z;
 }
 
-bool ToolState::fillIdEnabled() const noexcept { return fillIdEnabled_; }
-bool ToolState::fillZEnabled() const noexcept { return fillZEnabled_; }
-bool ToolState::replaceIdEnabled() const noexcept { return replaceIdEnabled_; }
-bool ToolState::replaceZEnabled() const noexcept { return replaceZEnabled_; }
+bool ToolState::fillIdEnabled() const noexcept
+{
+    return fillIdEnabled_;
+}
+bool ToolState::fillZEnabled() const noexcept
+{
+    return fillZEnabled_;
+}
+bool ToolState::replaceIdEnabled() const noexcept
+{
+    return replaceIdEnabled_;
+}
+bool ToolState::replaceZEnabled() const noexcept
+{
+    return replaceZEnabled_;
+}
 
 const uomul::MapTile & ToolState::replaceSource() const noexcept
 {
@@ -149,7 +169,7 @@ void ToolState::setActiveTile(uomul::MapTile tile) noexcept
 
 ToolStateChange ToolState::setActiveTileId(std::int32_t id) noexcept
 {
-    if (id < 0 || id > std::numeric_limits<std::uint16_t>::max())
+    if (id < 0 || id > maximumTileId)
     {
         return {.accepted = false, .changed = false, .reason = "Tile ID must be between 0 and 65535"};
     }
@@ -257,7 +277,7 @@ void ToolState::setFuzzyIdEnabled(bool enabled) noexcept
 
 ToolStateChange ToolState::setFuzzyId(std::int32_t id) noexcept
 {
-    if (id < 0 || id > std::numeric_limits<std::uint16_t>::max())
+    if (id < 0 || id > maximumTileId)
     {
         return {.accepted = false, .changed = false, .reason = "Tile ID must be between 0 and 65535"};
     }
@@ -330,25 +350,25 @@ void ToolState::setPickedTile(uomul::MapTile tile) noexcept
 {
     switch (tilePickTarget_)
     {
-    case TilePickTarget::activeTile:
-        activeTile_ = tile;
-        break;
-    case TilePickTarget::replaceSource:
-        replaceSource_ = tile;
-        break;
-    case TilePickTarget::replaceTarget:
-        replaceTarget_ = tile;
-        break;
-    case TilePickTarget::fuzzyId:
-        fuzzyOptions_.id = tile.id;
-        fuzzyOptions_.idEnabled = true;
-        break;
-    case TilePickTarget::fuzzyZ:
-        fuzzyOptions_.z = tile.z;
-        fuzzyOptions_.zEnabled = true;
-        break;
-    case TilePickTarget::fuzzyName:
-        break;
+        case TilePickTarget::activeTile :
+            activeTile_ = tile;
+            break;
+        case TilePickTarget::replaceSource :
+            replaceSource_ = tile;
+            break;
+        case TilePickTarget::replaceTarget :
+            replaceTarget_ = tile;
+            break;
+        case TilePickTarget::fuzzyId :
+            fuzzyOptions_.id = tile.id;
+            fuzzyOptions_.idEnabled = true;
+            break;
+        case TilePickTarget::fuzzyZ :
+            fuzzyOptions_.z = tile.z;
+            fuzzyOptions_.zEnabled = true;
+            break;
+        case TilePickTarget::fuzzyName :
+            break;
     }
     tilePickRequested_ = false;
     tilePickTarget_ = TilePickTarget::activeTile;
@@ -359,24 +379,24 @@ ToolStateChange ToolState::setPickedTileId(std::int32_t id) noexcept
     ToolStateChange result;
     switch (tilePickTarget_)
     {
-    case TilePickTarget::activeTile:
-        result = setActiveTileId(id);
-        break;
-    case TilePickTarget::replaceSource:
-        result = setReplaceSourceId(id);
-        break;
-    case TilePickTarget::replaceTarget:
-        result = setReplaceTargetId(id);
-        break;
-    case TilePickTarget::fuzzyId:
-        result = setFuzzyId(id);
-        break;
-    case TilePickTarget::fuzzyZ:
-        result = {.accepted = false, .changed = false, .reason = "Z picking requires a canvas tile"};
-        break;
-    case TilePickTarget::fuzzyName:
-        result = {.accepted = false, .changed = false, .reason = "Name picking requires Tiledata"};
-        break;
+        case TilePickTarget::activeTile :
+            result = setActiveTileId(id);
+            break;
+        case TilePickTarget::replaceSource :
+            result = setReplaceSourceId(id);
+            break;
+        case TilePickTarget::replaceTarget :
+            result = setReplaceTargetId(id);
+            break;
+        case TilePickTarget::fuzzyId :
+            result = setFuzzyId(id);
+            break;
+        case TilePickTarget::fuzzyZ :
+            result = {.accepted = false, .changed = false, .reason = "Z picking requires a canvas tile"};
+            break;
+        case TilePickTarget::fuzzyName :
+            result = {.accepted = false, .changed = false, .reason = "Name picking requires Tiledata"};
+            break;
     }
     if (result.accepted)
     {

@@ -2,8 +2,9 @@
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/state/workbench_state.h"
 #include "gui_model/layout/panel_registry.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/tools/tool_contracts.h"
+#include "gui_model/workspaces/map_workspace.h"
+#include "uomul/map/map.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <string>
@@ -103,7 +104,7 @@ TEST_CASE("toolCommands_Should_ActivateThroughRegistryWhenMapIsOpen")
     REQUIRE(state.commands.executeShortcut("P", state));
     REQUIRE(state.toolState.activeTool() == uo_mule::gui::ToolId::move);
 
-    static_cast<void>(state.workspace.closeMap());
+    REQUIRE(state.workspace.closeMap());
     std::filesystem::remove(mapPath);
 }
 
@@ -140,7 +141,7 @@ TEST_CASE("selectionCommands_Should_OperateOnTheActiveMapMask")
     REQUIRE(state.commands.execute(CommandId::selectionNone, state));
     REQUIRE(state.workspace.selectionMask().empty());
 
-    static_cast<void>(state.workspace.closeMap());
+    REQUIRE(state.workspace.closeMap());
     std::filesystem::remove(mapPath);
 }
 
@@ -162,7 +163,7 @@ TEST_CASE("selectionCommands_Should_SynchronizeToolRegionWithWorkspace")
     REQUIRE(state.toolState.selectionGranularity() == uo_mule::gui::ToolSelectionGranularity::tiles);
     REQUIRE(state.workspace.selectionMode() == uo_mule::gui::MapSelectionMode::tiles);
 
-    static_cast<void>(state.workspace.closeMap());
+    REQUIRE(state.workspace.closeMap());
     std::filesystem::remove(mapPath);
 }
 

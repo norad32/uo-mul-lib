@@ -6,12 +6,14 @@
 #include "gui/state/workbench_state.h"
 #include "gui/views/world/map_canvas_view.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/map_document.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/session/workbench_session.h"
-#include "gui_model/documents/document_contracts.h"
+#include "gui_model/tools/tool_contracts.h"
 #include "gui_model/tools/tool_state.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_canvas_state.h"
@@ -53,8 +55,8 @@ CommandAvailability requiresMapDocument(const WorkbenchState & state)
 ToolContext toolContext(const WorkbenchState & state)
 {
     const DocumentRecord * active = state.session.activeDocumentRecord();
-    const bool mapOpen = active != nullptr && active->summary.identity.kind == DocumentKind::map &&
-                         state.workspace.reader() != nullptr;
+    const bool mapOpen =
+        active != nullptr && active->summary.identity.kind == DocumentKind::map && state.workspace.reader() != nullptr;
     return {
         .mapDocumentOpen = mapOpen,
         .mapEditable = mapOpen && active->summary.access == DocumentAccess::editable,
@@ -192,18 +194,18 @@ CommandId toolCommandId(ToolId tool) noexcept
 {
     switch (tool)
     {
-    case ToolId::move:
-        return CommandId::toolMove;
-    case ToolId::rectangleSelect:
-        return CommandId::toolRectangleSelect;
-    case ToolId::lassoSelect:
-        return CommandId::toolLassoSelect;
-    case ToolId::fuzzySelect:
-        return CommandId::toolFuzzySelect;
-    case ToolId::fill:
-        return CommandId::toolFill;
-    case ToolId::replace:
-        return CommandId::toolReplace;
+        case ToolId::move :
+            return CommandId::toolMove;
+        case ToolId::rectangleSelect :
+            return CommandId::toolRectangleSelect;
+        case ToolId::lassoSelect :
+            return CommandId::toolLassoSelect;
+        case ToolId::fuzzySelect :
+            return CommandId::toolFuzzySelect;
+        case ToolId::fill :
+            return CommandId::toolFill;
+        case ToolId::replace :
+            return CommandId::toolReplace;
     }
     return CommandId::toolMove;
 }
@@ -277,7 +279,8 @@ const std::vector<Command> & CommandRegistry::commands() const noexcept
 
 void registerDefaultCommands(CommandRegistry & registry)
 {
-    add(registry,
+    add(
+        registry,
         CommandId::toolMove,
         "tool.move",
         "Pan",
@@ -286,7 +289,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "P",
         [](const WorkbenchState & state) { return requiresTool(ToolId::move, state); },
         [](WorkbenchState & state) { activateTool(state, ToolId::move); });
-    add(registry,
+    add(
+        registry,
         CommandId::toolRectangleSelect,
         "tool.rectangle-select",
         "Rectangle Select",
@@ -295,7 +299,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "R",
         [](const WorkbenchState & state) { return requiresTool(ToolId::rectangleSelect, state); },
         [](WorkbenchState & state) { activateTool(state, ToolId::rectangleSelect); });
-    add(registry,
+    add(
+        registry,
         CommandId::toolLassoSelect,
         "tool.lasso-select",
         "Free Select",
@@ -304,7 +309,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "F",
         [](const WorkbenchState & state) { return requiresTool(ToolId::lassoSelect, state); },
         [](WorkbenchState & state) { activateTool(state, ToolId::lassoSelect); });
-    add(registry,
+    add(
+        registry,
         CommandId::toolFuzzySelect,
         "tool.fuzzy-select",
         "Fuzzy Select",
@@ -313,7 +319,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "U",
         [](const WorkbenchState & state) { return requiresTool(ToolId::fuzzySelect, state); },
         [](WorkbenchState & state) { activateTool(state, ToolId::fuzzySelect); });
-    add(registry,
+    add(
+        registry,
         CommandId::toolFill,
         "tool.fill",
         "Fill",
@@ -322,7 +329,8 @@ void registerDefaultCommands(CommandRegistry & registry)
         "Shift+B",
         [](const WorkbenchState & state) { return requiresTool(ToolId::fill, state); },
         [](WorkbenchState & state) { activateTool(state, ToolId::fill); });
-    add(registry,
+    add(
+        registry,
         CommandId::toolReplace,
         "tool.replace",
         "Replace",
@@ -515,55 +523,55 @@ void registerDefaultCommands(CommandRegistry & registry)
         [](WorkbenchState & state) { state.fullscreenToggleRequested = true; });
 
     add(registry,
-         CommandId::panelToolPalette,
+        CommandId::panelToolPalette,
         "view.panel.tool-palette",
         "Tool Palette",
-         "Windows",
+        "Windows",
         "Show or hide the tool palette",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::toolPalette)); });
     add(registry,
-         CommandId::panelTileInspector,
+        CommandId::panelTileInspector,
         "view.panel.tile-inspector",
         "Tile Inspector",
-         "Windows",
+        "Windows",
         "Show or hide the tile inspector",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tileInspector)); });
     add(registry,
-         CommandId::panelBlockInspector,
+        CommandId::panelBlockInspector,
         "view.panel.block-inspector",
         "Block Inspector",
-         "Windows",
+        "Windows",
         "Show or hide the block inspector",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::blockInspector)); });
     add(registry,
-         CommandId::panelRadarcol,
+        CommandId::panelRadarcol,
         "view.panel.radarcol",
         "Radarcol",
-         "Windows",
+        "Windows",
         "Show or hide radar colors",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
     add(registry,
-         CommandId::panelTexmaps,
+        CommandId::panelTexmaps,
         "view.panel.texmaps",
         "Texmaps",
-         "Windows",
+        "Windows",
         "Show or hide textures",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::texmaps)); });
     add(registry,
-         CommandId::panelTiledata,
+        CommandId::panelTiledata,
         "view.panel.tiledata",
         "Tiledata",
-         "Windows",
+        "Windows",
         "Show or hide Tiledata records",
         "",
         enabled,

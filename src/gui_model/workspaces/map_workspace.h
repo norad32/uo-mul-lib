@@ -101,10 +101,9 @@ public:
     [[nodiscard]] std::expected<MapEditResult, uomul::Error> fillMasked(uomul::MapTile value, FillMode mode);
     [[nodiscard]] std::expected<MapEditResult, uomul::Error>
     replaceMasked(ReplaceMode mode, uomul::MapTile source, uomul::MapTile target);
-    [[nodiscard]] std::expected<std::size_t, uomul::Error>
-    fuzzySelect(FuzzySelectionOptions options,
-                uomul::TileCoord origin,
-                const FuzzyTiledataNameLookup & tiledataNameLookup = {});
+    [[nodiscard]] std::expected<std::size_t, uomul::Error> fuzzySelect(const FuzzySelectionOptions & options,
+                                                                       uomul::TileCoord origin,
+                                                                       const FuzzyTiledataNameLookup & tiledataNameLookup = {});
 
     [[nodiscard]] std::expected<std::optional<uomul::MapStats>, uomul::Error> selectionStats();
     [[nodiscard]] std::expected<void, uomul::Error> updateHover(uomul::TileCoord tile);

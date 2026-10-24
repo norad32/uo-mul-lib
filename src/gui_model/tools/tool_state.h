@@ -1,7 +1,7 @@
 #pragma once
 
-#include "gui_model/tools/tool_contracts.h"
 #include "gui_model/persistence/preferences.h"
+#include "gui_model/tools/tool_contracts.h"
 #include "uomul/map/map.h"
 #include <optional>
 
@@ -26,12 +26,9 @@ public:
     [[nodiscard]] bool tilePickRequested() const noexcept;
     [[nodiscard]] TilePickTarget tilePickTarget() const noexcept;
 
-    [[nodiscard]] ToolStateChange activate(ToolId tool,
-                                            const ToolContext & context,
-                                            const ToolRegistry & registry);
-    [[nodiscard]] ToolStateChange setSelectionGranularity(ToolSelectionGranularity granularity,
-                                                            const ToolContext & context,
-                                                            const ToolRegistry & registry);
+    [[nodiscard]] ToolStateChange activate(ToolId tool, const ToolContext & context, const ToolRegistry & registry);
+    [[nodiscard]] ToolStateChange
+    setSelectionGranularity(ToolSelectionGranularity granularity, const ToolContext & context, const ToolRegistry & registry);
     void setActiveTile(uomul::MapTile tile) noexcept;
     [[nodiscard]] ToolStateChange setActiveTileId(std::int32_t id) noexcept;
     [[nodiscard]] ToolStateChange setActiveTileZ(std::int32_t z) noexcept;

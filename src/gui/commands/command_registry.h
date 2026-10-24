@@ -1,11 +1,11 @@
 #pragma once
 
+#include "gui_model/tools/tool_contracts.h"
 #include <cstdint>
 #include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
-#include "gui_model/tools/tool_contracts.h"
 
 namespace uo_mule::gui
 {

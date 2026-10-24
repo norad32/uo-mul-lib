@@ -5,6 +5,7 @@
 #include "gui/workflows/file_operations.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/session/workbench_session.h"
+#include "gui_model/tools/tool_contracts.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include <imgui.h>
 #include <string>
@@ -114,8 +115,7 @@ void drawSelectMenu(WorkbenchState & state)
     }
 
     const MapSelectionMode selectionMode = state.workspace.selectionMode();
-    drawCommandItem(state, CommandId::toolRectangleSelect,
-                    state.toolState.activeTool() == ToolId::rectangleSelect);
+    drawCommandItem(state, CommandId::toolRectangleSelect, state.toolState.activeTool() == ToolId::rectangleSelect);
     drawCommandItem(state, CommandId::toolLassoSelect, state.toolState.activeTool() == ToolId::lassoSelect);
     drawCommandItem(state, CommandId::toolFuzzySelect, state.toolState.activeTool() == ToolId::fuzzySelect);
     ImGui::Separator();

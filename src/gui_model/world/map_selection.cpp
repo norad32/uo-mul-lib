@@ -1,13 +1,22 @@
 #include "gui_model/world/map_selection.h"
-#include "uomul/mul_common/mul_common.h"
+#include "gui_model/tools/tool_contracts.h"
+#include "uomul/map/map.h"
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace uo_mule::gui
 {
 namespace
 {
+
+constexpr unsigned coordinateKeyShift = 32U;
 
 std::uint32_t blockCount(std::uint32_t tiles) noexcept
 {
@@ -80,10 +89,8 @@ std::optional<uomul::TileRegion> MapSelectionMask::tileBounds(uomul::Dimensions 
                 }
                 minX = std::min(minX, blockMinX);
                 minY = std::min(minY, blockMinY);
-                maxExclusiveX = std::max(maxExclusiveX,
-                                         std::min(dimensions.widthTiles, blockMinX + uomul::mapBlockDimension));
-                maxExclusiveY = std::max(maxExclusiveY,
-                                         std::min(dimensions.heightTiles, blockMinY + uomul::mapBlockDimension));
+                maxExclusiveX = std::max(maxExclusiveX, std::min(dimensions.widthTiles, blockMinX + uomul::mapBlockDimension));
+                maxExclusiveY = std::max(maxExclusiveY, std::min(dimensions.heightTiles, blockMinY + uomul::mapBlockDimension));
             });
     }
 
@@ -106,7 +113,10 @@ void MapSelectionMask::forEachSelectedTile(const std::function<void(uomul::TileC
 
     for (const std::uint64_t key : selected_)
     {
-        callback({.x = static_cast<std::uint32_t>(key >> 32U), .y = static_cast<std::uint32_t>(key & 0xFFFFFFFFU)});
+        callback({
+            .x = static_cast<std::uint32_t>(key >> coordinateKeyShift),
+            .y = static_cast<std::uint32_t>(key),
+        });
     }
 }
 
@@ -119,7 +129,10 @@ void MapSelectionMask::forEachSelectedBlock(const std::function<void(uomul::Bloc
 
     for (const std::uint64_t key : selected_)
     {
-        callback({.x = static_cast<std::uint32_t>(key >> 32U), .y = static_cast<std::uint32_t>(key & 0xFFFFFFFFU)});
+        callback({
+            .x = static_cast<std::uint32_t>(key >> coordinateKeyShift),
+            .y = static_cast<std::uint32_t>(key),
+        });
     }
 }
 
@@ -211,6 +224,8 @@ void MapSelectionMask::replaceBlockRegion(uomul::BlockRegion region, uomul::Dime
     }
 }
 
+// The rasterizer intentionally handles polygon and clipped-block geometry in one pass.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void MapSelectionMask::replaceLasso(const std::vector<uomul::TileCoord> & path, uomul::Dimensions dimensions)
 {
     selected_.clear();
@@ -249,8 +264,7 @@ void MapSelectionMask::replaceLasso(const std::vector<uomul::TileCoord> & path, 
                 {
                     const double currentX = static_cast<double>(path.at(current).x);
                     const double previousX = static_cast<double>(path.at(previous).x);
-                    const double intersection = ((previousX - currentX) * (y - currentY) /
-                                                 (previousY - currentY)) + currentX;
+                    const double intersection = ((previousX - currentX) * (y - currentY) / (previousY - currentY)) + currentX;
                     if (x < intersection)
                     {
                         inside = !inside;
@@ -262,17 +276,9 @@ void MapSelectionMask::replaceLasso(const std::vector<uomul::TileCoord> & path, 
         };
 
         const auto orientation = [](double ax, double ay, double bx, double by, double cx, double cy)
-        {
-            return ((bx - ax) * (cy - ay)) - ((by - ay) * (cx - ax));
-        };
-        const auto segmentsIntersect = [&orientation](double aX,
-                                                       double aY,
-                                                       double bX,
-                                                       double bY,
-                                                       double cX,
-                                                       double cY,
-                                                       double dX,
-                                                       double dY)
+        { return ((bx - ax) * (cy - ay)) - ((by - ay) * (cx - ax)); };
+        const auto segmentsIntersect =
+            [&orientation](double aX, double aY, double bX, double bY, double cX, double cY, double dX, double dY)
         {
             constexpr double epsilon = 1.0e-9;
             const double first = orientation(aX, aY, bX, bY, cX, cY);
@@ -285,13 +291,9 @@ void MapSelectionMask::replaceLasso(const std::vector<uomul::TileCoord> & path, 
                     std::abs(third) <= epsilon || std::abs(fourth) <= epsilon);
         };
 
-        for (std::uint32_t blockY = minY / uomul::mapBlockDimension;
-             blockY <= maxY / uomul::mapBlockDimension;
-             blockY++)
+        for (std::uint32_t blockY = minY / uomul::mapBlockDimension; blockY <= maxY / uomul::mapBlockDimension; blockY++)
         {
-            for (std::uint32_t blockX = minX / uomul::mapBlockDimension;
-                 blockX <= maxX / uomul::mapBlockDimension;
-                 blockX++)
+            for (std::uint32_t blockX = minX / uomul::mapBlockDimension; blockX <= maxX / uomul::mapBlockDimension; blockX++)
             {
                 const std::uint32_t blockMinX = blockX * uomul::mapBlockDimension;
                 const std::uint32_t blockMinY = blockY * uomul::mapBlockDimension;
@@ -303,8 +305,7 @@ void MapSelectionMask::replaceLasso(const std::vector<uomul::TileCoord> & path, 
                 const double rectangleMaxY = static_cast<double>(blockMaxY);
                 bool intersects = pointInPolygon(rectangleMinX, rectangleMinY) ||
                                   pointInPolygon(rectangleMaxX, rectangleMinY) ||
-                                  pointInPolygon(rectangleMinX, rectangleMaxY) ||
-                                  pointInPolygon(rectangleMaxX, rectangleMaxY);
+                                  pointInPolygon(rectangleMinX, rectangleMaxY) || pointInPolygon(rectangleMaxX, rectangleMaxY);
                 for (std::size_t edge = 0; edge < path.size() && !intersects; edge++)
                 {
                     const std::size_t next = (edge + 1U) % path.size();
@@ -395,8 +396,8 @@ void MapSelectionMask::replaceLasso(const std::vector<uomul::TileCoord> & path, 
                 {
                     const double currentX = static_cast<double>(path.at(current).x);
                     const double previousX = static_cast<double>(path.at(previous).x);
-                    const double intersection = ((previousX - currentX) * (sampleY - currentY) /
-                                                 (previousY - currentY)) + currentX;
+                    const double intersection =
+                        ((previousX - currentX) * (sampleY - currentY) / (previousY - currentY)) + currentX;
                     if (sampleX < intersection)
                     {
                         inside = !inside;
@@ -417,14 +418,19 @@ void MapSelectionMask::selectAll(uomul::Dimensions dimensions)
     selected_.clear();
     if (granularity_ == ToolSelectionGranularity::tiles)
     {
-        replaceTileRegion(uomul::TileRegion{.min = {}, .maxExclusive = {.x = dimensions.widthTiles, .y = dimensions.heightTiles}},
-                          dimensions);
+        const uomul::TileRegion allTiles{
+            .min = {.x = 0U, .y = 0U},
+            .maxExclusive = {.x = dimensions.widthTiles, .y = dimensions.heightTiles},
+        };
+        replaceTileRegion(allTiles, dimensions);
         return;
     }
 
-    replaceBlockRegion({.min = {}, .maxExclusive = {.x = blockCount(dimensions.widthTiles),
-                                                    .y = blockCount(dimensions.heightTiles)}},
-                       dimensions);
+    const uomul::BlockRegion allBlocks{
+        .min = {.x = 0U, .y = 0U},
+        .maxExclusive = {.x = blockCount(dimensions.widthTiles), .y = blockCount(dimensions.heightTiles)},
+    };
+    replaceBlockRegion(allBlocks, dimensions);
 }
 
 void MapSelectionMask::invert(uomul::Dimensions dimensions)
@@ -505,14 +511,14 @@ void MapSelectionMask::convertTilesToCoveringBlocks(uomul::Dimensions dimensions
     selected_ = std::move(blocks);
 }
 
-std::uint64_t MapSelectionMask::tileKey(uomul::TileCoord coordinate) const noexcept
+std::uint64_t MapSelectionMask::tileKey(uomul::TileCoord coordinate) noexcept
 {
-    return (static_cast<std::uint64_t>(coordinate.x) << 32U) | coordinate.y;
+    return (static_cast<std::uint64_t>(coordinate.x) << coordinateKeyShift) | coordinate.y;
 }
 
-std::uint64_t MapSelectionMask::blockKey(uomul::BlockCoord coordinate) const noexcept
+std::uint64_t MapSelectionMask::blockKey(uomul::BlockCoord coordinate) noexcept
 {
-    return (static_cast<std::uint64_t>(coordinate.x) << 32U) | coordinate.y;
+    return (static_cast<std::uint64_t>(coordinate.x) << coordinateKeyShift) | coordinate.y;
 }
 
 bool selectionCellHasExposedEdge(const MapSelectionMask & mask,
@@ -524,24 +530,26 @@ bool selectionCellHasExposedEdge(const MapSelectionMask & mask,
 {
     if (mask.granularity() == ToolSelectionGranularity::tiles)
     {
-        if (x < 0 || y < 0 || x >= static_cast<std::int32_t>(dimensions.widthTiles) ||
-            y >= static_cast<std::int32_t>(dimensions.heightTiles) ||
+        const auto width = static_cast<std::int32_t>(dimensions.widthTiles);
+        const auto height = static_cast<std::int32_t>(dimensions.heightTiles);
+        if (x < 0 || y < 0 || x >= width || y >= height ||
             !mask.contains(uomul::TileCoord{.x = static_cast<std::uint32_t>(x), .y = static_cast<std::uint32_t>(y)}))
         {
             return false;
         }
         const std::int32_t neighborX = x + dx;
         const std::int32_t neighborY = y + dy;
-        return neighborX < 0 || neighborY < 0 || neighborX >= static_cast<std::int32_t>(dimensions.widthTiles) ||
-               neighborY >= static_cast<std::int32_t>(dimensions.heightTiles) ||
-               !mask.contains(uomul::TileCoord{.x = static_cast<std::uint32_t>(neighborX),
-                                               .y = static_cast<std::uint32_t>(neighborY)});
+        return neighborX < 0 || neighborY < 0 || neighborX >= width || neighborY >= height ||
+               !mask.contains(uomul::TileCoord{
+                   .x = static_cast<std::uint32_t>(neighborX),
+                   .y = static_cast<std::uint32_t>(neighborY),
+               });
     }
 
-    const std::int32_t blockWidth = static_cast<std::int32_t>((dimensions.widthTiles + uomul::mapBlockDimension - 1U) /
-                                                               uomul::mapBlockDimension);
-    const std::int32_t blockHeight = static_cast<std::int32_t>((dimensions.heightTiles + uomul::mapBlockDimension - 1U) /
-                                                                uomul::mapBlockDimension);
+    const std::int32_t blockWidth =
+        static_cast<std::int32_t>((dimensions.widthTiles + uomul::mapBlockDimension - 1U) / uomul::mapBlockDimension);
+    const std::int32_t blockHeight =
+        static_cast<std::int32_t>((dimensions.heightTiles + uomul::mapBlockDimension - 1U) / uomul::mapBlockDimension);
     if (x < 0 || y < 0 || x >= blockWidth || y >= blockHeight ||
         !mask.contains(uomul::BlockCoord{.x = static_cast<std::uint32_t>(x), .y = static_cast<std::uint32_t>(y)}))
     {
@@ -550,8 +558,10 @@ bool selectionCellHasExposedEdge(const MapSelectionMask & mask,
     const std::int32_t neighborX = x + dx;
     const std::int32_t neighborY = y + dy;
     return neighborX < 0 || neighborY < 0 || neighborX >= blockWidth || neighborY >= blockHeight ||
-           !mask.contains(uomul::BlockCoord{.x = static_cast<std::uint32_t>(neighborX),
-                                            .y = static_cast<std::uint32_t>(neighborY)});
+           !mask.contains(uomul::BlockCoord{
+               .x = static_cast<std::uint32_t>(neighborX),
+               .y = static_cast<std::uint32_t>(neighborY),
+           });
 }
 
 } // namespace uo_mule::gui

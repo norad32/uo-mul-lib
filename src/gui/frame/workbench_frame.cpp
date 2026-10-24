@@ -30,6 +30,7 @@
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/session/workbench_session.h"
+#include "gui_model/tools/tool_contracts.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_canvas_state.h"
 #include "gui_model/world/map_context.h"
@@ -38,7 +39,9 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
+#include <functional>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
@@ -60,6 +63,7 @@ namespace
 constexpr float dockLeftWidthRatio = 0.306F;
 constexpr float dockRightWidthRatio = 0.447F;
 constexpr float dockLeftBottomRatio = 0.5F;
+constexpr float toolDockSplitRatio = 0.38F;
 constexpr float statusBarHeight = 24.0F;
 constexpr float notificationLeftMargin = 16.0F;
 constexpr float notificationTopMargin = 48.0F;
@@ -75,7 +79,6 @@ constexpr std::size_t newShortcutIndex = 4;
 constexpr std::size_t quitShortcutIndex = 5;
 constexpr std::size_t goToShortcutIndex = 6;
 constexpr std::size_t fullscreenShortcutIndex = 7;
-constexpr std::size_t selectionShortcutCount = 3;
 
 struct ToolShortcut
 {
@@ -85,12 +88,12 @@ struct ToolShortcut
 };
 
 constexpr std::array<ToolShortcut, 6> toolShortcuts{
-    ToolShortcut{ImGuiKey_P, "P"},
-    ToolShortcut{ImGuiKey_R, "R"},
-    ToolShortcut{ImGuiKey_F, "F"},
-    ToolShortcut{ImGuiKey_U, "U"},
-    ToolShortcut{ImGuiKey_B, "Shift+B", true},
-    ToolShortcut{ImGuiKey_R, "Shift+R", true},
+    ToolShortcut{.key = ImGuiKey_P, .shortcut = "P"},
+    ToolShortcut{.key = ImGuiKey_R, .shortcut = "R"},
+    ToolShortcut{.key = ImGuiKey_F, .shortcut = "F"},
+    ToolShortcut{.key = ImGuiKey_U, .shortcut = "U"},
+    ToolShortcut{.key = ImGuiKey_B, .shortcut = "Shift+B", .shift = true},
+    ToolShortcut{.key = ImGuiKey_R, .shortcut = "Shift+R", .shift = true},
 };
 
 void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
@@ -133,7 +136,7 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         ImGui::DockBuilderSplitNode(dockSpaceId, ImGuiDir_Left, dockLeftWidthRatio, &leftNode, &centerNode);
         ImGui::DockBuilderSplitNode(centerNode, ImGuiDir_Right, dockRightWidthRatio, &rightNode, &centerNode);
         ImGui::DockBuilderSplitNode(leftNode, ImGuiDir_Down, dockLeftBottomRatio, &leftBottomNode, &leftTopNode);
-        ImGui::DockBuilderSplitNode(leftTopNode, ImGuiDir_Up, 0.38F, &toolNode, &leftTopNode);
+        ImGui::DockBuilderSplitNode(leftTopNode, ImGuiDir_Up, toolDockSplitRatio, &toolNode, &leftTopNode);
         for (const auto & document : state.session.documents())
         {
             ImGui::DockBuilderDockWindow(documentWindowName(document.summary).c_str(), centerNode);
@@ -503,6 +506,59 @@ void dockDocumentWindow()
     }
 }
 
+void reportOperation(WorkbenchState & state, std::string message, bool success)
+{
+    state.operationStatus = std::move(message);
+    state.operationStatusSeverity = success ? NotificationSeverity::success : NotificationSeverity::error;
+}
+
+void executeMapEdit(WorkbenchState & state, uomul::TileCoord origin)
+{
+    if (state.toolState.activeTool() == ToolId::fill)
+    {
+        const auto result =
+            state.workspace.fillMasked(state.toolState.activeTile().value_or(uomul::MapTile{}), state.toolState.fillMode());
+        reportOperation(state,
+                        result ? "Filled " + std::to_string(result->changedTiles) + " tiles" : result.error().message,
+                        result.has_value());
+        return;
+    }
+    if (state.toolState.activeTool() == ToolId::replace)
+    {
+        const auto result = state.workspace.replaceMasked(
+            state.toolState.replaceMode(), state.toolState.replaceSource(), state.toolState.replaceTarget());
+        reportOperation(state,
+                        result ? "Replaced " + std::to_string(result->changedTiles) + " tiles" : result.error().message,
+                        result.has_value());
+        return;
+    }
+    if (state.toolState.activeTool() == ToolId::fuzzySelect)
+    {
+        const FuzzyTiledataNameLookup nameLookup = [&state](std::uint16_t id) -> std::optional<std::string>
+        {
+            const auto tile = state.providers.tiledata().mapTile(id);
+            return tile ? std::optional<std::string>{tile->record.name} : std::nullopt;
+        };
+        const auto result = state.workspace.fuzzySelect(state.toolState.fuzzyOptions(), origin, nameLookup);
+        reportOperation(
+            state, result ? "Selected " + std::to_string(*result) + " tiles" : result.error().message, result.has_value());
+    }
+}
+
+[[nodiscard]] std::function<void(uomul::TileCoord)> mapEditCallback(WorkbenchState & state)
+{
+    return [&state](uomul::TileCoord origin) { executeMapEdit(state, origin); };
+}
+
+[[nodiscard]] std::function<std::optional<std::string>(std::uint16_t)> tiledataNameCallback(WorkbenchState & state)
+{
+    return [&state](std::uint16_t id) -> std::optional<std::string>
+    {
+        const auto tile = state.providers.tiledata().mapTile(id);
+        return tile ? std::optional<std::string>{tile->record.name} : std::nullopt;
+    };
+}
+
 void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
 {
     const std::string windowName = documentWindowName(document.summary);
@@ -516,71 +572,13 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             state.providers.textures(),
             state.providers.radarColors(),
             state.preferences.mapViewTileSource,
-             windowName,
-             [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); },
-             [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
-             [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
-             [&state](uomul::TileCoord origin)
-             {
-                 if (state.toolState.activeTool() == ToolId::fill)
-                 {
-                     const auto result = state.workspace.fillMasked(
-                         state.toolState.activeTile().value_or(uomul::MapTile{}), state.toolState.fillMode());
-                     if (result)
-                     {
-                         state.operationStatus = "Filled " + std::to_string(result->changedTiles) + " tiles";
-                         state.operationStatusSeverity = NotificationSeverity::success;
-                     }
-                     else
-                     {
-                         state.operationStatus = result.error().message;
-                         state.operationStatusSeverity = NotificationSeverity::error;
-                     }
-                     return;
-                 }
-
-                 if (state.toolState.activeTool() == ToolId::replace)
-                 {
-                     const auto result = state.workspace.replaceMasked(state.toolState.replaceMode(),
-                                                                        state.toolState.replaceSource(),
-                                                                        state.toolState.replaceTarget());
-                     if (result)
-                     {
-                         state.operationStatus = "Replaced " + std::to_string(result->changedTiles) + " tiles";
-                         state.operationStatusSeverity = NotificationSeverity::success;
-                     }
-                     else
-                     {
-                         state.operationStatus = result.error().message;
-                         state.operationStatusSeverity = NotificationSeverity::error;
-                     }
-                 }
-                 if (state.toolState.activeTool() == ToolId::fuzzySelect)
-                 {
-                     const FuzzyTiledataNameLookup nameLookup = [&state](std::uint16_t id) -> std::optional<std::string>
-                     {
-                         const auto tile = state.providers.tiledata().mapTile(id);
-                         return tile ? std::optional<std::string>{tile->record.name} : std::nullopt;
-                     };
-                     const auto result = state.workspace.fuzzySelect(state.toolState.fuzzyOptions(), origin, nameLookup);
-                     if (result)
-                     {
-                         state.operationStatus = "Selected " + std::to_string(*result) + " tiles";
-                         state.operationStatusSeverity = NotificationSeverity::success;
-                     }
-                     else
-                     {
-                         state.operationStatus = result.error().message;
-                         state.operationStatusSeverity = NotificationSeverity::error;
-                     }
-                 }
-             },
-              [&state](std::uint16_t id) -> std::optional<std::string>
-              {
-                  const auto tile = state.providers.tiledata().mapTile(id);
-                  return tile ? std::optional<std::string>{tile->record.name} : std::nullopt;
-              },
-              [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
+            windowName,
+            [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); },
+            [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
+            [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
+            mapEditCallback(state),
+            tiledataNameCallback(state),
+            [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
             visible);
         if (!visible)
         {
@@ -863,46 +861,38 @@ void applyPendingDocumentAction(WorkbenchState & state)
     }
 }
 
-void dispatchShortcuts(WorkbenchState & state, bool allowFullscreen)
+[[nodiscard]] bool dispatchToolShortcuts(WorkbenchState & state)
 {
-    if (ImGui::GetIO().WantTextInput || ImGui::GetIO().WantCaptureKeyboard)
-    {
-        return;
-    }
     for (const ToolShortcut & shortcut : toolShortcuts)
     {
-        if (ImGui::GetIO().KeyShift != shortcut.shift || ImGui::GetIO().KeyCtrl ||
-            ImGui::IsKeyPressed(shortcut.key, false) == false)
+        if (ImGui::GetIO().KeyShift != shortcut.shift || ImGui::GetIO().KeyCtrl || !ImGui::IsKeyPressed(shortcut.key, false))
         {
             continue;
         }
-        if (state.commands.executeShortcut(shortcut.shortcut, state))
-        {
-            return;
-        }
+        return state.commands.executeShortcut(shortcut.shortcut, state);
     }
-    const std::array<std::pair<ImGuiKey, std::string_view>, selectionShortcutCount> selectionShortcuts{
-        std::pair{ImGuiKey_A, "Ctrl+A"},
-        std::pair{ImGuiKey_A, "Ctrl+Shift+A"},
-        std::pair{ImGuiKey_I, "Ctrl+I"},
-    };
-    if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift &&
-        ImGui::IsKeyPressed(selectionShortcuts.at(1).first, false))
+    return false;
+}
+
+[[nodiscard]] bool dispatchSelectionShortcuts(WorkbenchState & state)
+{
+    if (!ImGui::GetIO().KeyCtrl)
     {
-        static_cast<void>(state.commands.executeShortcut(selectionShortcuts.at(1).second, state));
-        return;
+        return false;
     }
-    if (ImGui::GetIO().KeyCtrl && !ImGui::GetIO().KeyShift &&
-        ImGui::IsKeyPressed(selectionShortcuts.at(0).first, false))
+    if (ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_A, false))
     {
-        static_cast<void>(state.commands.executeShortcut(selectionShortcuts.at(0).second, state));
-        return;
+        return state.commands.executeShortcut("Ctrl+Shift+A", state);
     }
-    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(selectionShortcuts.at(2).first, false))
+    if (!ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_A, false))
     {
-        static_cast<void>(state.commands.executeShortcut(selectionShortcuts.at(2).second, state));
-        return;
+        return state.commands.executeShortcut("Ctrl+A", state);
     }
+    return ImGui::IsKeyPressed(ImGuiKey_I, false) && state.commands.executeShortcut("Ctrl+I", state);
+}
+
+[[nodiscard]] bool dispatchGeneralShortcut(WorkbenchState & state, bool allowFullscreen)
+{
     const std::array<std::pair<ImGuiKey, std::string_view>, shortcutCount> shortcuts{
         std::pair{ImGuiKey_GraveAccent, "`"},
         std::pair{ImGuiKey_S, "Ctrl+Shift+S"},
@@ -913,40 +903,36 @@ void dispatchShortcuts(WorkbenchState & state, bool allowFullscreen)
         std::pair{ImGuiKey_G, "Ctrl+G"},
         std::pair{ImGuiKey_F11, "F11"},
     };
+    const auto execute = [&state, &shortcuts](std::size_t index)
+    { return state.commands.executeShortcut(shortcuts.at(index).second, state); };
     if (ImGui::IsKeyPressed(shortcuts.at(graveShortcutIndex).first, false))
+        return execute(graveShortcutIndex);
+    if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift &&
+        ImGui::IsKeyPressed(shortcuts.at(saveAsShortcutIndex).first, false))
+        return execute(saveAsShortcutIndex);
+    if (ImGui::GetIO().KeyCtrl && !ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(shortcuts.at(saveShortcutIndex).first, false))
+        return execute(saveShortcutIndex);
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(openShortcutIndex).first, false))
+        return execute(openShortcutIndex);
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(newShortcutIndex).first, false))
+        return execute(newShortcutIndex);
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(quitShortcutIndex).first, false))
+        return execute(quitShortcutIndex);
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(goToShortcutIndex).first, false))
+        return execute(goToShortcutIndex);
+    return allowFullscreen && ImGui::IsKeyPressed(shortcuts.at(fullscreenShortcutIndex).first, false) &&
+           execute(fullscreenShortcutIndex);
+}
+
+void dispatchShortcuts(WorkbenchState & state, bool allowFullscreen)
+{
+    if (ImGui::GetIO().WantTextInput || ImGui::GetIO().WantCaptureKeyboard)
     {
-        static_cast<void>(state.commands.executeShortcut(shortcuts.at(graveShortcutIndex).second, state));
+        return;
     }
-    else if (ImGui::GetIO().KeyCtrl && ImGui::GetIO().KeyShift &&
-             ImGui::IsKeyPressed(shortcuts.at(saveAsShortcutIndex).first, false))
-    {
-        static_cast<void>(state.commands.executeShortcut(shortcuts.at(saveAsShortcutIndex).second, state));
-    }
-    else if (ImGui::GetIO().KeyCtrl && !ImGui::GetIO().KeyShift &&
-             ImGui::IsKeyPressed(shortcuts.at(saveShortcutIndex).first, false))
-    {
-        static_cast<void>(state.commands.executeShortcut(shortcuts.at(saveShortcutIndex).second, state));
-    }
-    else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(openShortcutIndex).first, false))
-    {
-        static_cast<void>(state.commands.executeShortcut(shortcuts.at(openShortcutIndex).second, state));
-    }
-    else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(newShortcutIndex).first, false))
-    {
-        static_cast<void>(state.commands.executeShortcut(shortcuts.at(newShortcutIndex).second, state));
-    }
-    else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(quitShortcutIndex).first, false))
-    {
-        static_cast<void>(state.commands.executeShortcut(shortcuts.at(quitShortcutIndex).second, state));
-    }
-    else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(goToShortcutIndex).first, false))
-    {
-        static_cast<void>(state.commands.executeShortcut(shortcuts.at(goToShortcutIndex).second, state));
-    }
-    else if (allowFullscreen && ImGui::IsKeyPressed(shortcuts.at(fullscreenShortcutIndex).first, false))
-    {
-        static_cast<void>(state.commands.executeShortcut(shortcuts.at(fullscreenShortcutIndex).second, state));
-    }
+    if (dispatchToolShortcuts(state) || dispatchSelectionShortcuts(state))
+        return;
+    static_cast<void>(dispatchGeneralShortcut(state, allowFullscreen));
 }
 
 void beginGuiFrame()

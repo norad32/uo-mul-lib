@@ -100,7 +100,7 @@ struct ToolDescriptor
     ToolCategory category;
     std::string description;
     std::string defaultShortcut;
-    ToolAvailability availability(const ToolContext & context) const;
+    [[nodiscard]] ToolAvailability availability(const ToolContext & context) const;
 };
 
 class ToolRegistry

@@ -1,5 +1,7 @@
 #include "gui_model/tools/tool_contracts.h"
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace uo_mule::gui
 {
@@ -39,23 +41,23 @@ ToolAvailability ToolDescriptor::availability(const ToolContext & context) const
 {
     switch (id)
     {
-    case ToolId::move:
-    case ToolId::rectangleSelect:
-    case ToolId::lassoSelect:
-        return requiresMap(context);
-    case ToolId::fuzzySelect:
-        if (const ToolAvailability map = requiresMap(context); !map.enabled)
-        {
-            return map;
-        }
-        if (context.selectionGranularity == ToolSelectionGranularity::blocks)
-        {
-            return {.enabled = false, .disabledReason = "Fuzzy Select supports tiles only"};
-        }
-        return enabled();
-    case ToolId::fill:
-    case ToolId::replace:
-        return requiresEditableMap(context);
+        case ToolId::move :
+        case ToolId::rectangleSelect :
+        case ToolId::lassoSelect :
+            return requiresMap(context);
+        case ToolId::fuzzySelect :
+            if (const ToolAvailability map = requiresMap(context); !map.enabled)
+            {
+                return map;
+            }
+            if (context.selectionGranularity == ToolSelectionGranularity::blocks)
+            {
+                return {.enabled = false, .disabledReason = "Fuzzy Select supports tiles only"};
+            }
+            return enabled();
+        case ToolId::fill :
+        case ToolId::replace :
+            return requiresEditableMap(context);
     }
 
     return {.enabled = false, .disabledReason = "Unknown tool"};

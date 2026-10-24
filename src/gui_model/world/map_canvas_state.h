@@ -1,9 +1,9 @@
 #pragma once
 
 #include "gui_model/input/coordinate_parser.h"
+#include "gui_model/persistence/preferences.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_color.h"
-#include "gui_model/persistence/preferences.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>

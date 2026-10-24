@@ -45,8 +45,8 @@ public:
     void convertTilesToCoveringBlocks(uomul::Dimensions dimensions);
 
 private:
-    [[nodiscard]] std::uint64_t tileKey(uomul::TileCoord coordinate) const noexcept;
-    [[nodiscard]] std::uint64_t blockKey(uomul::BlockCoord coordinate) const noexcept;
+    [[nodiscard]] static std::uint64_t tileKey(uomul::TileCoord coordinate) noexcept;
+    [[nodiscard]] static std::uint64_t blockKey(uomul::BlockCoord coordinate) noexcept;
 
     ToolSelectionGranularity granularity_ = ToolSelectionGranularity::tiles;
     std::unordered_set<std::uint64_t> selected_;

@@ -1,10 +1,14 @@
+#include "gui_model/tools/tool_contracts.h"
 #include "gui_model/world/map_selection.h"
+#include "uomul/map/map.h"
 #include <catch2/catch_test_macros.hpp>
+#include <vector>
 
 using uo_mule::gui::MapSelectionMask;
 using uo_mule::gui::selectionCellHasExposedEdge;
 using uo_mule::gui::ToolSelectionGranularity;
 
+// NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 TEST_CASE("selectionMask_Should_ReplaceRegionsAtTheRequestedGranularity")
 {
     MapSelectionMask mask;
@@ -102,10 +106,11 @@ TEST_CASE("selectionMask_Should_ExposeSparseTileBounds")
 
     const auto bounds = mask.tileBounds(dimensions);
     REQUIRE(bounds.has_value());
-    REQUIRE(bounds->min.x == 5);
-    REQUIRE(bounds->min.y == 2);
-    REQUIRE(bounds->maxExclusive.x == 13);
-    REQUIRE(bounds->maxExclusive.y == 8);
+    const auto boundsValue = bounds.value_or(uomul::TileRegion{});
+    REQUIRE(boundsValue.min.x == 5);
+    REQUIRE(boundsValue.min.y == 2);
+    REQUIRE(boundsValue.maxExclusive.x == 13);
+    REQUIRE(boundsValue.maxExclusive.y == 8);
 }
 
 TEST_CASE("selectionMask_Should_IgnoreCombinesAtDifferentGranularities")
@@ -113,9 +118,9 @@ TEST_CASE("selectionMask_Should_IgnoreCombinesAtDifferentGranularities")
     MapSelectionMask tiles;
     MapSelectionMask blocks;
     const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};
-    tiles.replaceTileRegion({.min = {}, .maxExclusive = {.x = 1, .y = 1}}, dimensions);
+    tiles.replaceTileRegion({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, dimensions);
     blocks.setGranularity(ToolSelectionGranularity::blocks);
-    blocks.replaceBlockRegion({.min = {}, .maxExclusive = {.x = 1, .y = 1}}, dimensions);
+    blocks.replaceBlockRegion({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}}, dimensions);
 
     tiles.add(blocks);
     REQUIRE(tiles.size() == 1);
@@ -128,7 +133,10 @@ TEST_CASE("selectionMask_Should_RasterizeTileLassoByCellCenters")
     MapSelectionMask mask;
     const uomul::Dimensions dimensions{.widthTiles = 6, .heightTiles = 6};
     const std::vector<uomul::TileCoord> path{
-        {.x = 1, .y = 1}, {.x = 4, .y = 1}, {.x = 4, .y = 4}, {.x = 1, .y = 4},
+        {.x = 1, .y = 1},
+        {.x = 4, .y = 1},
+        {.x = 4, .y = 4},
+        {.x = 1, .y = 4},
     };
 
     mask.replaceLasso(path, dimensions);
@@ -144,7 +152,9 @@ TEST_CASE("selectionMask_Should_RasterizeBlockLassoByTouchedBlocks")
     const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
     mask.setGranularity(ToolSelectionGranularity::blocks);
     const std::vector<uomul::TileCoord> path{
-        {.x = 7, .y = 1}, {.x = 9, .y = 1}, {.x = 9, .y = 9},
+        {.x = 7, .y = 1},
+        {.x = 9, .y = 1},
+        {.x = 9, .y = 9},
     };
 
     mask.replaceLasso(path, dimensions);
@@ -165,3 +175,5 @@ TEST_CASE("selectionMask_Should_ExposeOnlyOuterEdgesForAdjacentCells")
     REQUIRE_FALSE(selectionCellHasExposedEdge(mask, 1, 1, 1, 0, dimensions));
     REQUIRE_FALSE(selectionCellHasExposedEdge(mask, 1, 1, 0, 1, dimensions));
 }
+
+// NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)

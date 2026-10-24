@@ -1,6 +1,7 @@
 #include "core/app_info.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/persistence/preferences_store.h"
+#include "gui_model/tools/tool_contracts.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <filesystem>
@@ -124,6 +125,7 @@ TEST_CASE("preferences_Should_PersistLastActiveProfile")
 
 TEST_CASE("savePreferences_Should_RoundTripToolOptionsWithoutSelectionState")
 {
+    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     const auto preferencesFile = std::filesystem::temp_directory_path() / "pref-tools" / "preferences.conf";
     std::filesystem::remove_all(preferencesFile.parent_path());
     uo_mule::gui::Preferences expected;
@@ -163,4 +165,5 @@ TEST_CASE("savePreferences_Should_RoundTripToolOptionsWithoutSelectionState")
     REQUIRE(actual.tools.fuzzy.z == -4);
     REQUIRE(actual.tools.fuzzy.name == "granite floor");
     std::filesystem::remove_all(preferencesFile.parent_path());
+    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 }

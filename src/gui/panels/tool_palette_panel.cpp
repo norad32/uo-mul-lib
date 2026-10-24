@@ -3,15 +3,20 @@
 #include "gui/presentation/theme/theme.h"
 #include "gui/state/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/map_document.h"
+#include "gui_model/persistence/preferences.h"
+#include "gui_model/providers/data_providers.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/tools/tool_contracts.h"
+#include "gui_model/workspaces/map_workspace.h"
 #include "imgui.h"
+#include "uomul/map/map.h"
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
-#include <ranges>
 #include <string>
 
 namespace uo_mule::gui
@@ -19,11 +24,13 @@ namespace uo_mule::gui
 namespace
 {
 
+constexpr std::size_t fuzzyNameBufferSize = 128U;
+
 ToolContext toolContext(const WorkbenchState & state)
 {
     const DocumentRecord * active = state.session.activeDocumentRecord();
-    const bool mapOpen = active != nullptr && active->summary.identity.kind == DocumentKind::map &&
-                         state.workspace.reader() != nullptr;
+    const bool mapOpen =
+        active != nullptr && active->summary.identity.kind == DocumentKind::map && state.workspace.reader() != nullptr;
     const bool mapEditable = mapOpen && active->summary.access == DocumentAccess::editable;
     return {
         .mapDocumentOpen = mapOpen,
@@ -42,7 +49,7 @@ void drawPlaceholder(const char * text)
     ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", text);
 }
 
-void drawTileInput(WorkbenchState & state,
+void drawTileInput(const WorkbenchState & state,
                    const char * label,
                    const char * idLabel,
                    const char * zLabel,
@@ -52,10 +59,10 @@ void drawTileInput(WorkbenchState & state,
 {
     const bool hexadecimalIds = state.preferences.idFormat == IdFormat::hexadecimal;
     const char * idInputFormat = hexadecimalIds ? "%04X" : "%u";
-    const ImGuiInputTextFlags idInputFlags = hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal
-                                                            : ImGuiInputTextFlags_CharsDecimal;
+    const ImGuiInputTextFlags idInputFlags =
+        hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal : ImGuiInputTextFlags_CharsDecimal;
     std::uint16_t id = tile.id;
-    int z = static_cast<int>(tile.z);
+    int z = static_cast<int>(static_cast<std::int16_t>(tile.z));
     ImGui::PushID(label);
     ImGui::TextUnformatted(label);
     if (ImGui::InputScalar(idLabel, ImGuiDataType_U16, &id, nullptr, nullptr, idInputFormat, idInputFlags))
@@ -132,13 +139,14 @@ void drawReplaceOptions(WorkbenchState & state)
             drawPlaceholder(result.reason.c_str());
         }
     }
-    drawTileInput(state,
-                  "Source",
-                  "ID##replace.source.id",
-                  "Z##replace.source.z",
-                  state.toolState.replaceSource(),
-                  [&state](std::int32_t id) { return state.toolState.setReplaceSourceId(id); },
-                  [&state](std::int32_t z) { return state.toolState.setReplaceSourceZ(z); });
+    drawTileInput(
+        state,
+        "Source",
+        "ID##replace.source.id",
+        "Z##replace.source.z",
+        state.toolState.replaceSource(),
+        [&state](std::int32_t id) { return state.toolState.setReplaceSourceId(id); },
+        [&state](std::int32_t z) { return state.toolState.setReplaceSourceZ(z); });
     drawPickButton(state, "Pick Source##replace.pick-source", TilePickTarget::replaceSource);
     ImGui::SameLine();
     if (ImGui::Button("From Active Tile##replace.source.active"))
@@ -149,13 +157,14 @@ void drawReplaceOptions(WorkbenchState & state)
             drawPlaceholder(result.reason.c_str());
         }
     }
-    drawTileInput(state,
-                  "Target",
-                  "ID##replace.target.id",
-                  "Z##replace.target.z",
-                  state.toolState.replaceTarget(),
-                  [&state](std::int32_t id) { return state.toolState.setReplaceTargetId(id); },
-                  [&state](std::int32_t z) { return state.toolState.setReplaceTargetZ(z); });
+    drawTileInput(
+        state,
+        "Target",
+        "ID##replace.target.id",
+        "Z##replace.target.z",
+        state.toolState.replaceTarget(),
+        [&state](std::int32_t id) { return state.toolState.setReplaceTargetId(id); },
+        [&state](std::int32_t z) { return state.toolState.setReplaceTargetZ(z); });
     drawPickButton(state, "Pick Target##replace.pick-target", TilePickTarget::replaceTarget);
     ImGui::SameLine();
     if (ImGui::Button("From Active Tile##replace.target.active"))
@@ -191,15 +200,9 @@ void drawFuzzyOptions(WorkbenchState & state)
     std::uint16_t id = options.id;
     const bool hexadecimalIds = state.preferences.idFormat == IdFormat::hexadecimal;
     const char * idInputFormat = hexadecimalIds ? "%04X" : "%u";
-    const ImGuiInputTextFlags idInputFlags = hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal
-                                                            : ImGuiInputTextFlags_CharsDecimal;
-    if (ImGui::InputScalar("##fuzzy.id.value",
-                           ImGuiDataType_U16,
-                           &id,
-                           nullptr,
-                           nullptr,
-                           idInputFormat,
-                           idInputFlags))
+    const ImGuiInputTextFlags idInputFlags =
+        hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal : ImGuiInputTextFlags_CharsDecimal;
+    if (ImGui::InputScalar("##fuzzy.id.value", ImGuiDataType_U16, &id, nullptr, nullptr, idInputFormat, idInputFlags))
     {
         static_cast<void>(state.toolState.setFuzzyId(static_cast<std::int32_t>(id)));
     }
@@ -212,7 +215,7 @@ void drawFuzzyOptions(WorkbenchState & state)
         state.toolState.setFuzzyZEnabled(zEnabled);
     }
     ImGui::SameLine();
-    int z = static_cast<int>(options.z);
+    int z = static_cast<int>(static_cast<std::int16_t>(options.z));
     if (ImGui::InputInt("##fuzzy.z.value", &z, 0, 0, ImGuiInputTextFlags_CharsDecimal))
     {
         static_cast<void>(state.toolState.setFuzzyZ(z));
@@ -228,9 +231,9 @@ void drawFuzzyOptions(WorkbenchState & state)
         state.toolState.setFuzzyNameEnabled(nameEnabled);
     }
     ImGui::SameLine();
-    std::array<char, 128> name{};
+    std::array<char, fuzzyNameBufferSize> name{};
     const auto copyLength = std::min(options.name.size(), name.size() - 1U);
-    std::ranges::copy_n(options.name.begin(), static_cast<std::ptrdiff_t>(copyLength), name.begin());
+    std::copy_n(options.name.begin(), static_cast<std::ptrdiff_t>(copyLength), name.begin());
     if (ImGui::InputText("##fuzzy.name.value", name.data(), name.size()))
     {
         state.toolState.setFuzzyName(std::string(name.data()));
@@ -276,24 +279,14 @@ void drawToolButton(WorkbenchState & state, const ToolDescriptor & tool, const T
     }
 }
 
-} // namespace
-
-void drawToolPalettePanel(WorkbenchState & state, bool & visible)
+void drawToolGrid(WorkbenchState & state, const ToolContext & context)
 {
-    if (!ImGui::Begin("Tool Palette###view.tool-palette", &visible))
-    {
-        ImGui::End();
-        return;
-    }
-
-    const ToolContext context = toolContext(state);
     const float availableWidth = std::max(1.0F, ImGui::GetContentRegionAvail().x);
     constexpr float minimumButtonWidth = 104.0F;
     constexpr float buttonSpacing = 8.0F;
-    const int columns = std::max(1, static_cast<int>((availableWidth + buttonSpacing) /
-                                                     (minimumButtonWidth + buttonSpacing)));
-    const float buttonWidth = (availableWidth - (static_cast<float>(columns - 1) * buttonSpacing)) /
-                              static_cast<float>(columns);
+    const int columns = std::max(1, static_cast<int>((availableWidth + buttonSpacing) / (minimumButtonWidth + buttonSpacing)));
+    const float buttonWidth =
+        (availableWidth - (static_cast<float>(columns - 1) * buttonSpacing)) / static_cast<float>(columns);
 
     drawSectionHeading("Tools");
     std::size_t index = 0;
@@ -306,8 +299,41 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
             ImGui::SameLine();
         }
     }
+}
 
-    ImGui::NewLine();
+void drawSelectionGranularity(WorkbenchState & state, const ToolContext & context)
+{
+    const ToolId activeTool = state.toolState.activeTool();
+    if (activeTool != ToolId::rectangleSelect && activeTool != ToolId::lassoSelect)
+    {
+        return;
+    }
+
+    const bool blocks = state.toolState.selectionGranularity() == ToolSelectionGranularity::blocks;
+    ImGui::TextUnformatted("Region");
+    if (ImGui::RadioButton("Tiles", !blocks))
+    {
+        const auto result =
+            state.toolState.setSelectionGranularity(ToolSelectionGranularity::tiles, context, state.toolRegistry);
+        if (result.accepted && state.workspace.selectionMode() != MapSelectionMode::tiles)
+        {
+            state.workspace.setSelectionMode(MapSelectionMode::tiles);
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::RadioButton("Blocks", blocks))
+    {
+        const auto result =
+            state.toolState.setSelectionGranularity(ToolSelectionGranularity::blocks, context, state.toolRegistry);
+        if (result.accepted && state.workspace.selectionMode() != MapSelectionMode::blocks)
+        {
+            state.workspace.setSelectionMode(MapSelectionMode::blocks);
+        }
+    }
+}
+
+void drawActiveToolOptions(WorkbenchState & state, const ToolContext & context)
+{
     drawSectionHeading("Tool Options");
     const ToolDescriptor * activeTool = state.toolRegistry.find(state.toolState.activeTool());
     if (activeTool != nullptr)
@@ -329,47 +355,19 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
         }
     }
 
-    if (state.toolState.activeTool() == ToolId::rectangleSelect || state.toolState.activeTool() == ToolId::lassoSelect)
-    {
-        const bool blocks = state.toolState.selectionGranularity() == ToolSelectionGranularity::blocks;
-        ImGui::TextUnformatted("Region");
-        if (ImGui::RadioButton("Tiles", !blocks))
-        {
-            const auto result = state.toolState.setSelectionGranularity(ToolSelectionGranularity::tiles,
-                                                                          context,
-                                                                          state.toolRegistry);
-            if (result.accepted)
-            {
-                if (state.workspace.selectionMode() != MapSelectionMode::tiles)
-                {
-                    state.workspace.setSelectionMode(MapSelectionMode::tiles);
-                }
-            }
-        }
-        ImGui::SameLine();
-        if (ImGui::RadioButton("Blocks", blocks))
-        {
-            const auto result = state.toolState.setSelectionGranularity(ToolSelectionGranularity::blocks,
-                                                                          context,
-                                                                          state.toolRegistry);
-            if (result.accepted)
-            {
-                if (state.workspace.selectionMode() != MapSelectionMode::blocks)
-                {
-                    state.workspace.setSelectionMode(MapSelectionMode::blocks);
-                }
-            }
-        }
-    }
+    drawSelectionGranularity(state, context);
+}
 
+void drawActiveTile(WorkbenchState & state)
+{
     drawSectionHeading("Active Tile");
     const uomul::MapTile activeTile = state.toolState.activeTile().value_or(uomul::MapTile{});
     std::uint16_t tileId = activeTile.id;
-    int tileZ = static_cast<int>(activeTile.z);
+    int tileZ = static_cast<int>(static_cast<std::int16_t>(activeTile.z));
     const bool hexadecimalIds = state.preferences.idFormat == IdFormat::hexadecimal;
     const char * idInputFormat = hexadecimalIds ? "%04X" : "%u";
-    const ImGuiInputTextFlags idInputFlags = hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal
-                                                            : ImGuiInputTextFlags_CharsDecimal;
+    const ImGuiInputTextFlags idInputFlags =
+        hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal : ImGuiInputTextFlags_CharsDecimal;
     if (ImGui::InputScalar("ID", ImGuiDataType_U16, &tileId, nullptr, nullptr, idInputFormat, idInputFlags))
     {
         const auto result = state.toolState.setActiveTileId(static_cast<std::int32_t>(tileId));
@@ -394,6 +392,23 @@ void drawToolPalettePanel(WorkbenchState & state, bool & visible)
     {
         drawPlaceholder("Click a tile or item in Canvas, Radarcol, Texmaps, or Tiledata.");
     }
+}
+
+} // namespace
+
+void drawToolPalettePanel(WorkbenchState & state, bool & visible)
+{
+    if (!ImGui::Begin("Tool Palette###view.tool-palette", &visible))
+    {
+        ImGui::End();
+        return;
+    }
+
+    const ToolContext context = toolContext(state);
+    drawToolGrid(state, context);
+    ImGui::NewLine();
+    drawActiveToolOptions(state, context);
+    drawActiveTile(state);
     ImGui::End();
 }
 

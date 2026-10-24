@@ -296,10 +296,8 @@ loadRadarcolDetails(const uomul::RadarColReader * reader, const assets::AssetIte
     };
 }
 
-[[nodiscard]] assets::AssetAdapter makeAdapter(RadarcolPanelState & state,
-                                               const RadarColorProvider & provider,
-                                               IdFormat idFormat,
-                                               std::string viewId)
+[[nodiscard]] assets::AssetAdapter
+makeAdapter(const RadarcolPanelState & state, const RadarColorProvider & provider, IdFormat idFormat, std::string viewId)
 {
     const ProviderStatus status = provider.status();
     assets::AssetAdapter adapter;

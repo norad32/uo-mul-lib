@@ -40,10 +40,7 @@ public:
     void setSelectionMode(MapSelectionMode mode) noexcept { active_->setSelectionMode(mode); }
     void setTileSelection(uomul::TileRegion region) noexcept { active_->setTileSelection(region); }
     void setBlockSelection(uomul::BlockRegion region) noexcept { active_->setBlockSelection(region); }
-    void applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode)
-    {
-        active_->applyTileSelection(region, mode);
-    }
+    void applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode) { active_->applyTileSelection(region, mode); }
     void applyBlockSelection(uomul::BlockRegion region, SelectionCombineMode mode)
     {
         active_->applyBlockSelection(region, mode);
@@ -100,12 +97,11 @@ public:
     {
         return active_->replaceMasked(mode, source, target);
     }
-    [[nodiscard]] std::expected<std::size_t, uomul::Error>
-    fuzzySelect(FuzzySelectionOptions options,
-                uomul::TileCoord origin,
-                const FuzzyTiledataNameLookup & tiledataNameLookup = {})
+    [[nodiscard]] std::expected<std::size_t, uomul::Error> fuzzySelect(const FuzzySelectionOptions & options,
+                                                                       uomul::TileCoord origin,
+                                                                       const FuzzyTiledataNameLookup & tiledataNameLookup = {})
     {
-        return active_->fuzzySelect(std::move(options), origin, tiledataNameLookup);
+        return active_->fuzzySelect(options, origin, tiledataNameLookup);
     }
 
     [[nodiscard]] std::expected<void, uomul::Error>
