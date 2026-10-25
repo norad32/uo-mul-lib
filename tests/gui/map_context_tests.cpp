@@ -19,7 +19,7 @@ TEST_CASE("mapContextSnapshot_Should_ExposeNoActiveLocationWithoutMap")
     REQUIRE(context.selectionMode == uo_mule::gui::MapSelectionMode::tiles);
 }
 
-TEST_CASE("dataProviders_Should_ReportEmbeddedRadarcolAndUnavailableOptionalAssets_WhenProfileHasNoPaths")
+TEST_CASE("dataProviders_Should_ReportEmbeddedRadarcolAndUnavailableOptionalAssets_If_ProfileHasNoPaths")
 {
     uo_mule::gui::DataProviders providers;
     providers.sync(uo_mule::gui::DataProfile{});

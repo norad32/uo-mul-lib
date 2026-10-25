@@ -330,7 +330,7 @@ TEST_CASE("ConfiguredDocumentSource_Should_RequireBothTexmapPairPaths")
     REQUIRE(configuredIdentity.roles.contains(uo_mule::gui::SourceRole::data));
 }
 
-TEST_CASE("WorkbenchSession_Should_RebindOpenMetadataSourceStatusWhenProfileChanges")
+TEST_CASE("WorkbenchSession_Should_RebindOpenMetadataSourceStatus_If_ProfileChanges")
 {
     const TestDirectory directory;
     const auto firstRadarcol = testRoot() / "first-radarcol.mul";

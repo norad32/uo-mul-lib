@@ -112,7 +112,7 @@ TEST_CASE("toolCommands_Should_ExposeSharedActivationMetadata")
     REQUIRE(state.commands.find(CommandId::toolReplace)->defaultShortcut == "Shift+R");
 }
 
-TEST_CASE("toolCommands_Should_ActivateThroughRegistryWhenMapIsOpen")
+TEST_CASE("toolCommands_Should_ActivateThroughRegistry_If_MapIsOpen")
 {
     WorkbenchState state;
     const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};

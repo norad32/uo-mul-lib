@@ -327,7 +327,7 @@ TEST_CASE("workbenchSession_Should_ActivateMapDocumentsThroughTheCollection")
     REQUIRE(session.documents().size() == 2);
 }
 
-TEST_CASE("workbenchSession_Should_KeepExistingMapTabsWhenOpeningMapsSequentially")
+TEST_CASE("workbenchSession_Should_KeepExistingMapTabs_If_MapsAreOpenedSequentially")
 {
     const TemporaryDirectory directory;
     const auto firstPath = directory.path() / "first.mul";

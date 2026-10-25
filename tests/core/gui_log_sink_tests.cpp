@@ -6,7 +6,7 @@
 #include <spdlog/pattern_formatter.h>
 #include <spdlog/spdlog.h>
 
-TEST_CASE("GuiLogSink_Should_KeepNewestEntriesWhenCapacityIsReached")
+TEST_CASE("GuiLogSink_Should_KeepNewestEntries_If_CapacityIsReached")
 {
     const auto sink = std::make_shared<uo_mule::logger::GuiLogSink>(2);
     sink->set_formatter(std::make_unique<spdlog::pattern_formatter>("%Y-%m-%d %H:%M:%S.%e [%l] [%n] [%#] %v"));

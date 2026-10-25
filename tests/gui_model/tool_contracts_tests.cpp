@@ -257,7 +257,7 @@ TEST_CASE("toolState_Should_TrackActiveTilePickerSource")
     REQUIRE_FALSE(state.tilePickRequested());
 }
 
-TEST_CASE("toolState_ShouldRouteReplacePicksAndCopyActiveTileToTarget")
+TEST_CASE("toolState_Should_RouteReplacePicksAndCopyActiveTileToTarget")
 {
     ToolState state;
     state.setActiveTile({.id = 100, .z = -5});
@@ -279,7 +279,7 @@ TEST_CASE("toolState_ShouldRouteReplacePicksAndCopyActiveTileToTarget")
     REQUIRE(state.replaceTarget() == uomul::MapTile{.id = 100, .z = -5});
 }
 
-TEST_CASE("toolState_ShouldStoreFuzzyOptionsAndBounds")
+TEST_CASE("toolState_Should_StoreFuzzyOptionsAndBounds")
 {
     ToolState state;
 

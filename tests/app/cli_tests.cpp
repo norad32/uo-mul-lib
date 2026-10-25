@@ -51,7 +51,7 @@ TEST_CASE("runCli_Should_PrintVersion")
     REQUIRE(error.str().empty());
 }
 
-TEST_CASE("runCli_Should_InvokeGuiRunnerWhenGuiCommandIsSelected")
+TEST_CASE("runCli_Should_InvokeGuiRunner_If_GuiCommandIsSelected")
 {
     const auto log_directory = std::filesystem::temp_directory_path() / "cli-gui-tests";
     std::filesystem::remove_all(log_directory);
