@@ -360,7 +360,7 @@ void drawReplacementDialog(TexmapsPanelState & state, TexmapsDocument & document
     return "Missing";
 }
 
-void drawFolderReplacementRows(const TexmapFolderReplacement & replacement)
+void drawFolderReplacementRows(const TexmapFolderReplacement & replacement, IdFormat idFormat)
 {
     const auto tableFlags = static_cast<ImGuiTableFlags>(static_cast<unsigned int>(ImGuiTableFlags_Borders) |
                                                          static_cast<unsigned int>(ImGuiTableFlags_RowBg) |
@@ -381,7 +381,7 @@ void drawFolderReplacementRows(const TexmapFolderReplacement & replacement)
         {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            const auto id = strings::formatId(row.textureId, IdFormat::decimal);
+            const auto id = strings::formatId(row.textureId, idFormat);
             ImGui::TextUnformatted(id.c_str());
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(row.filename.empty() ? "-" : row.filename.c_str());
@@ -447,7 +447,7 @@ void applyFolderReplacement(TexmapsPanelState & state, TexmapsDocument & documen
     }
 }
 
-void drawFolderReplacementDialog(TexmapsPanelState & state, TexmapsDocument & document)
+void drawFolderReplacementDialog(TexmapsPanelState & state, TexmapsDocument & document, IdFormat idFormat)
 {
     auto & folderReplacement = state.folderReplacement;
     if (!folderReplacement.visible || folderReplacement.documentId != document.id())
@@ -475,7 +475,7 @@ void drawFolderReplacementDialog(TexmapsPanelState & state, TexmapsDocument & do
     else
     {
         ImGui::Text("Folder: %s", folderReplacement.replacement.folder.string().c_str());
-        drawFolderReplacementRows(folderReplacement.replacement);
+        drawFolderReplacementRows(folderReplacement.replacement, idFormat);
     }
     if (!folderReplacement.status.empty())
     {
@@ -1070,7 +1070,7 @@ void drawTexmapsDocumentPanel(TexmapsPanelState & state,
     const auto adapter = makeDocumentAdapter(state, document, provider, idFormat, std::move(windowIdentity));
     assets::drawAssetWindow(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
     drawReplacementDialog(state, document);
-    drawFolderReplacementDialog(state, document);
+    drawFolderReplacementDialog(state, document, idFormat);
     if (state.exportState.sourceIsDocument && state.exportState.sourceDocumentId == document.id())
     {
         drawTexmapExportDialogs(state);
