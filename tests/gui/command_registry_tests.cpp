@@ -2,6 +2,7 @@
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/tools/tool_contracts.h"
 #include "uomul/map/map.h"
