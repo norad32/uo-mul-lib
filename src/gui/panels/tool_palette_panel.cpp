@@ -3,6 +3,7 @@
 #include "gui/presentation/fonts/imgui_fonts.h"
 #include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/theme/theme.h"
+#include "gui/state/notification_state.h"
 #include "gui/state/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/map_document.h"
@@ -19,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <string>
 
@@ -464,17 +466,25 @@ void drawActiveTile(WorkbenchState & state)
             ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
         }
     }
-    const std::string dragPayloadType(assets::assetValueDragPayloadType);
+    const std::string dragPayloadType(assets::texmapValueDragPayloadType);
     if (ImGui::BeginDragDropTarget())
     {
         if (const ImGuiPayload * payload = ImGui::AcceptDragDropPayload(dragPayloadType.c_str());
             payload != nullptr && payload->DataSize == sizeof(assets::AssetDragPayloadValue))
         {
             const auto & value = *static_cast<const assets::AssetDragPayloadValue *>(payload->Data);
-            const auto result = state.toolState.setActiveTileId(static_cast<std::int32_t>(value.item));
-            if (!result.accepted)
+            if (value.item > std::numeric_limits<std::uint16_t>::max() ||
+                !state.providers.tiledata().mapTile(static_cast<std::uint16_t>(value.item)))
             {
-                ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
+                state.notifications.add(NotificationSeverity::error, "The dragged texture ID is not a valid map tile.");
+            }
+            else
+            {
+                const auto result = state.toolState.setActiveTileId(static_cast<std::int32_t>(value.item));
+                if (!result.accepted)
+                {
+                    state.notifications.add(NotificationSeverity::error, result.reason);
+                }
             }
         }
         ImGui::EndDragDropTarget();

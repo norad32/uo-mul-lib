@@ -1,5 +1,7 @@
 #include "gui/workflows/texmap_replacement.h"
+#include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/texmaps_document.h"
+#include "gui_model/model/assets/asset_window_contracts.h"
 #include "image_codec/image_codec.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/texmaps/texmaps.h"
@@ -261,6 +263,33 @@ std::expected<TexmapFolderReplacement, uomul::Error> scanTexmapReplacementFolder
 bool texmapReplacementRowValid(const TexmapReplacementRow & row) noexcept
 {
     return row.state == TexmapReplacementRowState::valid && row.texture.has_value();
+}
+
+std::optional<assets::AssetDragPayload> makeTexmapDragPayload(const assets::AssetSelection & selection,
+                                                              bool sourceAvailable,
+                                                              assets::AssetDragPayloadSource source,
+                                                              DocumentId sourceDocumentId)
+{
+    if (!sourceAvailable || selection.selected.size() != 1U)
+    {
+        return std::nullopt;
+    }
+    const auto textureId = assets::itemIndex(selection.selected.front());
+    if (!textureId)
+    {
+        return std::nullopt;
+    }
+    assets::AssetDragPayload payload;
+    payload.type = std::string(assets::texmapValueDragPayloadType);
+    payload.label = "Texmap texture";
+    payload.items = selection.selected;
+    payload.values.push_back({
+        .item = *textureId,
+        .value = *textureId,
+        .sourceDocumentId = sourceDocumentId,
+        .source = source,
+    });
+    return payload;
 }
 
 } // namespace uo_mule::gui

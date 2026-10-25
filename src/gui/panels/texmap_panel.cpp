@@ -15,15 +15,18 @@
 #include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/data_providers.h"
 #include "image_codec/image_codec.h"
+#include "uomul/mul_common/mul_common.h"
 #include "uomul/texmaps/texmaps.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <functional>
 #include <imgui.h>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <uomul/radarcol/radarcol.h>
 #include <utility>
 #include <vector>
 
@@ -201,6 +204,40 @@ loadTextureDetails(const TextureProvider & provider, const assets::AssetItemId &
         preview.pixels.push_back(texturePixelToMapColor(pixel));
     }
     return preview;
+}
+
+[[nodiscard]] std::expected<uomul::TextureImage, uomul::Error> textureFromProvider(const ProviderTexture & provider)
+{
+    if (provider.width != provider.height ||
+        (provider.width != uomul::textureSmallDimension && provider.width != uomul::textureLargeDimension))
+    {
+        return std::unexpected(uomul::Error{
+            .code = uomul::ErrorCode::invalidDimensions,
+            .path = {},
+            .offset = 0,
+            .message = "texture provider returned unsupported dimensions",
+        });
+    }
+    const auto expectedPixels = static_cast<std::size_t>(provider.width) * provider.height;
+    if (provider.pixels.size() != expectedPixels)
+    {
+        return std::unexpected(uomul::Error{
+            .code = uomul::ErrorCode::invalidFormat,
+            .path = {},
+            .offset = 0,
+            .message = "texture provider returned an invalid pixel count",
+        });
+    }
+    uomul::TextureImage texture{
+        .dimension = static_cast<uomul::TextureDimension>(provider.width),
+        .pixels = {},
+    };
+    texture.pixels.reserve(provider.pixels.size());
+    for (const auto & pixel : provider.pixels)
+    {
+        texture.pixels.push_back(uomul::RadarColorConverter::fromRgb888(pixel.red, pixel.green, pixel.blue));
+    }
+    return texture;
 }
 
 void drawReplacementDialog(TexmapsPanelState & state, TexmapsDocument & document)
@@ -522,6 +559,24 @@ void drawFolderReplacementDialog(TexmapsPanelState & state, TexmapsDocument & do
     {
         adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
     }
+    adapter.makeDragPayload = [&provider](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
+    {
+        if (selection.selected.size() != 1U)
+        {
+            return std::nullopt;
+        }
+        const auto id = assets::itemIndex(selection.selected.front());
+        if (!id)
+        {
+            return std::nullopt;
+        }
+        const auto texture = provider.texture(*id);
+        if (!texture || !textureFromProvider(*texture))
+        {
+            return std::nullopt;
+        }
+        return makeTexmapDragPayload(selection, true, assets::AssetDragPayloadSource::provider);
+    };
     adapter.descriptor.capabilities = {
         .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
                          static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
@@ -717,6 +772,51 @@ private:
     if (!status.message.empty())
     {
         adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
+    }
+    adapter.makeDragPayload = [&document](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
+    {
+        if (selection.selected.size() != 1U)
+        {
+            return std::nullopt;
+        }
+        const auto id = assets::itemIndex(selection.selected.front());
+        if (!id)
+        {
+            return std::nullopt;
+        }
+        const auto texture = document.effectiveTexture(*id);
+        if (!texture || !texture->has_value())
+        {
+            return std::nullopt;
+        }
+        return makeTexmapDragPayload(selection, true, assets::AssetDragPayloadSource::document, document.id());
+    };
+    if (!document.readOnly())
+    {
+        adapter.descriptor.acceptedDragPayloadType = std::string(assets::texmapValueDragPayloadType);
+        adapter.descriptor.itemValueDropped =
+            [&state, &document](const assets::AssetItemId & item, const assets::AssetDragPayloadValue & payload)
+        {
+            const auto targetId = assets::itemIndex(item);
+            if (!targetId || !state.resolveDragTexture)
+            {
+                return;
+            }
+            const auto texture = state.resolveDragTexture(payload);
+            if (!texture)
+            {
+                if (state.dragDropErrorReported)
+                {
+                    state.dragDropErrorReported(texture.error().message);
+                }
+                return;
+            }
+            TexmapsDocumentIntent intent;
+            intent.kind = TexmapsDocumentIntentKind::replace;
+            intent.textureId = *targetId;
+            intent.texture = *texture;
+            document.requestIntent(std::move(intent));
+        };
     }
     adapter.loadRange = [&provider, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
     { return loadTextureRange(provider, request, idFormat); };

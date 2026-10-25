@@ -1,5 +1,6 @@
 #include "gui/workflows/texmap_replacement.h"
 #include "gui_model/documents/texmaps_document.h"
+#include "gui_model/model/assets/asset_window_contracts.h"
 #include "image_codec/image_codec.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/texmaps/texmaps.h"
@@ -184,4 +185,39 @@ TEST_CASE("Texmap replacement scanner handles precedence, fallback, duplicates a
     REQUIRE(invalidFallbackRow.sourcePath.filename() == "13.png");
     REQUIRE(invalidRow.state == uo_mule::gui::TexmapReplacementRowState::invalid);
     REQUIRE(nestedRow.state == uo_mule::gui::TexmapReplacementRowState::missing);
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+TEST_CASE("Texmap drag payloads require one available source texture", "[gui][texmap-drag-drop]")
+{
+    using uo_mule::gui::assets::AssetDragPayloadSource;
+    using uo_mule::gui::assets::AssetItemId;
+    using uo_mule::gui::assets::AssetSelection;
+
+    AssetSelection selection{.selected = {{.value = "23"}}, .anchor = {}, .anchorIndex = {}};
+    const auto providerPayload = uo_mule::gui::makeTexmapDragPayload(selection, true, AssetDragPayloadSource::provider);
+    REQUIRE(providerPayload);
+    if (!providerPayload)
+    {
+        return;
+    }
+    const auto & providerValue = providerPayload->values.at(0);
+    REQUIRE(providerPayload->type == uo_mule::gui::assets::texmapValueDragPayloadType);
+    REQUIRE(providerValue.item == 23U);
+    REQUIRE(providerValue.source == AssetDragPayloadSource::provider);
+
+    const auto documentPayload = uo_mule::gui::makeTexmapDragPayload(selection, true, AssetDragPayloadSource::document, 42);
+    REQUIRE(documentPayload);
+    if (!documentPayload)
+    {
+        return;
+    }
+    const auto & documentValue = documentPayload->values.at(0);
+    REQUIRE(documentValue.sourceDocumentId == 42U);
+    REQUIRE(documentValue.source == AssetDragPayloadSource::document);
+
+    selection.selected.push_back(AssetItemId{.value = "24"});
+    REQUIRE_FALSE(uo_mule::gui::makeTexmapDragPayload(selection, true, AssetDragPayloadSource::provider));
+    selection.selected.resize(1U);
+    REQUIRE_FALSE(uo_mule::gui::makeTexmapDragPayload(selection, false, AssetDragPayloadSource::provider));
 }

@@ -34,6 +34,7 @@
 #include "gui_model/persistence/asset_state_store.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/profile/data_profile.h"
+#include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/tools/tool_contracts.h"
@@ -47,6 +48,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <expected>
 #include <filesystem>
 #include <functional>
 #include <imgui.h>
@@ -57,7 +59,9 @@
 #include <string>
 #include <string_view>
 #include <uomul/map/map.h>
+#include <uomul/mul_common/mul_common.h>
 #include <uomul/radarcol/radarcol.h>
+#include <uomul/texmaps/texmaps.h>
 #include <utility>
 #include <vector>
 
@@ -262,6 +266,70 @@ void pickAssetItem(WorkbenchState & state, const assets::AssetItemId & item, boo
     return nullptr;
 }
 
+[[nodiscard]] uomul::Error dragDropError(std::string message)
+{
+    return {.code = uomul::ErrorCode::invalidFormat, .path = {}, .offset = 0, .message = std::move(message)};
+}
+
+[[nodiscard]] std::expected<uomul::TextureImage, uomul::Error> textureFromProvider(const TextureProvider & provider,
+                                                                                   std::uint32_t textureId)
+{
+    const auto source = provider.texture(textureId);
+    if (!source)
+    {
+        return std::unexpected(dragDropError("The source Texmap texture is unavailable."));
+    }
+    if (source->width != source->height ||
+        (source->width != uomul::textureSmallDimension && source->width != uomul::textureLargeDimension))
+    {
+        return std::unexpected(dragDropError("The source Texmap texture has unsupported dimensions."));
+    }
+    const auto expectedPixels = static_cast<std::size_t>(source->width) * source->height;
+    if (source->pixels.size() != expectedPixels)
+    {
+        return std::unexpected(dragDropError("The source Texmap texture has invalid pixel data."));
+    }
+    uomul::TextureImage texture{
+        .dimension = static_cast<uomul::TextureDimension>(source->width),
+        .pixels = {},
+    };
+    texture.pixels.reserve(source->pixels.size());
+    for (const auto & pixel : source->pixels)
+    {
+        texture.pixels.push_back(uomul::RadarColorConverter::fromRgb888(pixel.red, pixel.green, pixel.blue));
+    }
+    return texture;
+}
+
+void configureTexmapDragCallbacks(WorkbenchState & state)
+{
+    state.texmapsState.resolveDragTexture =
+        [&state](const assets::AssetDragPayloadValue & payload) -> std::expected<uomul::TextureImage, uomul::Error>
+    {
+        if (payload.source == assets::AssetDragPayloadSource::provider)
+        {
+            return textureFromProvider(state.providers.textures(), payload.item);
+        }
+        const auto * record = findDocument(state, payload.sourceDocumentId);
+        if (record == nullptr || !record->texmaps)
+        {
+            return std::unexpected(dragDropError("The source Texmaps document is no longer open."));
+        }
+        const auto source = record->texmaps->effectiveTexture(payload.item);
+        if (!source)
+        {
+            return std::unexpected(source.error());
+        }
+        if (!source->has_value())
+        {
+            return std::unexpected(dragDropError("The source Texmap slot is empty."));
+        }
+        return **source;
+    };
+    state.texmapsState.dragDropErrorReported = [&state](std::string message)
+    { state.notifications.add(NotificationSeverity::error, std::move(message)); };
+}
+
 void configureFolderReplacementCallbacks(WorkbenchState & state)
 {
     state.texmapsState.folderReplacementRequested = [&state](DocumentId documentId, std::vector<std::uint32_t> textureIds)
@@ -409,6 +477,7 @@ void configureMapPanelCallbacks(WorkbenchState & state)
         return acceptRadarcolColorSource(state.radarcolState, state.providers.radarColors().rawColor(index).value_or(0));
     };
     configureFolderReplacementCallbacks(state);
+    configureTexmapDragCallbacks(state);
 }
 
 void drawVisibleMapPanels(WorkbenchState & state,

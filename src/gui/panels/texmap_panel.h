@@ -67,6 +67,8 @@ struct TexmapsPanelState
     std::function<void(const std::filesystem::path &)> replacementFilePicked;
     std::function<void(const std::filesystem::path &)> folderReplacementFolderPicked;
     std::function<void(std::string, bool)> replacementStatusReported;
+    std::function<std::expected<uomul::TextureImage, uomul::Error>(const assets::AssetDragPayloadValue &)> resolveDragTexture;
+    std::function<void(std::string)> dragDropErrorReported;
     std::function<bool(std::uint32_t)> itemSourcePicked;
     std::function<void(std::string_view)> hoveredContext;
 };

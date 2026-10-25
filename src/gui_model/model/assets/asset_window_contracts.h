@@ -16,6 +16,13 @@ namespace uo_mule::gui::assets
 {
 
 inline constexpr std::string_view assetValueDragPayloadType = "uo_mule.asset-value";
+inline constexpr std::string_view texmapValueDragPayloadType = "uo_mule.texmap-value";
+
+enum class AssetDragPayloadSource : std::uint8_t
+{
+    provider,
+    document,
+};
 
 enum class AssetPresentation : std::uint8_t
 {
@@ -148,6 +155,8 @@ struct AssetDragPayloadValue
 {
     std::uint32_t item = 0;
     std::uint32_t value = 0;
+    std::uint64_t sourceDocumentId = 0;
+    AssetDragPayloadSource source = AssetDragPayloadSource::provider;
 };
 
 struct AssetDragPayload

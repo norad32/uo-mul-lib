@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui_model/documents/texmaps_document.h"
+#include "gui_model/model/assets/asset_window_contracts.h"
 #include "image_codec/image_codec.h"
 #include <cstdint>
 #include <expected>
@@ -49,5 +50,10 @@ scanTexmapReplacementFolder(const std::filesystem::path & folder,
                             const TexmapsDocument & document);
 
 [[nodiscard]] bool texmapReplacementRowValid(const TexmapReplacementRow & row) noexcept;
+
+[[nodiscard]] std::optional<assets::AssetDragPayload> makeTexmapDragPayload(const assets::AssetSelection & selection,
+                                                                            bool sourceAvailable,
+                                                                            assets::AssetDragPayloadSource source,
+                                                                            DocumentId sourceDocumentId = 0);
 
 } // namespace uo_mule::gui
