@@ -6,6 +6,7 @@
 #include "gui/state/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/map_document.h"
+#include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/session/workbench_session.h"
@@ -462,6 +463,21 @@ void drawActiveTile(WorkbenchState & state)
         {
             ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
         }
+    }
+    const std::string dragPayloadType(assets::assetValueDragPayloadType);
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload * payload = ImGui::AcceptDragDropPayload(dragPayloadType.c_str());
+            payload != nullptr && payload->DataSize == sizeof(assets::AssetDragPayloadValue))
+        {
+            const auto & value = *static_cast<const assets::AssetDragPayloadValue *>(payload->Data);
+            const auto result = state.toolState.setActiveTileId(static_cast<std::int32_t>(value.item));
+            if (!result.accepted)
+            {
+                ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
+            }
+        }
+        ImGui::EndDragDropTarget();
     }
     drawIconFieldPrefix(IconId::axisZArrow, "Elevation");
     if (ImGui::InputInt("##active.tile.z", &tileZ, 0, 0, ImGuiInputTextFlags_CharsDecimal))

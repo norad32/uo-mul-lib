@@ -249,6 +249,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
         {
             active->radarcol->requestIntent({
                 .kind = RadarcolDocumentIntentKind::saveAs,
+                .colorEdits = {},
                 .outputPath = result.path,
                 .overwriteOutput = false,
             });

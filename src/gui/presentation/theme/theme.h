@@ -240,6 +240,7 @@ inline void applyImGuiStyle()
     style.Colors[ImGuiCol_TableRowBg] = imguiColor(transparent);
     style.Colors[ImGuiCol_TableRowBgAlt] = imguiColor(withAlpha(text, tableAlternateAlpha));
     style.Colors[ImGuiCol_NavCursor] = imguiColor(lavender);
+    style.Colors[ImGuiCol_DragDropTarget] = imguiColor(yellow);
     style.Colors[ImGuiCol_NavWindowingHighlight] = imguiColor(withAlpha(text, navHighlightAlpha));
     style.Colors[ImGuiCol_NavWindowingDimBg] = imguiColor(withAlpha(overlay2, navDimAlpha));
     style.Colors[ImGuiCol_ModalWindowDimBg] = imguiColor(withAlpha(overlay2, modalDimAlpha));

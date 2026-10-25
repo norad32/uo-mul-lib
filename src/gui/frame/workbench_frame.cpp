@@ -52,6 +52,7 @@
 #include <string>
 #include <string_view>
 #include <uomul/map/map.h>
+#include <uomul/radarcol/radarcol.h>
 #include <utility>
 #include <vector>
 
@@ -66,13 +67,9 @@ constexpr float dockLeftWidthRatio = 0.306F;
 constexpr float dockRightWidthRatio = 0.447F;
 constexpr float dockLeftBottomRatio = 0.5F;
 constexpr float toolDockSplitRatio = 0.38F;
-constexpr float statusBarHeight = 24.0F;
-constexpr float notificationLeftMargin = 16.0F;
-constexpr float notificationTopMargin = 48.0F;
-constexpr float notificationMinimumWidth = 280.0F;
-constexpr float notificationMaximumWidth = 480.0F;
-constexpr float notificationMaximumHeightRatio = 0.5F;
-constexpr std::size_t shortcutCount = 8;
+constexpr float statusBarHeight = 36.0F;
+constexpr float dialogCenterPivot = 0.5F;
+constexpr std::size_t shortcutCount = 10;
 constexpr std::size_t graveShortcutIndex = 0;
 constexpr std::size_t saveAsShortcutIndex = 1;
 constexpr std::size_t saveShortcutIndex = 2;
@@ -81,6 +78,8 @@ constexpr std::size_t newShortcutIndex = 4;
 constexpr std::size_t quitShortcutIndex = 5;
 constexpr std::size_t goToShortcutIndex = 6;
 constexpr std::size_t fullscreenShortcutIndex = 7;
+constexpr std::size_t assetEditShortcutIndex = 8;
+constexpr std::size_t assetCopyShortcutIndex = 9;
 
 struct ToolShortcut
 {
@@ -220,39 +219,119 @@ void toggleFullscreen(GLFWwindow * window, WorkbenchState & state)
     state.preferences.workspaceFullscreen = false;
 }
 
-void drawMapPanels(WorkbenchState & state,
-                   BlockInspectorPanelState & blockInspectorState,
-                   RadarcolPanelState & radarcolState,
-                   TexmapsPanelState & texmapsState)
+void pickAssetItem(WorkbenchState & state, const assets::AssetItemId & item, bool tiledataSource)
 {
-    const auto pickAssetItem = [&state](const assets::AssetItemId & item, bool tiledataSource)
+    if (!state.toolState.tilePickRequested())
     {
-        if (!state.toolState.tilePickRequested())
+        return;
+    }
+    const auto id = assets::itemIndex(item);
+    if (!id)
+    {
+        return;
+    }
+    if (state.toolState.tilePickTarget() == TilePickTarget::fuzzyName)
+    {
+        if (!tiledataSource)
         {
             return;
         }
-        if (const auto id = assets::itemIndex(item))
+        if (const auto tile = state.providers.tiledata().mapTile(static_cast<std::uint16_t>(*id)))
         {
-            if (state.toolState.tilePickTarget() == TilePickTarget::fuzzyName)
-            {
-                if (!tiledataSource)
-                {
-                    return;
-                }
-                const auto tile = state.providers.tiledata().mapTile(static_cast<std::uint16_t>(*id));
-                if (tile)
-                {
-                    state.toolState.setPickedTileName(tile->record.name);
-                }
-                return;
-            }
-            static_cast<void>(state.toolState.setPickedTileId(static_cast<std::int32_t>(*id)));
+            state.toolState.setPickedTileName(tile->record.name);
+        }
+        return;
+    }
+    static_cast<void>(state.toolState.setPickedTileId(static_cast<std::int32_t>(*id)));
+}
+
+void clearAssetNavigationStatus(WorkbenchState & state)
+{
+    std::erase_if(state.notifications.entries,
+                  [](const Notification & notification)
+                  {
+                      return notification.message == "Tile is not visible with the current filter." ||
+                             notification.message == "Texture is not visible with the current filter.";
+                  });
+}
+
+void configureMapPanelCallbacks(WorkbenchState & state)
+{
+    state.radarcolState.clearStatus = [&state] { clearAssetNavigationStatus(state); };
+    state.radarcolState.itemPicked = [&state](const assets::AssetItemId & item)
+    {
+        clearAssetNavigationStatus(state);
+        pickAssetItem(state, item, false);
+    };
+    state.texmapsState.itemPicked = [&state](const assets::AssetItemId & item)
+    {
+        clearAssetNavigationStatus(state);
+        pickAssetItem(state, item, false);
+    };
+    state.tiledataState.itemPicked = [&state](const assets::AssetItemId & item)
+    {
+        clearAssetNavigationStatus(state);
+        pickAssetItem(state, item, true);
+    };
+    state.tiledataState.assetView.focusResult = [&state](bool visible)
+    {
+        if (!visible)
+        {
+            state.notifications.add(NotificationSeverity::info, "Tile is not visible with the current filter.");
         }
     };
-    state.radarcolState.itemPicked = [&pickAssetItem](const assets::AssetItemId & item) { pickAssetItem(item, false); };
-    state.texmapsState.itemPicked = [&pickAssetItem](const assets::AssetItemId & item) { pickAssetItem(item, false); };
-    state.tiledataState.itemPicked = [&pickAssetItem](const assets::AssetItemId & item) { pickAssetItem(item, true); };
+    state.texmapsState.assetView.focusResult = [&state](bool visible)
+    {
+        if (!visible)
+        {
+            state.notifications.add(NotificationSeverity::info, "Texture is not visible with the current filter.");
+        }
+    };
+    state.radarcolState.showInTiledata = [&state](std::uint32_t id, bool statics)
+    {
+        state.panelRegistry.find(PanelId::tiledata)->visible = true;
+        state.tiledataState.browserKind = statics ? TiledataBrowserKind::statics : TiledataBrowserKind::map;
+        state.tiledataState.assetView.requestedItem = {.value = std::to_string(id)};
+        ImGui::SetWindowFocus("Tiledata###view.tiledata");
+    };
+    state.radarcolState.showInTexmaps = [&state](std::uint32_t id)
+    {
+        state.panelRegistry.find(PanelId::texmaps)->visible = true;
+        state.texmapsState.assetView.requestedItem = {.value = std::to_string(id)};
+        ImGui::SetWindowFocus("Texmaps###view.texmaps");
+    };
+    state.radarcolState.activeTileColor = [&state] -> std::optional<uomul::RadarColor>
+    {
+        const auto activeTile = state.toolState.activeTile();
+        if (!activeTile)
+        {
+            return std::nullopt;
+        }
+        return state.providers.radarColors().rawColor(activeTile->id).value_or(0);
+    };
+    state.radarcolState.copyToClipboard = [&state](const std::string & text) { state.pendingClipboardText = text; };
+    state.radarcolState.useAsActiveTile = [&state](std::uint32_t id)
+    {
+        const auto result = state.toolState.setActiveTileId(static_cast<std::int32_t>(id));
+        if (!result.accepted)
+        {
+            state.notifications.add(NotificationSeverity::error, result.reason);
+        }
+    };
+    state.texmapsState.itemSourcePicked = [&state](std::uint32_t id)
+    { return acceptRadarcolColorSource(state.radarcolState, state.providers.radarColors().rawColor(id).value_or(0)); };
+    state.tiledataState.itemSourcePicked = [&state](std::uint32_t id, bool statics)
+    {
+        const std::uint32_t index = statics ? uomul::radarStaticColorOffset + id : id;
+        return acceptRadarcolColorSource(state.radarcolState, state.providers.radarColors().rawColor(index).value_or(0));
+    };
+}
 
+void drawVisibleMapPanels(WorkbenchState & state,
+                          BlockInspectorPanelState & blockInspectorState,
+                          RadarcolPanelState & radarcolState,
+                          TexmapsPanelState & texmapsState)
+{
     if (state.panelRegistry.find(PanelId::toolPalette)->visible)
     {
         drawToolPalettePanel(state, state.panelRegistry.find(PanelId::toolPalette)->visible);
@@ -311,6 +390,15 @@ void drawMapPanels(WorkbenchState & state,
     }
 }
 
+void drawMapPanels(WorkbenchState & state,
+                   BlockInspectorPanelState & blockInspectorState,
+                   RadarcolPanelState & radarcolState,
+                   TexmapsPanelState & texmapsState)
+{
+    configureMapPanelCallbacks(state);
+    drawVisibleMapPanels(state, blockInspectorState, radarcolState, texmapsState);
+}
+
 void applyPendingPreferenceChanges(WorkbenchState & state)
 {
     if (state.pendingPreferenceChanges.empty())
@@ -355,19 +443,61 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
         static_cast<unsigned int>(ImGuiWindowFlags_NoMove) | static_cast<unsigned int>(ImGuiWindowFlags_NoResize) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings) | static_cast<unsigned int>(ImGuiWindowFlags_NoScrollbar));
     ImGui::Begin("Workbench Status###workbench.status", nullptr, statusFlags);
-    if (!state.operationStatus.empty())
+    const auto drawStatusText = [](std::string_view text, NotificationSeverity severity)
     {
         ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
-        if (state.operationStatusSeverity == NotificationSeverity::error)
+        if (severity == NotificationSeverity::error)
         {
             color = theme::imguiColor(theme::error);
         }
-        else if (state.operationStatusSeverity == NotificationSeverity::success)
+        else if (severity == NotificationSeverity::warning)
+        {
+            color = theme::imguiColor(theme::warning);
+        }
+        else if (severity == NotificationSeverity::success)
         {
             color = theme::imguiColor(theme::success);
         }
-        ImGui::TextColored(color, "%s", state.operationStatus.c_str());
+        ImGui::TextColored(color, "%.*s", static_cast<int>(text.size()), text.data());
         ImGui::SameLine();
+    };
+    if (!state.hoveredPanelContext.empty())
+    {
+        drawStatusText(state.hoveredPanelContext, NotificationSeverity::info);
+    }
+
+    std::size_t selectedRadarcolColors = state.radarcolState.assetView.selection.selected.size();
+    if (const DocumentRecord * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+    {
+        if (const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
+            view != state.radarcolState.documentAssetViews.end())
+        {
+            selectedRadarcolColors = view->second.selection.selected.size();
+        }
+    }
+    const bool radarcolEditing = state.radarcolState.colorPicker.open || state.radarcolState.colorPicker.sourceMode;
+    if (state.radarcolState.colorPicker.sourceMode)
+    {
+        drawStatusText("Pick a map tile or asset. Press Esc to cancel.", NotificationSeverity::info);
+    }
+    else if (radarcolEditing)
+    {
+        drawStatusText("Editing " + std::to_string(state.radarcolState.colorPicker.targetIndices.size()) +
+                           " Radarcols. Press Esc to cancel.",
+                       NotificationSeverity::info);
+    }
+    else
+    {
+        drawStatusText("Selected colors: " + std::to_string(selectedRadarcolColors), NotificationSeverity::info);
+    }
+    if (!radarcolEditing && !state.operationStatus.empty())
+    {
+        drawStatusText(state.operationStatus, state.operationStatusSeverity);
+    }
+    if (!radarcolEditing && !state.notifications.entries.empty())
+    {
+        const Notification & notification = state.notifications.entries.back();
+        drawStatusText(notification.message, notification.severity);
     }
     bool hasCanvasStatus = false;
     if (state.lastHoveredCanvasStatus)
@@ -415,43 +545,6 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
     ImGui::TextUnformatted(readinessStatus.c_str());
     ImGui::SameLine();
     ImGui::TextUnformatted(radarcolStatus.c_str());
-    ImGui::End();
-}
-
-void drawNotifications(const NotificationState & notifications)
-{
-    if (notifications.entries.empty())
-    {
-        return;
-    }
-    const ImGuiViewport * viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + notificationLeftMargin, viewport->WorkPos.y + notificationTopMargin),
-                            ImGuiCond_Always);
-    ImGui::SetNextWindowSizeConstraints(
-        ImVec2(notificationMinimumWidth, 0.0F),
-        ImVec2(notificationMaximumWidth, viewport->WorkSize.y * notificationMaximumHeightRatio));
-    if (ImGui::Begin("Notifications###workbench.notifications",
-                     nullptr,
-                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
-    {
-        for (const auto & notification : notifications.entries)
-        {
-            ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
-            if (notification.severity == NotificationSeverity::error)
-            {
-                color = theme::imguiColor(theme::error);
-            }
-            else if (notification.severity == NotificationSeverity::warning)
-            {
-                color = theme::imguiColor(theme::warning);
-            }
-            else if (notification.severity == NotificationSeverity::success)
-            {
-                color = theme::imguiColor(theme::success);
-            }
-            ImGui::TextColored(color, "%s", notification.message.c_str());
-        }
-    }
     ImGui::End();
 }
 
@@ -587,7 +680,13 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
             mapEditCallback(state),
             tiledataNameCallback(state),
+            [&state](uomul::MapTile tile)
+            {
+                return acceptRadarcolColorSource(state.radarcolState,
+                                                 state.providers.radarColors().rawColor(tile.id).value_or(0));
+            },
             [&state](const MapCanvasStatus & status) { state.lastHoveredCanvasStatus = status; },
+            [&state] { state.activeAssetPanelContext.clear(); },
             visible);
         if (!visible)
         {
@@ -603,7 +702,6 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         drawRadarcolDocumentPanel(state.radarcolState,
                                   *document.radarcol,
                                   visible,
-                                  state.fileBrowser,
                                   state.preferences.idFormat,
                                   windowName,
                                   [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
@@ -730,58 +828,46 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
         return;
     }
     const auto id = *state.pendingAssetCloseDecision;
+    const ImGuiViewport * viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(dialogCenterPivot, dialogCenterPivot));
     if (!ImGui::BeginPopup("PendingAssetClose###dialog.pending-asset-close"))
     {
         ImGui::OpenPopup("PendingAssetClose###dialog.pending-asset-close");
         return;
     }
-    ImGui::TextUnformatted("This document has staged changes.");
-    const std::string saveLabel = iconLabel(IconId::save, "Save");
-    if (ImGui::Button(saveLabel.c_str()))
+
+    DocumentRecord * record = nullptr;
+    for (auto & candidate : state.session.documentsMutable())
     {
-        DocumentRecord * record = nullptr;
-        for (auto & candidate : state.session.documentsMutable())
+        if (candidate.summary.identity.id == id)
         {
-            if (candidate.summary.identity.id == id)
-            {
-                record = &candidate;
-                break;
-            }
+            record = &candidate;
+            break;
         }
-        if (record != nullptr && record->radarcol)
-        {
-            static_cast<void>(state.operationController.resolveDirty(PendingChangesAction::save));
-            record->radarcol->requestIntent({
-                .kind = RadarcolDocumentIntentKind::save,
-                .colorIndex = 0,
-                .color = 0,
-                .outputPath = {},
-                .overwriteOutput = false,
-            });
-            state.pendingAssetCloseAction = PendingChangesAction::save;
-        }
-        ImGui::CloseCurrentPopup();
     }
-    ImGui::SameLine();
-    const std::string discardLabel = iconLabel(IconId::cancel, "Discard");
-    if (ImGui::Button(discardLabel.c_str()))
+    std::string filename = "document";
+    if (record != nullptr && record->radarcol)
     {
-        DocumentRecord * record = nullptr;
-        for (auto & candidate : state.session.documentsMutable())
+        filename = record->radarcol->sourcePath().filename().string();
+        if (filename.empty())
         {
-            if (candidate.summary.identity.id == id)
-            {
-                record = &candidate;
-                break;
-            }
+            filename = record->summary.displayName;
         }
+    }
+
+    ImGui::Text("Save changes to \"%s\" before closing?", filename.c_str());
+    ImGui::TextColored(
+        theme::imguiColor(theme::mutedText), "%s", "If you close without saving, your changes will be discarded.");
+
+    const std::string closeWithoutSavingLabel = iconLabel(IconId::close, "Close without saving");
+    if (ImGui::Button(closeWithoutSavingLabel.c_str()))
+    {
         if (record != nullptr && record->radarcol)
         {
             static_cast<void>(state.operationController.resolveDirty(PendingChangesAction::discard));
             record->radarcol->requestIntent({
                 .kind = RadarcolDocumentIntentKind::discard,
-                .colorIndex = 0,
-                .color = 0,
+                .colorEdits = {},
                 .outputPath = {},
                 .overwriteOutput = false,
             });
@@ -796,6 +882,23 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
         state.pendingAssetCloseDecision.reset();
         state.pendingAssetCloseAction.reset();
         static_cast<void>(state.operationController.cancel());
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    const std::string saveLabel = iconLabel(IconId::save, "Save");
+    if (ImGui::Button(saveLabel.c_str()))
+    {
+        if (record != nullptr && record->radarcol)
+        {
+            static_cast<void>(state.operationController.resolveDirty(PendingChangesAction::save));
+            record->radarcol->requestIntent({
+                .kind = RadarcolDocumentIntentKind::save,
+                .colorEdits = {},
+                .outputPath = {},
+                .overwriteOutput = false,
+            });
+            state.pendingAssetCloseAction = PendingChangesAction::save;
+        }
         ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -860,7 +963,6 @@ void applyPendingDocumentAction(WorkbenchState & state)
             if (transition.kind == OperationTransitionKind::showDirtyDecision)
             {
                 state.pendingAssetCloseDecision = id;
-                state.notifications.add(NotificationSeverity::warning, "Save or discard changes before closing this document");
             }
         }
         return;
@@ -888,7 +990,7 @@ void applyPendingDocumentAction(WorkbenchState & state)
 
 [[nodiscard]] bool dispatchSelectionShortcuts(WorkbenchState & state)
 {
-    if (!ImGui::GetIO().KeyCtrl)
+    if (!ImGui::GetIO().KeyCtrl || !state.hoveredPanelContext.empty())
     {
         return false;
     }
@@ -914,6 +1016,8 @@ void applyPendingDocumentAction(WorkbenchState & state)
         std::pair{ImGuiKey_Q, "Ctrl+Q"},
         std::pair{ImGuiKey_G, "Ctrl+G"},
         std::pair{ImGuiKey_F11, "F11"},
+        std::pair{ImGuiKey_E, "Ctrl+E"},
+        std::pair{ImGuiKey_C, "Ctrl+C"},
     };
     const auto execute = [&state, &shortcuts](std::size_t index)
     { return state.commands.executeShortcut(shortcuts.at(index).second, state); };
@@ -932,6 +1036,10 @@ void applyPendingDocumentAction(WorkbenchState & state)
         return execute(quitShortcutIndex);
     if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(goToShortcutIndex).first, false))
         return execute(goToShortcutIndex);
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(assetEditShortcutIndex).first, false))
+        return execute(assetEditShortcutIndex);
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(shortcuts.at(assetCopyShortcutIndex).first, false))
+        return execute(assetCopyShortcutIndex);
     return allowFullscreen && ImGui::IsKeyPressed(shortcuts.at(fullscreenShortcutIndex).first, false) &&
            execute(fullscreenShortcutIndex);
 }
@@ -1262,6 +1370,15 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
     {
         state.welcomeGreetingSelected = false;
         state.welcomeGreeting.clear();
+        state.hoveredPanelContext.clear();
+        const auto updateHoveredPanelContext = [&state](std::string_view context)
+        {
+            state.hoveredPanelContext.assign(context);
+            state.activeAssetPanelContext.assign(context);
+        };
+        state.radarcolState.hoveredContext = updateHoveredPanelContext;
+        state.texmapsState.hoveredContext = updateHoveredPanelContext;
+        state.tiledataState.hoveredContext = updateHoveredPanelContext;
         drawDockSpace(state, bottomPanelHeight);
         drawDocumentSurface(state);
         drawPendingAssetCloseDialog(state);
@@ -1275,11 +1392,10 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
             state.recentMapRecordedPath = state.workspace.mapPath();
         }
     }
-    if (state.workspace.reader() != nullptr)
+    if (!welcome)
     {
         drawStatusBar(state, bottomPanelHeight);
     }
-    drawNotifications(state.notifications);
     return profileChanged;
 }
 

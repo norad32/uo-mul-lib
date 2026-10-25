@@ -1635,8 +1635,18 @@ bool updateTilePick(const MapWorkspace & workspace,
                     ToolState & toolState,
                     std::optional<uomul::TileCoord> currentTile,
                     bool canvasHovered,
-                    const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup)
+                    const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
+                    const std::function<bool(uomul::MapTile)> & colorSourcePicked)
 {
+    const bool requestedColorPick = colorSourcePicked && canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+                                    currentTile && workspace.hoveredValue();
+    if (requestedColorPick)
+    {
+        if (const auto hoveredValue = workspace.hoveredValue(); hoveredValue && colorSourcePicked(*hoveredValue))
+        {
+            return true;
+        }
+    }
     const bool altClick = canvasHovered && ImGui::GetIO().KeyAlt && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     const bool requestedPick = toolState.tilePickRequested() && canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     if ((!altClick && !requestedPick) || !currentTile || !workspace.hoveredValue())
@@ -1717,21 +1727,10 @@ MapColor mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const Rada
     return tileDisplayColor(mode, tile, radarColors.mapColor(tile.id));
 }
 
-void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
-                       ToolState & toolState,
-                       const TextureProvider & textures,
-                       const RadarColorProvider & radarColors,
-                       MapViewTileSource tileSource,
-                       const std::string & windowName,
-                       const std::function<void()> & activateDocument,
-                       const std::function<void()> & openMap,
-                       const std::function<void()> & createMap,
-                       const std::function<void(uomul::TileCoord)> & executeEdit,
-                       const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
-                       const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
-                       bool & visible)
+namespace
 {
-    MapCanvasViewState & state = workspaceManager.canvasState();
+void prepareMapCanvasState(MapCanvasViewState & state, const TextureProvider & textures)
+{
     state.cursorHovered = false;
     if (!state.releaseTexture)
     {
@@ -1747,6 +1746,37 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
         state.textureProviderRevision = textures.status().revision;
         state.lodCacheValid = false;
     }
+}
+
+void clearActiveAssetPanelIfMapIsActive(const std::function<void()> & clearActiveAssetPanel)
+{
+    if (clearActiveAssetPanel && (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) ||
+                                  ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)))
+    {
+        clearActiveAssetPanel();
+    }
+}
+
+} // namespace
+
+void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
+                       ToolState & toolState,
+                       const TextureProvider & textures,
+                       const RadarColorProvider & radarColors,
+                       MapViewTileSource tileSource,
+                       const std::string & windowName,
+                       const std::function<void()> & activateDocument,
+                       const std::function<void()> & openMap,
+                       const std::function<void()> & createMap,
+                       const std::function<void(uomul::TileCoord)> & executeEdit,
+                       const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
+                       const std::function<bool(uomul::MapTile)> & colorSourcePicked,
+                       const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
+                       const std::function<void()> & clearActiveAssetPanel,
+                       bool & visible)
+{
+    MapCanvasViewState & state = workspaceManager.canvasState();
+    prepareMapCanvasState(state, textures);
     const bool contentsVisible = ImGui::Begin(windowName.c_str(), &visible);
 
     if (!visible || !contentsVisible)
@@ -1756,6 +1786,7 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
     }
 
     activateDocument();
+    clearActiveAssetPanelIfMapIsActive(clearActiveAssetPanel);
     MapWorkspace & workspace = workspaceManager.active();
     state.panX = std::isfinite(state.panX) ? state.panX : 0.0;
     state.panY = std::isfinite(state.panY) ? state.panY : 0.0;
@@ -1803,7 +1834,8 @@ void drawMapCanvasView(MapWorkspaceManager & workspaceManager,
         updateNavigation(state, toolState, mouse, canvasOrigin, canvasHovered, minimumZoom);
         currentTile = tileAtMouse(mouse, canvasOrigin, canvasSize, state, dimensions, canvasHovered);
         updateHover(workspace, currentTile);
-        const bool tilePickHandled = updateTilePick(workspace, toolState, currentTile, canvasHovered, tiledataNameLookup);
+        const bool tilePickHandled =
+            updateTilePick(workspace, toolState, currentTile, canvasHovered, tiledataNameLookup, colorSourcePicked);
         const bool editHandled = updateEditTool(toolState, currentTile, canvasHovered, tilePickHandled, executeEdit);
         updateSelectionDrag(
             workspace, state, toolState, currentTile, dimensions, canvasHovered, tilePickHandled || editHandled);

@@ -258,7 +258,27 @@ TEST_CASE("parseCoordinate_Should_ParseTilesAndBlocks")
     REQUIRE_FALSE(uo_mule::gui::parseCoordinate("invalid", uo_mule::gui::CoordinateKind::tile).has_value());
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+namespace
+{
+
+void requireActiveMapContext(const uo_mule::gui::WorkbenchSession & session,
+                             const uo_mule::gui::MapWorkspace & workspace,
+                             const std::filesystem::path & mapPath)
+{
+    REQUIRE(session.activeDocument().has_value());
+    const auto & activeDocument = session.activeDocument();
+    REQUIRE(activeDocument.has_value());
+    if (!activeDocument)
+    {
+        return;
+    }
+    REQUIRE(activeDocument->id != 0);
+    REQUIRE(activeDocument->sourcePath == mapPath);
+    REQUIRE(session.contextSnapshot(workspace).hasDocument);
+}
+
+} // namespace
+
 TEST_CASE("documentManager_Should_AssignStableIdsAndExposeContext")
 {
     const TemporaryDirectory directory;
@@ -271,13 +291,7 @@ TEST_CASE("documentManager_Should_AssignStableIdsAndExposeContext")
     uo_mule::gui::WorkbenchSession session(directory.path() / "recent.conf");
     session.syncDocument(workspace);
 
-    REQUIRE(session.activeDocument().has_value());
-    if (session.activeDocument())
-    {
-        REQUIRE(session.activeDocument()->id != 0);
-        REQUIRE(session.activeDocument()->sourcePath == mapPath);
-    }
-    REQUIRE(session.contextSnapshot(workspace).hasDocument);
+    requireActiveMapContext(session, workspace, mapPath);
 
     REQUIRE(workspace.closeMap());
     session.syncDocument(workspace);

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -29,6 +30,8 @@ struct TexmapsPanelState
     bool hideUnused = false;
     assets::AssetWindowState assetView;
     std::function<void(const assets::AssetItemId &)> itemPicked;
+    std::function<bool(std::uint32_t)> itemSourcePicked;
+    std::function<void(std::string_view)> hoveredContext;
 };
 
 void drawTexmapsPanel(TexmapsPanelState & state,

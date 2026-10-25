@@ -21,6 +21,8 @@ enum class CommandId : std::uint8_t
     fileClose,
     fileQuit,
     fileSave,
+    assetEdit,
+    assetCopy,
     viewTileIds,
     viewZ,
     viewCombined,

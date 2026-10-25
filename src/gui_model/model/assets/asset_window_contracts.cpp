@@ -253,6 +253,10 @@ void resetContext(AssetWindowState & state) noexcept
     state.scrollPosition = 0.0F;
     state.scrollPositionRestorePending = true;
     state.detailsCollapsed = false;
+    state.requestedItem.reset();
+    state.requestedItemIndex.reset();
+    state.highlightedItem.reset();
+    state.highlightUntil = 0.0;
 }
 
 } // namespace uo_mule::gui::assets

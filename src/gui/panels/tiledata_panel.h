@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace uo_mule::gui
@@ -25,6 +26,8 @@ struct TiledataPanelState
     std::unordered_map<std::uint32_t, ProviderTexture> texturePreviews;
     std::uint64_t texturePreviewRevision = 0;
     std::function<void(const assets::AssetItemId &)> itemPicked;
+    std::function<bool(std::uint32_t, bool)> itemSourcePicked;
+    std::function<void(std::string_view)> hoveredContext;
 };
 
 void drawTiledataPanel(TiledataPanelState & state,

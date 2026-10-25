@@ -1,4 +1,5 @@
 #include "gui/panels/tiledata_panel.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/presentation/theme/theme.h"
 #include "gui/widgets/asset_window.h"
@@ -147,27 +148,24 @@ texturePreview(TiledataPanelState & state, const TextureProvider & textures, std
     };
 }
 
-// The adapter contract requires composing all virtualization callbacks in one descriptor.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
-[[nodiscard]] assets::AssetAdapter makeAdapter(TiledataPanelState & state,
-                                               const TiledataProvider & provider,
-                                               const TextureProvider & textures,
-                                               const RadarColorProvider & radarColors,
-                                               IdFormat idFormat)
+void configureTiledataDescriptor(assets::AssetAdapter & adapter,
+                                 const ProviderStatus & status,
+                                 TiledataPanelState & state,
+                                 IdFormat idFormat)
 {
-    const auto status = provider.status();
-    if (state.texturePreviewRevision != textures.status().revision)
-    {
-        state.texturePreviews.clear();
-        state.texturePreviewRevision = textures.status().revision;
-    }
-    assets::AssetAdapter adapter;
     adapter.descriptor.viewId = "view.tiledata";
     adapter.descriptor.title = "Tiledata";
     adapter.descriptor.sourceTooltip = "Source: " + (status.sourceIdentity.path(SourceRole::primary) == nullptr
                                                          ? std::string("Unavailable")
                                                          : status.sourceIdentity.path(SourceRole::primary)->string());
     adapter.descriptor.itemPicked = state.itemPicked;
+    adapter.descriptor.hoveredContext = state.hoveredContext;
+    adapter.descriptor.itemSourcePicked = [&state](const assets::AssetItemId & item)
+    {
+        const auto id = assets::itemIndex(item);
+        return id && state.itemSourcePicked ? state.itemSourcePicked(*id, state.browserKind == TiledataBrowserKind::statics)
+                                            : false;
+    };
     adapter.descriptor.cacheContext = std::to_string(static_cast<int>(state.browserKind)) + "|" +
                                       std::to_string(static_cast<int>(idFormat)) +
                                       "|revision=" + std::to_string(status.revision);
@@ -193,23 +191,43 @@ texturePreview(TiledataPanelState & state, const TextureProvider & textures, std
     adapter.descriptor.itemCount = itemCount(state.browserKind);
     adapter.descriptor.fixedCellWidth = assetCellWidth;
     adapter.descriptor.fixedCellHeight = assetCellHeight;
-    adapter.descriptor.extensionSlots.push_back({
-        .id = "tiledata-kind",
-        .label = "Tiledata kind",
-        .draw =
-            [&state]
+}
+
+void configureTiledataPresentation(assets::AssetAdapter & adapter, TiledataPanelState & state)
+{
+    adapter.descriptor.presentationTrailingControl = [&state]
+    {
+        const auto drawKindOption = [&state](IconId icon, const char * tooltip, TiledataBrowserKind kind, const char * id)
         {
-            if (ImGui::RadioButton("Map", state.browserKind == TiledataBrowserKind::map))
+            const std::string symbol = iconFontAvailable() ? iconGlyph(icon) : tooltip;
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(symbol.c_str());
+            if (ImGui::IsItemHovered())
             {
-                state.browserKind = TiledataBrowserKind::map;
+                ImGui::SetTooltip("%s", tooltip);
             }
             ImGui::SameLine();
-            if (ImGui::RadioButton("Static", state.browserKind == TiledataBrowserKind::statics))
+            if (ImGui::RadioButton(id, state.browserKind == kind))
             {
-                state.browserKind = TiledataBrowserKind::statics;
+                state.browserKind = kind;
             }
-        },
-    });
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::SetTooltip("%s", tooltip);
+            }
+        };
+
+        drawKindOption(IconId::elevation, "Map", TiledataBrowserKind::map, "##TiledataMap");
+        ImGui::SameLine();
+        drawKindOption(IconId::pineTreeVariant, "Static", TiledataBrowserKind::statics, "##TiledataStatic");
+    };
+}
+
+void configureTiledataRangeLoader(assets::AssetAdapter & adapter,
+                                  const TiledataProvider & provider,
+                                  TiledataPanelState & state,
+                                  IdFormat idFormat)
+{
     adapter.loadRange = [&provider, &state, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
     {
         std::vector<assets::AssetItem> items;
@@ -229,6 +247,13 @@ texturePreview(TiledataPanelState & state, const TextureProvider & textures, std
         }
         return items;
     };
+}
+
+void configureTiledataSearchLoader(assets::AssetAdapter & adapter,
+                                   const TiledataProvider & provider,
+                                   TiledataPanelState & state,
+                                   IdFormat idFormat)
+{
     adapter.loadSearchItems = [&provider, &state, idFormat]
     {
         std::vector<assets::AssetSearchItem> items;
@@ -267,6 +292,13 @@ texturePreview(TiledataPanelState & state, const TextureProvider & textures, std
         }
         return items;
     };
+}
+
+void configureTiledataDetailsLoader(assets::AssetAdapter & adapter,
+                                    const TiledataProvider & provider,
+                                    TiledataPanelState & state,
+                                    IdFormat idFormat)
+{
     adapter.loadDetails = [&provider, &state, idFormat](const assets::AssetItemId & item) -> std::optional<assets::AssetDetails>
     {
         const auto id = idOf(item);
@@ -300,6 +332,14 @@ texturePreview(TiledataPanelState & state, const TextureProvider & textures, std
             .fieldTooltips = {"", "", rawFlagsText(record->record.flags), "", "", "", "", ""},
         };
     };
+}
+
+void configureTiledataRenderer(assets::AssetAdapter & adapter,
+                               TiledataPanelState & state,
+                               const TiledataProvider & provider,
+                               const TextureProvider & textures,
+                               const RadarColorProvider & radarColors)
+{
     adapter.renderItem = [&state, &provider, &textures, &radarColors](const assets::AssetItem & item, bool)
     {
         const auto id = idOf(item.id);
@@ -340,6 +380,27 @@ texturePreview(TiledataPanelState & state, const TextureProvider & textures, std
             ImGui::TextUnformatted(item.label.c_str());
         }
     };
+}
+
+[[nodiscard]] assets::AssetAdapter makeAdapter(TiledataPanelState & state,
+                                               const TiledataProvider & provider,
+                                               const TextureProvider & textures,
+                                               const RadarColorProvider & radarColors,
+                                               IdFormat idFormat)
+{
+    const auto status = provider.status();
+    if (state.texturePreviewRevision != textures.status().revision)
+    {
+        state.texturePreviews.clear();
+        state.texturePreviewRevision = textures.status().revision;
+    }
+    assets::AssetAdapter adapter;
+    configureTiledataDescriptor(adapter, status, state, idFormat);
+    configureTiledataPresentation(adapter, state);
+    configureTiledataRangeLoader(adapter, provider, state, idFormat);
+    configureTiledataSearchLoader(adapter, provider, state, idFormat);
+    configureTiledataDetailsLoader(adapter, provider, state, idFormat);
+    configureTiledataRenderer(adapter, state, provider, textures, radarColors);
     return adapter;
 }
 
