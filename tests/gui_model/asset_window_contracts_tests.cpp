@@ -136,6 +136,26 @@ TEST_CASE("assetSelection_Should_TrackIndexedSingleSelection")
     REQUIRE(selection.anchorIndex == 4U);
 }
 
+TEST_CASE("assetSelection_Should_ReportWhetherAnySelectedItemIsStaged")
+{
+    uo_mule::gui::assets::AssetSelection selection;
+    selection.selected = {{.value = "7"}, {.value = "8"}};
+
+    const auto staged = [](const uo_mule::gui::assets::AssetItemId & item) { return item.value == "8"; };
+
+    REQUIRE(uo_mule::gui::assets::hasStagedSelection(selection, staged));
+}
+
+TEST_CASE("assetSelection_Should_ReportNoStagedItemsForEmptyOrUnstagedSelection")
+{
+    uo_mule::gui::assets::AssetSelection selection;
+    const auto unstaged = [](const uo_mule::gui::assets::AssetItemId &) { return false; };
+
+    REQUIRE_FALSE(uo_mule::gui::assets::hasStagedSelection(selection, unstaged));
+    selection.selected = {{.value = "7"}};
+    REQUIRE_FALSE(uo_mule::gui::assets::hasStagedSelection(selection, unstaged));
+}
+
 TEST_CASE("assetFilter_Should_MatchSpaceSeparatedTermsAcrossValues")
 {
     uo_mule::gui::assets::AssetQuery query;

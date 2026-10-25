@@ -221,6 +221,7 @@ struct AssetAdapterDescriptor
     std::string acceptedDragPayloadType;
     std::function<void(const AssetItemId &, const AssetDragPayloadValue &)> itemValueDropped;
     std::function<bool(const AssetItemId &)> itemStaged;
+    std::function<void(const AssetSelection &)> itemRevert;
     float selectionPreviewSize = 0.0F;
     std::function<void()> inlinePresentationControl;
     AssetSourceContext source;
@@ -253,6 +254,8 @@ struct AssetAdapter
 };
 
 [[nodiscard]] bool contains(const AssetSelection & selection, const AssetItemId & item);
+[[nodiscard]] bool hasStagedSelection(const AssetSelection & selection,
+                                      const std::function<bool(const AssetItemId &)> & itemStaged);
 [[nodiscard]] std::optional<std::uint32_t> itemIndex(const AssetItemId & item) noexcept;
 [[nodiscard]] bool filterMatches(const AssetQuery & query, std::span<const std::string> values);
 void selectSingle(AssetSelection & selection, AssetItemId item);

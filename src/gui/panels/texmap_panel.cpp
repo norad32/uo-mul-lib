@@ -999,6 +999,22 @@ void configureDocumentAssetLoading(assets::AssetAdapter & adapter,
             .transform([&document](std::uint32_t id) { return document.hasStagedTexture(id); })
             .value_or(false);
     };
+    adapter.descriptor.itemRevert = [&document](const assets::AssetSelection & selection)
+    {
+        std::vector<std::uint32_t> textureIds;
+        textureIds.reserve(selection.selected.size());
+        for (const auto & selectedItem : selection.selected)
+        {
+            if (const auto id = assets::itemIndex(selectedItem))
+            {
+                textureIds.push_back(*id);
+            }
+        }
+        TexmapsDocumentIntent intent;
+        intent.kind = TexmapsDocumentIntentKind::revert;
+        intent.textureIds = std::move(textureIds);
+        document.requestIntent(std::move(intent));
+    };
     adapter.descriptor.itemDoubleClicked = [&state, &document](const assets::AssetItemId & item)
     { requestDocumentReplacement(state, document, item); };
     adapter.descriptor.itemContextMenu = [&state, &document](const assets::AssetItemId & item)

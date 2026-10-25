@@ -4,6 +4,7 @@
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <regex>
 #include <span>
@@ -186,6 +187,15 @@ bool filterMatches(const AssetQuery & query, std::span<const std::string> values
 bool contains(const AssetSelection & selection, const AssetItemId & item)
 {
     return std::ranges::find(selection.selected, item) != selection.selected.end();
+}
+
+bool hasStagedSelection(const AssetSelection & selection, const std::function<bool(const AssetItemId &)> & itemStaged)
+{
+    if (!itemStaged)
+    {
+        return false;
+    }
+    return std::ranges::any_of(selection.selected, itemStaged);
 }
 
 std::optional<std::uint32_t> itemIndex(const AssetItemId & item) noexcept

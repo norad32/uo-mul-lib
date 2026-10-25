@@ -751,38 +751,6 @@ void drawDocumentContextMenu(RadarcolPanelState & state,
         state.useAsActiveTile(activeTileId);
     }
     drawRadarcolShowMenu(state, contextIndex, kind);
-
-    bool hasStaged = false;
-    for (const auto & selectedItem : selection.selected)
-    {
-        if (const auto selectedIndex = assets::itemIndex(selectedItem);
-            selectedIndex && document.hasStagedColor(radarcolRawIndex(kind, *selectedIndex)))
-        {
-            hasStaged = true;
-            break;
-        }
-    }
-    if (ImGui::MenuItem("Revert", nullptr, false, hasStaged))
-    {
-        std::vector<RadarcolColorEdit> edits;
-        edits.reserve(selection.selected.size());
-        for (const auto & selectedItem : selection.selected)
-        {
-            if (const auto selectedIndex = assets::itemIndex(selectedItem))
-            {
-                edits.push_back({
-                    .colorIndex = radarcolRawIndex(kind, *selectedIndex),
-                    .color = 0,
-                });
-            }
-        }
-        document.requestIntent({
-            .kind = RadarcolDocumentIntentKind::revertColors,
-            .colorEdits = std::move(edits),
-            .outputPath = {},
-            .overwriteOutput = false,
-        });
-    }
 }
 
 void drawRadarcolDocumentView(RadarcolPanelState & state,
@@ -909,6 +877,27 @@ void drawRadarcolDocumentView(RadarcolPanelState & state,
             .transform([&document, kind](std::uint32_t index)
                        { return document.hasStagedColor(radarcolRawIndex(kind, index)); })
             .value_or(false);
+    };
+    adapter.descriptor.itemRevert = [&document, kind](const assets::AssetSelection & selection)
+    {
+        std::vector<RadarcolColorEdit> edits;
+        edits.reserve(selection.selected.size());
+        for (const auto & selectedItem : selection.selected)
+        {
+            if (const auto selectedIndex = assets::itemIndex(selectedItem))
+            {
+                edits.push_back({
+                    .colorIndex = radarcolRawIndex(kind, *selectedIndex),
+                    .color = 0,
+                });
+            }
+        }
+        document.requestIntent({
+            .kind = RadarcolDocumentIntentKind::revertColors,
+            .colorEdits = std::move(edits),
+            .outputPath = {},
+            .overwriteOutput = false,
+        });
     };
     adapter.renderItem = [&document, kind](const assets::AssetItem & item, bool)
     { drawRadarcolPreview(document, kind, item.id, swatchSize, "##RadarcolColor"); };

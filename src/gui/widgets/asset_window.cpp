@@ -643,11 +643,23 @@ void drawItemDropTarget(const AssetAdapter & adapter, const AssetItem & item)
     ImGui::EndDragDropTarget();
 }
 
-void drawItemContextMenu(const AssetAdapter & adapter, const AssetItem & item)
+void drawItemContextMenu(const AssetAdapter & adapter, const AssetWindowState & state, const AssetItem & item)
 {
-    if (adapter.descriptor.itemContextMenu && ImGui::BeginPopupContextItem("AssetItemContext", ImGuiMouseButton_Right))
+    if ((adapter.descriptor.itemContextMenu || adapter.descriptor.itemRevert) &&
+        ImGui::BeginPopupContextItem("AssetItemContext", ImGuiMouseButton_Right))
     {
-        adapter.descriptor.itemContextMenu(item.id);
+        if (adapter.descriptor.itemContextMenu)
+        {
+            adapter.descriptor.itemContextMenu(item.id);
+        }
+        if (adapter.descriptor.itemRevert && adapter.descriptor.itemStaged)
+        {
+            const bool canRevert = hasStagedSelection(state.selection, adapter.descriptor.itemStaged);
+            if (ImGui::MenuItem("Revert", nullptr, false, canRevert))
+            {
+                adapter.descriptor.itemRevert(state.selection);
+            }
+        }
         ImGui::EndPopup();
     }
 }
@@ -671,7 +683,7 @@ void drawItem(const AssetAdapter & adapter,
     drawItemDragSource(adapter, state);
     drawItemDecorations(adapter, state, item, index, interaction);
     drawItemDropTarget(adapter, item);
-    drawItemContextMenu(adapter, item);
+    drawItemContextMenu(adapter, state, item);
     drawItemTooltip(adapter, state, item);
     ImGui::PopID();
 }
