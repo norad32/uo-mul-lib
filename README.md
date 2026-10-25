@@ -1,88 +1,42 @@
 # uo-mule
 
-[![Build and test](https://github.com/norad32/uo-mule/actions/workflows/build.yml/badge.svg)](https://github.com/norad32/uo-mule/actions/workflows/build.yml)
-[![Release](https://github.com/norad32/uo-mule/actions/workflows/release.yml/badge.svg)](https://github.com/norad32/uo-mule/actions/workflows/release.yml)
+[![Build and test](https://github.com/norad32/uo-mul-lib/actions/workflows/build.yml/badge.svg)](https://github.com/norad32/uo-mul-lib/actions/workflows/build.yml)
+[![Release](https://github.com/norad32/uo-mul-lib/actions/workflows/release.yml/badge.svg)](https://github.com/norad32/uo-mul-lib/actions/workflows/release.yml)
+[![License](https://img.shields.io/github/license/norad32/uo-mul-lib)](LICENSE)
 
-A Linux C++23 starter application with a command-line interface and optional Dear ImGui desktop GUI. The project currently requires GCC 14 or newer.
+`uo-mule` is a Linux C++23 toolkit for Ultima Online MUL data. It includes:
 
-## Prerequisites
+- `uomul`, a standalone format library for map, radarcol, texmap, and tiledata files;
+- a CLI for map inspection, editing, and diff operations; and
+- an optional Dear ImGui desktop GUI for browsing and working with the data.
 
-- CMake 3.25 or newer and Ninja
-- GCC 14 or newer
-- For tests: Catch2 (`BUILD_TESTS` is enabled by the debug and release presets)
-- For GUI builds: GLFW 3 and OpenGL development libraries
+## Build
 
-The dependency helper supports apt- and pacman-based Linux distributions:
+Requirements: GCC 14+, CMake 3.25+, Ninja, and Catch2 for tests. GUI builds
+also need GLFW 3 and OpenGL development packages.
 
 ```sh
 ./scripts/install-build-dependencies.sh
-```
-
-On Ubuntu 24.04, configure with the versioned compiler installed by the helper:
-
-```sh
 cmake --preset release-headless -DCMAKE_CXX_COMPILER=g++-14
 cmake --build --preset release-headless
 ctest --preset release-headless
-./build/release-headless/uo-mule check
 ```
 
-Compiler selection is cached by CMake. Use a fresh build directory if you change compilers.
+For the desktop GUI, use the `release-gui` preset instead. Other useful presets
+include `debug-headless`, `debug-cli`, `debug-gui`, and `debug-uomul`.
 
-## Build configurations
-
-| Preset | Purpose |
-| --- | --- |
-| `debug` / `debug-gui` | Debug GUI build with coverage and clang-tidy enabled by default |
-| `debug-headless` | Debug build without GUI |
-| `release-gui` | Release build with GUI support and a separate `uo-mule-gui` executable |
-| `release-headless` | Release build without GUI |
-
-Build and test any preset with `cmake --build --preset <preset>` and `ctest --preset <preset>`. Direct CMake configuration defaults to `BUILD_TESTS=OFF`, while presets enable tests. Other options include `BUILD_GUI`, `BUILD_GUI_RUNTIME`, `INSTALL_GUI`, `ENABLE_COVERAGE`, and `ENABLE_CLANG_TIDY`. Pass `-DENABLE_CLANG_TIDY=OFF` when configuring a debug preset if clang-tidy is unavailable.
-
-## Dependencies
-
-CMake uses installed spdlog 1.12.0 or newer and CLI11 2.4.2 when available, and otherwise fetches pinned revisions. Installed package consumers require spdlog 1.12.0 or newer. Dear ImGui is fetched for GUI builds. Catch2 is an installed dependency when tests are enabled. GUI builds also require system GLFW and OpenGL development packages.
-
-## Run
-
-The command-line executable supports `check` and `--version`. GUI-enabled builds can open the interface with `uo-mule gui` or by starting without a command. Release GUI builds also provide the standalone `uo-mule-gui` executable.
-
-Preferences are stored below an absolute `$XDG_CONFIG_HOME/uo-mule/`, falling back to `$HOME/.config/uo-mule/` when `XDG_CONFIG_HOME` is unset or relative. Logs use `$XDG_STATE_HOME/uo-mule/logs/` when `XDG_STATE_HOME` is absolute. Otherwise they fall back to `$HOME/.local/state/uo-mule/logs/`.
-
-## VS Code
-
-The `.vscode` directory provides build, clean, test, and launch tasks. Install the recommended extensions, run **Install build dependencies**, then choose **Build** or a matching debug launch configuration.
-
-## Install and package
-
-Install locally with:
+## Use
 
 ```sh
-cmake --install build/release-headless --prefix <install-prefix>
+./build/release-headless/uo-mule --help
+./build/release-headless/uo-mule check
+./build/release-headless/uo-mule map --help
 ```
 
-The `Runtime` component installs the executable and the `Development` component installs headers, libraries, and CMake package files. CPack generates Debian component packages, while release automation also stages Linux archives and Arch packages. Review generated package dependencies and published release assets before relying on them for deployment. The Arch release workflow still needs a tagged-run verification.
-
-CMake consumers can request the exported application target:
-
-```cmake
-find_package(uo-mule CONFIG REQUIRED COMPONENTS app)
-target_link_libraries(my_target PRIVATE uo-mule::app)
-```
-
-The package-consumer fixture is exercised by CTest when tests are enabled.
-
-## Project layout
-
-- `.github/workflows/`: build, test, coverage, and release automation
-- `.vscode/`: editor tasks and launch configurations
-- `assets/`: desktop integration and icons
-- `cmake/`: build configuration, dependency pins, install rules, and packaging
-- `packaging/`: Debian and Arch package metadata templates
-- `scripts/`: dependency installation and CMake formatting helpers
-- `src/`: application, CLI, core, and GUI implementation
-- `tests/`: unit tests and installed-package consumer fixture
+Install the library and CMake package with `cmake --install`. Consumers can use
+the exported `uo-mule::uomul` target and, when enabled, `uo-mule::app`; CPack
+and the release workflow produce Debian, Linux archive, and Arch package
+artifacts.
 
 ## Credits
 
@@ -93,6 +47,7 @@ The package-consumer fixture is exercised by CTest when tests are enabled.
 | [CLI11](https://github.com/CLIUtils/CLI11) | Command-line parsing | BSD-3-Clause |
 | [spdlog](https://github.com/gabime/spdlog) | Logging | MIT |
 | [Catch2](https://github.com/catchorg/Catch2) | Testing | Boost Software License 1.0 |
+| [Material Design Icons](https://github.com/Templarian/MaterialDesign-Webfont) | GUI icon font | Apache-2.0 |
 
 ## License
 

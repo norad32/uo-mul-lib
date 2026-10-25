@@ -31,9 +31,12 @@ constexpr std::uint8_t testStackingOffset = 15;
 constexpr std::uint8_t testValue = 16;
 constexpr std::uint8_t testHeight = 17;
 
-[[nodiscard]] std::filesystem::path fixturePath()
+void createFixture(const std::filesystem::path & path)
 {
-    return std::filesystem::path(UOMUL_SOURCE_DIR) / "testfiles" / "tiledata.mul";
+    auto editor = uomul::TiledataEditor::createEmpty(path, TiledataLayout::extended64);
+    REQUIRE(editor);
+    REQUIRE(editor->editMapTile(3, {.name = "grass"}));
+    REQUIRE(editor->commit());
 }
 
 [[nodiscard]] uomul::MapTileRecord mapRecord(uomul::TiledataLayout layout)
@@ -100,9 +103,11 @@ TEST_CASE("TiledataFlag_ShouldComposeAndTestTypedFlags", "[uomul][tiledata]")
 
 TEST_CASE("TiledataReader_open_ShouldReadRealExtendedFixture", "[uomul][tiledata][reader]")
 {
-    REQUIRE(std::filesystem::is_regular_file(fixturePath()));
+    const TestDirectory directory;
+    const auto path = directory.path() / "tiledata.mul";
+    createFixture(path);
 
-    const auto reader = uomul::TiledataReader::open(fixturePath(), TiledataLayout::extended64);
+    const auto reader = uomul::TiledataReader::open(path, TiledataLayout::extended64);
 
     REQUIRE(reader);
     REQUIRE(reader->layout() == TiledataLayout::extended64);
@@ -127,9 +132,11 @@ TEST_CASE("TiledataReader_read_ShouldRejectOutOfRangeIds", "[uomul][tiledata][re
 
 TEST_CASE("TiledataReader_open_ShouldRejectWrongLayout", "[uomul][tiledata][reader]")
 {
-    REQUIRE(std::filesystem::is_regular_file(fixturePath()));
+    const TestDirectory directory;
+    const auto path = directory.path() / "tiledata.mul";
+    createFixture(path);
 
-    const auto reader = uomul::TiledataReader::open(fixturePath(), TiledataLayout::legacy32);
+    const auto reader = uomul::TiledataReader::open(path, TiledataLayout::legacy32);
 
     REQUIRE_FALSE(reader);
     REQUIRE(reader.error().code == uomul::ErrorCode::truncatedInput);

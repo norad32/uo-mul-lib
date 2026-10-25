@@ -91,9 +91,10 @@ if(BUILD_GUI)
         DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}"
         COMPONENT Runtime)
     install(
-        FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-webfont.ttf"
-              "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-font.json"
-              "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Apache-2.0.txt"
+        FILES
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-webfont.ttf"
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-font.json"
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Apache-2.0.txt"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}/fonts"
         COMPONENT Runtime)
     if(BUILD_GUI_RUNTIME OR INSTALL_GUI)
@@ -124,9 +125,10 @@ if(BUILD_GUI_RUNTIME)
         DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}"
         COMPONENT Gui)
     install(
-        FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-webfont.ttf"
-              "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-font.json"
-              "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Apache-2.0.txt"
+        FILES
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-webfont.ttf"
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/materialdesignicons-font.json"
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Apache-2.0.txt"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}/fonts"
         COMPONENT Gui)
 endif()

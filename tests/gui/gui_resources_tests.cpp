@@ -5,6 +5,7 @@
 #include <fstream>
 #include <optional>
 #include <string>
+#include <system_error>
 
 namespace
 {
@@ -27,6 +28,8 @@ public:
 
     TemporaryDirectory(const TemporaryDirectory &) = delete;
     TemporaryDirectory & operator=(const TemporaryDirectory &) = delete;
+    TemporaryDirectory(TemporaryDirectory &&) = delete;
+    TemporaryDirectory & operator=(TemporaryDirectory &&) = delete;
 
     [[nodiscard]] const std::filesystem::path & path() const noexcept { return path_; }
 
@@ -43,23 +46,25 @@ public:
         {
             previous_ = previous;
         }
-        setenv(name, value.c_str(), 1);
+        setenv(name, value.c_str(), 1); // NOLINT(misc-include-cleaner): POSIX environment API.
     }
 
     ~EnvironmentOverride()
     {
         if (previous_.has_value())
         {
-            setenv(name_.c_str(), previous_->c_str(), 1);
+            setenv(name_.c_str(), previous_->c_str(), 1); // NOLINT(misc-include-cleaner): POSIX environment API.
         }
         else
         {
-            unsetenv(name_.c_str());
+            unsetenv(name_.c_str()); // NOLINT(misc-include-cleaner): POSIX environment API.
         }
     }
 
     EnvironmentOverride(const EnvironmentOverride &) = delete;
     EnvironmentOverride & operator=(const EnvironmentOverride &) = delete;
+    EnvironmentOverride(EnvironmentOverride &&) = delete;
+    EnvironmentOverride & operator=(EnvironmentOverride &&) = delete;
 
 private:
     std::string name_;
@@ -68,8 +73,8 @@ private:
 
 void clearOverrides()
 {
-    unsetenv("IM_CPP_ICON_PATH");
-    unsetenv("IM_CPP_FONT_PATH");
+    unsetenv("IM_CPP_ICON_PATH"); // NOLINT(misc-include-cleaner): POSIX environment API.
+    unsetenv("IM_CPP_FONT_PATH"); // NOLINT(misc-include-cleaner): POSIX environment API.
 }
 
 } // namespace
@@ -77,7 +82,7 @@ void clearOverrides()
 TEST_CASE("guiResourceLookup_ShouldPreferEnvironmentOverride")
 {
     clearOverrides();
-    TemporaryDirectory directory;
+    const TemporaryDirectory directory;
     const auto source = directory.path() / "source.ttf";
     const auto installed = directory.path() / "installed.ttf";
     const auto overridePath = directory.path() / "override.ttf";
@@ -86,11 +91,7 @@ TEST_CASE("guiResourceLookup_ShouldPreferEnvironmentOverride")
     std::ofstream(overridePath).put('o');
 
     const uo_mule::gui::GuiResourceLookup lookup(
-        directory.path() / "bin/application",
-        installed.filename(),
-        source,
-        installed.filename(),
-        source);
+        directory.path() / "bin/application", installed.filename(), source, installed.filename(), source);
     const EnvironmentOverride override("IM_CPP_FONT_PATH", overridePath);
 
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == overridePath);
@@ -99,7 +100,7 @@ TEST_CASE("guiResourceLookup_ShouldPreferEnvironmentOverride")
 TEST_CASE("guiResourceLookup_ShouldPreferInstalledPathBeforeBuildTreePath")
 {
     clearOverrides();
-    TemporaryDirectory directory;
+    const TemporaryDirectory directory;
     const auto executable = directory.path() / "bin/application";
     const auto installed = directory.path() / "installed.ttf";
     const auto source = directory.path() / "source.ttf";
@@ -107,8 +108,7 @@ TEST_CASE("guiResourceLookup_ShouldPreferInstalledPathBeforeBuildTreePath")
     std::ofstream(installed).put('i');
     std::ofstream(source).put('s');
 
-    const uo_mule::gui::GuiResourceLookup lookup(
-        executable, "../installed.ttf", source, "../installed.ttf", source);
+    const uo_mule::gui::GuiResourceLookup lookup(executable, "../installed.ttf", source, "../installed.ttf", source);
 
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == installed);
 }
@@ -116,7 +116,7 @@ TEST_CASE("guiResourceLookup_ShouldPreferInstalledPathBeforeBuildTreePath")
 TEST_CASE("guiResourceLookup_ShouldFindBuildTreePathWhenInstalledPathIsMissing")
 {
     clearOverrides();
-    TemporaryDirectory directory;
+    const TemporaryDirectory directory;
     const auto source = directory.path() / "source.ttf";
     std::ofstream(source).put('s');
 
@@ -129,12 +129,12 @@ TEST_CASE("guiResourceLookup_ShouldFindBuildTreePathWhenInstalledPathIsMissing")
 TEST_CASE("guiResourceLookup_ShouldReportMissingResource")
 {
     clearOverrides();
-    TemporaryDirectory directory;
+    const TemporaryDirectory directory;
     const uo_mule::gui::GuiResourceLookup lookup(directory.path() / "bin/application",
-                                                  "../missing-icon.xpm",
-                                                  directory.path() / "missing-icon.xpm",
-                                                  "../missing.ttf",
-                                                  directory.path() / "missing.ttf");
+                                                 "../missing-icon.xpm",
+                                                 directory.path() / "missing-icon.xpm",
+                                                 "../missing.ttf",
+                                                 directory.path() / "missing.ttf");
 
     REQUIRE_FALSE(lookup.find(uo_mule::gui::GuiResourceId::applicationIcon).has_value());
     REQUIRE_FALSE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont).has_value());

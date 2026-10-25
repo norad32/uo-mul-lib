@@ -27,8 +27,7 @@ Checks: >
 WarningsAsErrors: >
   *,
   -portability-template-virtual-member-function
-HeaderFilterRegex: ".*"
-ExcludeHeaderFilterRegex: ".*(_deps|thirdparty|submodule|mock|Mock).*"
+HeaderFilterRegex: ".*/(src|tests)/.*"
 FormatStyle: file
 ExtraArgsBefore:
   - -Wno-unknown-warning-option

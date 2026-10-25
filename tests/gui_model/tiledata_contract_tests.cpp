@@ -8,13 +8,44 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <optional>
+#include <system_error>
 
 namespace
 {
 
-[[nodiscard]] std::filesystem::path fixturePath()
+class TemporaryDirectory
 {
-    return std::filesystem::path(UOMUL_SOURCE_DIR) / "testfiles" / "tiledata.mul";
+public:
+    TemporaryDirectory() : path_(std::filesystem::temp_directory_path() / "uo-mule-tiledata-contract-tests")
+    {
+        std::error_code error;
+        std::filesystem::remove_all(path_, error);
+        std::filesystem::create_directories(path_, error);
+    }
+
+    ~TemporaryDirectory()
+    {
+        std::error_code error;
+        std::filesystem::remove_all(path_, error);
+    }
+
+    TemporaryDirectory(const TemporaryDirectory &) = delete;
+    TemporaryDirectory & operator=(const TemporaryDirectory &) = delete;
+    TemporaryDirectory(TemporaryDirectory &&) = delete;
+    TemporaryDirectory & operator=(TemporaryDirectory &&) = delete;
+
+    [[nodiscard]] const std::filesystem::path & path() const noexcept { return path_; }
+
+private:
+    std::filesystem::path path_;
+};
+
+void createFixture(const std::filesystem::path & path)
+{
+    auto editor = uomul::TiledataEditor::createEmpty(path, uomul::TiledataLayout::extended64);
+    REQUIRE(editor);
+    REQUIRE(editor->editMapTile(3, {.name = "grass"}));
+    REQUIRE(editor->commit());
 }
 
 } // namespace
@@ -31,16 +62,24 @@ TEST_CASE("TiledataLayoutSelection_Should_RoundTripNames")
 
 TEST_CASE("TiledataLayout_Should_ResolveExactFixtureSize")
 {
-    REQUIRE(uo_mule::gui::resolveTiledataLayout(fixturePath(), uo_mule::gui::TiledataLayoutSelection::autoDetect) ==
+    const TemporaryDirectory directory;
+    const auto path = directory.path() / "tiledata.mul";
+    createFixture(path);
+
+    REQUIRE(uo_mule::gui::resolveTiledataLayout(path, uo_mule::gui::TiledataLayoutSelection::autoDetect) ==
             uomul::TiledataLayout::extended64);
-    REQUIRE_FALSE(uo_mule::gui::resolveTiledataLayout(fixturePath(), uo_mule::gui::TiledataLayoutSelection::legacy32));
+    REQUIRE_FALSE(uo_mule::gui::resolveTiledataLayout(path, uo_mule::gui::TiledataLayoutSelection::legacy32));
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE("TiledataDocument_Should_OpenReadOnlyAndReuseDescriptorIdentity")
 {
-    REQUIRE(std::filesystem::is_regular_file(fixturePath()));
-    const auto document = uo_mule::gui::TiledataDocument::open(1, fixturePath(), uomul::TiledataLayout::extended64);
+    const TemporaryDirectory directory;
+    const auto path = directory.path() / "tiledata.mul";
+    createFixture(path);
+
+    REQUIRE(std::filesystem::is_regular_file(path));
+    const auto document = uo_mule::gui::TiledataDocument::open(1, path, uomul::TiledataLayout::extended64);
     REQUIRE(document);
     REQUIRE(document->readOnly());
     REQUIRE_FALSE(document->dirty());
@@ -56,7 +95,7 @@ TEST_CASE("TiledataDocument_Should_OpenReadOnlyAndReuseDescriptorIdentity")
     const uo_mule::gui::DocumentDescriptorRegistry registry;
     const auto summary = registry.createSummary({
         .kind = uo_mule::gui::DocumentKind::tiledata,
-        .source = uo_mule::gui::makeDocumentSourceIdentity({fixturePath()}),
+        .source = uo_mule::gui::makeDocumentSourceIdentity({path}),
         .displayName = "tiledata.mul",
         .access = uo_mule::gui::DocumentAccess::readOnly,
         .validation = uo_mule::gui::DocumentValidationState::valid,

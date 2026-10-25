@@ -35,7 +35,7 @@ set(GUI_MODEL_SOURCES
     workspaces/map_workspace_manager.cpp
     tools/tool_contracts.cpp
     tools/tool_state.cpp)
-    
+
 list(APPEND GUI_MODEL_SOURCES tile_sources/tile_source_contracts.cpp)
 
 add_library(gui_model ${GUI_MODEL_SOURCES})

@@ -10,15 +10,18 @@ permissions:
   contents: read
 
 jobs:
-  quality:
+  format-and-lint:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Install quality dependencies
+      - name: Install format and lint dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format cmake-format git
+          sudo apt-get install -y build-essential catch2 cmake-format g++-14 git libglfw3-dev libgl1-mesa-dev libspdlog-dev ninja-build pkg-config python3-venv
+          python3 -m venv "$RUNNER_TEMP/clang-tools"
+          "$RUNNER_TEMP/clang-tools/bin/pip" install --disable-pip-version-check clang-format==23.1.3 clang-tidy==23.1.3
+          echo "$RUNNER_TEMP/clang-tools/bin" >> "$GITHUB_PATH"
 
       - name: Check formatting
         run: scripts/check-format.sh
@@ -26,17 +29,7 @@ jobs:
       - name: Check whitespace
         run: git diff --check
 
-  tidy:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-
-      - name: Install tidy dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential catch2 clang-tidy g++-14 libglfw3-dev libgl1-mesa-dev libspdlog-dev ninja-build pkg-config
-
-      - name: Configure
+      - name: Configure clang-tidy
         run: cmake --preset debug-gui-tidy -DCMAKE_CXX_COMPILER=g++-14
 
       - name: Build production targets with clang-tidy
@@ -68,6 +61,9 @@ jobs:
   map-benchmarks:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
@@ -94,27 +90,8 @@ jobs:
             build/map-benchmarks/benchmarks/map_benchmarks --benchmark-samples 10 --benchmark-resamples 1000 --benchmark-warmup-time 0
           } | tee build/map-benchmarks/map-benchmarks.txt
 
-      - name: Upload map benchmark report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: pr-map-benchmark-report
-          path: build/map-benchmarks/map-benchmarks.txt
-          if-no-files-found: error
-
-  map-benchmark-comment:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    needs: map-benchmarks
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: pr-map-benchmark-report
-          path: benchmark-report
-
       - name: Post map benchmark report to pull request
+        if: github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -125,11 +102,11 @@ jobs:
           {
             printf '%s\n\n' "$benchmark_marker"
             printf 'Informational results only; no performance gate.\n\n```text\n'
-            cat benchmark-report/map-benchmarks.txt
+            cat build/map-benchmarks/map-benchmarks.txt
             printf '\n```\n'
           } > "$report_file"
           body="$(cat "$report_file")"
-          comment_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" | jq -sr --arg marker "$benchmark_marker" 'add | map(select(.body | startswith($marker) and .user.login == "github-actions[bot]")) | last | .id // empty')"
+          comment_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" | jq -sr --arg marker "$benchmark_marker" 'add | map(select((.body | startswith($marker)) and .user.login == "github-actions[bot]")) | last | .id // empty')"
           if [ -n "$comment_id" ]; then
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" -f body="$body"
           else
@@ -155,13 +132,13 @@ jobs:
         run: cmake --preset debug -DCMAKE_CXX_COMPILER=g++-14 -DENABLE_CLANG_TIDY=OFF
 
       - name: Build coverage tests
-        run: cmake --build --preset debug --parallel 2
+        run: cmake --build --preset debug --target all --parallel 2
 
       - name: Run coverage tests
         run: ctest --preset debug
 
       - name: Generate coverage summary
-        run: gcovr --gcov-executable gcov-14 --merge-mode-functions=merge-use-line-min --root . --filter 'src/' --txt-summary > build/debug/coverage.txt
+        run: gcovr --gcov-executable gcov-14 --merge-mode-functions=merge-use-line-min --root . --filter 'src/' --txt-summary build/debug > build/debug/coverage.txt
 
       - name: Upload coverage report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -186,7 +163,7 @@ jobs:
             printf '\n```\n'
           } > "$report_file"
           body="$(cat "$report_file")"
-          comment_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" | jq -sr --arg marker "$coverage_marker" 'add | map(select(.body | startswith($marker) and .user.login == "github-actions[bot]")) | last | .id // empty')"
+          comment_id="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" | jq -sr --arg marker "$coverage_marker" 'add | map(select((.body | startswith($marker)) and .user.login == "github-actions[bot]")) | last | .id // empty')"
           if [ -n "$comment_id" ]; then
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" -f body="$body"
           else

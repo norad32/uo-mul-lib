@@ -82,10 +82,10 @@ void drawTileDetails(const MapContextSnapshot & context,
 
 void drawTileInspectorPanel(const MapWorkspace & workspace,
                             const MapContextSnapshot & context,
-                             const DataProviders & providers,
-                             IdFormat idFormat,
-                             bool iconFontAvailable,
-                             bool & visible)
+                            const DataProviders & providers,
+                            IdFormat idFormat,
+                            bool iconFontAvailable,
+                            bool & visible)
 {
     const bool contentsVisible = ImGui::Begin("Tile Inspector###view.tile-inspector", &visible);
 
