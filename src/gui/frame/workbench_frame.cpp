@@ -777,11 +777,13 @@ void finishPendingAssetClose(WorkbenchState & state, DocumentId id, PendingChang
 
 void processDocumentIntent(WorkbenchState & state, DocumentRecord & document)
 {
-    if (!document.radarcol)
+    if (!document.radarcol && !document.texmaps)
     {
         return;
     }
-    if (auto result = document.radarcol->processPendingIntent(); !result)
+    const auto result =
+        document.radarcol ? document.radarcol->processPendingIntent() : document.texmaps->processPendingIntent();
+    if (!result)
     {
         state.notifications.add(NotificationSeverity::error, result.error().message);
         if (state.pendingAssetCloseDecision && state.pendingAssetCloseAction &&

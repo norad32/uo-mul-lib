@@ -2,6 +2,7 @@
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/radarcol_document.h"
+#include "gui_model/documents/texmaps_document.h"
 #include "gui_model/documents/tiledata_document.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/source/source_identity.h"
@@ -19,6 +20,131 @@
 
 namespace uo_mule::gui
 {
+
+namespace
+{
+
+[[nodiscard]] bool configuredMetadataSource(const DocumentIdentity & identity,
+                                            const std::optional<DocumentSourceIdentity> & radarcolSource,
+                                            const std::optional<DocumentSourceIdentity> & texmapPairSource,
+                                            const std::optional<DocumentSourceIdentity> & tiledataSource)
+{
+    switch (identity.kind)
+    {
+        case DocumentKind::radarcol :
+            return radarcolSource.has_value() && identity.source == radarcolSource.value();
+        case DocumentKind::texmapPair :
+            return texmapPairSource.has_value() && identity.source == texmapPairSource.value();
+        case DocumentKind::tiledata :
+            return tiledataSource.has_value() && identity.source == tiledataSource.value();
+        case DocumentKind::map :
+        case DocumentKind::statics :
+        case DocumentKind::combined :
+        case DocumentKind::unavailable :
+            return false;
+    }
+    return false;
+}
+
+void updateMetadataAccess(DocumentRecord & document, bool configured)
+{
+    const auto kind = document.summary.identity.kind;
+    if (kind != DocumentKind::radarcol && kind != DocumentKind::texmapPair && kind != DocumentKind::tiledata)
+    {
+        return;
+    }
+
+    document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
+    document.summary.access =
+        kind == DocumentKind::tiledata || configured ? DocumentAccess::readOnly : DocumentAccess::editable;
+    if (kind == DocumentKind::radarcol && document.radarcol)
+    {
+        document.radarcol->setAccess(document.summary.access);
+    }
+    if (kind == DocumentKind::texmapPair && document.texmaps)
+    {
+        document.texmaps->setAccess(document.summary.access);
+    }
+}
+
+[[nodiscard]] std::optional<RadarcolDocument> openRadarcolDocument(DocumentSummary & summary)
+{
+    if (summary.identity.kind != DocumentKind::radarcol)
+    {
+        return std::nullopt;
+    }
+    const auto * sourcePath = summary.identity.source.path(SourceRole::primary);
+    if (sourcePath == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    auto opened = RadarcolDocument::open(summary.identity.id, *sourcePath, summary.access);
+    if (opened)
+    {
+        summary.validation = DocumentValidationState::valid;
+        return std::move(*opened);
+    }
+
+    summary.validation = DocumentValidationState::invalid;
+    return RadarcolDocument::invalid(summary.identity.id, *sourcePath, summary.access, opened.error().message);
+}
+
+[[nodiscard]] std::optional<TexmapsDocument> openTexmapsDocument(DocumentSummary & summary)
+{
+    if (summary.identity.kind != DocumentKind::texmapPair)
+    {
+        return std::nullopt;
+    }
+    const auto * indexPath = summary.identity.source.path(SourceRole::index);
+    const auto * dataPath = summary.identity.source.path(SourceRole::data);
+    if (indexPath == nullptr || dataPath == nullptr)
+    {
+        summary.validation = DocumentValidationState::invalid;
+        return TexmapsDocument::invalid(summary.identity.id,
+                                        indexPath == nullptr ? std::filesystem::path{} : *indexPath,
+                                        dataPath == nullptr ? std::filesystem::path{} : *dataPath,
+                                        summary.access,
+                                        "Texmap Pair source requires index and data roles");
+    }
+
+    auto opened = TexmapsDocument::open(summary.identity.id, *indexPath, *dataPath, summary.access);
+    if (opened)
+    {
+        summary.validation = DocumentValidationState::valid;
+        return std::move(*opened);
+    }
+
+    summary.validation = DocumentValidationState::invalid;
+    return TexmapsDocument::invalid(summary.identity.id, *indexPath, *dataPath, summary.access, opened.error().message);
+}
+
+[[nodiscard]] std::optional<TiledataDocument> openTiledataDocument(DocumentSummary & summary)
+{
+    if (summary.identity.kind != DocumentKind::tiledata)
+    {
+        return std::nullopt;
+    }
+    const auto * sourcePath = summary.identity.source.path(SourceRole::primary);
+    if (sourcePath == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    const auto layout =
+        resolveTiledataLayout(*sourcePath, TiledataLayoutSelection::autoDetect).value_or(uomul::TiledataLayout::extended64);
+    auto opened = TiledataDocument::open(summary.identity.id, *sourcePath, layout);
+    if (opened)
+    {
+        summary.validation = DocumentValidationState::valid;
+        return std::move(*opened);
+    }
+
+    summary.validation = DocumentValidationState::invalid;
+    return TiledataDocument::invalid(summary.identity.id, *sourcePath, layout, opened.error().message);
+}
+
+} // namespace
 
 std::string mapFacetKey(uomul::Dimensions dimensions)
 {
@@ -69,6 +195,7 @@ void DocumentManager::sync(const MapWorkspace & workspace)
             .map = std::move(map),
             .radarcol = std::nullopt,
             .tiledata = std::nullopt,
+            .texmaps = std::nullopt,
         });
     }
 
@@ -101,39 +228,9 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
 
     for (auto & document : documents_)
     {
-        const auto & identity = document.summary.identity;
-        bool configured = false;
-        switch (identity.kind)
-        {
-            case DocumentKind::radarcol :
-                configured = configuredRadarcolSource_.has_value() && identity.source == configuredRadarcolSource_.value();
-                break;
-            case DocumentKind::texmapPair :
-                configured = configuredTexmapPairSource_.has_value() && identity.source == configuredTexmapPairSource_.value();
-                break;
-            case DocumentKind::map :
-            case DocumentKind::statics :
-            case DocumentKind::combined :
-            case DocumentKind::unavailable :
-                break;
-            case DocumentKind::tiledata :
-                configured = configuredTiledataSource_.has_value() && identity.source == configuredTiledataSource_.value();
-                break;
-        }
-        if (identity.kind == DocumentKind::radarcol)
-        {
-            document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-            document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
-            if (document.radarcol)
-            {
-                document.radarcol->setAccess(document.summary.access);
-            }
-        }
-        else if (identity.kind == DocumentKind::texmapPair || identity.kind == DocumentKind::tiledata)
-        {
-            document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-            document.summary.access = DocumentAccess::readOnly;
-        }
+        const bool configured = configuredMetadataSource(
+            document.summary.identity, configuredRadarcolSource_, configuredTexmapPairSource_, configuredTiledataSource_);
+        updateMetadataAccess(document, configured);
     }
 }
 
@@ -151,73 +248,24 @@ DocumentId DocumentManager::open(DocumentSummary summary)
     }
 
     summary.identity.id = nextId_++;
-    bool configured = false;
-    switch (summary.identity.kind)
-    {
-        case DocumentKind::radarcol :
-            configured = configuredRadarcolSource_.has_value() && summary.identity.source == configuredRadarcolSource_.value();
-            break;
-        case DocumentKind::texmapPair :
-            configured =
-                configuredTexmapPairSource_.has_value() && summary.identity.source == configuredTexmapPairSource_.value();
-            break;
-        case DocumentKind::tiledata :
-            configured = configuredTiledataSource_.has_value() && summary.identity.source == configuredTiledataSource_.value();
-            break;
-        case DocumentKind::map :
-        case DocumentKind::statics :
-        case DocumentKind::combined :
-        case DocumentKind::unavailable :
-            break;
-    }
+    const bool configured = configuredMetadataSource(
+        summary.identity, configuredRadarcolSource_, configuredTexmapPairSource_, configuredTiledataSource_);
     summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
     summary.access =
-        summary.identity.kind == DocumentKind::radarcol && !configured ? DocumentAccess::editable : DocumentAccess::readOnly;
+        (summary.identity.kind == DocumentKind::radarcol || summary.identity.kind == DocumentKind::texmapPair) && !configured
+            ? DocumentAccess::editable
+            : DocumentAccess::readOnly;
 
-    std::optional<RadarcolDocument> radarcol;
-    std::optional<TiledataDocument> tiledata;
-    if (summary.identity.kind == DocumentKind::radarcol && summary.identity.source.path(SourceRole::primary) != nullptr)
-    {
-        auto opened =
-            RadarcolDocument::open(summary.identity.id, *summary.identity.source.path(SourceRole::primary), summary.access);
-        if (opened)
-        {
-            summary.validation = DocumentValidationState::valid;
-            radarcol = std::move(*opened);
-        }
-        else
-        {
-            summary.validation = DocumentValidationState::invalid;
-            radarcol = RadarcolDocument::invalid(summary.identity.id,
-                                                 *summary.identity.source.path(SourceRole::primary),
-                                                 summary.access,
-                                                 opened.error().message);
-        }
-    }
-
-    if (summary.identity.kind == DocumentKind::tiledata && summary.identity.source.path(SourceRole::primary) != nullptr)
-    {
-        const auto source = *summary.identity.source.path(SourceRole::primary);
-        const auto layout =
-            resolveTiledataLayout(source, TiledataLayoutSelection::autoDetect).value_or(uomul::TiledataLayout::extended64);
-        auto opened = TiledataDocument::open(summary.identity.id, source, layout);
-        if (opened)
-        {
-            summary.validation = DocumentValidationState::valid;
-            tiledata = std::move(*opened);
-        }
-        else
-        {
-            summary.validation = DocumentValidationState::invalid;
-            tiledata = TiledataDocument::invalid(summary.identity.id, source, layout, opened.error().message);
-        }
-    }
+    auto radarcol = openRadarcolDocument(summary);
+    auto texmaps = openTexmapsDocument(summary);
+    auto tiledata = openTiledataDocument(summary);
 
     DocumentRecord & record = documents_.emplace_back(DocumentRecord{
         .summary = std::move(summary),
         .map = std::nullopt,
         .radarcol = std::move(radarcol),
         .tiledata = std::move(tiledata),
+        .texmaps = std::move(texmaps),
     });
     activeId_ = record.summary.identity.id;
     return *activeId_;
@@ -283,6 +331,19 @@ void DocumentManager::syncAssetDocuments() noexcept
             document.summary.dirty = document.radarcol->dirty();
             document.summary.validation =
                 document.radarcol->reader().has_value() ? DocumentValidationState::valid : DocumentValidationState::invalid;
+        }
+        if (document.texmaps)
+        {
+            const auto source = document.texmaps->sourceIdentity();
+            const bool configured = configuredTexmapPairSource_.has_value() && source == *configuredTexmapPairSource_;
+            document.summary.identity.source = source;
+            document.summary.displayName = document.texmaps->sourceIndexPath().filename().string();
+            document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
+            document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
+            document.texmaps->setAccess(document.summary.access);
+            document.summary.dirty = document.texmaps->dirty();
+            document.summary.validation =
+                document.texmaps->reader().has_value() ? DocumentValidationState::valid : DocumentValidationState::invalid;
         }
     }
 }
