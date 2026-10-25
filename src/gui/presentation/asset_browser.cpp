@@ -37,39 +37,6 @@ constexpr float assetScrollCenter = 0.5F;
     return descriptor.windowIdentity.empty() ? descriptor.title + "###" + descriptor.viewId : descriptor.windowIdentity;
 }
 
-void drawActions(const std::vector<AssetAction> & actions)
-{
-    for (const auto & action : actions)
-    {
-        ImGui::BeginDisabled(!action.enabled);
-        if (ImGui::Button(action.label.c_str()) && action.invoke)
-        {
-            action.invoke();
-        }
-        ImGui::EndDisabled();
-        if (!action.disabledReason.empty() && !action.enabled && ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("%s", action.disabledReason.c_str());
-        }
-        ImGui::SameLine();
-    }
-    if (!actions.empty())
-    {
-        ImGui::NewLine();
-    }
-}
-
-void drawExtensions(const std::vector<AssetExtensionSlot> & slots)
-{
-    for (const auto & slot : slots)
-    {
-        if (slot.draw)
-        {
-            slot.draw();
-        }
-    }
-}
-
 void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
 {
     if (adapter.descriptor.capabilities.supports(AssetQueryCapability::filter))
@@ -93,11 +60,6 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
         {
         ImGui::SetTooltip("%s", strings::filterSyntaxTooltip());
         }
-    }
-    if (adapter.descriptor.capabilities.supports(AssetQueryCapability::sort))
-    {
-        ImGui::SameLine();
-        ImGui::Checkbox(strings::ascending(), &state.query.sortAscending);
     }
 }
 
@@ -342,13 +304,6 @@ void drawSelectionSummary(const AssetAdapter & adapter, AssetWindowState & state
 void drawDetails(const AssetAdapter & adapter, AssetWindowState & state)
 {
     ImGui::BeginChild("AssetDetails", ImVec2(-detailsPadding, -detailsPadding), ImGuiChildFlags_Borders);
-    if (state.detailsCollapsed)
-    {
-        ImGui::TextUnformatted(strings::detailsCollapsed());
-        ImGui::EndChild();
-        return;
-    }
-
     const std::size_t selectedCount = state.selection.selected.size();
     const std::size_t previewCount = std::min(selectedCount, maximumSelectionPreviews);
     const float previewSpacing = ImGui::GetStyle().ItemSpacing.x;
@@ -1160,8 +1115,6 @@ void drawAssetBrowser(const AssetAdapter & adapter,
         }
     }
 
-    drawActions(adapter.descriptor.actions);
-    drawExtensions(adapter.descriptor.extensionSlots);
     drawQueryControls(adapter, state);
     drawPresentationControls(adapter, state);
 

@@ -39,7 +39,6 @@ enum class AssetPresentationCapability : std::uint8_t
 enum class AssetQueryCapability : std::uint8_t
 {
     filter = 1U << 0U,
-    sort = 1U << 1U,
 };
 
 enum class AssetItemState : std::uint8_t
@@ -86,8 +85,6 @@ struct AssetSourceContext
 struct AssetQuery
 {
     std::string filter;
-    std::string sortKey;
-    bool sortAscending = true;
 
     bool operator==(const AssetQuery &) const = default;
 };
@@ -135,22 +132,6 @@ struct AssetSelection
     std::optional<std::size_t> anchorIndex;
 };
 
-struct AssetAction
-{
-    std::string id;
-    std::string label;
-    bool enabled = true;
-    std::string disabledReason;
-    std::function<void()> invoke;
-};
-
-struct AssetExtensionSlot
-{
-    std::string id;
-    std::string label;
-    std::function<void()> draw;
-};
-
 struct AssetDragPayloadValue
 {
     std::uint32_t item = 0;
@@ -163,8 +144,6 @@ struct AssetDragPayload
 {
     std::string type;
     std::string label;
-    AssetSourceContext source;
-    std::vector<AssetItemId> items;
     std::vector<AssetDragPayloadValue> values;
 };
 
@@ -189,7 +168,6 @@ struct AssetWindowState
     float selectionDragStartY = 0.0F;
     bool selectionDragActive = false;
     bool selectionDragStartedOnItem = false;
-    bool detailsCollapsed = false;
     std::function<void()> selectAll;
     std::function<void()> selectNone;
     std::function<void()> invertSelection;
@@ -226,13 +204,10 @@ struct AssetAdapterDescriptor
     std::function<void()> inlinePresentationControl;
     AssetSourceContext source;
     AssetCapabilitySet capabilities;
-    std::function<std::size_t(const AssetQuery &)> queryItemCount;
     std::size_t itemCount = 0;
     std::size_t fixedCellWidth = 0;
     std::size_t fixedCellHeight = 0;
     std::optional<float> gridItemSpacing;
-    std::vector<AssetAction> actions;
-    std::vector<AssetExtensionSlot> extensionSlots;
     std::function<void()> presentationTrailingControl;
     std::function<void(std::string_view)> hoveredContext;
 };

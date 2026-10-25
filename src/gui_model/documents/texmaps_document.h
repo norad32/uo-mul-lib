@@ -68,7 +68,6 @@ struct TexmapsDocument
     [[nodiscard]] const std::string & error() const noexcept { return state_.error(); }
     [[nodiscard]] bool editing() const noexcept { return editor_.has_value(); }
     [[nodiscard]] bool dirty() const noexcept { return state_.dirty(); }
-    [[nodiscard]] bool overwriteOutput() const noexcept { return overwriteOutput_; }
     [[nodiscard]] std::expected<std::optional<uomul::TextureImage>, uomul::Error>
     effectiveTexture(std::uint32_t textureId) const;
     [[nodiscard]] std::expected<bool, uomul::Error> hasTexture(std::uint32_t textureId) const;

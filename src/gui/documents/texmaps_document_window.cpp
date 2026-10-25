@@ -16,6 +16,7 @@
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/data_providers.h"
+#include "gui_model/providers/texture_conversion.h"
 #include "image_codec/image_codec.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/texmaps/texmaps.h"
@@ -28,7 +29,6 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
-#include <uomul/radarcol/radarcol.h>
 #include <utility>
 #include <vector>
 
@@ -80,24 +80,10 @@ constexpr std::size_t assetCellHeight = 72U;
     return iterator->second;
 }
 
-void drawTextureAsset(TexmapsDocumentWindowState & state,
+void drawTextureAsset(std::unordered_map<std::uint32_t, TexmapsTexturePreview> & previews,
                       const TextureProvider & provider,
                       const assets::AssetItemId & item,
                       float size)
-{
-    const auto id = assets::itemIndex(item);
-    if (!id)
-    {
-        return;
-    }
-    const auto & preview = texturePreview(state.texturePreviews, provider, *id);
-    drawTexturePreview({.width = preview.width, .height = preview.height, .pixels = preview.pixels}, size, borderThickness);
-}
-
-void drawDocumentTextureAsset(std::unordered_map<std::uint32_t, TexmapsTexturePreview> & previews,
-                              const TextureProvider & provider,
-                              const assets::AssetItemId & item,
-                              float size)
 {
     const auto id = assets::itemIndex(item);
     if (!id)
@@ -127,13 +113,13 @@ loadTextureRange(const TextureProvider & provider, const assets::AssetRangeReque
 }
 
 [[nodiscard]] std::vector<assets::AssetSearchItem>
-loadTextureSearch(const TexmapsDocumentWindowState & state, const TextureProvider & provider, IdFormat idFormat)
+loadTextureSearch(bool hideUnused, const TextureProvider & provider, IdFormat idFormat)
 {
     std::vector<assets::AssetSearchItem> items;
     for (std::size_t id = 0; id < static_cast<std::size_t>(provider.textureCount()); id++)
     {
         const auto present = provider.hasTexture(static_cast<std::uint32_t>(id));
-        if (state.hideUnused && (!present || !*present))
+        if (hideUnused && (!present || !*present))
         {
             continue;
         }
@@ -209,40 +195,6 @@ loadTextureDetails(const TextureProvider & provider, const assets::AssetItemId &
         preview.pixels.push_back(texturePixelToMapColor(pixel));
     }
     return preview;
-}
-
-[[nodiscard]] std::expected<uomul::TextureImage, uomul::Error> textureFromProvider(const ProviderTexture & provider)
-{
-    if (provider.width != provider.height ||
-        (provider.width != uomul::textureSmallDimension && provider.width != uomul::textureLargeDimension))
-    {
-        return std::unexpected(uomul::Error{
-            .code = uomul::ErrorCode::invalidDimensions,
-            .path = {},
-            .offset = 0,
-            .message = "texture provider returned unsupported dimensions",
-        });
-    }
-    const auto expectedPixels = static_cast<std::size_t>(provider.width) * provider.height;
-    if (provider.pixels.size() != expectedPixels)
-    {
-        return std::unexpected(uomul::Error{
-            .code = uomul::ErrorCode::invalidFormat,
-            .path = {},
-            .offset = 0,
-            .message = "texture provider returned an invalid pixel count",
-        });
-    }
-    uomul::TextureImage texture{
-        .dimension = static_cast<uomul::TextureDimension>(provider.width),
-        .pixels = {},
-    };
-    texture.pixels.reserve(provider.pixels.size());
-    for (const auto & pixel : provider.pixels)
-    {
-        texture.pixels.push_back(uomul::RadarColorConverter::fromRgb888(pixel.red, pixel.green, pixel.blue));
-    }
-    return texture;
 }
 
 void drawReplacementDialog(TexmapsDocumentWindowState & state, TexmapsDocument & document)
@@ -626,10 +578,41 @@ void drawHideEmptyControl(bool & hideUnused, PendingPreferenceChanges & pendingC
     }
 }
 
-[[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsDocumentWindowState & state,
-                                               const TextureProvider & provider,
-                                               const Preferences & preferences,
-                                               PendingPreferenceChanges & pendingChanges)
+void configureTextureAssetAdapter(assets::AssetAdapter & adapter,
+                                  std::unordered_map<std::uint32_t, TexmapsTexturePreview> & previews,
+                                  const TextureProvider & provider,
+                                  bool & hideUnused,
+                                  IdFormat idFormat)
+{
+    adapter.descriptor.queryWhenEmpty = hideUnused;
+    adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
+    { return formatAssetItemId(item, idFormat); };
+    adapter.descriptor.renderSelectionPreview = [&previews, &provider](const assets::AssetItemId & item, float size)
+    { drawTextureAsset(previews, provider, item, size); };
+    adapter.descriptor.selectionPreviewSize = thumbnailSize;
+    adapter.descriptor.capabilities = {
+        .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
+                         static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
+        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
+        .selection = assets::AssetSelectionMode::multiple,
+    };
+    adapter.descriptor.itemCount = provider.textureCount();
+    adapter.descriptor.fixedCellWidth = assetCellWidth;
+    adapter.descriptor.fixedCellHeight = assetCellHeight;
+    adapter.loadRange = [&provider, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
+    { return loadTextureRange(provider, request, idFormat); };
+    adapter.loadSearchItems = [&provider, &hideUnused, idFormat]
+    { return loadTextureSearch(hideUnused, provider, idFormat); };
+    adapter.loadDetails = [&provider, idFormat](const assets::AssetItemId & item)
+    { return loadTextureDetails(provider, item, idFormat); };
+    adapter.renderItem = [&previews, &provider](const assets::AssetItem & item, bool)
+    { drawTextureAsset(previews, provider, item.id, thumbnailSize); };
+}
+
+[[nodiscard]] assets::AssetAdapter makeProviderAdapter(TexmapsDocumentWindowState & state,
+                                                       const TextureProvider & provider,
+                                                       const Preferences & preferences,
+                                                       PendingPreferenceChanges & pendingChanges)
 {
     const IdFormat idFormat = preferences.idFormat;
     const ProviderStatus status = provider.status();
@@ -666,12 +649,7 @@ void drawHideEmptyControl(bool & hideUnused, PendingPreferenceChanges & pendingC
         preferences.texmapsTablePresentation ? assets::AssetPresentation::table : assets::AssetPresentation::grid;
     adapter.descriptor.presentationChanged = [&pendingChanges](assets::AssetPresentation presentation)
     { pendingChanges.texmapsTablePresentation = presentation == assets::AssetPresentation::table; };
-    adapter.descriptor.queryWhenEmpty = state.hideUnused;
-    adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
-    { return formatAssetItemId(item, idFormat); };
-    adapter.descriptor.renderSelectionPreview = [&state, &provider](const assets::AssetItemId & item, float size)
-    { drawTextureAsset(state, provider, item, size); };
-    adapter.descriptor.selectionPreviewSize = thumbnailSize;
+    configureTextureAssetAdapter(adapter, state.texturePreviews, provider, state.hideUnused, idFormat);
     adapter.descriptor.itemSourcePicked = [&state](const assets::AssetItemId & item)
     {
         const auto id = assets::itemIndex(item);
@@ -707,28 +685,12 @@ void drawHideEmptyControl(bool & hideUnused, PendingPreferenceChanges & pendingC
             return std::nullopt;
         }
         const auto texture = provider.texture(*id);
-        if (!texture || !textureFromProvider(*texture))
+        if (!texture || !providerTextureToTextureImage(*texture))
         {
             return std::nullopt;
         }
         return makeTexmapDragPayload(selection, true, assets::AssetDragPayloadSource::provider);
     };
-    adapter.descriptor.capabilities = {
-        .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
-                         static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
-        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
-        .selection = assets::AssetSelectionMode::multiple,
-    };
-    adapter.descriptor.itemCount = provider.textureCount();
-    adapter.descriptor.fixedCellWidth = assetCellWidth;
-    adapter.descriptor.fixedCellHeight = assetCellHeight;
-    adapter.loadRange = [&provider, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
-    { return loadTextureRange(provider, request, idFormat); };
-    adapter.loadSearchItems = [&state, &provider, idFormat] { return loadTextureSearch(state, provider, idFormat); };
-    adapter.loadDetails = [&provider, idFormat](const assets::AssetItemId & item)
-    { return loadTextureDetails(provider, item, idFormat); };
-    adapter.renderItem = [&state, &provider](const assets::AssetItem & item, bool)
-    { drawTextureAsset(state, provider, item.id, thumbnailSize); };
     return adapter;
 }
 
@@ -948,34 +910,6 @@ void configureDocumentTextureDrop(assets::AssetAdapter & adapter,
     { applyDocumentTextureDrop(state, document, item, payload); };
 }
 
-void configureDocumentAssetLoading(assets::AssetAdapter & adapter,
-                                   TexmapsDocumentWindowState & state,
-                                   TexmapsDocument & document,
-                                   IdFormat idFormat,
-                                   std::unordered_map<std::uint32_t, TexmapsTexturePreview> & previews)
-{
-    adapter.loadRange = [&document, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
-    {
-        const DocumentTextureProvider provider(document);
-        return loadTextureRange(provider, request, idFormat);
-    };
-    adapter.loadSearchItems = [&state, &document, idFormat]
-    {
-        const DocumentTextureProvider provider(document);
-        return loadTextureSearch(state, provider, idFormat);
-    };
-    adapter.loadDetails = [&document, idFormat](const assets::AssetItemId & item)
-    {
-        const DocumentTextureProvider provider(document);
-        return loadTextureDetails(provider, item, idFormat);
-    };
-    adapter.renderItem = [&previews, &document](const assets::AssetItem & item, bool)
-    {
-        const DocumentTextureProvider provider(document);
-        drawDocumentTextureAsset(previews, provider, item.id, thumbnailSize);
-    };
-}
-
 [[nodiscard]] assets::AssetAdapter makeDocumentAdapter(TexmapsDocumentWindowState & state,
                                                        TexmapsDocument & document,
                                                        const TextureProvider & provider,
@@ -1009,23 +943,9 @@ void configureDocumentAssetLoading(assets::AssetAdapter & adapter,
                               .itemPicked = state.itemPicked,
                               .hoveredContext = state.hoveredContext,
                           });
-    adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
-    { return formatAssetItemId(item, idFormat); };
-    adapter.descriptor.queryWhenEmpty = hideUnused;
+    configureTextureAssetAdapter(adapter, previews, provider, hideUnused, idFormat);
     adapter.descriptor.inlinePresentationControl = [&hideUnused, &pendingChanges]
     { drawHideEmptyControl(hideUnused, pendingChanges); };
-    adapter.descriptor.renderSelectionPreview = [&previews, &provider](const assets::AssetItemId & item, float size)
-    { drawDocumentTextureAsset(previews, provider, item, size); };
-    adapter.descriptor.selectionPreviewSize = thumbnailSize;
-    adapter.descriptor.capabilities = {
-        .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
-                         static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
-        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
-        .selection = assets::AssetSelectionMode::multiple,
-    };
-    adapter.descriptor.itemCount = provider.textureCount();
-    adapter.descriptor.fixedCellWidth = assetCellWidth;
-    adapter.descriptor.fixedCellHeight = assetCellHeight;
     adapter.descriptor.itemStaged = [&document](const assets::AssetItemId & item)
     {
         return assets::itemIndex(item)
@@ -1062,19 +982,18 @@ void configureDocumentAssetLoading(assets::AssetAdapter & adapter,
     adapter.makeDragPayload = [&document](const assets::AssetSelection & selection)
     { return makeDocumentDragPayload(document, selection); };
     configureDocumentTextureDrop(adapter, state, document);
-    configureDocumentAssetLoading(adapter, state, document, idFormat, previews);
     return adapter;
 }
 
 } // namespace
 
 void drawTexmapsPanel(TexmapsDocumentWindowState & state,
-                      const TextureProvider & provider,
                       bool & visible,
+                      const TextureProvider & provider,
                       const Preferences & preferences,
                       PendingPreferenceChanges & pendingChanges)
 {
-    const auto adapter = makeAdapter(state, provider, preferences, pendingChanges);
+    const auto adapter = makeProviderAdapter(state, provider, preferences, pendingChanges);
     assets::drawAssetBrowser(adapter, state.assetView, visible);
     if (!state.exportState.sourceIsDocument)
     {

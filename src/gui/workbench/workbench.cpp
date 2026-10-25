@@ -41,6 +41,7 @@
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/data_providers.h"
+#include "gui_model/providers/texture_conversion.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/source/source_identity.h"
 #include "gui_model/tools/tool_contracts.h"
@@ -284,26 +285,15 @@ void pickAssetItem(WorkbenchState & state, const assets::AssetItemId & item, boo
     {
         return std::unexpected(dragDropError(strings::sourceTexmapUnavailable()));
     }
-    if (source->width != source->height ||
-        (source->width != uomul::textureSmallDimension && source->width != uomul::textureLargeDimension))
+    const auto texture = providerTextureToTextureImage(*source);
+    if (!texture)
     {
-        return std::unexpected(dragDropError(strings::sourceTexmapUnsupportedDimensions()));
+        const auto & error = texture.error();
+        return std::unexpected(dragDropError(error.code == uomul::ErrorCode::invalidDimensions
+                                                 ? strings::sourceTexmapUnsupportedDimensions()
+                                                 : strings::sourceTexmapInvalidPixels()));
     }
-    const auto expectedPixels = static_cast<std::size_t>(source->width) * source->height;
-    if (source->pixels.size() != expectedPixels)
-    {
-        return std::unexpected(dragDropError(strings::sourceTexmapInvalidPixels()));
-    }
-    uomul::TextureImage texture{
-        .dimension = static_cast<uomul::TextureDimension>(source->width),
-        .pixels = {},
-    };
-    texture.pixels.reserve(source->pixels.size());
-    for (const auto & pixel : source->pixels)
-    {
-        texture.pixels.push_back(uomul::RadarColorConverter::fromRgb888(pixel.red, pixel.green, pixel.blue));
-    }
-    return texture;
+    return *texture;
 }
 
 void configureTexmapDragCallbacks(WorkbenchState & state)
@@ -1032,6 +1022,7 @@ ImGuiID documentDockNodeId()
 }
 
 void requestDocumentClose(WorkbenchState & state, DocumentId id, bool dirty);
+void evictClosedDocumentState(WorkbenchState & state, DocumentId id);
 
 void activateDocumentOrNotify(WorkbenchState & state, DocumentId id)
 {
@@ -1237,10 +1228,10 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         dockDocumentWindow();
         drawTiledataDocumentWindow(state.tiledataState,
                                    *document.tiledata,
-                                   state.providers.textures(),
-                                   state.providers.radarColors(),
                                    visible,
                                    state.preferences.idFormat,
+                                   state.providers.textures(),
+                                   state.providers.radarColors(),
                                    windowName);
         if (!visible)
         {
@@ -1343,6 +1334,7 @@ void finishPendingAssetClose(WorkbenchState & state, DocumentId id, PendingChang
             }
             else
             {
+                evictClosedDocumentState(state, id);
                 continueQuit(state);
             }
         }
@@ -1357,6 +1349,7 @@ void finishPendingAssetClose(WorkbenchState & state, DocumentId id, PendingChang
         }
         else
         {
+            evictClosedDocumentState(state, id);
             continueQuit(state);
         }
     }
@@ -1598,6 +1591,7 @@ void applyPendingDocumentAction(WorkbenchState & state)
     }
     else
     {
+        evictClosedDocumentState(state, id);
         continueQuit(state);
     }
 }
@@ -1822,6 +1816,21 @@ void syncProviders(WorkbenchState & state)
     assets::resetContext(state.radarcolState.assetView);
     assets::resetContext(state.texmapsState.assetView);
     assets::resetContext(state.tiledataState.assetView);
+    for (auto & [id, assetView] : state.radarcolState.documentAssetViews)
+    {
+        static_cast<void>(id);
+        assets::resetContext(assetView);
+    }
+    for (auto & [id, assetView] : state.texmapsState.documentAssetViews)
+    {
+        static_cast<void>(id);
+        assets::resetContext(assetView);
+    }
+    for (auto & [id, assetView] : state.tiledataState.documentAssetViews)
+    {
+        static_cast<void>(id);
+        assets::resetContext(assetView);
+    }
 }
 
 [[nodiscard]] assets::AssetSourceContext
@@ -1887,6 +1896,17 @@ void updateAssetStateRecord(std::vector<assets::AssetStateRecord> & records, ass
     }
 }
 
+void evictClosedDocumentState(WorkbenchState & state, DocumentId id)
+{
+    state.radarcolState.documentAssetViews.erase(id);
+    state.radarcolState.documentBrowserKinds.erase(id);
+    state.texmapsState.documentAssetViews.erase(id);
+    state.texmapsState.documentTexturePreviews.erase(id);
+    state.texmapsState.documentTexturePreviewRevisions.erase(id);
+    state.texmapsState.documentHideUnused.erase(id);
+    state.tiledataState.documentAssetViews.erase(id);
+}
+
 void applyPendingPersistence(WorkbenchState & state)
 {
     if (state.menuBarState.preferencesDialog.profileDeleteRequested)
@@ -1933,6 +1953,16 @@ void applyPendingPersistence(WorkbenchState & state)
         assets::resetContext(state.texmapsState.assetView);
         assets::resetContext(state.tiledataState.assetView);
         for (auto & [id, assetView] : state.radarcolState.documentAssetViews)
+        {
+            static_cast<void>(id);
+            assets::resetContext(assetView);
+        }
+        for (auto & [id, assetView] : state.texmapsState.documentAssetViews)
+        {
+            static_cast<void>(id);
+            assets::resetContext(assetView);
+        }
+        for (auto & [id, assetView] : state.tiledataState.documentAssetViews)
         {
             static_cast<void>(id);
             assets::resetContext(assetView);

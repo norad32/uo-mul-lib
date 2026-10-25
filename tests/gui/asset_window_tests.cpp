@@ -56,7 +56,6 @@ TEST_CASE("assetWindowState_Should_ResetSelectionAndCachesForNewContext")
     state.selectionDragActive = true;
     state.selectionDragStartedOnItem = true;
     state.scrollPosition = resetScrollPosition;
-    state.detailsCollapsed = true;
 
     uo_mule::gui::assets::resetContext(state);
 
@@ -72,5 +71,4 @@ TEST_CASE("assetWindowState_Should_ResetSelectionAndCachesForNewContext")
     REQUIRE_FALSE(state.selectionDragActive);
     REQUIRE_FALSE(state.selectionDragStartedOnItem);
     REQUIRE(state.scrollPosition <= 0.0F);
-    REQUIRE_FALSE(state.detailsCollapsed);
 }

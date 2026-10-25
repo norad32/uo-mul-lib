@@ -151,9 +151,11 @@ texturePreview(TiledataDocumentWindowState & state, const TextureProvider & text
 void configureTiledataDescriptor(assets::AssetAdapter & adapter,
                                  const ProviderStatus & status,
                                  TiledataDocumentWindowState & state,
-                                 IdFormat idFormat)
+                                 IdFormat idFormat,
+                                 std::optional<DocumentId> documentId)
 {
-    adapter.descriptor.viewId = "view.tiledata";
+    const std::string viewId = documentId ? "document.tiledata." + std::to_string(*documentId) : "view.tiledata";
+    adapter.descriptor.viewId = viewId;
     adapter.descriptor.title = "Tiledata";
     adapter.descriptor.sourceTooltip = "Source: " + (status.sourceIdentity.path(SourceRole::primary) == nullptr
                                                          ? std::string("Unavailable")
@@ -178,9 +180,10 @@ void configureTiledataDescriptor(assets::AssetAdapter & adapter,
     };
     adapter.descriptor.source = {
         .kind = DocumentKind::tiledata,
-        .contextKind = assets::AssetSourceContext::Kind::metadataView,
+        .contextKind = documentId ? assets::AssetSourceContext::Kind::document
+                                   : assets::AssetSourceContext::Kind::metadataView,
         .source = status.sourceIdentity,
-        .contextId = "view.tiledata",
+        .contextId = viewId,
     };
     adapter.descriptor.capabilities = {
         .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
@@ -382,11 +385,69 @@ void configureTiledataRenderer(assets::AssetAdapter & adapter,
     };
 }
 
-[[nodiscard]] assets::AssetAdapter makeAdapter(TiledataDocumentWindowState & state,
-                                               const TiledataProvider & provider,
-                                               const TextureProvider & textures,
-                                               const RadarColorProvider & radarColors,
-                                               IdFormat idFormat)
+class DocumentTiledataProvider final : public TiledataProvider
+{
+public:
+    explicit DocumentTiledataProvider(TiledataDocument & document) : document_(&document) {}
+    [[nodiscard]] ProviderStatus status() const override
+    {
+        return {
+            .state = ProviderAssetState::available,
+            .source = ProviderSourceKind::externalConfigured,
+            .message = {},
+            .sourceIdentity = makeDocumentSourceIdentity({document_->sourcePath()}),
+            .revision = 1,
+        };
+    }
+    [[nodiscard]] ProviderStatus status(std::uint16_t id) const override { return recordStatus(mapTile(id).has_value()); }
+    [[nodiscard]] ProviderStatus staticStatus(std::uint32_t id) const override
+    {
+        return recordStatus(staticTile(id).has_value());
+    }
+    [[nodiscard]] std::optional<uomul::TiledataLayout> layout() const override { return document_->layout(); }
+    [[nodiscard]] std::optional<ProviderMapTile> mapTile(std::uint16_t id) const override
+    {
+        const auto * reader = document_->reader() ? &document_->reader().value() : nullptr;
+        if (reader == nullptr)
+        {
+            return std::nullopt;
+        }
+        const auto record = reader->readMapTile(id);
+        return record ? std::optional<ProviderMapTile>(ProviderMapTile{.id = id, .record = *record}) : std::nullopt;
+    }
+    [[nodiscard]] std::optional<ProviderStaticTile> staticTile(std::uint32_t id) const override
+    {
+        const auto * reader = document_->reader() ? &document_->reader().value() : nullptr;
+        if (reader == nullptr)
+        {
+            return std::nullopt;
+        }
+        const auto record = reader->readStaticTile(id);
+        return record ? std::optional<ProviderStaticTile>(ProviderStaticTile{.id = id, .record = *record}) : std::nullopt;
+    }
+
+private:
+    [[nodiscard]] ProviderStatus recordStatus(bool available) const
+    {
+        auto result = status();
+        if (!available)
+        {
+            result.state = ProviderAssetState::empty;
+            result.message = "Record unavailable";
+        }
+        return result;
+    }
+    TiledataDocument * document_ = nullptr;
+};
+
+void configureTiledataAssetAdapter(assets::AssetAdapter & adapter,
+                                   TiledataDocumentWindowState & state,
+                                   const TiledataProvider & provider,
+                                   const TextureProvider & textures,
+                                   const RadarColorProvider & radarColors,
+                                   IdFormat idFormat,
+                                   std::string windowIdentity,
+                                   std::optional<DocumentId> documentId)
 {
     const auto status = provider.status();
     if (state.texturePreviewRevision != textures.status().revision)
@@ -394,36 +455,61 @@ void configureTiledataRenderer(assets::AssetAdapter & adapter,
         state.texturePreviews.clear();
         state.texturePreviewRevision = textures.status().revision;
     }
-    assets::AssetAdapter adapter;
-    configureTiledataDescriptor(adapter, status, state, idFormat);
+    configureTiledataDescriptor(adapter, status, state, idFormat, documentId);
+    adapter.descriptor.windowIdentity = std::move(windowIdentity);
     configureTiledataPresentation(adapter, state);
     configureTiledataRangeLoader(adapter, provider, state, idFormat);
     configureTiledataSearchLoader(adapter, provider, state, idFormat);
     configureTiledataDetailsLoader(adapter, provider, state, idFormat);
     configureTiledataRenderer(adapter, state, provider, textures, radarColors);
+}
+
+[[nodiscard]] assets::AssetAdapter makeProviderAdapter(TiledataDocumentWindowState & state,
+                                                       const TiledataProvider & provider,
+                                                       const TextureProvider & textures,
+                                                       const RadarColorProvider & radarColors,
+                                                       IdFormat idFormat)
+{
+    assets::AssetAdapter adapter;
+    configureTiledataAssetAdapter(adapter, state, provider, textures, radarColors, idFormat, {}, std::nullopt);
+    return adapter;
+}
+
+[[nodiscard]] assets::AssetAdapter makeDocumentAdapter(TiledataDocumentWindowState & state,
+                                                       TiledataDocument & document,
+                                                       const TextureProvider & textures,
+                                                       const RadarColorProvider & radarColors,
+                                                       IdFormat idFormat,
+                                                       std::string windowIdentity)
+{
+    const DocumentTiledataProvider provider(document);
+    assets::AssetAdapter adapter;
+    configureTiledataAssetAdapter(
+        adapter, state, provider, textures, radarColors, idFormat, std::move(windowIdentity), document.id());
     return adapter;
 }
 
 } // namespace
 
 void drawTiledataPanel(TiledataDocumentWindowState & state,
+                       bool & visible,
                        const TiledataProvider & provider,
                        const TextureProvider & textures,
                        const RadarColorProvider & radarColors,
-                       bool & visible,
                        IdFormat idFormat)
 {
-    const auto adapter = makeAdapter(state, provider, textures, radarColors, idFormat);
+    const auto adapter = makeProviderAdapter(state, provider, textures, radarColors, idFormat);
     assets::drawAssetBrowser(adapter, state.assetView, visible);
 }
 
 void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
-                                TiledataDocument & document,
-                                const TextureProvider & textures,
-                                const RadarColorProvider & radarColors,
-                                bool & visible,
-                                IdFormat idFormat,
-                                std::string windowIdentity)
+                                 TiledataDocument & document,
+                                 bool & visible,
+                                 IdFormat idFormat,
+                                 const TextureProvider & textures,
+                                 const RadarColorProvider & radarColors,
+                                 std::string windowIdentity,
+                                 const std::function<void()> & becameVisible)
 {
     if (!document.reader())
     {
@@ -435,68 +521,8 @@ void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
         return;
     }
 
-    class ReaderProvider final : public TiledataProvider
-    {
-    public:
-        explicit ReaderProvider(TiledataDocument & document) : document_(&document) {}
-        [[nodiscard]] ProviderStatus status() const override
-        {
-            return {
-                .state = ProviderAssetState::available,
-                .source = ProviderSourceKind::externalConfigured,
-                .message = {},
-                .sourceIdentity = makeDocumentSourceIdentity({document_->sourcePath()}),
-                .revision = 1,
-            };
-        }
-        [[nodiscard]] ProviderStatus status(std::uint16_t id) const override { return recordStatus(mapTile(id).has_value()); }
-        [[nodiscard]] ProviderStatus staticStatus(std::uint32_t id) const override
-        {
-            return recordStatus(staticTile(id).has_value());
-        }
-        [[nodiscard]] std::optional<uomul::TiledataLayout> layout() const override { return document_->layout(); }
-        [[nodiscard]] std::optional<ProviderMapTile> mapTile(std::uint16_t id) const override
-        {
-            const auto * reader = document_->reader() ? &document_->reader().value() : nullptr;
-            if (reader == nullptr)
-            {
-                return std::nullopt;
-            }
-            const auto record = reader->readMapTile(id);
-            return record ? std::optional<ProviderMapTile>(ProviderMapTile{.id = id, .record = *record}) : std::nullopt;
-        }
-        [[nodiscard]] std::optional<ProviderStaticTile> staticTile(std::uint32_t id) const override
-        {
-            const auto * reader = document_->reader() ? &document_->reader().value() : nullptr;
-            if (reader == nullptr)
-            {
-                return std::nullopt;
-            }
-            const auto record = reader->readStaticTile(id);
-            return record ? std::optional<ProviderStaticTile>(ProviderStaticTile{.id = id, .record = *record}) : std::nullopt;
-        }
-
-    private:
-        [[nodiscard]] ProviderStatus recordStatus(bool available) const
-        {
-            auto result = status();
-            if (!available)
-            {
-                result.state = ProviderAssetState::empty;
-                result.message = "Record unavailable";
-            }
-            return result;
-        }
-        TiledataDocument * document_ = nullptr;
-    };
-    const ReaderProvider provider(document);
-
-    const auto adapter = makeAdapter(state, provider, textures, radarColors, idFormat);
-    auto documentAdapter = adapter;
-    documentAdapter.descriptor.windowIdentity = std::move(windowIdentity);
-    documentAdapter.descriptor.source.contextKind = assets::AssetSourceContext::Kind::document;
-    documentAdapter.descriptor.source.contextId = "document.tiledata";
-    assets::drawAssetBrowser(documentAdapter, state.assetView, visible);
+    const auto adapter = makeDocumentAdapter(state, document, textures, radarColors, idFormat, std::move(windowIdentity));
+    assets::drawAssetBrowser(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
 }
 
 } // namespace uo_mule::gui

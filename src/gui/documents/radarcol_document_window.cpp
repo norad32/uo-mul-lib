@@ -533,6 +533,37 @@ loadRadarcolSearchItems(const RadarcolDocument & document, RadarcolBrowserKind k
     };
 }
 
+template <typename Source, typename RenderItem>
+void configureRadarcolAssetAdapter(assets::AssetAdapter & adapter,
+                                   const Source & source,
+                                   RadarcolBrowserKind kind,
+                                   IdFormat idFormat,
+                                   std::size_t itemCount,
+                                   RenderItem renderItem)
+{
+    adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
+    { return formatAssetItemId(item, idFormat); };
+    adapter.descriptor.renderSelectionPreview = [&source, kind](const assets::AssetItemId & item, float size)
+    { drawRadarcolPreview(source, kind, item, size, "##RadarcolSelectionColor"); };
+    adapter.descriptor.selectionPreviewSize = swatchSize;
+    adapter.descriptor.capabilities = {
+        .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
+                         static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
+        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
+        .selection = assets::AssetSelectionMode::multiple,
+    };
+    adapter.descriptor.itemCount = itemCount;
+    adapter.descriptor.fixedCellWidth = assetCellWidth;
+    adapter.descriptor.fixedCellHeight = assetCellHeight;
+    adapter.loadRange = [&source, kind, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
+    { return loadRadarcolRange(source, kind, request, idFormat); };
+    adapter.loadSearchItems = [&source, kind, idFormat]
+    { return loadRadarcolSearchItems(source, kind, idFormat); };
+    adapter.loadDetails = [&source, kind, idFormat](const assets::AssetItemId & id)
+    { return loadRadarcolDetails(source, kind, id, idFormat); };
+    adapter.renderItem = std::move(renderItem);
+}
+
 void drawProviderContextMenu(const RadarcolDocumentWindowState & state,
                              const RadarColorProvider & provider,
                              const assets::AssetItemId & item);
@@ -564,10 +595,10 @@ void drawRadarcolKindControl(RadarcolBrowserKind & browserKind)
     drawKindOption(IconId::pineTreeVariant, "Static", RadarcolBrowserKind::statics, "##RadarcolStatic");
 }
 
-[[nodiscard]] assets::AssetAdapter makeAdapter(RadarcolDocumentWindowState & state,
-                                               const RadarColorProvider & provider,
-                                               IdFormat idFormat,
-                                               std::string_view viewId)
+[[nodiscard]] assets::AssetAdapter makeProviderAdapter(RadarcolDocumentWindowState & state,
+                                                       const RadarColorProvider & provider,
+                                                       IdFormat idFormat,
+                                                       std::string_view viewId)
 {
     const ProviderStatus status = provider.status();
     const RadarcolBrowserKind kind = state.browserKind;
@@ -591,11 +622,13 @@ void drawRadarcolKindControl(RadarcolBrowserKind & browserKind)
                               .itemPicked = state.itemPicked,
                               .hoveredContext = state.hoveredContext,
                           });
-    adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
-    { return formatAssetItemId(item, idFormat); };
-    adapter.descriptor.renderSelectionPreview = [&provider, kind](const assets::AssetItemId & item, float size)
-    { drawRadarcolPreview(provider, kind, item, size, "##RadarcolSelectionColor"); };
-    adapter.descriptor.selectionPreviewSize = swatchSize;
+    configureRadarcolAssetAdapter(adapter,
+                                  provider,
+                                  kind,
+                                  idFormat,
+                                  radarcolItemCount(kind, provider.colorCount()),
+                                  [&provider, kind](const assets::AssetItem & item, bool)
+                                  { drawRadarcolItem(provider, kind, item); });
     adapter.descriptor.itemSourcePicked = [&state, &provider, kind](const assets::AssetItemId & item)
     {
         const auto index = assets::itemIndex(item);
@@ -605,9 +638,8 @@ void drawRadarcolKindControl(RadarcolBrowserKind & browserKind)
     {
         adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
     }
-    const auto source = adapter.descriptor.source;
     adapter.makeDragPayload =
-        [&provider, kind, source](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
+        [&provider, kind](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
     {
         if (selection.selected.size() != 1U)
         {
@@ -622,16 +654,8 @@ void drawRadarcolKindControl(RadarcolBrowserKind & browserKind)
         return assets::AssetDragPayload{
             .type = std::string(assets::assetValueDragPayloadType),
             .label = "Radarcol color",
-            .source = source,
-            .items = selection.selected,
             .values = {{.item = *index, .value = static_cast<std::uint32_t>(*color)}},
         };
-    };
-    adapter.descriptor.capabilities = {
-        .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
-                         static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
-        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
-        .selection = assets::AssetSelectionMode::multiple,
     };
     adapter.descriptor.fixedCellWidth = assetCellWidth;
     adapter.descriptor.fixedCellHeight = assetCellHeight;
@@ -639,13 +663,6 @@ void drawRadarcolKindControl(RadarcolBrowserKind & browserKind)
     adapter.descriptor.presentationTrailingControl = [&state] { drawRadarcolKindControl(state.browserKind); };
     adapter.descriptor.itemContextMenu = [&state, &provider](const assets::AssetItemId & item)
     { drawProviderContextMenu(state, provider, item); };
-    adapter.descriptor.itemCount = radarcolItemCount(kind, provider.colorCount());
-    adapter.loadRange = [&provider, kind, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
-    { return loadRadarcolRange(provider, kind, request, idFormat); };
-    adapter.loadSearchItems = [&provider, kind, idFormat] { return loadRadarcolSearchItems(provider, kind, idFormat); };
-    adapter.loadDetails = [&provider, kind, idFormat](const assets::AssetItemId & id)
-    { return loadRadarcolDetails(provider, kind, id, idFormat); };
-    adapter.renderItem = [&provider, kind](const assets::AssetItem & item, bool) { drawRadarcolItem(provider, kind, item); };
     return adapter;
 }
 
@@ -760,18 +777,14 @@ void drawDocumentContextMenu(RadarcolDocumentWindowState & state,
     drawRadarcolShowMenu(state, contextIndex, kind);
 }
 
-void drawRadarcolAssetWindow(RadarcolDocumentWindowState & state,
-                             RadarcolDocument & document,
-                             assets::AssetWindowState & assetView,
-                             bool & visible,
-                             IdFormat idFormat,
-                             std::string viewId,
-                             std::string windowIdentity,
-                             const std::function<void()> & becameVisible)
+[[nodiscard]] assets::AssetAdapter makeDocumentAdapter(RadarcolDocumentWindowState & state,
+                                                        RadarcolDocument & document,
+                                                        IdFormat idFormat,
+                                                        std::string windowIdentity)
 {
     const RadarcolBrowserKind kind = state.documentBrowserKinds[document.id()];
     assets::AssetAdapter adapter;
-    const std::string documentViewId = std::move(viewId);
+    const std::string documentViewId = "document.radarcol." + std::to_string(document.id());
     configureAssetAdapter(adapter.descriptor,
                           {
                               .viewId = documentViewId,
@@ -791,19 +804,20 @@ void drawRadarcolAssetWindow(RadarcolDocumentWindowState & state,
                               .itemPicked = state.itemPicked,
                               .hoveredContext = state.hoveredContext,
                           });
-    adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
-    { return formatAssetItemId(item, idFormat); };
-    adapter.descriptor.renderSelectionPreview = [&document, kind](const assets::AssetItemId & item, float size)
-    { drawRadarcolPreview(document, kind, item, size, "##RadarcolSelectionColor"); };
-    adapter.descriptor.selectionPreviewSize = swatchSize;
+    configureRadarcolAssetAdapter(adapter,
+                                  document,
+                                  kind,
+                                  idFormat,
+                                  document.reader() ? radarcolItemCount(kind, document.reader()->colorCount()) : 0U,
+                                  [&document, kind](const assets::AssetItem & item, bool)
+                                  { drawRadarcolPreview(document, kind, item.id, swatchSize, "##RadarcolColor"); });
     adapter.descriptor.itemSourcePicked = [&state, &document, kind](const assets::AssetItemId & item)
     {
         const auto index = assets::itemIndex(item);
         return index ? acceptRadarcolColorSource(state, document.rawColor(radarcolRawIndex(kind, *index)).value_or(0)) : false;
     };
-    const auto source = adapter.descriptor.source;
     adapter.makeDragPayload =
-        [&document, kind, source](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
+        [&document, kind](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
     {
         if (selection.selected.size() != 1U)
         {
@@ -818,18 +832,9 @@ void drawRadarcolAssetWindow(RadarcolDocumentWindowState & state,
         return assets::AssetDragPayload{
             .type = std::string(assets::assetValueDragPayloadType),
             .label = "Radarcol color",
-            .source = source,
-            .items = selection.selected,
             .values = {{.item = *index, .value = static_cast<std::uint32_t>(*color)}},
         };
     };
-    adapter.descriptor.capabilities = {
-        .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
-                         static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),
-        .queries = static_cast<std::uint8_t>(assets::AssetQueryCapability::filter),
-        .selection = assets::AssetSelectionMode::multiple,
-    };
-    adapter.descriptor.itemCount = document.reader() ? radarcolItemCount(kind, document.reader()->colorCount()) : 0U;
     adapter.descriptor.fixedCellWidth = assetCellWidth;
     adapter.descriptor.fixedCellHeight = assetCellHeight;
     adapter.descriptor.gridItemSpacing = ImGui::GetStyle().ItemSpacing.y;
@@ -867,11 +872,6 @@ void drawRadarcolAssetWindow(RadarcolDocumentWindowState & state,
         assets::selectSingle(selection, item);
         openRadarcolColorPicker(state, document, selection);
     };
-    adapter.loadRange = [&document, kind, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
-    { return loadRadarcolRange(document, kind, request, idFormat); };
-    adapter.loadSearchItems = [&document, kind, idFormat] { return loadRadarcolSearchItems(document, kind, idFormat); };
-    adapter.loadDetails = [&document, kind, idFormat](const assets::AssetItemId & id)
-    { return loadRadarcolDetails(document, kind, id, idFormat); };
     adapter.descriptor.itemStaged = [&document, kind](const assets::AssetItemId & item)
     {
         return assets::itemIndex(item)
@@ -900,13 +900,31 @@ void drawRadarcolAssetWindow(RadarcolDocumentWindowState & state,
             .overwriteOutput = false,
         });
     };
-    adapter.renderItem = [&document, kind](const assets::AssetItem & item, bool)
-    { drawRadarcolPreview(document, kind, item.id, swatchSize, "##RadarcolColor"); };
-    assets::drawAssetBrowser(adapter, assetView, visible, becameVisible);
-    drawRadarcolColorPicker(state, document);
+    return adapter;
 }
 
 } // namespace
+
+void drawRadarcolPanel(RadarcolDocumentWindowState & state,
+                       bool & visible,
+                       const RadarColorProvider & provider,
+                       IdFormat idFormat)
+{
+    const auto adapter = makeProviderAdapter(state, provider, idFormat, "view.radarcol");
+    assets::drawAssetBrowser(adapter, state.assetView, visible);
+}
+
+void drawRadarcolDocumentWindow(RadarcolDocumentWindowState & state,
+                                RadarcolDocument & document,
+                                bool & visible,
+                                IdFormat idFormat,
+                                std::string windowIdentity,
+                                const std::function<void()> & becameVisible)
+{
+    const auto adapter = makeDocumentAdapter(state, document, idFormat, std::move(windowIdentity));
+    assets::drawAssetBrowser(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
+    drawRadarcolColorPicker(state, document);
+}
 
 void openRadarcolColorPicker(RadarcolDocumentWindowState & state,
                              const RadarcolDocument & document,
@@ -973,32 +991,6 @@ void cancelRadarcolColorSource(RadarcolDocumentWindowState & state)
     }
     state.colorPicker.sourceMode = false;
     state.colorPicker.open = true;
-}
-
-void drawRadarcolPanel(RadarcolDocumentWindowState & state,
-                       const RadarColorProvider & provider,
-                       bool & visible,
-                       IdFormat idFormat)
-{
-    const auto adapter = makeAdapter(state, provider, idFormat, "view.radarcol");
-    assets::drawAssetBrowser(adapter, state.assetView, visible);
-}
-
-void drawRadarcolDocumentWindow(RadarcolDocumentWindowState & state,
-                                RadarcolDocument & document,
-                                bool & visible,
-                                IdFormat idFormat,
-                                std::string windowIdentity,
-                                const std::function<void()> & becameVisible)
-{
-    drawRadarcolAssetWindow(state,
-                            document,
-                            state.documentAssetViews[document.id()],
-                            visible,
-                            idFormat,
-                            "document.radarcol." + std::to_string(document.id()),
-                            std::move(windowIdentity),
-                            becameVisible);
 }
 
 } // namespace uo_mule::gui

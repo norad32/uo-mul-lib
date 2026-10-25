@@ -58,10 +58,6 @@ const char * filter() noexcept
 {
     return "Filter";
 }
-const char * ascending() noexcept
-{
-    return "Ascending";
-}
 const char * loading() noexcept
 {
     return "Loading...";
@@ -69,10 +65,6 @@ const char * loading() noexcept
 const char * noItems() noexcept
 {
     return "No items to display";
-}
-const char * detailsCollapsed() noexcept
-{
-    return "Details collapsed";
 }
 const char * noItemSelected() noexcept
 {

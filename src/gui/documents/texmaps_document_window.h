@@ -64,14 +64,14 @@ struct TexmapsExportState
 
 struct TexmapsDocumentWindowState
 {
+    assets::AssetWindowState assetView;
+    std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
     std::unordered_map<std::uint32_t, TexmapsTexturePreview> texturePreviews;
     std::unordered_map<DocumentId, std::unordered_map<std::uint32_t, TexmapsTexturePreview>> documentTexturePreviews;
     std::unordered_map<DocumentId, std::uint64_t> documentTexturePreviewRevisions;
     std::uint64_t texturePreviewRevision = 0;
     bool hideUnused = false;
     std::unordered_map<DocumentId, bool> documentHideUnused;
-    assets::AssetWindowState assetView;
-    std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
     TexmapsReplacementState replacement;
     TexmapsFolderReplacementState folderReplacement;
     TexmapsExportState exportState;
@@ -95,8 +95,8 @@ struct TexmapsDocumentWindowState
 };
 
 void drawTexmapsPanel(TexmapsDocumentWindowState & state,
-                      const TextureProvider & provider,
                       bool & visible,
+                      const TextureProvider & provider,
                       const Preferences & preferences,
                       PendingPreferenceChanges & pendingChanges);
 

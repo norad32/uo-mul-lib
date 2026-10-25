@@ -22,6 +22,7 @@ enum class TiledataBrowserKind : std::uint8_t
 struct TiledataDocumentWindowState
 {
     assets::AssetWindowState assetView;
+    std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
     TiledataBrowserKind browserKind = TiledataBrowserKind::map;
     std::unordered_map<std::uint32_t, ProviderTexture> texturePreviews;
     std::uint64_t texturePreviewRevision = 0;
@@ -31,18 +32,19 @@ struct TiledataDocumentWindowState
 };
 
 void drawTiledataPanel(TiledataDocumentWindowState & state,
+                       bool & visible,
                        const TiledataProvider & provider,
                        const TextureProvider & textures,
                        const RadarColorProvider & radarColors,
-                       bool & visible,
                        IdFormat idFormat);
 
 void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
-                                TiledataDocument & document,
-                                const TextureProvider & textures,
-                                const RadarColorProvider & radarColors,
-                                bool & visible,
-                                IdFormat idFormat,
-                                std::string windowIdentity);
+                                 TiledataDocument & document,
+                                 bool & visible,
+                                 IdFormat idFormat,
+                                 const TextureProvider & textures,
+                                 const RadarColorProvider & radarColors,
+                                 std::string windowIdentity,
+                                 const std::function<void()> & becameVisible = {});
 
 } // namespace uo_mule::gui

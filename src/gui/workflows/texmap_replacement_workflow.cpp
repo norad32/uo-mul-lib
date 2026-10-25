@@ -282,7 +282,6 @@ std::optional<assets::AssetDragPayload> makeTexmapDragPayload(const assets::Asse
     assets::AssetDragPayload payload;
     payload.type = std::string(assets::texmapValueDragPayloadType);
     payload.label = "Texmap texture";
-    payload.items = selection.selected;
     payload.values.push_back({
         .item = *textureId,
         .value = *textureId,

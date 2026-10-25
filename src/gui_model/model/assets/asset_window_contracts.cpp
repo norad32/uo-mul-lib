@@ -263,7 +263,6 @@ void resetContext(AssetWindowState & state) noexcept
     state.selectionDragStartedOnItem = false;
     state.scrollPosition = 0.0F;
     state.scrollPositionRestorePending = true;
-    state.detailsCollapsed = false;
     state.requestedItem.reset();
     state.requestedItemIndex.reset();
     state.highlightedItem.reset();

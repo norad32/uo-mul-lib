@@ -32,6 +32,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <uomul/radarcol/radarcol.h>
 #include <utility>
 #include <vector>
@@ -229,7 +230,9 @@ void requestTexmapFormatExport(const WorkbenchState & state)
     state.texmapsState.exportFormatRequested(selection->first, std::move(textureIds));
 }
 
-[[nodiscard]] assets::AssetWindowState * hoveredAssetWindow(WorkbenchState & state)
+template <typename State>
+[[nodiscard]] auto hoveredAssetWindow(State & state)
+    -> std::conditional_t<std::is_const_v<State>, const assets::AssetWindowState *, assets::AssetWindowState *>
 {
     const std::string_view context =
         !state.activeAssetPanelContext.empty() ? state.activeAssetPanelContext : state.hoveredPanelContext;
@@ -253,35 +256,11 @@ void requestTexmapFormatExport(const WorkbenchState & state)
     }
     if (context == "Tiledata" && state.panelRegistry.find(PanelId::tiledata)->visible)
     {
-        return &state.tiledataState.assetView;
-    }
-    return nullptr;
-}
-
-[[nodiscard]] const assets::AssetWindowState * hoveredAssetWindow(const WorkbenchState & state)
-{
-    const std::string_view context =
-        !state.activeAssetPanelContext.empty() ? state.activeAssetPanelContext : state.hoveredPanelContext;
-    if (context == "Radarcol" && state.panelRegistry.find(PanelId::radarcol)->visible)
-    {
-        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->tiledata)
         {
-            const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
-            return view == state.radarcolState.documentAssetViews.end() ? nullptr : &view->second;
+            const auto view = state.tiledataState.documentAssetViews.find(active->tiledata->id());
+            return view == state.tiledataState.documentAssetViews.end() ? nullptr : &view->second;
         }
-        return &state.radarcolState.assetView;
-    }
-    if (context == "Texmaps" && state.panelRegistry.find(PanelId::texmaps)->visible)
-    {
-        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->texmaps)
-        {
-            const auto view = state.texmapsState.documentAssetViews.find(active->texmaps->id());
-            return view == state.texmapsState.documentAssetViews.end() ? nullptr : &view->second;
-        }
-        return &state.texmapsState.assetView;
-    }
-    if (context == "Tiledata" && state.panelRegistry.find(PanelId::tiledata)->visible)
-    {
         return &state.tiledataState.assetView;
     }
     return nullptr;

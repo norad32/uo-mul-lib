@@ -30,7 +30,7 @@ void writeSource(std::ostream & output, const AssetSourceContext & context)
     }
 }
 
-bool readRecord(std::istream & file, AssetStateRecord & record)
+bool readRecord(std::istream & file, AssetStateRecord & record, std::uint32_t schemaVersion)
 {
     file >> std::quoted(record.profileIdentity) >> std::quoted(record.assetWindowIdentity);
     std::string marker;
@@ -66,13 +66,22 @@ bool readRecord(std::istream & file, AssetStateRecord & record)
     file >> marker;
     if (marker == "query")
     {
-        file >> std::quoted(record.state.query.filter) >> std::quoted(record.state.query.sortKey) >>
-            record.state.query.sortAscending;
+        file >> std::quoted(record.state.query.filter);
+        if (schemaVersion == 0U)
+        {
+            std::string unusedSortKey;
+            bool unusedSortAscending = true;
+            file >> std::quoted(unusedSortKey) >> unusedSortAscending;
+        }
     }
-    file >> marker;
-    if (marker == "details")
+    if (schemaVersion == 0U)
     {
-        file >> record.state.detailsCollapsed;
+        file >> marker;
+        if (marker == "details")
+        {
+            bool unusedDetailsCollapsed = false;
+            file >> unusedDetailsCollapsed;
+        }
     }
     file >> marker;
     if (marker == "scroll")
@@ -130,16 +139,17 @@ std::vector<AssetStateRecord> loadAssetState(const std::filesystem::path & path)
 
     std::ifstream file(path);
     std::string key;
+    std::uint32_t schemaVersion = 0;
     while (file >> key)
     {
         if (key == "schema_version")
         {
-            std::getline(file, key);
+            file >> schemaVersion;
         }
         else if (key == "record")
         {
             AssetStateRecord record;
-            if (readRecord(file, record))
+            if (readRecord(file, record, schemaVersion))
             {
                 records.push_back(std::move(record));
             }
@@ -168,9 +178,8 @@ void saveAssetState(const std::filesystem::path & path, const std::vector<AssetS
         file << "record " << std::quoted(record.profileIdentity) << ' ' << std::quoted(record.assetWindowIdentity) << ' ';
         writeSource(file, record.context);
         file << "presentation " << static_cast<int>(record.state.presentation) << "\nquery "
-             << std::quoted(record.state.query.filter) << ' ' << std::quoted(record.state.query.sortKey) << ' '
-             << record.state.query.sortAscending << "\ndetails " << record.state.detailsCollapsed << "\nscroll "
-             << record.state.scrollPosition << "\nselection " << record.state.selection.selected.size();
+             << std::quoted(record.state.query.filter) << " \"\" 1\ndetails 0\nscroll " << record.state.scrollPosition
+             << "\nselection " << record.state.selection.selected.size();
         for (const auto & selected : record.state.selection.selected)
         {
             file << ' ' << std::quoted(selected.value);
@@ -217,7 +226,6 @@ void restoreAssetState(const AssetStateRecord & record, AssetWindowState & state
     resetContext(state);
     state.presentation = record.state.presentation;
     state.query = record.state.query;
-    state.detailsCollapsed = record.state.detailsCollapsed;
     state.scrollPosition = record.state.scrollPosition;
     state.scrollPositionRestorePending = true;
     state.selection = record.state.selection;

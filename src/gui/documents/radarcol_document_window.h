@@ -18,7 +18,6 @@
 namespace uo_mule::gui
 {
 
-inline constexpr std::size_t radarcolPathBufferSize = 1024;
 inline constexpr std::size_t radarcolPickerRgbBufferSize = 4;
 inline constexpr std::size_t radarcolPickerHexBufferSize = 8;
 inline constexpr std::size_t radarcolPickerRawBufferSize = 5;
@@ -70,14 +69,9 @@ struct RadarcolDocumentWindowState
     RadarcolColorPickerState colorPicker;
 };
 
-void openRadarcolColorPicker(RadarcolDocumentWindowState & state,
-                             const RadarcolDocument & document,
-                             const assets::AssetSelection & selection);
-[[nodiscard]] bool acceptRadarcolColorSource(RadarcolDocumentWindowState & state, uomul::RadarColor color);
-void cancelRadarcolColorSource(RadarcolDocumentWindowState & state);
 void drawRadarcolPanel(RadarcolDocumentWindowState & state,
-                       const RadarColorProvider & provider,
                        bool & visible,
+                       const RadarColorProvider & provider,
                        IdFormat idFormat);
 void drawRadarcolDocumentWindow(RadarcolDocumentWindowState & state,
                                 RadarcolDocument & document,
@@ -85,5 +79,10 @@ void drawRadarcolDocumentWindow(RadarcolDocumentWindowState & state,
                                 IdFormat idFormat,
                                 std::string windowIdentity,
                                 const std::function<void()> & becameVisible = {});
+void openRadarcolColorPicker(RadarcolDocumentWindowState & state,
+                             const RadarcolDocument & document,
+                             const assets::AssetSelection & selection);
+[[nodiscard]] bool acceptRadarcolColorSource(RadarcolDocumentWindowState & state, uomul::RadarColor color);
+void cancelRadarcolColorSource(RadarcolDocumentWindowState & state);
 
 } // namespace uo_mule::gui

@@ -57,9 +57,6 @@ TEST_CASE("assetStateStore_Should_RoundTripSemanticContextAndPresentationState")
     uo_mule::gui::assets::AssetWindowState state;
     state.presentation = uo_mule::gui::assets::AssetPresentation::table;
     state.query.filter = "stone";
-    state.query.sortKey = "id";
-    state.query.sortAscending = false;
-    state.detailsCollapsed = true;
     state.scrollPosition = 42.0F; // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     state.selection.selected = {{.value = "7"}, {.value = "9"}};
     state.selection.anchor = {.value = "9"};
@@ -75,7 +72,6 @@ TEST_CASE("assetStateStore_Should_RoundTripSemanticContextAndPresentationState")
     REQUIRE(found->context == context);
     REQUIRE(found->state.presentation == uo_mule::gui::assets::AssetPresentation::table);
     REQUIRE(found->state.query == state.query);
-    REQUIRE(found->state.detailsCollapsed);
     REQUIRE(std::abs(found->state.scrollPosition - state.scrollPosition) <
             0.001F); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     REQUIRE(found->state.selection.selected == state.selection.selected);

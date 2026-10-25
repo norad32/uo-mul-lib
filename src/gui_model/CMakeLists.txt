@@ -18,6 +18,7 @@ set(GUI_MODEL_SOURCES
     providers/color_conversion.cpp
     providers/data_providers.cpp
     providers/embedded_radarcol.cpp
+    providers/texture_conversion.cpp
     layout/panel_registry.cpp
     operations/operation_controller.cpp
     lifecycle/document_lifecycle.cpp
