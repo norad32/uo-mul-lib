@@ -29,6 +29,7 @@
 #include "logger/gui_log_sink.h"
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -83,6 +84,7 @@ struct WorkbenchState
     std::optional<PendingChangesAction> pendingAssetCloseAction;
     PendingPreferenceChanges pendingPreferenceChanges;
     std::optional<DataProfile> pendingProfileSave;
+    std::vector<std::function<void()>> deferredWorkflowActions;
     MenuBarState menuBarState;
     DialogHostState dialogHost;
     FileBrowserState fileBrowser;
@@ -110,6 +112,11 @@ struct WorkbenchState
     std::vector<assets::AssetStateRecord> assetStateRecords;
     bool assetStateResetRequested = false;
     bool assetStateRestored = false;
+
+    void deferWorkflowAction(std::function<void()> action)
+    {
+        deferredWorkflowActions.push_back(std::move(action));
+    }
 };
 
 } // namespace uo_mule::gui

@@ -257,32 +257,60 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     }
 }
 
-[[nodiscard]] bool routeImageOrExportResult(const WorkbenchState & state, const FileBrowserResult & result)
+[[nodiscard]] bool routeImageOrExportResult(WorkbenchState & state, const FileBrowserResult & result)
 {
     switch (result.target)
     {
         case FileBrowserTarget::imageOpen :
             if (state.texmapsState.replacementFilePicked)
             {
-                state.texmapsState.replacementFilePicked(result.path);
+                const auto path = result.path;
+                state.deferWorkflowAction([&state, path]
+                {
+                    if (state.texmapsState.replacementFilePicked)
+                    {
+                        state.texmapsState.replacementFilePicked(path);
+                    }
+                });
             }
             return true;
         case FileBrowserTarget::imageFolderOpen :
             if (state.texmapsState.folderReplacementFolderPicked)
             {
-                state.texmapsState.folderReplacementFolderPicked(result.path);
+                const auto path = result.path;
+                state.deferWorkflowAction([&state, path]
+                {
+                    if (state.texmapsState.folderReplacementFolderPicked)
+                    {
+                        state.texmapsState.folderReplacementFolderPicked(path);
+                    }
+                });
             }
             return true;
         case FileBrowserTarget::texmapExportFile :
             if (state.texmapsState.exportFilePicked)
             {
-                state.texmapsState.exportFilePicked(result.path);
+                const auto path = result.path;
+                state.deferWorkflowAction([&state, path]
+                {
+                    if (state.texmapsState.exportFilePicked)
+                    {
+                        state.texmapsState.exportFilePicked(path);
+                    }
+                });
             }
             return true;
         case FileBrowserTarget::texmapExportFolder :
             if (state.texmapsState.exportFolderPicked)
             {
-                state.texmapsState.exportFolderPicked(result.path);
+                const auto path = result.path;
+                state.deferWorkflowAction([&state, path]
+                {
+                    if (state.texmapsState.exportFolderPicked)
+                    {
+                        state.texmapsState.exportFolderPicked(path);
+                    }
+                });
             }
             return true;
         default :
@@ -306,7 +334,9 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     {
         return false;
     }
-    createNewAsset(state, result.target, result.path);
+    const auto target = result.target;
+    const auto path = result.path;
+    state.deferWorkflowAction([&state, target, path] { createNewAsset(state, target, path); });
     return true;
 }
 
@@ -344,7 +374,10 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     if (!result.assetCandidate && result.target == FileBrowserTarget::genericOpen && result.assetCandidates.size() == 1U &&
         result.assetCandidates.front().openable)
     {
-        return openGenericAsset(state, result, result.assetCandidates.front());
+        const auto candidate = result.assetCandidates.front();
+        state.deferWorkflowAction([&state, result, candidate]
+        { static_cast<void>(openGenericAsset(state, result, candidate)); });
+        return false;
     }
 
     if (routeFileSelectorResult(state, result))
@@ -354,7 +387,9 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 
     if (result.target == FileBrowserTarget::genericOpen && result.assetCandidate)
     {
-        return openGenericAsset(state, result, *result.assetCandidate);
+        const auto candidate = *result.assetCandidate;
+        state.deferWorkflowAction([&state, result, candidate] { static_cast<void>(openGenericAsset(state, result, candidate)); });
+        return false;
     }
 
     if (result.assetCandidate && result.assetCandidate->kind == MulAssetKind::texmapsPair)
@@ -362,7 +397,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
         return routePairResult(state, result, *result.assetCandidate);
     }
 
-    applyAssetResult(state, result);
+    state.deferWorkflowAction([&state, result] { applyAssetResult(state, result); });
     return false;
 }
 

@@ -465,15 +465,22 @@ void configureTexmapExportCallbacks(WorkbenchState & state)
     };
     state.texmapsState.exportFilePicked = [&state](const std::filesystem::path & path)
     {
-        state.texmapsState.exportState.outputPath = path;
-        executeTexmapExport(state, false);
+        state.deferWorkflowAction([&state, path]
+        {
+            state.texmapsState.exportState.outputPath = path;
+            executeTexmapExport(state, false);
+        });
     };
     state.texmapsState.exportFolderPicked = [&state](const std::filesystem::path & path)
     {
-        state.texmapsState.exportState.outputPath = path;
-        executeTexmapExport(state, false);
+        state.deferWorkflowAction([&state, path]
+        {
+            state.texmapsState.exportState.outputPath = path;
+            executeTexmapExport(state, false);
+        });
     };
-    state.texmapsState.exportOverwriteConfirmed = [&state] { executeTexmapExport(state, true); };
+    state.texmapsState.exportOverwriteConfirmed = [&state]
+    { state.deferWorkflowAction([&state] { executeTexmapExport(state, true); }); };
     state.texmapsState.exportOverwriteCancelled = [&state]
     {
         state.operationStatus = "Export cancelled.";
@@ -499,24 +506,27 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
     };
     state.texmapsState.folderReplacementFolderPicked = [&state](const std::filesystem::path & path)
     {
-        state.texmapsState.folderReplacement.visible = true;
-        const auto * record = findDocument(state, state.texmapsState.folderReplacement.documentId);
-        if (record == nullptr || !record->texmaps)
+        state.deferWorkflowAction([&state, path]
         {
-            state.texmapsState.folderReplacement.status = "The Texmaps document is no longer open.";
-            state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
-            return;
-        }
-        const auto scanned =
-            scanTexmapReplacementFolder(path, state.texmapsState.folderReplacement.textureIds, *record->texmaps);
-        if (!scanned)
-        {
-            state.texmapsState.folderReplacement.status = scanned.error().message;
-            state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
-            return;
-        }
-        state.texmapsState.folderReplacement.replacement = *scanned;
-        state.texmapsState.folderReplacement.status.clear();
+            state.texmapsState.folderReplacement.visible = true;
+            const auto * record = findDocument(state, state.texmapsState.folderReplacement.documentId);
+            if (record == nullptr || !record->texmaps)
+            {
+                state.texmapsState.folderReplacement.status = "The Texmaps document is no longer open.";
+                state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
+                return;
+            }
+            const auto scanned =
+                scanTexmapReplacementFolder(path, state.texmapsState.folderReplacement.textureIds, *record->texmaps);
+            if (!scanned)
+            {
+                state.texmapsState.folderReplacement.status = scanned.error().message;
+                state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
+                return;
+            }
+            state.texmapsState.folderReplacement.replacement = *scanned;
+            state.texmapsState.folderReplacement.status.clear();
+        });
     };
 }
 
@@ -554,11 +564,14 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     };
     state.texmapsState.replacementFilePicked = [&state](const std::filesystem::path & path)
     {
-        state.texmapsState.replacement.visible = true;
-        loadTexmapsReplacement(state.texmapsState, path);
-        state.operationStatus = state.texmapsState.replacement.status;
-        state.operationStatusSeverity =
-            state.texmapsState.replacement.texture ? NotificationSeverity::success : NotificationSeverity::error;
+        state.deferWorkflowAction([&state, path]
+        {
+            state.texmapsState.replacement.visible = true;
+            loadTexmapsReplacement(state.texmapsState, path);
+            state.operationStatus = state.texmapsState.replacement.status;
+            state.operationStatusSeverity =
+                state.texmapsState.replacement.texture ? NotificationSeverity::success : NotificationSeverity::error;
+        });
     };
     state.texmapsState.replacementStatusReported = [&state](std::string message, bool success)
     {
@@ -1151,6 +1164,18 @@ void processDocumentIntents(WorkbenchState & state)
     state.session.syncAssetDocuments();
 }
 
+void applyDeferredWorkflowActions(WorkbenchState & state)
+{
+    while (!state.deferredWorkflowActions.empty())
+    {
+        auto actions = std::move(state.deferredWorkflowActions);
+        for (auto & action : actions)
+        {
+            action();
+        }
+    }
+}
+
 void drawPendingAssetCloseDialog(WorkbenchState & state)
 {
     if (!state.pendingAssetCloseDecision)
@@ -1712,8 +1737,6 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
         drawDockSpace(state, bottomPanelHeight);
         drawDocumentSurface(state);
         drawPendingAssetCloseDialog(state);
-        applyPendingDocumentAction(state);
-        processDocumentIntents(state);
         drawMapPanels(state, state.blockInspectorState, state.radarcolState, state.texmapsState);
         notifyRadarcolFallback(state);
         if (state.mapDocuments.active().changes().reader_.has_value() &&
@@ -1723,6 +1746,8 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
                                            state.mapDocuments.active().changes().dimensions_);
             state.recentMapRecordedPath = state.mapDocuments.active().changes().mapPath_;
         }
+        applyPendingDocumentAction(state);
+        processDocumentIntents(state);
     }
     if (!welcome)
     {
@@ -1762,6 +1787,7 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
     }
     dispatchShortcuts(state, !welcome);
     const bool welcomeProfileChanged = drawWelcomeOrWorkbench(logSink, state, welcome);
+    applyDeferredWorkflowActions(state);
     if (welcomeProfileChanged)
     {
         applyProfileChange(state);
