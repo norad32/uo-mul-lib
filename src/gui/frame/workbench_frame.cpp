@@ -486,7 +486,6 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
     state.texmapsState.folderReplacementRequested = [&state](DocumentId documentId, std::vector<std::uint32_t> textureIds)
     {
         state.texmapsState.folderReplacement = {};
-        state.texmapsState.folderReplacement.visible = true;
         state.texmapsState.folderReplacement.documentId = documentId;
         state.texmapsState.folderReplacement.textureIds = std::move(textureIds);
         requestFileBrowser(state.fileBrowser,
@@ -500,6 +499,7 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
     };
     state.texmapsState.folderReplacementFolderPicked = [&state](const std::filesystem::path & path)
     {
+        state.texmapsState.folderReplacement.visible = true;
         const auto * record = findDocument(state, state.texmapsState.folderReplacement.documentId);
         if (record == nullptr || !record->texmaps)
         {
@@ -542,6 +542,7 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     };
     state.texmapsState.replacementFileRequested = [&state]
     {
+        state.texmapsState.replacement.visible = false;
         requestFileBrowser(state.fileBrowser,
                            {
                                .mode = FileBrowserMode::openFile,
@@ -553,6 +554,7 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     };
     state.texmapsState.replacementFilePicked = [&state](const std::filesystem::path & path)
     {
+        state.texmapsState.replacement.visible = true;
         loadTexmapsReplacement(state.texmapsState, path);
         state.operationStatus = state.texmapsState.replacement.status;
         state.operationStatusSeverity =

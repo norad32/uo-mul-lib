@@ -304,6 +304,8 @@ void drawReplacementDialog(TexmapsPanelState & state, TexmapsDocument & document
         if (state.replacementFileRequested && ImGui::Button(openLabel.c_str()))
         {
             state.replacementFileRequested();
+            visible = false;
+            ImGui::CloseCurrentPopup();
         }
         ImGui::EndTable();
     }
