@@ -15,10 +15,6 @@ std::string documentWindowName(const DocumentSummary & summary)
     {
         name += " *";
     }
-    if (summary.access == DocumentAccess::readOnly)
-    {
-        name += " [Read-only]";
-    }
     name += "###document.";
     name += std::to_string(summary.identity.id);
     return name;

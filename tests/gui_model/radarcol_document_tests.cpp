@@ -160,25 +160,11 @@ TEST_CASE("radarcolDocument_Should_KeepNoOpEditsClean")
     REQUIRE_FALSE(document->dirty());
 }
 
-TEST_CASE("radarcolDocument_Should_RejectReadOnlyInvalidAndOutOfRangeEdits")
+TEST_CASE("radarcolDocument_Should_RejectInvalidAndOutOfRangeEdits")
 {
     const TestDirectory directory;
     const auto sourcePath = directory.path() / "source.mul";
     REQUIRE(createRadarcol(sourcePath));
-
-    auto configured = uo_mule::gui::RadarcolDocument::open(
-        10U, // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-        sourcePath,
-        uo_mule::gui::DocumentAccess::readOnly); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-    REQUIRE(configured);
-    REQUIRE_FALSE(configured->handleIntent({
-        .kind = uo_mule::gui::RadarcolDocumentIntentKind::editColors,
-        .colorEdits = {{.colorIndex = 0U,
-                        .color = 0x2345U}}, // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-        .outputPath = {},
-        .overwriteOutput = false,
-    }));
-    REQUIRE_FALSE(configured->editing());
 
     auto document = uo_mule::gui::RadarcolDocument::open(
         11U, sourcePath); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)

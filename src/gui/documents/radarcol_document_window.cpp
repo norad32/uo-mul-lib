@@ -727,7 +727,7 @@ void drawDocumentContextMenu(RadarcolDocumentWindowState & state,
                              const assets::AssetItemId & contextItem)
 {
     const auto & selection = state.documentAssetViews.at(document.id()).selection;
-    if (!document.readOnly() && ImGui::MenuItem("Edit...", "Ctrl+E", false, !selection.selected.empty()))
+    if (ImGui::MenuItem("Edit...", "Ctrl+E", false, !selection.selected.empty()))
     {
         openRadarcolColorPicker(state, document, selection);
     }
@@ -832,42 +832,36 @@ void drawRadarcolAssetWindow(RadarcolDocumentWindowState & state,
     { drawRadarcolKindControl(state.documentBrowserKinds.at(documentId)); };
     adapter.descriptor.itemContextMenu = [&state, &document, kind](const assets::AssetItemId & item)
     { drawDocumentContextMenu(state, document, kind, item); };
-    if (!document.readOnly())
+    adapter.descriptor.acceptedDragPayloadType = std::string(assets::assetValueDragPayloadType);
+    adapter.descriptor.itemValueDropped =
+        [&state, &document, kind](const assets::AssetItemId & item, const assets::AssetDragPayloadValue & payload)
     {
-        adapter.descriptor.acceptedDragPayloadType = std::string(assets::assetValueDragPayloadType);
-        adapter.descriptor.itemValueDropped =
-            [&state, &document, kind](const assets::AssetItemId & item, const assets::AssetDragPayloadValue & payload)
+        if (const auto index = assets::itemIndex(item))
         {
-            if (const auto index = assets::itemIndex(item))
+            if (state.clearStatus)
             {
-                if (state.clearStatus)
-                {
-                    state.clearStatus();
-                }
-                document.requestIntent({
-                    .kind = RadarcolDocumentIntentKind::editColors,
-                    .colorEdits =
-                        {
-                            {
-                                .colorIndex = radarcolRawIndex(kind, *index),
-                                .color = static_cast<uomul::RadarColor>(payload.value),
-                            },
-                        },
-                    .outputPath = {},
-                    .overwriteOutput = false,
-                });
+                state.clearStatus();
             }
-        };
-    }
-    if (!document.readOnly())
+            document.requestIntent({
+                .kind = RadarcolDocumentIntentKind::editColors,
+                .colorEdits =
+                    {
+                        {
+                            .colorIndex = radarcolRawIndex(kind, *index),
+                            .color = static_cast<uomul::RadarColor>(payload.value),
+                        },
+                    },
+                .outputPath = {},
+                .overwriteOutput = false,
+            });
+        }
+    };
+    adapter.descriptor.itemDoubleClicked = [&state, &document](const assets::AssetItemId & item)
     {
-        adapter.descriptor.itemDoubleClicked = [&state, &document](const assets::AssetItemId & item)
-        {
-            assets::AssetSelection selection;
-            assets::selectSingle(selection, item);
-            openRadarcolColorPicker(state, document, selection);
-        };
-    }
+        assets::AssetSelection selection;
+        assets::selectSingle(selection, item);
+        openRadarcolColorPicker(state, document, selection);
+    };
     adapter.loadRange = [&document, kind, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
     { return loadRadarcolRange(document, kind, request, idFormat); };
     adapter.loadSearchItems = [&document, kind, idFormat] { return loadRadarcolSearchItems(document, kind, idFormat); };
@@ -913,7 +907,7 @@ void openRadarcolColorPicker(RadarcolDocumentWindowState & state,
                              const RadarcolDocument & document,
                              const assets::AssetSelection & selection)
 {
-    if (document.readOnly() || !document.reader() || selection.selected.empty())
+    if (!document.reader() || selection.selected.empty())
     {
         return;
     }

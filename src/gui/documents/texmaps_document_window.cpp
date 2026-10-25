@@ -852,7 +852,7 @@ void requestDocumentFolderReplacement(const TexmapsDocumentWindowState & state,
                                       const TexmapsDocument & document,
                                       const assets::AssetItemId & item)
 {
-    if (document.readOnly() || !state.folderReplacementRequested)
+    if (!state.folderReplacementRequested)
     {
         return;
     }
@@ -942,10 +942,6 @@ void configureDocumentTextureDrop(assets::AssetAdapter & adapter,
                                   TexmapsDocumentWindowState & state,
                                   TexmapsDocument & document)
 {
-    if (document.readOnly())
-    {
-        return;
-    }
     adapter.descriptor.acceptedDragPayloadType = std::string(assets::texmapValueDragPayloadType);
     adapter.descriptor.itemValueDropped =
         [&state, &document](const assets::AssetItemId & item, const assets::AssetDragPayloadValue & payload)

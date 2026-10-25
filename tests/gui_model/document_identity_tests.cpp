@@ -47,7 +47,6 @@ bool isInvalidConfiguredDocument(const uo_mule::gui::DocumentRecord * document)
         return false;
     }
     return document->summary.sourceKind == uo_mule::gui::DocumentSourceKind::configuredMetadata &&
-           document->summary.access == uo_mule::gui::DocumentAccess::readOnly &&
            document->summary.validation == uo_mule::gui::DocumentValidationState::invalid && !document->radarcol->reader() &&
            !document->radarcol->error().empty();
 }
@@ -130,7 +129,6 @@ TEST_CASE("MapDocument_Should_ProduceGenericSummary")
     REQUIRE(summary.identity.kind == uo_mule::gui::DocumentKind::map);
     REQUIRE(summary.displayName == "map0.mul");
     REQUIRE(summary.sourceKind == uo_mule::gui::DocumentSourceKind::standalone);
-    REQUIRE(summary.access == uo_mule::gui::DocumentAccess::editable);
     REQUIRE(summary.validation == uo_mule::gui::DocumentValidationState::valid);
     REQUIRE(summary.dirty);
 }
@@ -176,7 +174,6 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
         .identity = {.kind = uo_mule::gui::DocumentKind::radarcol, .source = radarcolIdentity},
         .displayName = "radarcol.mul",
         .sourceKind = uo_mule::gui::DocumentSourceKind::standalone,
-        .access = uo_mule::gui::DocumentAccess::editable,
         .validation = uo_mule::gui::DocumentValidationState::valid,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
@@ -185,7 +182,6 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
         .identity = {.kind = uo_mule::gui::DocumentKind::texmapPair, .source = pairIdentity},
         .displayName = "Texmap Pair",
         .sourceKind = uo_mule::gui::DocumentSourceKind::standalone,
-        .access = uo_mule::gui::DocumentAccess::readOnly,
         .validation = uo_mule::gui::DocumentValidationState::valid,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
@@ -255,7 +251,6 @@ TEST_CASE("DocumentManager_Should_OpenStandaloneRadarcolAsAnEditableReaderBacked
 
     const bool reused = firstId != 0 && secondId == firstId && documents.documents().size() == 1 &&
                         documents.documents().front().summary.sourceKind == uo_mule::gui::DocumentSourceKind::standalone &&
-                        documents.documents().front().summary.access == uo_mule::gui::DocumentAccess::editable &&
                         documents.documents().front().summary.validation == uo_mule::gui::DocumentValidationState::valid;
     REQUIRE(reused);
     const auto & radarcol = documents.documents().front().radarcol;
@@ -263,7 +258,7 @@ TEST_CASE("DocumentManager_Should_OpenStandaloneRadarcolAsAnEditableReaderBacked
     REQUIRE(radarColorCount(radarcol) == uomul::radarColorCount);
 }
 
-TEST_CASE("DocumentManager_Should_KeepInvalidConfiguredRadarcolReadOnly")
+TEST_CASE("DocumentManager_Should_KeepInvalidConfiguredRadarcolEditable")
 {
     const TestDirectory directory;
     const auto radarcolPath = testRoot() / "broken-radarcol.mul";
@@ -362,12 +357,10 @@ TEST_CASE("WorkbenchSession_Should_RebindOpenMetadataSourceStatus_If_ProfileChan
     firstProfile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = firstRadarcol.filename()};
     session.updateProfile(firstProfile);
     REQUIRE(session.documents().front().summary.sourceKind == uo_mule::gui::DocumentSourceKind::configuredMetadata);
-    REQUIRE(session.documents().front().summary.access == uo_mule::gui::DocumentAccess::readOnly);
 
     uo_mule::gui::DataProfile secondProfile;
     secondProfile.sourceRoot = testRoot();
     secondProfile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = secondRadarcol.filename()};
     session.updateProfile(secondProfile);
     REQUIRE(session.documents().front().summary.sourceKind == uo_mule::gui::DocumentSourceKind::standalone);
-    REQUIRE(session.documents().front().summary.access == uo_mule::gui::DocumentAccess::editable);
 }

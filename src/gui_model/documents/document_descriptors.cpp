@@ -43,7 +43,6 @@ DocumentDescriptorRegistry::createSummary(const DocumentCreationRequest & reques
         .identity = {.id = 0, .kind = request.kind, .source = request.source},
         .displayName = request.displayName,
         .sourceKind = DocumentSourceKind::standalone,
-        .access = request.access,
         .validation = request.validation,
         .facetKey = request.facetKey,
         .dimensions = request.dimensions,

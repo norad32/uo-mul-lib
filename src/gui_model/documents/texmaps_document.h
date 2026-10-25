@@ -1,6 +1,5 @@
 #pragma once
 
-#include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/staged_document_state.h"
 #include "uomul/texmaps/texmaps.h"
@@ -47,15 +46,10 @@ struct TexmapsDocumentIntent
 
 struct TexmapsDocument
 {
-    [[nodiscard]] static std::expected<TexmapsDocument, uomul::Error> open(DocumentId id,
-                                                                           const std::filesystem::path & indexPath,
-                                                                           const std::filesystem::path & dataPath,
-                                                                           DocumentAccess access = DocumentAccess::editable);
-    [[nodiscard]] static TexmapsDocument invalid(DocumentId id,
-                                                 std::filesystem::path indexPath,
-                                                 std::filesystem::path dataPath,
-                                                 DocumentAccess access,
-                                                 std::string error);
+    [[nodiscard]] static std::expected<TexmapsDocument, uomul::Error>
+    open(DocumentId id, const std::filesystem::path & indexPath, const std::filesystem::path & dataPath);
+    [[nodiscard]] static TexmapsDocument
+    invalid(DocumentId id, std::filesystem::path indexPath, std::filesystem::path dataPath, std::string error);
 
     [[nodiscard]] DocumentId id() const noexcept { return id_; }
     [[nodiscard]] const std::filesystem::path & sourceIndexPath() const noexcept { return sourceIndexPath_; }
@@ -72,8 +66,6 @@ struct TexmapsDocument
     [[nodiscard]] const std::optional<uomul::TexMapsReader> & reader() const noexcept { return reader_; }
     [[nodiscard]] std::uint64_t displayRevision() const noexcept { return state_.revision(); }
     [[nodiscard]] const std::string & error() const noexcept { return state_.error(); }
-    [[nodiscard]] DocumentAccess access() const noexcept { return state_.access(); }
-    [[nodiscard]] bool readOnly() const noexcept { return state_.readOnly(); }
     [[nodiscard]] bool editing() const noexcept { return editor_.has_value(); }
     [[nodiscard]] bool dirty() const noexcept { return state_.dirty(); }
     [[nodiscard]] bool overwriteOutput() const noexcept { return overwriteOutput_; }
@@ -82,7 +74,6 @@ struct TexmapsDocument
     [[nodiscard]] std::expected<bool, uomul::Error> hasTexture(std::uint32_t textureId) const;
     [[nodiscard]] bool hasStagedTexture(std::uint32_t textureId) const noexcept;
 
-    void setAccess(DocumentAccess value) noexcept;
     void requestIntent(TexmapsDocumentIntent intent) { pendingIntent_.request(std::move(intent)); }
     [[nodiscard]] std::expected<void, uomul::Error> processPendingIntent();
     [[nodiscard]] std::expected<void, uomul::Error> handleIntent(const TexmapsDocumentIntent & intent);
@@ -92,7 +83,6 @@ private:
                     std::filesystem::path indexPath,
                     std::filesystem::path dataPath,
                     std::optional<uomul::TexMapsReader> reader,
-                    DocumentAccess access,
                     std::string error);
     [[nodiscard]] std::expected<void, uomul::Error> beginEditing(const std::filesystem::path & outputIndexPath,
                                                                  const std::filesystem::path & outputDataPath,

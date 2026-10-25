@@ -52,10 +52,10 @@ TEST_CASE("tools_Should_RequireAnOpenMap")
 TEST_CASE("editingTools_Should_RequireAnEditableMap")
 {
     const ToolRegistry registry;
-    const ToolContext readOnlyContext{.mapDocumentOpen = true, .mapEditable = false};
+    const ToolContext nonEditableContext{.mapDocumentOpen = true, .mapEditable = false};
 
-    REQUIRE_FALSE(registry.availability(ToolId::fill, readOnlyContext).enabled);
-    REQUIRE(registry.availability(ToolId::replace, readOnlyContext).disabledReason == "The active map is not editable");
+    REQUIRE_FALSE(registry.availability(ToolId::fill, nonEditableContext).enabled);
+    REQUIRE(registry.availability(ToolId::replace, nonEditableContext).disabledReason == "The active map is not editable");
 }
 
 TEST_CASE("fuzzySelect_Should_BeUnavailableForBlockGranularity")

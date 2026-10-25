@@ -46,7 +46,7 @@ namespace
     return false;
 }
 
-void updateMetadataAccess(DocumentRecord & document, bool configured)
+void updateMetadataSource(DocumentRecord & document, bool configured)
 {
     const auto kind = document.summary.identity.kind;
     if (kind != DocumentKind::radarcol && kind != DocumentKind::texmapPair && kind != DocumentKind::tiledata)
@@ -55,16 +55,6 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
     }
 
     document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-    document.summary.access =
-        kind == DocumentKind::tiledata || configured ? DocumentAccess::readOnly : DocumentAccess::editable;
-    if (kind == DocumentKind::radarcol && document.radarcol)
-    {
-        document.radarcol->setAccess(document.summary.access);
-    }
-    if (kind == DocumentKind::texmapPair && document.texmaps)
-    {
-        document.texmaps->setAccess(document.summary.access);
-    }
 }
 
 [[nodiscard]] std::optional<RadarcolDocument> openRadarcolDocument(DocumentSummary & summary)
@@ -79,7 +69,7 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
         return std::nullopt;
     }
 
-    auto opened = RadarcolDocument::open(summary.identity.id, *sourcePath, summary.access);
+    auto opened = RadarcolDocument::open(summary.identity.id, *sourcePath);
     if (opened)
     {
         summary.validation = DocumentValidationState::valid;
@@ -87,7 +77,7 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
     }
 
     summary.validation = DocumentValidationState::invalid;
-    return RadarcolDocument::invalid(summary.identity.id, *sourcePath, summary.access, opened.error().message);
+    return RadarcolDocument::invalid(summary.identity.id, *sourcePath, opened.error().message);
 }
 
 [[nodiscard]] std::optional<TexmapsDocument> openTexmapsDocument(DocumentSummary & summary)
@@ -104,11 +94,10 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
         return TexmapsDocument::invalid(summary.identity.id,
                                         indexPath == nullptr ? std::filesystem::path{} : *indexPath,
                                         dataPath == nullptr ? std::filesystem::path{} : *dataPath,
-                                        summary.access,
-                                        "Texmap Pair source requires index and data roles");
+                                        "Texmaps file set is not available");
     }
 
-    auto opened = TexmapsDocument::open(summary.identity.id, *indexPath, *dataPath, summary.access);
+    auto opened = TexmapsDocument::open(summary.identity.id, *indexPath, *dataPath);
     if (opened)
     {
         summary.validation = DocumentValidationState::valid;
@@ -116,7 +105,7 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
     }
 
     summary.validation = DocumentValidationState::invalid;
-    return TexmapsDocument::invalid(summary.identity.id, *indexPath, *dataPath, summary.access, opened.error().message);
+    return TexmapsDocument::invalid(summary.identity.id, *indexPath, *dataPath, opened.error().message);
 }
 
 [[nodiscard]] std::optional<TiledataDocument> openTiledataDocument(DocumentSummary & summary)
@@ -230,7 +219,7 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
     {
         const bool configured = configuredMetadataSource(
             document.summary.identity, configuredRadarcolSource_, configuredTexmapPairSource_, configuredTiledataSource_);
-        updateMetadataAccess(document, configured);
+        updateMetadataSource(document, configured);
     }
 }
 
@@ -251,10 +240,6 @@ DocumentId DocumentManager::open(DocumentSummary summary)
     const bool configured = configuredMetadataSource(
         summary.identity, configuredRadarcolSource_, configuredTexmapPairSource_, configuredTiledataSource_);
     summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-    summary.access =
-        (summary.identity.kind == DocumentKind::radarcol || summary.identity.kind == DocumentKind::texmapPair) && !configured
-            ? DocumentAccess::editable
-            : DocumentAccess::readOnly;
 
     auto radarcol = openRadarcolDocument(summary);
     auto texmaps = openTexmapsDocument(summary);
@@ -326,8 +311,6 @@ void DocumentManager::syncAssetDocuments() noexcept
             document.summary.identity.source = source;
             document.summary.displayName = document.radarcol->sourcePath().filename().string();
             document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-            document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
-            document.radarcol->setAccess(document.summary.access);
             document.summary.dirty = document.radarcol->dirty();
             document.summary.validation =
                 document.radarcol->reader().has_value() ? DocumentValidationState::valid : DocumentValidationState::invalid;
@@ -339,8 +322,6 @@ void DocumentManager::syncAssetDocuments() noexcept
             document.summary.identity.source = source;
             document.summary.displayName = document.texmaps->sourceIndexPath().filename().string();
             document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-            document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
-            document.texmaps->setAccess(document.summary.access);
             document.summary.dirty = document.texmaps->dirty();
             document.summary.validation =
                 document.texmaps->reader().has_value() ? DocumentValidationState::valid : DocumentValidationState::invalid;
@@ -404,7 +385,6 @@ DocumentSummary MapDocument::summary() const
         result.displayName = std::string(documentKindName(DocumentKind::map));
     }
     result.sourceKind = DocumentSourceKind::standalone;
-    result.access = DocumentAccess::editable;
     result.validation = DocumentValidationState::valid;
     result.facetKey = facetKey;
     result.dimensions = dimensions;

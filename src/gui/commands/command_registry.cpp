@@ -75,7 +75,7 @@ ToolContext toolContext(const WorkbenchState & state)
                          state.mapDocuments.active().changes().reader.has_value();
     return {
         .mapDocumentOpen = mapOpen,
-        .mapEditable = mapOpen && active->summary.access == DocumentAccess::editable,
+        .mapEditable = mapOpen,
         .selectionGranularity = state.toolState.selectionGranularity(),
     };
 }
@@ -127,10 +127,6 @@ CommandAvailability requiresSaveableDocument(const WorkbenchState & state)
     }
     if (active->radarcol)
     {
-        if (active->radarcol->readOnly())
-        {
-            return {.enabled = false, .disabledReason = "Configured Radarcol sources are read-only"};
-        }
         if (!active->radarcol->editing() || !active->radarcol->dirty())
         {
             return {.enabled = false, .disabledReason = "There are no staged changes"};
@@ -139,10 +135,6 @@ CommandAvailability requiresSaveableDocument(const WorkbenchState & state)
     }
     if (active->texmaps)
     {
-        if (active->texmaps->readOnly())
-        {
-            return {.enabled = false, .disabledReason = "Configured Texmap sources are read-only"};
-        }
         if (!active->texmaps->editing() || !active->texmaps->dirty())
         {
             return {.enabled = false, .disabledReason = "There are no staged changes"};
@@ -158,10 +150,6 @@ CommandAvailability requiresRadarcolColorEditor(const WorkbenchState & state)
     if (active == nullptr || !active->radarcol)
     {
         return {.enabled = false, .disabledReason = "No standalone Radarcol document is active"};
-    }
-    if (active->radarcol->readOnly())
-    {
-        return {.enabled = false, .disabledReason = "Configured Radarcol sources are read-only"};
     }
     const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
     if (view == state.radarcolState.documentAssetViews.end() || view->second.selection.selected.empty())

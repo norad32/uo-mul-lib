@@ -177,8 +177,8 @@ void validateTexmaps(const DataProfile & profile, DataProfileValidation & result
                   Diagnostic::Severity::error,
                   missingRole,
                   {},
-                  "texture index and texture data must be configured as a pair",
-                  {"Configure both texidx.mul and texmaps.mul."});
+                  "Texmaps file pair is not available",
+                  {"Set both texidx.mul and texmaps.mul."});
 }
 
 void validateTiledata(const DataProfile & profile, DataProfileValidation & result)

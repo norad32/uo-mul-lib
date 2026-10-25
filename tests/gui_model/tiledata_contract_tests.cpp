@@ -83,7 +83,7 @@ TEST_CASE("TiledataLayout_Should_ResolveExactFixtureSize")
     REQUIRE_FALSE(uo_mule::gui::resolveTiledataLayout(path, uo_mule::gui::TiledataLayoutSelection::legacy32));
 }
 
-TEST_CASE("TiledataDocument_Should_OpenReadOnlyAndReuseDescriptorIdentity")
+TEST_CASE("TiledataDocument_Should_OpenAndReuseDescriptorIdentity")
 {
     const TemporaryDirectory directory;
     const auto path = directory.path() / "tiledata.mul";
@@ -92,7 +92,6 @@ TEST_CASE("TiledataDocument_Should_OpenReadOnlyAndReuseDescriptorIdentity")
     REQUIRE(std::filesystem::is_regular_file(path));
     const auto document = uo_mule::gui::TiledataDocument::open(1, path, uomul::TiledataLayout::extended64);
     REQUIRE(document);
-    REQUIRE(document->readOnly());
     REQUIRE_FALSE(document->dirty());
     const auto & reader = document->reader();
     REQUIRE(reader.has_value());
@@ -103,7 +102,6 @@ TEST_CASE("TiledataDocument_Should_OpenReadOnlyAndReuseDescriptorIdentity")
         .kind = uo_mule::gui::DocumentKind::tiledata,
         .source = uo_mule::gui::makeDocumentSourceIdentity({path}),
         .displayName = "tiledata.mul",
-        .access = uo_mule::gui::DocumentAccess::readOnly,
         .validation = uo_mule::gui::DocumentValidationState::valid,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,

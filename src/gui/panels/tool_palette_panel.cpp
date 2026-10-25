@@ -67,7 +67,7 @@ ToolContext toolContext(const WorkbenchState & state)
     const DocumentRecord * active = state.session.activeDocumentRecord();
     const bool mapOpen = active != nullptr && active->summary.identity.kind == DocumentKind::map &&
                          state.mapDocuments.active().changes().reader.has_value();
-    const bool mapEditable = mapOpen && active->summary.access == DocumentAccess::editable;
+    const bool mapEditable = mapOpen;
     return {
         .mapDocumentOpen = mapOpen,
         .mapEditable = mapEditable,

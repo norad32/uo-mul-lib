@@ -26,12 +26,6 @@ enum class DocumentSourceKind : std::uint8_t
     configuredMetadata,
 };
 
-enum class DocumentAccess : std::uint8_t
-{
-    editable,
-    readOnly,
-};
-
 enum class RadarcolSourcePolicy : std::uint8_t
 {
     embeddedDefault,
@@ -50,10 +44,6 @@ namespace document_contract
 inline constexpr bool profileChangesRebindOpenDocuments = true;
 inline constexpr bool mapEditsAreStaged = true;
 inline constexpr bool mapRequiresGlobalEditMode = false;
-inline constexpr bool configuredMetadataIsReadOnly = true;
-inline constexpr bool standaloneRadarcolIsEditable = true;
-inline constexpr bool standaloneTexmapPairIsEditable = true;
-inline constexpr bool standaloneTiledataIsEditable = false;
 inline constexpr bool genericOpenMutatesProfile = false;
 
 inline constexpr std::string_view genericOpenLabel = "File > Open...";

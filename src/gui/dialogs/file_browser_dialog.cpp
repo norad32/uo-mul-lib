@@ -583,11 +583,11 @@ void appendTexmapsCandidate(FileBrowserSummary & summary, const std::filesystem:
     }
     else if (!hasIndex)
     {
-        pair.warning = "Missing texidx.mul";
+        pair.warning = "texidx.mul file is not set";
     }
     else if (!hasData)
     {
-        pair.warning = "Missing texmaps.mul";
+        pair.warning = "texmaps.mul file is not set";
     }
     if (pair.openable)
     {
@@ -601,7 +601,7 @@ void appendTexmapsCandidate(FileBrowserSummary & summary, const std::filesystem:
         .companionPath = {},
         .label = "Texmaps",
         .facet = {},
-        .reason = "A matching texidx.mul and texmaps.mul pair must be selected",
+        .reason = "A matching Texmaps file set must be set",
         .warning = std::move(pair.warning),
         .score = filenameHint ? texmapsPairScore + filenameHintScoreBonus : texmapsPairScore,
         .dimensions = std::nullopt,
@@ -724,7 +724,7 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
     }
     else if (reader.error().message.empty())
     {
-        reason = "Invalid texture pair";
+        reason = "Invalid Texmaps file set";
     }
     else
     {

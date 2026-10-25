@@ -29,7 +29,6 @@ enum class IconId : std::uint8_t
     cancel,
     elevation,
     tileId,
-    readOnly,
     preferences,
     fileBrowserDialog,
     alertBox,

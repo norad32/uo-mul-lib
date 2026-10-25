@@ -5,7 +5,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
 
-using uo_mule::gui::DocumentAccess;
 using uo_mule::gui::DocumentKind;
 using uo_mule::gui::makeRoleAwareSourceIdentity;
 using uo_mule::gui::makeSourceIdentity;
@@ -47,7 +46,6 @@ TEST_CASE("workbenchSession_Should_FocusDocumentForAlreadyLockedExactSource")
     const auto first = session.openDocument({
         .identity = {.kind = DocumentKind::radarcol, .source = identity},
         .displayName = "Locked",
-        .access = DocumentAccess::editable,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
     });
@@ -56,7 +54,6 @@ TEST_CASE("workbenchSession_Should_FocusDocumentForAlreadyLockedExactSource")
     const auto focused = session.openDocument({
         .identity = {.kind = DocumentKind::radarcol, .source = identity},
         .displayName = "Duplicate",
-        .access = DocumentAccess::editable,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
     });

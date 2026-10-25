@@ -62,7 +62,6 @@ struct DocumentSummary
     DocumentIdentity identity;
     std::string displayName;
     DocumentSourceKind sourceKind = DocumentSourceKind::standalone;
-    DocumentAccess access = DocumentAccess::editable;
     DocumentValidationState validation = DocumentValidationState::unknown;
     std::optional<std::string> facetKey;
     std::optional<uomul::Dimensions> dimensions;
