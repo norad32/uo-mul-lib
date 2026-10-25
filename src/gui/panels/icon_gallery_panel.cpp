@@ -1,5 +1,6 @@
 #include "gui/panels/icon_gallery_panel.h"
 #include "gui/presentation/iconography.h"
+#include "gui/presentation/strings.h"
 #include <cstddef>
 #include <imgui.h>
 #include <string>
@@ -31,11 +32,11 @@ void drawIconGalleryPanel(bool & visible, bool iconFontAvailable)
         return;
     }
 
-    ImGui::TextUnformatted("Semantic icon vocabulary");
-    ImGui::Text("Font: %s | Display scale: %.2gx, %.2gx",
-                iconFontAvailable ? "available" : "text fallback",
-                ImGui::GetIO().DisplayFramebufferScale.x,
-                ImGui::GetIO().DisplayFramebufferScale.y);
+    ImGui::TextUnformatted(strings::semanticIconVocabulary());
+    const std::string fontScale = strings::formatFontScale(iconFontAvailable,
+                                                           ImGui::GetIO().DisplayFramebufferScale.x,
+                                                           ImGui::GetIO().DisplayFramebufferScale.y);
+    ImGui::TextUnformatted(fontScale.c_str());
     ImGui::Separator();
 
     std::size_t index = 0;

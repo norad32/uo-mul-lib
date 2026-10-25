@@ -2,6 +2,7 @@
 #include "gui/commands/command_registry.h"
 #include "gui/presentation/iconography.h"
 #include "gui/presentation/imgui_fonts.h"
+#include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui/workbench/notification_state.h"
 #include "gui/workbench/workbench_state.h"
@@ -125,7 +126,7 @@ void drawTileInput(const WorkbenchState & state,
     int z = static_cast<int>(static_cast<std::int16_t>(tile.z));
     ImGui::PushID(label);
     ImGui::TextUnformatted(label);
-    drawIconFieldPrefix(IconId::tileId, "Tile ID");
+    drawIconFieldPrefix(IconId::tileId, strings::tileId());
     if (ImGui::InputScalar(idLabel, ImGuiDataType_U16, &id, nullptr, nullptr, idInputFormat, idInputFlags))
     {
         const auto result = setId(static_cast<std::int32_t>(id));
@@ -134,7 +135,7 @@ void drawTileInput(const WorkbenchState & state,
             ImGui::TextColored(theme::imguiColor(theme::warning), "%s", result.reason.c_str());
         }
     }
-    drawIconFieldPrefix(IconId::axisZArrow, "Elevation");
+    drawIconFieldPrefix(IconId::axisZArrow, strings::elevation());
     if (ImGui::InputInt(zLabel, &z, 0, 0, ImGuiInputTextFlags_CharsDecimal))
     {
         const auto result = setZ(z);
@@ -157,15 +158,15 @@ void drawPickButton(WorkbenchState & state, const char * label, TilePickTarget t
     }
     if (ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("Pick");
+        ImGui::SetTooltip("%s", strings::pick());
     }
 }
 
 void drawFillOptions(WorkbenchState & state)
 {
-    ImGui::TextUnformatted("Mode");
+    ImGui::TextUnformatted(strings::mode());
     bool idEnabled = state.toolState.fillIdEnabled();
-    if (drawIconCheckbox(IconId::tileId, "Tile ID", "fill.mode.id", idEnabled))
+    if (drawIconCheckbox(IconId::tileId, strings::tileId(), "fill.mode.id", idEnabled))
     {
         const auto result = state.toolState.setFillIdEnabled(idEnabled);
         if (!result.accepted)
@@ -175,7 +176,7 @@ void drawFillOptions(WorkbenchState & state)
     }
     ImGui::SameLine();
     bool zEnabled = state.toolState.fillZEnabled();
-    if (drawIconCheckbox(IconId::axisZArrow, "Elevation", "fill.mode.z", zEnabled))
+    if (drawIconCheckbox(IconId::axisZArrow, strings::elevation(), "fill.mode.z", zEnabled))
     {
         const auto result = state.toolState.setFillZEnabled(zEnabled);
         if (!result.accepted)
@@ -183,14 +184,14 @@ void drawFillOptions(WorkbenchState & state)
             drawPlaceholder(result.reason.c_str());
         }
     }
-    drawPlaceholder("Target uses Active Tile.");
+    drawPlaceholder(strings::targetUsesActiveTile());
 }
 
 void drawReplaceOptions(WorkbenchState & state)
 {
-    ImGui::TextUnformatted("Mode");
+    ImGui::TextUnformatted(strings::mode());
     bool idEnabled = state.toolState.replaceIdEnabled();
-    if (drawIconCheckbox(IconId::tileId, "Tile ID", "replace.mode.id", idEnabled))
+    if (drawIconCheckbox(IconId::tileId, strings::tileId(), "replace.mode.id", idEnabled))
     {
         const auto result = state.toolState.setReplaceIdEnabled(idEnabled);
         if (!result.accepted)
@@ -200,7 +201,7 @@ void drawReplaceOptions(WorkbenchState & state)
     }
     ImGui::SameLine();
     bool zEnabled = state.toolState.replaceZEnabled();
-    if (drawIconCheckbox(IconId::axisZArrow, "Elevation", "replace.mode.z", zEnabled))
+    if (drawIconCheckbox(IconId::axisZArrow, strings::elevation(), "replace.mode.z", zEnabled))
     {
         const auto result = state.toolState.setReplaceZEnabled(zEnabled);
         if (!result.accepted)
@@ -210,7 +211,7 @@ void drawReplaceOptions(WorkbenchState & state)
     }
     drawTileInput(
         state,
-        "Source",
+        strings::source(),
         "##replace.source.id",
         "##replace.source.z",
         state.toolState.replaceSource(),
@@ -218,7 +219,7 @@ void drawReplaceOptions(WorkbenchState & state)
         [&state](std::int32_t z) { return state.toolState.setReplaceSourceZ(z); });
     drawPickButton(state, "Pick Source##replace.pick-source", TilePickTarget::replaceSource);
     ImGui::SameLine();
-    if (ImGui::Button("From Active Tile##replace.source.active"))
+    if (ImGui::Button((std::string(strings::fromActiveTile()) + "##replace.source.active").c_str()))
     {
         const auto result = state.toolState.setReplaceSourceFromActiveTile();
         if (!result.accepted)
@@ -228,7 +229,7 @@ void drawReplaceOptions(WorkbenchState & state)
     }
     drawTileInput(
         state,
-        "Target",
+        strings::target(),
         "##replace.target.id",
         "##replace.target.z",
         state.toolState.replaceTarget(),
@@ -236,7 +237,7 @@ void drawReplaceOptions(WorkbenchState & state)
         [&state](std::int32_t z) { return state.toolState.setReplaceTargetZ(z); });
     drawPickButton(state, "Pick Target##replace.pick-target", TilePickTarget::replaceTarget);
     ImGui::SameLine();
-    if (ImGui::Button("From Active Tile##replace.target.active"))
+    if (ImGui::Button((std::string(strings::fromActiveTile()) + "##replace.target.active").c_str()))
     {
         const auto result = state.toolState.setReplaceTargetFromActiveTile();
         if (!result.accepted)
@@ -249,7 +250,7 @@ void drawReplaceOptions(WorkbenchState & state)
 void drawFuzzyOptions(WorkbenchState & state)
 {
     const FuzzySelectionOptions & options = state.toolState.fuzzyOptions();
-    ImGui::TextUnformatted("Scope");
+    ImGui::TextUnformatted(strings::scope());
     if (ImGui::RadioButton("Contiguous##fuzzy.scope.contiguous", options.scope == FuzzyScope::contiguous))
     {
         state.toolState.setFuzzyScope(FuzzyScope::contiguous);
@@ -261,7 +262,7 @@ void drawFuzzyOptions(WorkbenchState & state)
     }
 
     bool idEnabled = options.idEnabled;
-    if (drawIconCheckbox(IconId::tileId, "Tile ID", "fuzzy.id.enabled", idEnabled))
+    if (drawIconCheckbox(IconId::tileId, strings::tileId(), "fuzzy.id.enabled", idEnabled))
     {
         state.toolState.setFuzzyIdEnabled(idEnabled);
     }
@@ -279,7 +280,7 @@ void drawFuzzyOptions(WorkbenchState & state)
     drawPickButton(state, "Pick##fuzzy.id.pick", TilePickTarget::fuzzyId);
 
     bool zEnabled = options.zEnabled;
-    if (drawIconCheckbox(IconId::axisZArrow, "Elevation", "fuzzy.z.enabled", zEnabled))
+    if (drawIconCheckbox(IconId::axisZArrow, strings::elevation(), "fuzzy.z.enabled", zEnabled))
     {
         state.toolState.setFuzzyZEnabled(zEnabled);
     }
@@ -295,7 +296,7 @@ void drawFuzzyOptions(WorkbenchState & state)
     const bool tiledataAvailable = state.providers.tiledata().status().state == ProviderAssetState::available;
     ImGui::BeginDisabled(!tiledataAvailable);
     bool nameEnabled = options.nameEnabled;
-    if (ImGui::Checkbox("Tiledata name##fuzzy.name.enabled", &nameEnabled))
+    if (ImGui::Checkbox(strings::tiledataName(), &nameEnabled))
     {
         state.toolState.setFuzzyNameEnabled(nameEnabled);
     }
@@ -312,7 +313,7 @@ void drawFuzzyOptions(WorkbenchState & state)
     ImGui::EndDisabled();
     if (!tiledataAvailable)
     {
-        drawPlaceholder("Tiledata names unavailable.");
+        drawPlaceholder(strings::tiledataNamesUnavailable());
     }
 }
 
@@ -356,7 +357,8 @@ void drawToolButton(WorkbenchState & state, const ToolDescriptor & tool, const T
 
     if (clicked && availability.enabled)
     {
-        static_cast<void>(state.commands.execute(toolCommandId(tool.id), state));
+        const CommandId command = toolCommandId(tool.id);
+        state.deferWorkflowAction([&state, command] { static_cast<void>(state.commands.execute(command, state)); });
     }
 
     if (active)
@@ -377,7 +379,7 @@ void drawToolGrid(WorkbenchState & state, const ToolContext & context)
         iconOnly ? iconButtonSize
                  : (availableWidth - (static_cast<float>(columns - 1) * buttonSpacing)) / static_cast<float>(columns);
 
-    drawSectionHeading("Tools");
+    drawSectionHeading(strings::tools());
     std::size_t index = 0;
     for (const ToolDescriptor & tool : state.toolRegistry.tools())
     {
@@ -399,8 +401,8 @@ void drawSelectionGranularity(WorkbenchState & state, const ToolContext & contex
     }
 
     const bool blocks = state.toolState.selectionGranularity() == ToolSelectionGranularity::blocks;
-    ImGui::TextUnformatted("Region");
-    if (ImGui::RadioButton("Tiles", !blocks))
+    ImGui::TextUnformatted(strings::region());
+    if (ImGui::RadioButton(strings::tiles(), !blocks))
     {
         const auto result =
             state.toolState.setSelectionGranularity(ToolSelectionGranularity::tiles, context, state.toolRegistry);
@@ -411,7 +413,7 @@ void drawSelectionGranularity(WorkbenchState & state, const ToolContext & contex
         }
     }
     ImGui::SameLine();
-    if (ImGui::RadioButton("Blocks", blocks))
+    if (ImGui::RadioButton(strings::blocks(), blocks))
     {
         const auto result =
             state.toolState.setSelectionGranularity(ToolSelectionGranularity::blocks, context, state.toolRegistry);
@@ -460,7 +462,7 @@ void drawActiveTile(WorkbenchState & state)
     const char * idInputFormat = hexadecimalIds ? "%04X" : "%u";
     const ImGuiInputTextFlags idInputFlags =
         hexadecimalIds ? ImGuiInputTextFlags_CharsHexadecimal : ImGuiInputTextFlags_CharsDecimal;
-    drawIconFieldPrefix(IconId::tileId, "Tile ID");
+    drawIconFieldPrefix(IconId::tileId, strings::tileId());
     if (ImGui::InputScalar("##active.tile.id", ImGuiDataType_U16, &tileId, nullptr, nullptr, idInputFormat, idInputFlags))
     {
         const auto result = state.toolState.setActiveTileId(static_cast<std::int32_t>(tileId));
@@ -492,7 +494,7 @@ void drawActiveTile(WorkbenchState & state)
         }
         ImGui::EndDragDropTarget();
     }
-    drawIconFieldPrefix(IconId::axisZArrow, "Elevation");
+    drawIconFieldPrefix(IconId::axisZArrow, strings::elevation());
     if (ImGui::InputInt("##active.tile.z", &tileZ, 0, 0, ImGuiInputTextFlags_CharsDecimal))
     {
         const auto result = state.toolState.setActiveTileZ(tileZ);
@@ -508,7 +510,7 @@ void drawActiveTile(WorkbenchState & state)
     }
     if (ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("Pick");
+        ImGui::SetTooltip("%s", strings::pick());
     }
     if (state.toolState.tilePickRequested())
     {

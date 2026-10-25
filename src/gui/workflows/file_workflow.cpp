@@ -533,8 +533,11 @@ bool drawFileDialogs(WorkbenchState & state)
     }
     if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::preferences))
     {
-        profileChanged = drawPreferencesDialog(
-            state.menuBarState.preferencesDialog, state.activeProfile, state.preferences, state.fileBrowser);
+        if (const auto result = drawPreferencesDialog(state.menuBarState.preferencesDialog, state.fileBrowser))
+        {
+            profileChanged = result->applyProfile;
+            state.pendingPreferencesResult = *result;
+        }
     }
     if (state.dialogHost.owns(DialogId::fileBrowser))
     {

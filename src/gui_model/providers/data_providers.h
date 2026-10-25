@@ -81,12 +81,6 @@ struct ProviderStaticTile
     uomul::StaticTileRecord record;
 };
 
-struct ProviderTileData
-{
-    std::uint16_t id = 0;
-    std::string description;
-};
-
 class RadarColorProvider
 {
 public:

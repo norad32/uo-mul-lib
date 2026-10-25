@@ -68,12 +68,14 @@ void drawTileDetails(const MapContextSnapshot & context,
         ImGui::SameLine();
     }
     ImGui::BeginGroup();
-    ImGui::Text("Tile: (%u, %u)", tile.x, tile.y);
-    ImGui::Text("Block: (%u, %u)", block.x, block.y);
+    const std::string tilePosition = strings::formatTile(tile.x, tile.y);
+    const std::string blockPosition = strings::formatBlock(block.x, block.y);
+    ImGui::TextUnformatted(tilePosition.c_str());
+    ImGui::TextUnformatted(blockPosition.c_str());
     const std::string idLabel = strings::formatId(value.id, idFormat);
-    const std::string tileIdLabel = iconLabel(IconId::tileId, "ID", iconFontAvailable);
+    const std::string tileIdLabel = iconLabel(IconId::tileId, strings::id(), iconFontAvailable);
     ImGui::Text("%s: %s", tileIdLabel.c_str(), idLabel.c_str());
-    const std::string elevationLabel = iconLabel(IconId::elevation, "Elevation", iconFontAvailable);
+    const std::string elevationLabel = iconLabel(IconId::elevation, strings::elevation(), iconFontAvailable);
     ImGui::Text("%s: %d", elevationLabel.c_str(), static_cast<int>(value.z));
     ImGui::EndGroup();
 }

@@ -92,7 +92,7 @@ void drawCommandItem(WorkbenchState & state, CommandId id, bool selected = false
         ImGui::MenuItem(label.c_str(), shortcut.empty() ? nullptr : shortcut.c_str(), selected, commandState.enabled);
     if (activated)
     {
-        static_cast<void>(state.commands.execute(id, state));
+        state.deferWorkflowAction([&state, id] { static_cast<void>(state.commands.execute(id, state)); });
     }
 }
 
@@ -160,11 +160,11 @@ void drawEditMenu(WorkbenchState & state)
         return;
     }
     ImGui::BeginDisabled();
-    ImGui::MenuItem("Undo");
-    ImGui::MenuItem("Redo");
+    ImGui::MenuItem(strings::undo());
+    ImGui::MenuItem(strings::redo());
     ImGui::Separator();
-    ImGui::MenuItem("Cut");
-    ImGui::MenuItem("Paste");
+    ImGui::MenuItem(strings::cut());
+    ImGui::MenuItem(strings::paste());
     ImGui::EndDisabled();
     drawCommandItem(state, CommandId::assetCopy);
     ImGui::Separator();
@@ -261,7 +261,8 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
     if (state.menuBarState.windowCloseRequested && state.menuBarState.fileDialog.mode == MapFileDialogMode::none)
     {
         state.menuBarState.windowCloseRequested = false;
-        static_cast<void>(state.commands.execute(CommandId::fileQuit, state));
+        state.deferWorkflowAction(
+            [&state] { static_cast<void>(state.commands.execute(CommandId::fileQuit, state)); });
     }
 
     if (showMainMenu && ImGui::BeginMainMenuBar())
@@ -273,7 +274,7 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
         drawToolsMenu(state);
         drawViewMenu(state);
         drawWindowsMenu(state);
-        if (ImGui::BeginMenu("Help"))
+        if (ImGui::BeginMenu(strings::helpMenu()))
         {
             ImGui::EndMenu();
         }

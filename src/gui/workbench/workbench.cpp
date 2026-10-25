@@ -755,11 +755,61 @@ void applyPendingPreferenceChanges(WorkbenchState & state)
     {
         state.preferences.texmapsHideUnused = *state.pendingPreferenceChanges.texmapsHideUnused;
     }
+    if (state.pendingPreferenceChanges.showWelcomeOnStartup)
+    {
+        state.preferences.showWelcomeOnStartup = *state.pendingPreferenceChanges.showWelcomeOnStartup;
+    }
     if (state.pendingPreferenceChanges.texmapsTablePresentation)
     {
         state.preferences.texmapsTablePresentation = *state.pendingPreferenceChanges.texmapsTablePresentation;
     }
     state.pendingPreferenceChanges = {};
+}
+
+[[nodiscard]] bool applyPendingPreferencesDialog(WorkbenchState & state)
+{
+    if (!state.pendingPreferencesResult)
+    {
+        return false;
+    }
+
+    const PreferencesDialogResult result = std::move(*state.pendingPreferencesResult);
+    state.pendingPreferencesResult.reset();
+    state.preferences = result.preferences;
+    if (!result.applyProfile)
+    {
+        return false;
+    }
+
+    state.activeProfile = result.profile;
+    return true;
+}
+
+void applyLogPanelRequest(WorkbenchState & state, logger::GuiLogSink & logSink)
+{
+    const LogPanelRequest request = std::move(state.logPanelRequest);
+    state.logPanelRequest = {};
+    if (request.visible)
+    {
+        state.preferences.showLogPanel = *request.visible;
+    }
+    if (request.autoScroll)
+    {
+        state.preferences.autoScroll = *request.autoScroll;
+    }
+    if (request.collapsed)
+    {
+        state.preferences.logPanelCollapsed = *request.collapsed;
+    }
+    if (request.height)
+    {
+        state.preferences.logPanelHeight = *request.height;
+    }
+    if (request.clearEntries)
+    {
+        state.logEntries.clear();
+        logSink.clear();
+    }
 }
 
 void notifyRadarcolFallback(WorkbenchState & state)
@@ -899,18 +949,19 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
         const MapCanvasStatus & canvasStatus = *state.lastHoveredCanvasStatus;
         if (!canvasStatus.hasDocument || !canvasStatus.tile)
         {
-            ImGui::Text("%s: No tile under pointer  Zoom %.3gx", canvasStatus.canvasId.c_str(), canvasStatus.zoom);
+            const std::string status = strings::formatCanvasNoTile(canvasStatus.canvasId, canvasStatus.zoom);
+            ImGui::TextUnformatted(status.c_str());
         }
         else
         {
             const uomul::BlockCoord block = tileToBlock(*canvasStatus.tile);
-            ImGui::Text("%s: Tile (%u, %u)  Block (%u, %u)  Zoom %.3gx",
-                        canvasStatus.canvasId.c_str(),
-                        canvasStatus.tile->x,
-                        canvasStatus.tile->y,
-                        block.x,
-                        block.y,
-                        canvasStatus.zoom);
+            const std::string status = strings::formatCanvasTile(canvasStatus.canvasId,
+                                                                 canvasStatus.tile->x,
+                                                                 canvasStatus.tile->y,
+                                                                 block.x,
+                                                                 block.y,
+                                                                 canvasStatus.zoom);
+            ImGui::TextUnformatted(status.c_str());
         }
     }
     if (hasCanvasStatus)
@@ -947,23 +998,25 @@ void drawStartupScreen(WorkbenchState & state)
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(viewport->WorkSize, ImGuiCond_Always);
-    if (!ImGui::Begin("Configure Preferences###startup.configure-profile",
+    if (!ImGui::Begin(strings::configurePreferencesWindow(),
                       nullptr,
                       ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
     {
         ImGui::End();
         return;
     }
-    const std::string configureLabel = iconLabel(IconId::preferences, "Configure Preferences");
+    const std::string configureLabel = iconLabel(IconId::preferences, strings::configurePreferencesLabel());
     ImGui::TextUnformatted(configureLabel.c_str());
     ImGui::Separator();
     ImGui::TextUnformatted(
-        "Maps are available without a profile. Embedded Radarcol is used until an external source is configured.");
+        strings::mapsWithoutProfile());
     const std::string profileReadiness(strings::profileReadinessName(state.session.profileState()));
-    ImGui::Text("Profile status: %s", profileReadiness.c_str());
+    const std::string profileStatus = strings::formatProfileReadiness(profileReadiness);
+    ImGui::TextUnformatted(profileStatus.c_str());
     const std::string startupRadarcolSource(strings::providerSourceName(state.providers.radarColors().status().source));
-    ImGui::Text("Radarcol source: %s", startupRadarcolSource.c_str());
-    const std::string preferencesLabel = iconLabel(IconId::preferences, "Open Preferences");
+    const std::string radarcolStatus = strings::formatRadarcolSource(startupRadarcolSource);
+    ImGui::TextUnformatted(radarcolStatus.c_str());
+    const std::string preferencesLabel = iconLabel(IconId::preferences, strings::openPreferences());
     if (ImGui::Button(preferencesLabel.c_str()))
     {
         requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
@@ -1133,8 +1186,16 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             state.preferences.mapViewTileSource,
             windowName,
             [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); },
-            [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); },
-            [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); },
+             [&state]
+             {
+                 state.deferWorkflowAction(
+                     [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); });
+             },
+             [&state]
+             {
+                 state.deferWorkflowAction(
+                     [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); });
+             },
             mapEditCallback(state),
             tiledataNameCallback(state),
             [&state](uomul::MapTile tile)
@@ -1215,8 +1276,9 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
     {
         requestDocumentActivation(state, document.summary.identity.id);
         const std::string kindName(documentKindName(document.summary.identity.kind));
-        ImGui::Text("%s is active, but has no view yet.", kindName.c_str());
-        ImGui::TextUnformatted("This document type is represented as a placeholder until its view is implemented.");
+        const std::string noView = strings::formatDocumentNoView(kindName);
+        ImGui::TextUnformatted(noView.c_str());
+        ImGui::TextUnformatted(strings::documentPlaceholder());
     }
     ImGui::End();
     if (!visible)
@@ -1920,7 +1982,8 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
 {
     bool profileChanged = false;
     const float bottomPanelHeight =
-        welcome ? 0.0F : drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll);
+        welcome ? 0.0F
+                : drawLogPanel(logSink, state.preferences, state.logEntries, state.followLogScroll, state.logPanelRequest);
     if (state.session.startupState() == StartupState::configureProfile)
     {
         drawStartupScreen(state);
@@ -1977,11 +2040,6 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
     bool welcome = welcomeShell(state);
     const bool profileChanged = welcome ? false : drawMenuBar(state, true);
     applyPendingClipboard(window, state);
-    if (profileChanged)
-    {
-        applyProfileChange(state);
-    }
-
     state.session.syncDocument(state.mapDocuments);
     if (state.quitRequested && !state.mapDocuments.active().changes().reader &&
         state.menuBarState.fileDialog.mode == MapFileDialogMode::none && !state.pendingAssetCloseDecision)
@@ -1993,6 +2051,10 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
     welcome = welcomeShell(state);
     syncProviders(state);
     restoreMetadataAssetState(state);
+    if (welcome)
+    {
+        state.session.refreshRecentFiles();
+    }
     updateNativeWindowMode(window, state, welcome);
     if (!welcome)
     {
@@ -2006,7 +2068,9 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
     dispatchShortcuts(state, !welcome);
     const bool welcomeProfileChanged = drawWelcomeOrWorkbench(logSink, state, welcome);
     applyDeferredWorkflowActions(state);
-    if (welcomeProfileChanged)
+    applyLogPanelRequest(state, logSink);
+    const bool preferencesProfileChanged = applyPendingPreferencesDialog(state);
+    if (profileChanged || welcomeProfileChanged || preferencesProfileChanged)
     {
         applyProfileChange(state);
     }

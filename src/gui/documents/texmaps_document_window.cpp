@@ -477,7 +477,7 @@ void drawFolderReplacementDialog(TexmapsDocumentWindowState & state, TexmapsDocu
     }
     else
     {
-        ImGui::Text("Folder: %s", folderReplacement.replacement.folder.string().c_str());
+        ImGui::Text(strings::folderFormat(), folderReplacement.replacement.folder.string().c_str());
         drawFolderReplacementRows(folderReplacement.replacement, idFormat);
     }
     if (!folderReplacement.status.empty())

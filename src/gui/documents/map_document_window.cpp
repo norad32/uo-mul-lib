@@ -1301,7 +1301,7 @@ void drawLayerControls(MapDocumentState & mapDocument, MapCanvasViewState & stat
     drawLayerButton(mapDocument, MapDisplayMode::combined, "Combined");
 
     ImGui::SameLine();
-    if (ImGui::Button("Go to Coordinate..."))
+    if (ImGui::Button(strings::goToCoordinate()))
     {
         state.coordinateInputKind = CoordinateKind::tile;
         state.coordinateInputFocusRequested = true;
@@ -1309,7 +1309,7 @@ void drawLayerControls(MapDocumentState & mapDocument, MapCanvasViewState & stat
         state.coordinatePopupRequested = true;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Go to Block..."))
+    if (ImGui::Button(strings::goToBlock()))
     {
         state.coordinateInputKind = CoordinateKind::block;
         state.coordinateInputFocusRequested = true;
@@ -1742,12 +1742,12 @@ void drawEmptyCanvas(ImVec2 canvasOrigin,
 
     ImGui::SetCursorScreenPos(ImVec2(canvasOrigin.x + static_cast<float>(noMapTextPadding),
                                      canvasOrigin.y + static_cast<float>(noMapTextPadding + noMapButtonOffset)));
-    if (ImGui::Button("Open..."))
+    if (ImGui::Button(strings::openEllipsis()))
     {
         openMap();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Create New..."))
+    if (ImGui::Button(strings::createNewEllipsis()))
     {
         createMap();
     }

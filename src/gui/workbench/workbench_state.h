@@ -11,6 +11,7 @@
 #include "gui/documents/texmaps_document_window.h"
 #include "gui/documents/tiledata_document_window.h"
 #include "gui/panels/block_inspector_panel.h"
+#include "gui/panels/log_panel.h"
 #include "gui/workbench/notification_state.h"
 #include "gui_model/dialogs/dialog_host.h"
 #include "gui_model/documents/document_descriptors.h"
@@ -46,10 +47,14 @@ struct MenuBarState
 
 struct PendingPreferenceChanges
 {
+    std::optional<bool> showWelcomeOnStartup;
     std::optional<bool> texmapsHideUnused;
     std::optional<bool> texmapsTablePresentation;
 
-    [[nodiscard]] bool empty() const noexcept { return !texmapsHideUnused && !texmapsTablePresentation; }
+    [[nodiscard]] bool empty() const noexcept
+    {
+        return !showWelcomeOnStartup && !texmapsHideUnused && !texmapsTablePresentation;
+    }
 };
 
 struct WorkbenchState
@@ -83,6 +88,7 @@ struct WorkbenchState
     std::optional<DocumentId> pendingAssetCloseDecision;
     std::optional<PendingChangesAction> pendingAssetCloseAction;
     PendingPreferenceChanges pendingPreferenceChanges;
+    std::optional<PreferencesDialogResult> pendingPreferencesResult;
     std::optional<DataProfile> pendingProfileSave;
     std::vector<std::function<void()>> deferredWorkflowActions;
     MenuBarState menuBarState;
@@ -101,6 +107,7 @@ struct WorkbenchState
     TiledataDocumentWindowState tiledataState;
     std::vector<logger::GuiLogEntry> logEntries;
     bool followLogScroll = true;
+    LogPanelRequest logPanelRequest;
     bool shouldClose = false;
     bool quitRequested = false;
     bool startupLoaded = false;

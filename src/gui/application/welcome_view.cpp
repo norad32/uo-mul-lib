@@ -71,7 +71,7 @@ constexpr std::size_t timestampBufferSize = 32;
 {
     if (!recent.dimensions)
     {
-        return "Dimensions unknown";
+        return strings::dimensionsUnknown();
     }
 
     return std::to_string(recent.dimensions->widthTiles) + " x " + std::to_string(recent.dimensions->heightTiles);
@@ -81,7 +81,7 @@ constexpr std::size_t timestampBufferSize = 32;
 {
     if (recent.facet.empty())
     {
-        return "Custom";
+        return strings::customMap();
     }
 
     if (const auto facet = uomul::facetSize(recent.facet))
@@ -166,16 +166,16 @@ void drawMetadataTooltip(const DataProfileValidation & validation)
         const bool configured = metadataFileConfigured(fileStatus);
         const bool missing = metadataFileMissing(fileStatus);
         theme::Color color = theme::warning;
-        const char * label = "incomplete";
+        const char * label = strings::incomplete();
         if (configured)
         {
             color = theme::success;
-            label = "configured";
+            label = strings::configured();
         }
         else if (missing)
         {
             color = theme::error;
-            label = "not configured";
+            label = strings::notConfigured();
         }
         const std::string_view fileName = strings::dataFileName(role);
         ImGui::TextColored(theme::imguiColor(color), "%.*s: %s", static_cast<int>(fileName.size()), fileName.data(), label);
@@ -186,7 +186,7 @@ void drawMetadataTooltip(const DataProfileValidation & validation)
 void drawProfileSummary(const DataProfile & profile)
 {
     const DataProfileValidation validation = validateDataProfile(profile);
-    const std::string profileName = profile.name.empty() ? "No profile" : profile.name;
+    const std::string profileName = profile.name.empty() ? strings::noProfile() : profile.name;
     ImGui::TextColored(theme::imguiColor(theme::subheading), "%s", profileName.c_str());
 
     const std::array<DataFileRole, 3> metadataRoles{DataFileRole::radarcol, DataFileRole::texidx, DataFileRole::texmaps};
@@ -202,19 +202,20 @@ void drawProfileSummary(const DataProfile & profile)
                                                        const auto * file = validation.find(role);
                                                        return file != nullptr && metadataFileConfigured(file->status);
                                                    });
-    const char * metadataLabel = "Not configured";
+    const char * metadataLabel = strings::notConfigured();
     theme::Color metadataColor = theme::error;
     if (allConfigured)
     {
-        metadataLabel = "Configured";
+        metadataLabel = strings::configured();
         metadataColor = theme::success;
     }
     else if (anyConfigured)
     {
-        metadataLabel = "Incomplete";
+        metadataLabel = strings::incomplete();
         metadataColor = theme::warning;
     }
-    ImGui::TextUnformatted("Metadata: ");
+    const std::string metadataPrefix = std::string(strings::metadata()) + ": ";
+    ImGui::TextUnformatted(metadataPrefix.c_str());
     ImGui::SameLine(0.0F, 0.0F);
     ImGui::TextColored(theme::imguiColor(metadataColor), "%s", metadataLabel);
     drawMetadataTooltip(validation);
@@ -295,12 +296,13 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
         ImGui::TextDisabled("%s", details.c_str());
     }
     ImGui::SetCursorPosX(textStartX);
-    const std::string modifiedLabel = timestampLabel("Modified", recent.lastModified);
-    const std::string openedLabel = timestampLabel("Opened", recent.lastOpened);
+    const std::string modifiedLabel = timestampLabel(strings::modified(), recent.lastModified);
+    const std::string openedLabel = timestampLabel(strings::opened(), recent.lastOpened);
     ImGui::TextDisabled("%s | %s", modifiedLabel.c_str(), openedLabel.c_str());
     if (unavailable)
     {
-        ImGui::TextColored(theme::imguiColor(theme::error), "Unavailable: %s", recent.failure.c_str());
+        const std::string unavailableLabel = strings::formatUnavailable(recent.failure);
+        ImGui::TextColored(theme::imguiColor(theme::error), "%s", unavailableLabel.c_str());
     }
 
     const bool rowDoubleClicked = rowHovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
@@ -313,7 +315,8 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
         }
         else
         {
-            openRecentAsset(state, recent);
+            const RecentFile recentCopy = recent;
+            state.deferWorkflowAction([&state, recentCopy] { openRecentAsset(state, recentCopy); });
         }
     }
     ImGui::PopID();
@@ -336,7 +339,6 @@ void selectGreetingIfNeeded(WorkbenchState & state)
 void drawWelcomeView(WorkbenchState & state)
 {
     selectGreetingIfNeeded(state);
-    state.session.refreshRecentFiles();
 
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
@@ -367,7 +369,7 @@ void drawWelcomeView(WorkbenchState & state)
                       ImVec2(0.0F, bannerHeight),
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    const char * bannerText = "Artwork banner";
+    const char * bannerText = strings::artworkBanner();
     const ImVec2 bannerTextSize = ImGui::CalcTextSize(bannerText);
     ImGui::SetCursorPos(ImVec2((ImGui::GetWindowSize().x - bannerTextSize.x) * bannerCenterFactor,
                                (ImGui::GetWindowSize().y - bannerTextSize.y) * bannerCenterFactor));
@@ -381,7 +383,7 @@ void drawWelcomeView(WorkbenchState & state)
     ImGui::Separator();
 
     ImGui::Spacing();
-    dialogHeading(iconLabel(IconId::bookmark, "Recent Files").c_str());
+    dialogHeading(iconLabel(IconId::bookmark, strings::recentFiles()).c_str());
     ImGui::Spacing();
 
     if (state.session.recentFiles().empty())
@@ -390,8 +392,8 @@ void drawWelcomeView(WorkbenchState & state)
                           ImVec2(0.0F, recentRowHeight),
                           ImGuiChildFlags_None,
                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-        ImGui::TextDisabled("No files opened yet");
-        ImGui::TextDisabled("Open a file to add it to this list.");
+        ImGui::TextDisabled("%s", strings::noFilesOpened());
+        ImGui::TextDisabled("%s", strings::openFileToAdd());
         ImGui::EndChild();
     }
     else
@@ -405,7 +407,7 @@ void drawWelcomeView(WorkbenchState & state)
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
-    dialogHeading(iconLabel(IconId::account, "Profile").c_str());
+    dialogHeading(iconLabel(IconId::account, strings::profile()).c_str());
     if (ImGui::BeginTable("###welcome.details", 2, ImGuiTableFlags_SizingStretchProp))
     {
         ImGui::TableNextColumn();
@@ -414,19 +416,20 @@ void drawWelcomeView(WorkbenchState & state)
         ImGui::EndTable();
     }
 
-    const std::string preferencesLabel = iconLabel(IconId::preferences, "Preferences");
+    const std::string preferencesLabel = iconLabel(IconId::preferences, strings::preferences());
     if (ImGui::Button(preferencesLabel.c_str()))
     {
-        static_cast<void>(state.commands.execute(CommandId::dataPaths, state));
+        state.deferWorkflowAction(
+            [&state] { static_cast<void>(state.commands.execute(CommandId::dataPaths, state)); });
     }
     if (ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("Configure the active data profile and application preferences.");
+        ImGui::SetTooltip("%s", strings::configurePreferences());
     }
 
     const float actionButtonHeight = ImGui::GetFrameHeight();
-    const std::string openLabel = iconLabel(IconId::folder, "Open");
-    const std::string newLabel = iconLabel(IconId::fileDocumentPlus, "New");
+    const std::string openLabel = iconLabel(IconId::folder, strings::open());
+    const std::string newLabel = iconLabel(IconId::fileDocumentPlus, strings::newProfile());
     const float actionButtonTextWidth =
         std::max(ImGui::CalcTextSize(openLabel.c_str()).x, ImGui::CalcTextSize(newLabel.c_str()).x);
     const float actionButtonWidth = actionButtonTextWidth + (ImGui::GetStyle().FramePadding.x * 2.0F);
@@ -439,17 +442,19 @@ void drawWelcomeView(WorkbenchState & state)
     ImGui::Separator();
     ImGui::Spacing();
     const float actionRowWidth = (actionButtonWidth * 2.0F) + actionButtonSpacing;
-    const bool showWelcomeOnStartup = state.preferences.showWelcomeOnStartup;
-    if (ImGui::Checkbox("Show on startup", &state.preferences.showWelcomeOnStartup) &&
-        state.preferences.showWelcomeOnStartup != showWelcomeOnStartup)
+    bool showWelcomeOnStartup = state.preferences.showWelcomeOnStartup;
+    if (ImGui::Checkbox(strings::showOnStartup(), &showWelcomeOnStartup) &&
+        showWelcomeOnStartup != state.preferences.showWelcomeOnStartup)
     {
+        state.pendingPreferenceChanges.showWelcomeOnStartup = showWelcomeOnStartup;
     }
     if (ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("Show the welcome screen after a valid profile is loaded when the application starts.");
+        ImGui::SetTooltip("%s", strings::showOnStartupTooltip());
     }
 
-    const float startupOptionWidth = ImGui::CalcTextSize("Show on startup").x + (ImGui::GetStyle().FramePadding.x * 2.0F);
+    const float startupOptionWidth = ImGui::CalcTextSize(strings::showOnStartup()).x +
+                                     (ImGui::GetStyle().FramePadding.x * 2.0F);
     const bool stackActions = ImGui::GetContentRegionAvail().x < actionRowWidth + startupOptionWidth;
     const float actionWidth = stackActions ? ImGui::GetContentRegionAvail().x : actionButtonWidth;
     if (!stackActions)
@@ -458,7 +463,8 @@ void drawWelcomeView(WorkbenchState & state)
     }
     if (ImGui::Button(openLabel.c_str(), ImVec2(actionWidth, actionButtonHeight)))
     {
-        static_cast<void>(state.commands.execute(CommandId::fileOpen, state));
+        state.deferWorkflowAction(
+            [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); });
     }
     if (!stackActions)
     {
@@ -466,7 +472,8 @@ void drawWelcomeView(WorkbenchState & state)
     }
     if (ImGui::Button(newLabel.c_str(), ImVec2(actionWidth, actionButtonHeight)))
     {
-        static_cast<void>(state.commands.execute(CommandId::fileNew, state));
+        state.deferWorkflowAction(
+            [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); });
     }
     ImGui::Dummy(ImVec2(0.0F, welcomeFooterBottomPadding));
 

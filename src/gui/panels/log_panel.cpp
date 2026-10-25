@@ -33,7 +33,7 @@ void appendEntries(std::vector<logger::GuiLogEntry> & entries, const std::vector
 }
 
 void drawLogEntries(const std::vector<logger::GuiLogEntry> & entries,
-                    const Preferences & preferences,
+                    bool autoScroll,
                     bool newEntriesWereAdded,
                     bool & followScroll)
 {
@@ -47,47 +47,50 @@ void drawLogEntries(const std::vector<logger::GuiLogEntry> & entries,
         ImGui::PopStyleColor();
     }
 
-    if (preferences.autoScroll && (newEntriesWereAdded || (followScroll && wasAtBottom)))
+    if (autoScroll && (newEntriesWereAdded || (followScroll && wasAtBottom)))
     {
         ImGui::SetScrollHereY(bottomScrollPosition);
     }
 
-    followScroll = preferences.autoScroll;
+    followScroll = autoScroll;
     ImGui::EndChild();
 }
 
 void drawLogPanelContents(logger::GuiLogSink & logSink,
-                          Preferences & preferences,
+                          bool autoScroll,
                           std::vector<logger::GuiLogEntry> & entries,
-                          bool & followScroll)
+                          bool & followScroll,
+                          LogPanelRequest & request)
 {
     const auto newEntries = logSink.drain();
     appendEntries(entries, newEntries);
     const bool newEntriesWereAdded = !newEntries.empty();
 
-    if (ImGui::Checkbox("Autoscroll", &preferences.autoScroll))
+    if (ImGui::Checkbox(strings::autoScroll(), &autoScroll))
     {
+        request.autoScroll = autoScroll;
     }
 
     ImGui::SameLine();
 
     if (ImGui::Button(strings::clear()))
     {
-        entries.clear();
-        logSink.clear();
+        request.clearEntries = true;
     }
 
     ImGui::Separator();
-    drawLogEntries(entries, preferences, newEntriesWereAdded, followScroll);
+    drawLogEntries(entries, autoScroll, newEntriesWereAdded, followScroll);
 }
 
 } // namespace
 
 float drawLogPanel(logger::GuiLogSink & logSink,
-                   Preferences & preferences,
+                   const Preferences & preferences,
                    std::vector<logger::GuiLogEntry> & entries,
-                   bool & followScroll)
+                   bool & followScroll,
+                   LogPanelRequest & request)
 {
+    request = {};
     if (!preferences.showLogPanel)
     {
         return 0.0F;
@@ -97,48 +100,69 @@ float drawLogPanel(logger::GuiLogSink & logSink,
     const bool wasVisible = preferences.showLogPanel;
     const float maximumPanelHeight = std::max(minimumLogPanelHeight, viewport->WorkSize.y * 0.8F);
 
-    if (preferences.logPanelHeight <= 0.0F)
+    float panelHeightPreference = preferences.logPanelHeight;
+    bool panelCollapsed = preferences.logPanelCollapsed;
+    bool showPanel = preferences.showLogPanel;
+    bool autoScroll = preferences.autoScroll;
+    if (panelHeightPreference <= 0.0F)
     {
-        preferences.logPanelHeight =
-            std::clamp(viewport->WorkSize.y * logPanelHeightRatio, minimumLogPanelHeight, maximumPanelHeight);
+        panelHeightPreference = std::clamp(viewport->WorkSize.y * logPanelHeightRatio,
+                                           minimumLogPanelHeight,
+                                           maximumPanelHeight);
     }
 
-    preferences.logPanelHeight = std::clamp(preferences.logPanelHeight, minimumLogPanelHeight, maximumPanelHeight);
+    panelHeightPreference = std::clamp(panelHeightPreference, minimumLogPanelHeight, maximumPanelHeight);
     const float collapsedPanelHeight = ImGui::GetFrameHeight();
-    const float panelHeight = preferences.logPanelCollapsed ? collapsedPanelHeight : preferences.logPanelHeight;
-    const float minimumPanelHeight = preferences.logPanelCollapsed ? collapsedPanelHeight : minimumLogPanelHeight;
+    const float panelHeight = panelCollapsed ? collapsedPanelHeight : panelHeightPreference;
+    const float minimumPanelHeight = panelCollapsed ? collapsedPanelHeight : minimumLogPanelHeight;
     ImGui::SetNextWindowSizeConstraints(ImVec2(viewport->WorkSize.x, minimumPanelHeight),
                                         ImVec2(viewport->WorkSize.x, maximumPanelHeight));
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + viewport->WorkSize.y - panelHeight),
                             ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, preferences.logPanelHeight), ImGuiCond_Appearing);
-    ImGui::SetNextWindowCollapsed(preferences.logPanelCollapsed, ImGuiCond_Appearing);
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, panelHeightPreference), ImGuiCond_Appearing);
+    ImGui::SetNextWindowCollapsed(panelCollapsed, ImGuiCond_Appearing);
     constexpr auto panelFlags = static_cast<ImGuiWindowFlags>(static_cast<unsigned int>(ImGuiWindowFlags_NoMove) |
                                                               static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings));
-    const bool windowContentsVisible = ImGui::Begin("Logs###view.logs", &preferences.showLogPanel, panelFlags);
+    const bool windowContentsVisible = ImGui::Begin("Logs###view.logs", &showPanel, panelFlags);
     const bool isCollapsed = ImGui::IsWindowCollapsed();
 
-    if (isCollapsed != preferences.logPanelCollapsed)
+    if (isCollapsed != panelCollapsed)
     {
-        preferences.logPanelCollapsed = isCollapsed;
+        panelCollapsed = isCollapsed;
+        request.collapsed = panelCollapsed;
     }
 
     if (windowContentsVisible && !isCollapsed)
     {
-        drawLogPanelContents(logSink, preferences, entries, followScroll);
+        drawLogPanelContents(logSink, autoScroll, entries, followScroll, request);
         const float updatedPanelHeight = ImGui::GetWindowSize().y;
 
-        if (std::abs(updatedPanelHeight - preferences.logPanelHeight) > 1.0F)
+        if (std::abs(updatedPanelHeight - panelHeightPreference) > 1.0F)
         {
-            preferences.logPanelHeight = updatedPanelHeight;
+            panelHeightPreference = updatedPanelHeight;
+            request.height = updatedPanelHeight;
         }
     }
 
     const float occupiedHeight = std::max(0.0F, viewport->WorkPos.y + viewport->WorkSize.y - ImGui::GetWindowPos().y);
     ImGui::End();
 
-    if (preferences.showLogPanel != wasVisible)
+    if (showPanel != wasVisible)
     {
+        request.visible = showPanel;
+    }
+
+    if (std::abs(panelHeightPreference - preferences.logPanelHeight) > 1.0F)
+    {
+        request.height = panelHeightPreference;
+    }
+    if (autoScroll != preferences.autoScroll)
+    {
+        request.autoScroll = autoScroll;
+    }
+    if (panelCollapsed != preferences.logPanelCollapsed)
+    {
+        request.collapsed = panelCollapsed;
     }
 
     return occupiedHeight;

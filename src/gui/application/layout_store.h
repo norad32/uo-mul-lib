@@ -27,6 +27,8 @@ struct AppLayout
     std::string dockingIni;
 };
 
+// The panel registry supplies model-owned semantic visibility and stable IDs.
+// This GUI adapter persists ImGui docking data and native window geometry.
 [[nodiscard]] std::filesystem::path layoutPath();
 void loadLayout(PanelRegistry & registry, AppLayout & layout);
 void saveLayout(const PanelRegistry & registry, const AppLayout & layout);

@@ -4,6 +4,7 @@
 #include "gui/presentation/dialog_presentation.h"
 #include "gui/presentation/file_size.h"
 #include "gui/presentation/iconography.h"
+#include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/persistence/config_paths.h"
@@ -310,7 +311,7 @@ void drawPlaces(FileBrowserState & state)
     dialogHeading("Places");
 
     const auto home = std::filesystem::path(std::getenv("HOME") == nullptr ? "" : std::getenv("HOME"));
-    if (!home.empty() && ImGui::Selectable("Home", state.directory == home))
+    if (!home.empty() && ImGui::Selectable(strings::home(), state.directory == home))
     {
         navigate(state, home, true);
     }
@@ -373,9 +374,9 @@ void drawSummary(const FileBrowserState & state)
     if (summary.size)
     {
         const auto size = formatFileSize(*summary.size);
-        ImGui::Text("Size: %s", size.c_str());
+        ImGui::Text(strings::sizeFormat(), size.c_str());
     }
-    ImGui::Text("Modified: %s", summary.modified.c_str());
+    ImGui::Text(strings::modifiedFormat(), summary.modified.c_str());
     if (!summary.error.empty())
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "%s", summary.error.c_str());
@@ -390,13 +391,13 @@ void drawSummary(const FileBrowserState & state)
             dialogSubheading("Map");
             firstMapCandidate = false;
         }
-        ImGui::Text("Facet: %s", candidate.facet.c_str());
-        ImGui::Text("Dimensions: %u x %u", candidate.dimensions.widthTiles, candidate.dimensions.heightTiles);
-        ImGui::Text("Blocks: %llu / %llu",
+        ImGui::Text(strings::facetFormat(), candidate.facet.c_str());
+        ImGui::Text(strings::dimensionsFormat(), candidate.dimensions.widthTiles, candidate.dimensions.heightTiles);
+        ImGui::Text(strings::blocksFormat(),
                     static_cast<unsigned long long>(candidate.completeBlocks),
                     static_cast<unsigned long long>(candidate.expectedBlocks));
-        ImGui::Text("Missing: %llu", static_cast<unsigned long long>(candidate.missingBlocks));
-        ImGui::Text("Trailing bytes: %llu", static_cast<unsigned long long>(candidate.trailingBytes));
+        ImGui::Text(strings::missingFormat(), static_cast<unsigned long long>(candidate.missingBlocks));
+        ImGui::Text(strings::trailingBytesFormat(), static_cast<unsigned long long>(candidate.trailingBytes));
         ImGui::TextColored(candidate.valid ? theme::imguiColor(theme::success) : theme::imguiColor(theme::error),
                            "%s",
                            candidate.valid ? "Openable" : "Invalid map candidate");
@@ -836,13 +837,13 @@ void drawBrowserToolbar(FileBrowserState & state)
     ImGui::TextUnformatted(hiddenLabel.c_str());
     if (ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("Show hidden");
+        ImGui::SetTooltip("%s", strings::showHidden());
     }
     ImGui::SameLine();
     ImGui::Checkbox("##browser.show-hidden", &state.showHidden);
     if (ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("Show hidden");
+        ImGui::SetTooltip("%s", strings::showHidden());
     }
 
     ImGui::SetNextItemWidth(-1.0F);

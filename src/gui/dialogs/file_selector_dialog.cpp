@@ -2,6 +2,7 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/presentation/dialog_presentation.h"
 #include "gui/presentation/iconography.h"
+#include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include <algorithm>
@@ -39,7 +40,7 @@ bool drawCandidate(FileSelectorState & state, std::size_t index)
     else if (candidate.kind == MulAssetKind::radarcol || candidate.kind == MulAssetKind::texmapsPair)
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("%u entries", candidate.itemCount);
+        ImGui::TextDisabled(strings::entriesFormat(), candidate.itemCount);
     }
     if (!candidate.warning.empty())
     {

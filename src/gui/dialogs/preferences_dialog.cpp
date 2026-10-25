@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
 namespace uo_mule::gui
 {
@@ -118,19 +119,21 @@ void searchMetadataFolder(PreferencesDialogState & state, const std::filesystem:
 
 void drawProfileSection(PreferencesDialogState & state)
 {
-    if (!ImGui::CollapsingHeader("Profile", ImGuiTreeNodeFlags_DefaultOpen))
+    if (!ImGui::CollapsingHeader(strings::profile(), ImGuiTreeNodeFlags_DefaultOpen))
     {
         return;
     }
 
-    dialogFieldLabel("Name");
+    dialogFieldLabel(strings::name());
     dialogFieldWidth(pathInputWidth);
     ImGui::InputText("##Name", state.profileName.data(), state.profileName.size());
-    ImGui::Text("Profiles are stored in %s", dataProfilesDirectory().string().c_str());
+    const std::string profilesPath = strings::formatProfilesStoredIn(dataProfilesDirectory());
+    ImGui::TextUnformatted(profilesPath.c_str());
 
     refreshProfiles(state);
-    dialogFieldLabel("Open Profile");
-    if (ImGui::BeginCombo("##OpenProfile", state.workingProfile.name.empty() ? "None" : state.workingProfile.name.c_str()))
+    dialogFieldLabel(strings::openProfile());
+    if (ImGui::BeginCombo("##OpenProfile",
+                          state.workingProfile.name.empty() ? strings::none() : state.workingProfile.name.c_str()))
     {
         for (const auto & profilePath : state.profiles)
         {
@@ -150,7 +153,7 @@ void drawProfileSection(PreferencesDialogState & state)
         ImGui::EndCombo();
     }
 
-    if (ImGui::Button("New"))
+    if (ImGui::Button(strings::newProfile()))
     {
         state.workingProfile = DataProfile{};
         state.workingProfile.name = "New profile";
@@ -160,7 +163,7 @@ void drawProfileSection(PreferencesDialogState & state)
 
     ImGui::SameLine();
 
-    if (ImGui::Button(iconLabel(IconId::save, "Save Profile").c_str()))
+    if (ImGui::Button(iconLabel(IconId::save, strings::saveProfile()).c_str()))
     {
         state.workingProfile.name = state.profileName.data();
         state.profileSaveRequested = true;
@@ -173,7 +176,7 @@ void drawProfileSection(PreferencesDialogState & state)
         !state.workingProfile.name.empty() && std::filesystem::exists(dataProfilePath(state.workingProfile.name));
     if (canDeleteProfile)
     {
-        if (ImGui::Button("Delete Profile"))
+        if (ImGui::Button(strings::deleteProfile()))
         {
             state.profileDeleteRequested = state.workingProfile.name;
             state.visible = false;
@@ -182,7 +185,7 @@ void drawProfileSection(PreferencesDialogState & state)
     else
     {
         ImGui::BeginDisabled();
-        ImGui::Button("Delete Profile");
+        ImGui::Button(strings::deleteProfile());
         ImGui::EndDisabled();
     }
 }
@@ -211,12 +214,12 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
                                .role = role,
                                .initialPath = bufferPath(path->second),
                                .extension = ".mul",
-                               .title = "Choose Metadata File",
+                                .title = strings::chooseMetadataFile(),
                            });
     }
     const auto * validation = state.validation.find(role);
-    ImGui::TextDisabled("Status: %s",
-                        validation == nullptr ? "Missing"
+    ImGui::TextDisabled(strings::statusFormat(),
+                        validation == nullptr ? strings::missing()
                                               : std::string(strings::dataFileStatusLabel(validation->status)).c_str());
     if (role == DataFileRole::tiledata)
     {
@@ -249,8 +252,8 @@ void drawMetadataSection(PreferencesDialogState & state)
         return;
     }
 
-    dialogFieldLabel("Search folder");
-    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, "Choose folder...##MetadataSearch").c_str()) &&
+    dialogFieldLabel(strings::searchFolder());
+    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, strings::chooseFolder()).c_str()) &&
         state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
@@ -259,21 +262,21 @@ void drawMetadataSection(PreferencesDialogState & state)
                                .target = FileBrowserTarget::dataSearchRoot,
                                .initialPath = bufferPath(state.sourceRoot),
                                .extension = {},
-                               .title = "Search Metadata Folder",
+                                .title = strings::searchMetadataFolder(),
                            });
     }
     ImGui::SameLine();
-    ImGui::TextDisabled("Search the selected folder for known metadata files.");
+    ImGui::TextDisabled("%s", strings::searchMetadataHint());
 
     for (const auto role : knownDataFileRoles())
     {
         drawMetadataPath(state, role);
     }
 
-    if (ImGui::Button(iconLabel(IconId::warning, "Validate metadata").c_str()))
+    if (ImGui::Button(iconLabel(IconId::warning, strings::validateMetadata()).c_str()))
     {
         validateWorkingProfile(state);
-        state.message = state.validation.hasErrors() ? "Metadata validation found errors" : "Metadata validation passed";
+        state.message = state.validation.hasErrors() ? strings::metadataValidationErrors() : strings::metadataValidationPassed();
     }
     if (!state.validationRequested)
     {
@@ -292,32 +295,32 @@ void drawSettingsSection(PreferencesDialogState & state)
         return;
     }
 
-    dialogFieldLabel("Show Welcome screen at startup");
+    dialogFieldLabel(strings::showWelcomeScreen());
     ImGui::Checkbox("##ShowWelcomeScreen", &state.showWelcomeOnStartup);
     dialogFieldLabel("ID Format");
-    const char * idFormatLabel = state.idFormat == IdFormat::decimal ? "Decimal" : "Hexadecimal";
+    const char * idFormatLabel = state.idFormat == IdFormat::decimal ? strings::decimal() : strings::hexadecimalName();
     if (ImGui::BeginCombo("##IdFormat", idFormatLabel))
     {
-        if (ImGui::Selectable("Hexadecimal", state.idFormat == IdFormat::hexadecimal))
+        if (ImGui::Selectable(strings::hexadecimalName(), state.idFormat == IdFormat::hexadecimal))
         {
             state.idFormat = IdFormat::hexadecimal;
         }
-        if (ImGui::Selectable("Decimal", state.idFormat == IdFormat::decimal))
+        if (ImGui::Selectable(strings::decimal(), state.idFormat == IdFormat::decimal))
         {
             state.idFormat = IdFormat::decimal;
         }
         ImGui::EndCombo();
     }
-    dialogFieldLabel("Map view tiles");
+    dialogFieldLabel(strings::mapViewTiles());
     const char * mapViewTileSourceLabel =
-        state.mapViewTileSource == MapViewTileSource::textures ? "Textures (Radarcol fallback)" : "Radarcol";
+        state.mapViewTileSource == MapViewTileSource::textures ? strings::texturesRadarcolFallback() : strings::radarcol();
     if (ImGui::BeginCombo("##MapViewTileSource", mapViewTileSourceLabel))
     {
-        if (ImGui::Selectable("Textures (Radarcol fallback)", state.mapViewTileSource == MapViewTileSource::textures))
+        if (ImGui::Selectable(strings::texturesRadarcolFallback(), state.mapViewTileSource == MapViewTileSource::textures))
         {
             state.mapViewTileSource = MapViewTileSource::textures;
         }
-        if (ImGui::Selectable("Radarcol", state.mapViewTileSource == MapViewTileSource::radarcol))
+        if (ImGui::Selectable(strings::radarcol(), state.mapViewTileSource == MapViewTileSource::radarcol))
         {
             state.mapViewTileSource = MapViewTileSource::radarcol;
         }
@@ -337,6 +340,7 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
     state.showWelcomeOnStartup = preferences.showWelcomeOnStartup;
     state.idFormat = preferences.idFormat;
     state.mapViewTileSource = preferences.mapViewTileSource;
+    state.originalPreferences = preferences;
     state.closeRequested = false;
     state.validationRequested = false;
     state.profileSaveRequested = false;
@@ -369,14 +373,11 @@ void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserRes
     validateWorkingProfile(state);
 }
 
-bool drawPreferencesDialog(PreferencesDialogState & state,
-                           DataProfile & activeProfile,
-                           Preferences & preferences,
-                           FileBrowserState & browser)
+std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogState & state, FileBrowserState & browser)
 {
     if (!state.visible && state.closeRequested)
     {
-        const std::string title = iconLabel(IconId::preferences, "Preferences###dialog.preferences");
+        const std::string title = iconLabel(IconId::preferences, strings::preferencesDialogTitle());
         ImGui::OpenPopup(title.c_str());
         if (ImGui::BeginPopupModal(title.c_str()))
         {
@@ -384,23 +385,22 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
             ImGui::EndPopup();
         }
         state.closeRequested = false;
-        return false;
+        return std::nullopt;
     }
 
     if (!state.visible)
     {
-        return false;
+        return std::nullopt;
     }
 
-    bool profileChanged = false;
     state.browser = &browser;
-    const std::string title = iconLabel(IconId::preferences, "Preferences###dialog.preferences");
+    const std::string title = iconLabel(IconId::preferences, strings::preferencesDialogTitle());
     if (!beginDialog(title.c_str(), &state.visible, largeDialogSpec(), ImGuiWindowFlags_NoResize))
     {
-        return false;
+        return std::nullopt;
     }
 
-    dialogSubheading("Configure your UO data profile and application startup behavior.");
+    dialogSubheading(strings::preferencesDialogSubheading());
     ImGui::Separator();
     ImGui::BeginChild(
         "PreferencesContent", ImVec2(0.0F, contentHeight), ImGuiChildFlags_None, ImGuiWindowFlags_AlwaysVerticalScrollbar);
@@ -414,33 +414,40 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         ImGui::TextColored(theme::imguiColor(theme::success), "%s", state.message.c_str());
     }
 
-    beginDialogFooter({"Apply", "Apply and Use", "Cancel"});
-    if (dialogButton("Apply"))
+    beginDialogFooter({strings::apply(), strings::applyAndUse(), strings::cancel()});
+    std::optional<PreferencesDialogResult> result;
+    if (dialogButton(strings::apply()))
     {
         validateWorkingProfile(state);
-        preferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
-        preferences.idFormat = state.idFormat;
-        preferences.mapViewTileSource = state.mapViewTileSource;
-        state.message = "Changes applied for this dialog session";
+        Preferences updatedPreferences = state.originalPreferences;
+        updatedPreferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
+        updatedPreferences.idFormat = state.idFormat;
+        updatedPreferences.mapViewTileSource = state.mapViewTileSource;
+        result = PreferencesDialogResult{.profile = state.workingProfile,
+                                         .preferences = std::move(updatedPreferences),
+                                         .applyProfile = false};
+        state.message = strings::changesApplied();
     }
 
     ImGui::SameLine();
 
     const bool profileIsMapReady = mapReady(state.workingProfile);
-    if (dialogButton("Apply and Use", profileIsMapReady))
+    if (dialogButton(strings::applyAndUse(), profileIsMapReady))
     {
         validateWorkingProfile(state);
-        activeProfile = state.workingProfile;
-        preferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
-        preferences.idFormat = state.idFormat;
-        preferences.mapViewTileSource = state.mapViewTileSource;
+        Preferences updatedPreferences = state.originalPreferences;
+        updatedPreferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
+        updatedPreferences.idFormat = state.idFormat;
+        updatedPreferences.mapViewTileSource = state.mapViewTileSource;
+        result = PreferencesDialogResult{.profile = state.workingProfile,
+                                         .preferences = std::move(updatedPreferences),
+                                         .applyProfile = true};
         state.profileSaveRequested = true;
-        profileChanged = true;
         state.visible = false;
     }
     ImGui::SameLine();
 
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
+    if (dialogButton(iconLabel(IconId::cancel, strings::cancel()).c_str()))
     {
         state.visible = false;
     }
@@ -451,7 +458,7 @@ bool drawPreferencesDialog(PreferencesDialogState & state,
         ImGui::CloseCurrentPopup();
     }
     endDialog();
-    return profileChanged;
+    return result;
 }
 
 } // namespace uo_mule::gui

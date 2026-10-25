@@ -176,11 +176,11 @@ void drawPickerTextInput(RadarcolColorPickerState & picker)
 
 void drawPickerDescription(const RadarcolColorPickerState & picker)
 {
-    ImGui::Text("Editing %zu color%s", picker.targetIndices.size(), picker.targetIndices.size() == 1U ? "" : "s");
+    const std::string editingLabel = strings::formatEditingColors(picker.targetIndices.size());
+    ImGui::TextUnformatted(editingLabel.c_str());
     if (picker.targetIndices.size() > 1U)
     {
-        const char * hint = picker.mixed ? "Selected colors have different values.\nApply assigns one value to all."
-                                         : "Multiple colors are being edited.\nApply assigns one value to all.";
+        const char * hint = picker.mixed ? strings::mixedColorValues() : strings::multipleColorValues();
         ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", hint);
     }
 }
@@ -206,7 +206,7 @@ void drawPickerColorControl(RadarcolColorPickerState & picker)
 
 void drawPickerFormatControl(RadarcolColorPickerState & picker)
 {
-    if (!ImGui::BeginCombo("Format", pickerFormatName(picker.format)))
+    if (!ImGui::BeginCombo(strings::formatLabel(), pickerFormatName(picker.format)))
     {
         return;
     }
@@ -232,14 +232,14 @@ void showPickerButtonTooltip()
 {
     if (ImGui::IsItemHovered())
     {
-        ImGui::SetTooltip("Pick");
+        ImGui::SetTooltip("%s", strings::pick());
     }
 }
 
 void drawPickerSourceControls(const RadarcolDocumentWindowState & state, RadarcolColorPickerState & picker)
 {
-    const std::string pickSourceLabel =
-        iconFontAvailable() ? iconGlyph(IconId::eyedropper) + "##RadarcolPickSource" : "Pick source##RadarcolPickSource";
+    const std::string pickSourceLabel = iconFontAvailable() ? iconGlyph(IconId::eyedropper) + "##RadarcolPickSource"
+                                                             : strings::pickSource();
     if (ImGui::Button(pickSourceLabel.c_str()))
     {
         picker.sourceMode = true;
@@ -247,7 +247,7 @@ void drawPickerSourceControls(const RadarcolDocumentWindowState & state, Radarco
     }
     showPickerButtonTooltip();
     ImGui::SameLine();
-    if (ImGui::Button("From Active Tile"))
+    if (ImGui::Button(strings::fromActiveTile()))
     {
         picker.value = state.activeTileColor ? state.activeTileColor().value_or(0) : 0;
         picker.error.clear();

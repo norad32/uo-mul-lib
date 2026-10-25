@@ -91,7 +91,7 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
         }
         if (ImGui::IsItemHovered())
         {
-            ImGui::SetTooltip("Words, \"phrases\", or /regex/. Spaces mean OR, commas mean AND.");
+        ImGui::SetTooltip("%s", strings::filterSyntaxTooltip());
         }
     }
     if (adapter.descriptor.capabilities.supports(AssetQueryCapability::sort))
