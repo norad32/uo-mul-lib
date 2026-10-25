@@ -2,6 +2,7 @@
 
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/radarcol_document.h"
+#include "gui_model/documents/texmaps_document.h"
 #include "gui_model/documents/tiledata_document.h"
 #include "gui_model/workspaces/map_workspace.h"
 #include <filesystem>
@@ -34,6 +35,7 @@ struct DocumentRecord
     std::optional<MapDocument> map;
     std::optional<RadarcolDocument> radarcol;
     std::optional<TiledataDocument> tiledata;
+    std::optional<TexmapsDocument> texmaps;
 };
 
 class DocumentManager

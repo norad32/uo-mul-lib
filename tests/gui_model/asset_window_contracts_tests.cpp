@@ -5,6 +5,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace
 {
@@ -74,6 +75,15 @@ TEST_CASE("assetSourceContext_Should_KeepMetadataAndDocumentContextsSeparate")
     REQUIRE(metadata.source == document.source);
 }
 
+TEST_CASE("assetDragPayload_Should_ExposeAReusableDisplayLabel")
+{
+    uo_mule::gui::assets::AssetDragPayload payload;
+    payload.type = std::string(uo_mule::gui::assets::assetValueDragPayloadType);
+    payload.label = "Radarcol color";
+
+    REQUIRE(payload.label == "Radarcol color");
+}
+
 TEST_CASE("assetSelection_Should_ReplaceSingleSelectionAndTrackAnchor")
 {
     uo_mule::gui::assets::AssetSelection selection;
@@ -124,6 +134,26 @@ TEST_CASE("assetSelection_Should_TrackIndexedSingleSelection")
     REQUIRE(selection.anchor.has_value());
     REQUIRE(selection.selected.front().value == "42");
     REQUIRE(selection.anchorIndex == 4U);
+}
+
+TEST_CASE("assetSelection_Should_ReportWhetherAnySelectedItemIsStaged")
+{
+    uo_mule::gui::assets::AssetSelection selection;
+    selection.selected = {{.value = "7"}, {.value = "8"}};
+
+    const auto staged = [](const uo_mule::gui::assets::AssetItemId & item) { return item.value == "8"; };
+
+    REQUIRE(uo_mule::gui::assets::hasStagedSelection(selection, staged));
+}
+
+TEST_CASE("assetSelection_Should_ReportNoStagedItemsForEmptyOrUnstagedSelection")
+{
+    uo_mule::gui::assets::AssetSelection selection;
+    const auto unstaged = [](const uo_mule::gui::assets::AssetItemId &) { return false; };
+
+    REQUIRE_FALSE(uo_mule::gui::assets::hasStagedSelection(selection, unstaged));
+    selection.selected = {{.value = "7"}};
+    REQUIRE_FALSE(uo_mule::gui::assets::hasStagedSelection(selection, unstaged));
 }
 
 TEST_CASE("assetFilter_Should_MatchSpaceSeparatedTermsAcrossValues")

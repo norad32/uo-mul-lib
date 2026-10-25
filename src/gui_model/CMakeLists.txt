@@ -5,6 +5,7 @@ set(GUI_MODEL_SOURCES
     documents/document_descriptors.cpp
     documents/map_document.cpp
     documents/radarcol_document.cpp
+    documents/texmaps_document.cpp
     documents/tiledata_document.cpp
     persistence/config_paths.cpp
     persistence/asset_state_store.cpp

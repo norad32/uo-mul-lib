@@ -52,7 +52,7 @@ inline constexpr bool mapEditsAreStaged = true;
 inline constexpr bool mapRequiresGlobalEditMode = false;
 inline constexpr bool configuredMetadataIsReadOnly = true;
 inline constexpr bool standaloneRadarcolIsEditable = true;
-inline constexpr bool standaloneTexmapPairIsEditable = false;
+inline constexpr bool standaloneTexmapPairIsEditable = true;
 inline constexpr bool standaloneTiledataIsEditable = false;
 inline constexpr bool genericOpenMutatesProfile = false;
 

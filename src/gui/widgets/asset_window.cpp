@@ -196,7 +196,9 @@ void drawPresentationControls(const AssetAdapter & adapter, AssetWindowState & s
     }
     if (adapter.descriptor.inlinePresentationControl)
     {
-        ImGui::SameLine();
+        ImGui::SameLine(0.0F, 0.0F);
+        ImGui::TextUnformatted("     ");
+        ImGui::SameLine(0.0F, 0.0F);
         adapter.descriptor.inlinePresentationControl();
     }
 }
@@ -443,12 +445,13 @@ void appendDragSelection(AssetWindowState & state,
 void updateSelectionDragState(const AssetAdapter & adapter, AssetWindowState & state)
 {
     const ImGuiIO & io = ImGui::GetIO();
-    if (state.selectionDragActive && !io.MouseDown[ImGuiMouseButton_Left])
+    if (!io.MouseDown[ImGuiMouseButton_Left])
     {
         state.selectionDragActive = false;
+        state.selectionDragStartedOnItem = false;
     }
     if (!state.selectionDragActive && adapter.descriptor.capabilities.selection == AssetSelectionMode::multiple &&
-        ImGui::IsMouseDragging(ImGuiMouseButton_Left) && ImGui::IsWindowHovered())
+        !state.selectionDragStartedOnItem && ImGui::IsMouseDragging(ImGuiMouseButton_Left) && ImGui::IsWindowHovered())
     {
         state.selectionDragActive = true;
         state.selectionDragStartX = io.MouseClickedPos[ImGuiMouseButton_Left].x;
@@ -477,6 +480,7 @@ void drawSelectionMarquee(const AssetWindowState & state)
 
 void updateSelectionOnClick(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
 {
+    state.selectionDragStartedOnItem = true;
     if (adapter.descriptor.itemSourcePicked && adapter.descriptor.itemSourcePicked(item.id))
     {
         return;
@@ -579,7 +583,7 @@ AssetItemInteraction drawItemControl(const AssetAdapter & adapter,
 
 void drawItemDragSource(const AssetAdapter & adapter, const AssetWindowState & state)
 {
-    if (!adapter.makeDragPayload || !ImGui::BeginDragDropSource())
+    if (!adapter.makeDragPayload || !ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
     {
         return;
     }
@@ -587,7 +591,7 @@ void drawItemDragSource(const AssetAdapter & adapter, const AssetWindowState & s
     if (payload && payload->values.size() == 1U)
     {
         ImGui::SetDragDropPayload(payload->type.c_str(), payload->values.data(), sizeof(AssetDragPayloadValue));
-        ImGui::TextUnformatted("Radarcol color");
+        ImGui::TextUnformatted(payload->label.empty() ? "Asset value" : payload->label.c_str());
     }
     ImGui::EndDragDropSource();
 }
@@ -641,11 +645,23 @@ void drawItemDropTarget(const AssetAdapter & adapter, const AssetItem & item)
     ImGui::EndDragDropTarget();
 }
 
-void drawItemContextMenu(const AssetAdapter & adapter, const AssetItem & item)
+void drawItemContextMenu(const AssetAdapter & adapter, const AssetWindowState & state, const AssetItem & item)
 {
-    if (adapter.descriptor.itemContextMenu && ImGui::BeginPopupContextItem("AssetItemContext", ImGuiMouseButton_Right))
+    if ((adapter.descriptor.itemContextMenu || adapter.descriptor.itemRevert) &&
+        ImGui::BeginPopupContextItem("AssetItemContext", ImGuiMouseButton_Right))
     {
-        adapter.descriptor.itemContextMenu(item.id);
+        if (adapter.descriptor.itemContextMenu)
+        {
+            adapter.descriptor.itemContextMenu(item.id);
+        }
+        if (adapter.descriptor.itemRevert && adapter.descriptor.itemStaged)
+        {
+            const bool canRevert = hasStagedSelection(state.selection, adapter.descriptor.itemStaged);
+            if (ImGui::MenuItem("Revert", nullptr, false, canRevert))
+            {
+                adapter.descriptor.itemRevert(state.selection);
+            }
+        }
         ImGui::EndPopup();
     }
 }
@@ -669,7 +685,7 @@ void drawItem(const AssetAdapter & adapter,
     drawItemDragSource(adapter, state);
     drawItemDecorations(adapter, state, item, index, interaction);
     drawItemDropTarget(adapter, item);
-    drawItemContextMenu(adapter, item);
+    drawItemContextMenu(adapter, state, item);
     drawItemTooltip(adapter, state, item);
     ImGui::PopID();
 }

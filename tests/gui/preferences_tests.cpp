@@ -17,7 +17,7 @@ constexpr float expectedLogPanelHeight = 268.5F;
 
 } // namespace
 
-TEST_CASE("loadPreferences_Should_UseDefaultsWhenFileIsMissing")
+TEST_CASE("loadPreferences_Should_UseDefaults_If_FileIsMissing")
 {
     const auto preferencesFile = std::filesystem::temp_directory_path() / "pref-defaults" / "preferences.conf";
     std::filesystem::remove_all(preferencesFile.parent_path());

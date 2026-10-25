@@ -508,7 +508,7 @@ void prepareFuzzySelectionWorkspace(const std::filesystem::path & directory, Map
 
 } // namespace
 
-TEST_CASE("mapWorkspace_ShouldFuzzySelectContiguousAndWholeMapWithAndPredicates")
+TEST_CASE("mapWorkspace_Should_FuzzySelectContiguousAndWholeMapWithAndPredicates")
 {
     // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     const TestDirectory directory;
@@ -538,7 +538,7 @@ TEST_CASE("mapWorkspace_ShouldFuzzySelectContiguousAndWholeMapWithAndPredicates"
     // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 }
 
-TEST_CASE("mapWorkspace_ShouldRejectUnavailableFuzzyNameAndBlockMode")
+TEST_CASE("mapWorkspace_Should_RejectUnavailableFuzzyNameAndBlockMode")
 {
     const TestDirectory directory;
     const auto mapPath = directory.path() / "fuzzy-rejected.mul";

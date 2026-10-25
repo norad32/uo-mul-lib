@@ -2,6 +2,7 @@
 
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/staged_document_state.h"
 #include "uomul/radarcol/radarcol.h"
 #include <cstdint>
 #include <expected>
@@ -50,17 +51,17 @@ struct RadarcolDocument
     [[nodiscard]] const std::optional<uomul::RadarColReader> & reader() const noexcept { return reader_; }
     [[nodiscard]] std::optional<uomul::RadarColor> rawColor(std::uint32_t index) const;
     [[nodiscard]] bool hasStagedColor(std::uint32_t index) const noexcept;
-    [[nodiscard]] std::uint64_t displayRevision() const noexcept { return displayRevision_; }
-    [[nodiscard]] const std::string & error() const noexcept { return error_; }
-    [[nodiscard]] DocumentAccess access() const noexcept { return access_; }
-    [[nodiscard]] bool readOnly() const noexcept { return access_ == DocumentAccess::readOnly; }
+    [[nodiscard]] std::uint64_t displayRevision() const noexcept { return state_.revision(); }
+    [[nodiscard]] const std::string & error() const noexcept { return state_.error(); }
+    [[nodiscard]] DocumentAccess access() const noexcept { return state_.access(); }
+    [[nodiscard]] bool readOnly() const noexcept { return state_.readOnly(); }
     [[nodiscard]] bool editing() const noexcept { return editor_.has_value(); }
-    [[nodiscard]] bool dirty() const noexcept { return dirtyState_; }
+    [[nodiscard]] bool dirty() const noexcept { return state_.dirty(); }
     [[nodiscard]] bool overwriteOutput() const noexcept { return overwriteOutput_; }
     void setAccess(DocumentAccess value) noexcept;
     void setOutputPath(std::filesystem::path path) { outputPath_ = std::move(path); }
     void setOverwriteOutput(bool value) noexcept { overwriteOutput_ = value; }
-    void requestIntent(RadarcolDocumentIntent intent) { pendingIntent_ = std::move(intent); }
+    void requestIntent(RadarcolDocumentIntent intent) { pendingIntent_.request(std::move(intent)); }
     [[nodiscard]] std::expected<void, uomul::Error> processPendingIntent();
     [[nodiscard]] std::expected<void, uomul::Error> handleIntent(const RadarcolDocumentIntent & intent);
 
@@ -82,13 +83,10 @@ private:
     std::filesystem::path outputPath_;
     std::optional<uomul::RadarColReader> reader_;
     std::optional<uomul::RadarColEditor> editor_;
-    std::string error_;
-    DocumentAccess access_ = DocumentAccess::editable;
-    bool dirtyState_ = false;
+    StagedDocumentState state_;
     bool overwriteOutput_ = false;
     std::map<std::uint32_t, uomul::RadarColor> stagedColors_;
-    std::uint64_t displayRevision_ = 0;
-    std::optional<RadarcolDocumentIntent> pendingIntent_;
+    PendingDocumentIntent<RadarcolDocumentIntent> pendingIntent_;
 };
 
 } // namespace uo_mule::gui

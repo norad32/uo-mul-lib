@@ -14,7 +14,7 @@ TEST_CASE("DocumentContracts_Should_DistinguishMetadataOwnershipAndAccess")
     REQUIRE(uo_mule::gui::DocumentAccess::editable != uo_mule::gui::DocumentAccess::readOnly);
     REQUIRE(uo_mule::gui::document_contract::configuredMetadataIsReadOnly);
     REQUIRE(uo_mule::gui::document_contract::standaloneRadarcolIsEditable);
-    REQUIRE_FALSE(uo_mule::gui::document_contract::standaloneTexmapPairIsEditable);
+    REQUIRE(uo_mule::gui::document_contract::standaloneTexmapPairIsEditable);
 }
 
 TEST_CASE("DocumentContracts_Should_RecordProfileFallbackAndOpenPolicies")

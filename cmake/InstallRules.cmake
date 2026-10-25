@@ -8,6 +8,20 @@ install(
     EXPORT ${CMAKE_PACKAGE_NAME}Targets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)
+if(TARGET image_codec)
+    install(
+        TARGETS image_codec
+        EXPORT ${CMAKE_PACKAGE_NAME}Targets
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT Development)
+    install(
+        DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/image_codec/include/"
+        DESTINATION
+            "${CMAKE_INSTALL_INCLUDEDIR}/${CMAKE_PACKAGE_NAME}/image_codec"
+        COMPONENT Development
+        FILES_MATCHING
+        PATTERN "*.h")
+endif()
 if(BUILD_CLI OR BUILD_GUI)
     install(
         TARGETS app

@@ -85,14 +85,14 @@ void createFixture(const std::filesystem::path & path)
            reader->readStaticTile(staticId) == staticRecord(layout);
 }
 
-TEST_CASE("TiledataEditor_createEmpty_ShouldRoundTripBothRecordKindsIfLayoutIsSelected", "[uomul][tiledata][editor]")
+TEST_CASE("TiledataEditor_createEmpty_Should_RoundTripBothRecordKinds_If_LayoutIsSelected", "[uomul][tiledata][editor]")
 {
     const TestDirectory directory;
     REQUIRE(roundTripLayout(directory, TiledataLayout::legacy32));
     REQUIRE(roundTripLayout(directory, TiledataLayout::extended64));
 }
 
-TEST_CASE("TiledataFlag_ShouldComposeAndTestTypedFlags", "[uomul][tiledata]")
+TEST_CASE("TiledataFlag_Should_ComposeAndTestTypedFlags", "[uomul][tiledata]")
 {
     const auto flags = uomul::TiledataFlag::impassable | uomul::TiledataFlag::surface;
 
@@ -101,7 +101,7 @@ TEST_CASE("TiledataFlag_ShouldComposeAndTestTypedFlags", "[uomul][tiledata]")
     REQUIRE_FALSE(uomul::hasTiledataFlag(flags, uomul::TiledataFlag::wet));
 }
 
-TEST_CASE("TiledataReader_open_ShouldReadRealExtendedFixture", "[uomul][tiledata][reader]")
+TEST_CASE("TiledataReader_open_Should_ReadRealExtendedFixture", "[uomul][tiledata][reader]")
 {
     const TestDirectory directory;
     const auto path = directory.path() / "tiledata.mul";
@@ -116,7 +116,7 @@ TEST_CASE("TiledataReader_open_ShouldReadRealExtendedFixture", "[uomul][tiledata
     REQUIRE(reader->readMapTile(3)->name == "grass");
 }
 
-TEST_CASE("TiledataReader_read_ShouldRejectOutOfRangeIds", "[uomul][tiledata][reader]")
+TEST_CASE("TiledataReader_read_Should_RejectOutOfRangeIds", "[uomul][tiledata][reader]")
 {
     const TestDirectory directory;
     const auto path = directory.path() / "tiledata.mul";
@@ -130,7 +130,7 @@ TEST_CASE("TiledataReader_read_ShouldRejectOutOfRangeIds", "[uomul][tiledata][re
     REQUIRE(reader->readStaticTile(uomul::tiledataStaticTileCount).error().code == uomul::ErrorCode::invalidCoordinate);
 }
 
-TEST_CASE("TiledataReader_open_ShouldRejectWrongLayout", "[uomul][tiledata][reader]")
+TEST_CASE("TiledataReader_open_Should_RejectWrongLayout", "[uomul][tiledata][reader]")
 {
     const TestDirectory directory;
     const auto path = directory.path() / "tiledata.mul";
@@ -142,7 +142,7 @@ TEST_CASE("TiledataReader_open_ShouldRejectWrongLayout", "[uomul][tiledata][read
     REQUIRE(reader.error().code == uomul::ErrorCode::truncatedInput);
 }
 
-TEST_CASE("TiledataEditor_create_ShouldPreserveSourceUntilCommit", "[uomul][tiledata][editor]")
+TEST_CASE("TiledataEditor_create_Should_PreserveSourceUntilCommit", "[uomul][tiledata][editor]")
 {
     const TestDirectory directory;
     const auto source = directory.path() / "source.mul";
@@ -164,7 +164,7 @@ TEST_CASE("TiledataEditor_create_ShouldPreserveSourceUntilCommit", "[uomul][tile
     REQUIRE(uomul::test::readBytes(source) == sourceBytes);
 }
 
-TEST_CASE("TiledataEditor_edit_ShouldRejectNameLongerThanFixedField", "[uomul][tiledata][editor]")
+TEST_CASE("TiledataEditor_edit_Should_RejectNameLongerThanFixedField", "[uomul][tiledata][editor]")
 {
     const TestDirectory directory;
     const auto path = directory.path() / "tiledata.mul";

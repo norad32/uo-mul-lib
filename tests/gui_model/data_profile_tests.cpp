@@ -86,7 +86,7 @@ TEST_CASE("DataProfileStore_Should_IgnoreUnknownKeysAndRejectUnsafeProfileNames"
     REQUIRE(safePath.filename() == "___secret_profile.profile");
 }
 
-TEST_CASE("DataProfileStore_Should_ReturnDefaultsWhenProfileIsMissing")
+TEST_CASE("DataProfileStore_Should_ReturnDefaults_If_ProfileIsMissing")
 {
     const TemporaryProfileDirectory directory;
 

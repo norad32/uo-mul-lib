@@ -54,6 +54,7 @@ TEST_CASE("assetWindowState_Should_ResetSelectionAndCachesForNewContext")
     state.selection.anchorIndex = 3U;
     state.selectionDragBase = state.selection;
     state.selectionDragActive = true;
+    state.selectionDragStartedOnItem = true;
     state.scrollPosition = resetScrollPosition;
     state.detailsCollapsed = true;
 
@@ -69,6 +70,7 @@ TEST_CASE("assetWindowState_Should_ResetSelectionAndCachesForNewContext")
     REQUIRE_FALSE(state.selection.anchorIndex.has_value());
     REQUIRE(state.selectionDragBase.selected.empty());
     REQUIRE_FALSE(state.selectionDragActive);
+    REQUIRE_FALSE(state.selectionDragStartedOnItem);
     REQUIRE(state.scrollPosition <= 0.0F);
     REQUIRE_FALSE(state.detailsCollapsed);
 }

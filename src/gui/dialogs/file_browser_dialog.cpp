@@ -654,7 +654,24 @@ bool fileBrowserMatchesFilter(const std::filesystem::path & path, std::string_vi
     {
         return true;
     }
-    return lowercase(path.extension().string()) == lowercase(std::string(extension));
+    const auto actual = lowercase(path.extension().string());
+    const auto filters = lowercase(std::string(extension));
+    std::size_t begin = 0;
+    while (begin < filters.size())
+    {
+        const auto end = filters.find_first_of(",;", begin);
+        const auto candidate = filters.substr(begin, end == std::string::npos ? end : end - begin);
+        if (actual == candidate)
+        {
+            return true;
+        }
+        if (end == std::string::npos)
+        {
+            break;
+        }
+        begin = end + 1U;
+    }
+    return false;
 }
 
 FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & path)

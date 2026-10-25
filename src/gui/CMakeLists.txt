@@ -32,6 +32,7 @@ add_library(
     frame/workbench_frame.cpp
     presentation/formatting/file_size.cpp
     panels/block_inspector_panel.cpp
+    panels/asset_panel_helpers.cpp
     panels/icon_gallery_panel.cpp
     panels/tile_inspector_panel.cpp
     panels/log_panel.cpp
@@ -45,7 +46,9 @@ add_library(
     widgets/texture_preview.cpp
     views/world/map_canvas_view.cpp
     views/world/tile_labels.cpp
-    workflows/file_operations.cpp)
+    workflows/file_operations.cpp
+    workflows/texmap_export.cpp
+    workflows/texmap_replacement.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(
@@ -61,6 +64,7 @@ target_link_libraries(
            glfw
            OpenGL::GL
            gui_model
+           image_codec
            logger
            options)
 file(

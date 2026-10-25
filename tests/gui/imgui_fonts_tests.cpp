@@ -21,7 +21,7 @@ public:
 
 } // namespace
 
-TEST_CASE("imguiFonts_ShouldKeepDefaultFontWhenIconFontIsMissing")
+TEST_CASE("imguiFonts_Should_KeepDefaultFont_If_IconFontIsMissing")
 {
     const ImGuiContextScope context;
     const auto state = uo_mule::gui::configureImGuiFonts(std::nullopt);
@@ -32,7 +32,7 @@ TEST_CASE("imguiFonts_ShouldKeepDefaultFontWhenIconFontIsMissing")
     REQUIRE(uo_mule::gui::iconFontLarge() == nullptr);
 }
 
-TEST_CASE("imguiFonts_ShouldMergeVendoredIconFontIntoDefaultFont")
+TEST_CASE("imguiFonts_Should_MergeVendoredIconFontIntoDefaultFont")
 {
     const ImGuiContextScope context;
     const std::filesystem::path fontPath =

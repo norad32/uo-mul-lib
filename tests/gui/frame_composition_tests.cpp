@@ -31,7 +31,7 @@ TEST_CASE("documentWindow_Should_UseRadarcolAssetWindowIdentity")
     REQUIRE(uo_mule::gui::documentWindowName(summary) == "Radarcol: radarcol.mul###document.9");
 }
 
-TEST_CASE("documentWindow_Should_KeepCentralIdentityWhenDisplayTitleChanges")
+TEST_CASE("documentWindow_Should_KeepCentralIdentity_If_DisplayTitleChanges")
 {
     uo_mule::gui::DocumentSummary summary{
         .identity =

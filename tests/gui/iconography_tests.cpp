@@ -51,7 +51,7 @@ void requireMappingRange(std::span<const std::uint32_t> ranges, const uo_mule::g
 
 } // namespace
 
-TEST_CASE("iconography_ShouldHaveOneValidMappingPerSemanticId")
+TEST_CASE("iconography_Should_HaveOneValidMappingPerSemanticId")
 {
     const auto mappings = uo_mule::gui::iconMappings();
     REQUIRE(mappings.size() == 81);
@@ -64,7 +64,7 @@ TEST_CASE("iconography_ShouldHaveOneValidMappingPerSemanticId")
     }
 }
 
-TEST_CASE("iconography_ShouldExposeCanonicalMdiNamesSeparatelyFromSemanticNames")
+TEST_CASE("iconography_Should_ExposeCanonicalMdiNamesSeparatelyFromSemanticNames")
 {
     REQUIRE(uo_mule::gui::iconSemanticName(uo_mule::gui::IconId::pan) == "pan");
     REQUIRE(uo_mule::gui::iconName(uo_mule::gui::IconId::pan) == "cursor-move");
@@ -76,7 +76,7 @@ TEST_CASE("iconography_ShouldExposeCanonicalMdiNamesSeparatelyFromSemanticNames"
     REQUIRE(uo_mule::gui::iconName(uo_mule::gui::IconId::selectRemove) == "select-remove");
 }
 
-TEST_CASE("iconography_ShouldEncodeMappedCodepointsAsUtf8")
+TEST_CASE("iconography_Should_EncodeMappedCodepointsAsUtf8")
 {
     for (const auto & mapping : uo_mule::gui::iconMappings())
     {
@@ -87,7 +87,7 @@ TEST_CASE("iconography_ShouldEncodeMappedCodepointsAsUtf8")
     }
 }
 
-TEST_CASE("iconography_ShouldDeriveImGuiRangesFromMappings")
+TEST_CASE("iconography_Should_DeriveImGuiRangesFromMappings")
 {
     const auto mappings = uo_mule::gui::iconMappings();
     const auto ranges = uo_mule::gui::imguiIconGlyphRanges();
@@ -102,7 +102,7 @@ TEST_CASE("iconography_ShouldDeriveImGuiRangesFromMappings")
     // NOLINTEND(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
 }
 
-TEST_CASE("iconography_ShouldPreserveTextWhenFontIsUnavailable")
+TEST_CASE("iconography_Should_PreserveText_If_FontIsUnavailable")
 {
     uo_mule::gui::setIconFontAvailable(false);
     REQUIRE(uo_mule::gui::iconLabel(uo_mule::gui::IconId::save, "Save", false) == "Save");

@@ -105,6 +105,10 @@ const char * hideUnused() noexcept
 {
     return "Hide unused";
 }
+const char * hideEmpty() noexcept
+{
+    return "Hide empty";
+}
 const char * dimensions() noexcept
 {
     return "Dimensions";

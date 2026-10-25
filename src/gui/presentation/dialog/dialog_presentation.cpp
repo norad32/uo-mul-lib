@@ -12,6 +12,7 @@ namespace
 {
 
 constexpr float framePaddingMultiplier = 2.0F;
+constexpr float dialogCenterPivot = 0.5F;
 
 constexpr float standardWidth = 520.0F;
 constexpr float standardHeight = 320.0F;
@@ -92,6 +93,16 @@ bool beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, Im
     ImGui::SetNextWindowSize(spec.initialSize, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSizeConstraints(spec.minimumSize, ImVec2(FLT_MAX, FLT_MAX));
     return ImGui::BeginPopupModal(popupId, visible, modalFlags(extraFlags));
+}
+
+bool beginAutoSizeDialog(const char * popupId, bool * visible, ImGuiWindowFlags extraFlags)
+{
+    ImGui::OpenPopup(popupId);
+    const ImGuiViewport * viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Appearing, ImVec2(dialogCenterPivot, dialogCenterPivot));
+    const auto flags = static_cast<ImGuiWindowFlags>(static_cast<unsigned int>(extraFlags) |
+                                                     static_cast<unsigned int>(ImGuiWindowFlags_AlwaysAutoResize));
+    return ImGui::BeginPopupModal(popupId, visible, modalFlags(flags));
 }
 
 void endDialog()

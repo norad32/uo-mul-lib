@@ -112,7 +112,7 @@ TEST_CASE("DataProviders_Should_UseValidExternalRadarcol")
             uo_mule::gui::MapColor{.red = 255, .green = 255, .blue = 255});
 }
 
-TEST_CASE("DataProviders_Should_FallbackWithWarningWhenConfiguredRadarcolIsBroken")
+TEST_CASE("DataProviders_Should_FallbackWithWarning_If_ConfiguredRadarcolIsBroken")
 {
     const TemporaryDirectory directory;
     const auto path = directory.path() / "radarcol.mul";
@@ -131,7 +131,7 @@ TEST_CASE("DataProviders_Should_FallbackWithWarningWhenConfiguredRadarcolIsBroke
     REQUIRE(providers.radarColors().mapColor(0U) == uo_mule::gui::makeEmbeddedRadarColorProvider()->mapColor(0U));
 }
 
-TEST_CASE("DataProviders_Should_IncrementRadarcolRevisionWhenEffectiveSourceChanges")
+TEST_CASE("DataProviders_Should_IncrementRadarcolRevision_If_EffectiveSourceChanges")
 {
     const TemporaryDirectory directory;
     const auto path = directory.path() / "radarcol.mul";

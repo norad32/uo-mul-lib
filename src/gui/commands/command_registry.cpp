@@ -8,8 +8,10 @@
 #include "gui/views/world/map_canvas_view.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/map_document.h"
 #include "gui_model/documents/radarcol_document.h"
+#include "gui_model/documents/texmaps_document.h"
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/input/radarcol_color_input.h"
 #include "gui_model/layout/panel_registry.h"
@@ -36,6 +38,13 @@ namespace uo_mule::gui
 {
 namespace
 {
+
+[[nodiscard]] TexmapsDocumentIntent texmapsLifecycleIntent(TexmapsDocumentIntentKind kind)
+{
+    TexmapsDocumentIntent intent;
+    intent.kind = kind;
+    return intent;
+}
 
 CommandAvailability enabled(const WorkbenchState & state)
 {
@@ -126,6 +135,18 @@ CommandAvailability requiresSaveableDocument(const WorkbenchState & state)
         }
         return enabled(state);
     }
+    if (active->texmaps)
+    {
+        if (active->texmaps->readOnly())
+        {
+            return {.enabled = false, .disabledReason = "Configured Texmap sources are read-only"};
+        }
+        if (!active->texmaps->editing() || !active->texmaps->dirty())
+        {
+            return {.enabled = false, .disabledReason = "There are no staged changes"};
+        }
+        return enabled(state);
+    }
     return {.enabled = false, .disabledReason = "This document cannot be edited"};
 }
 
@@ -156,6 +177,11 @@ CommandAvailability requiresRadarcolColorEditor(const WorkbenchState & state)
         const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
         return view == state.radarcolState.documentAssetViews.end() ? nullptr : &view->second.selection;
     }
+    if (active != nullptr && active->texmaps)
+    {
+        const auto view = state.texmapsState.documentAssetViews.find(active->texmaps->id());
+        return view == state.texmapsState.documentAssetViews.end() ? nullptr : &view->second.selection;
+    }
     return &state.radarcolState.assetView.selection;
 }
 
@@ -167,6 +193,49 @@ CommandAvailability requiresAssetSelection(const WorkbenchState & state)
         return {.enabled = false, .disabledReason = "Select one or more asset items"};
     }
     return enabled(state);
+}
+
+[[nodiscard]] std::optional<std::pair<std::optional<DocumentId>, assets::AssetSelection>>
+activeTexmapExportSelection(const WorkbenchState & state)
+{
+    if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->texmaps)
+    {
+        const auto view = state.texmapsState.documentAssetViews.find(active->texmaps->id());
+        if (view != state.texmapsState.documentAssetViews.end())
+        {
+            return std::pair{std::optional<DocumentId>{active->texmaps->id()}, view->second.selection};
+        }
+    }
+    return std::pair{std::optional<DocumentId>{}, state.texmapsState.assetView.selection};
+}
+
+CommandAvailability requiresTexmapExportSelection(const WorkbenchState & state)
+{
+    const auto selection = activeTexmapExportSelection(state);
+    if (!selection || selection->second.selected.empty() || !state.texmapsState.exportFormatRequested)
+    {
+        return {.enabled = false, .disabledReason = "Select one or more Texmap textures"};
+    }
+    return enabled(state);
+}
+
+void requestTexmapFormatExport(const WorkbenchState & state)
+{
+    const auto selection = activeTexmapExportSelection(state);
+    if (!selection || !state.texmapsState.exportFormatRequested)
+    {
+        return;
+    }
+    std::vector<std::uint32_t> textureIds;
+    textureIds.reserve(selection->second.selected.size());
+    for (const auto & item : selection->second.selected)
+    {
+        if (const auto id = assets::itemIndex(item))
+        {
+            textureIds.push_back(*id);
+        }
+    }
+    state.texmapsState.exportFormatRequested(selection->first, std::move(textureIds));
 }
 
 [[nodiscard]] assets::AssetWindowState * hoveredAssetWindow(WorkbenchState & state)
@@ -184,6 +253,11 @@ CommandAvailability requiresAssetSelection(const WorkbenchState & state)
     }
     if (context == "Texmaps" && state.panelRegistry.find(PanelId::texmaps)->visible)
     {
+        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->texmaps)
+        {
+            const auto view = state.texmapsState.documentAssetViews.find(active->texmaps->id());
+            return view == state.texmapsState.documentAssetViews.end() ? nullptr : &view->second;
+        }
         return &state.texmapsState.assetView;
     }
     if (context == "Tiledata" && state.panelRegistry.find(PanelId::tiledata)->visible)
@@ -208,6 +282,11 @@ CommandAvailability requiresAssetSelection(const WorkbenchState & state)
     }
     if (context == "Texmaps" && state.panelRegistry.find(PanelId::texmaps)->visible)
     {
+        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->texmaps)
+        {
+            const auto view = state.texmapsState.documentAssetViews.find(active->texmaps->id());
+            return view == state.texmapsState.documentAssetViews.end() ? nullptr : &view->second;
+        }
         return &state.texmapsState.assetView;
     }
     if (context == "Tiledata" && state.panelRegistry.find(PanelId::tiledata)->visible)
@@ -573,6 +652,11 @@ void registerFileOpenCommands(CommandRegistry & registry)
                     .outputPath = {},
                     .overwriteOutput = false,
                 });
+                return;
+            }
+            if (active->texmaps)
+            {
+                active->texmaps->requestIntent(texmapsLifecycleIntent(TexmapsDocumentIntentKind::save));
             }
         });
 }
@@ -662,6 +746,15 @@ void registerFileSaveCommands(CommandRegistry & registry)
             }
         });
     add(registry,
+        CommandId::fileExportAs,
+        "file.export-as",
+        "Export As...",
+        "File",
+        "Export selected Texmap textures as BMP or PNG",
+        "",
+        requiresTexmapExportSelection,
+        requestTexmapFormatExport);
+    add(registry,
         CommandId::fileDiscard,
         "file.discard",
         "Discard",
@@ -679,6 +772,11 @@ void registerFileSaveCommands(CommandRegistry & registry)
                     .outputPath = {},
                     .overwriteOutput = false,
                 });
+                return;
+            }
+            if (auto * active = state.session.activeDocumentRecord(); active != nullptr && active->texmaps)
+            {
+                active->texmaps->requestIntent(texmapsLifecycleIntent(TexmapsDocumentIntentKind::discard));
                 return;
             }
             const auto discarded = state.workspace.discard();

@@ -79,7 +79,7 @@ void clearOverrides()
 
 } // namespace
 
-TEST_CASE("guiResourceLookup_ShouldPreferEnvironmentOverride")
+TEST_CASE("guiResourceLookup_Should_PreferEnvironmentOverride")
 {
     clearOverrides();
     const TemporaryDirectory directory;
@@ -97,7 +97,7 @@ TEST_CASE("guiResourceLookup_ShouldPreferEnvironmentOverride")
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == overridePath);
 }
 
-TEST_CASE("guiResourceLookup_ShouldPreferInstalledPathBeforeBuildTreePath")
+TEST_CASE("guiResourceLookup_Should_PreferInstalledPathBeforeBuildTreePath")
 {
     clearOverrides();
     const TemporaryDirectory directory;
@@ -113,7 +113,7 @@ TEST_CASE("guiResourceLookup_ShouldPreferInstalledPathBeforeBuildTreePath")
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == installed);
 }
 
-TEST_CASE("guiResourceLookup_ShouldFindBuildTreePathWhenInstalledPathIsMissing")
+TEST_CASE("guiResourceLookup_Should_FindBuildTreePath_If_InstalledPathIsMissing")
 {
     clearOverrides();
     const TemporaryDirectory directory;
@@ -126,7 +126,7 @@ TEST_CASE("guiResourceLookup_ShouldFindBuildTreePathWhenInstalledPathIsMissing")
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == source);
 }
 
-TEST_CASE("guiResourceLookup_ShouldReportMissingResource")
+TEST_CASE("guiResourceLookup_Should_ReportMissingResource")
 {
     clearOverrides();
     const TemporaryDirectory directory;

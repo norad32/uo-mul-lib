@@ -38,6 +38,7 @@ option(BUILD_GUI_RUNTIME "Build the separately packaged GUI runtime executable"
 option(BUILD_CORE_TESTS "Build core and uomul unit tests" ${BUILD_TESTS})
 option(BUILD_CLI_TESTS "Build CLI unit tests" ${BUILD_TESTS})
 option(BUILD_GUI_TESTS "Build GUI unit tests" ${BUILD_TESTS})
+option(BUILD_IMAGE_CODEC_TESTS "Build image codec unit tests" ${BUILD_TESTS})
 option(INSTALL_GUI
        "Install GUI desktop integration with the runtime executable" OFF)
 if(BUILD_GUI_RUNTIME AND NOT BUILD_GUI)
@@ -127,6 +128,18 @@ endif()
 add_subdirectory(src/core)
 add_subdirectory(src/logger)
 add_subdirectory(src/uomul)
+if(BUILD_GUI
+   OR BUILD_GUI_TESTS
+   OR BUILD_IMAGE_CODEC_TESTS)
+    include(FetchContent)
+    application_pin_fetchcontent_dependency(
+        stb https://github.com/nothings/stb.git
+        003501f6d7a8668ce8b6d875e34dd97ad0d5d5b5) # stb pinned revision
+    FetchContent_MakeAvailable(stb)
+    add_library(stb_headers INTERFACE)
+    target_include_directories(stb_headers SYSTEM INTERFACE "${stb_SOURCE_DIR}")
+    add_subdirectory(src/image_codec)
+endif()
 add_subdirectory(src/gui_model)
 if(BUILD_CLI
    OR BUILD_GUI
@@ -147,6 +160,9 @@ if(BUILD_CLI OR BUILD_GUI)
 endif()
 
 set(compile_targets core logger uomul)
+if(TARGET image_codec)
+    list(APPEND compile_targets image_codec)
+endif()
 if(BUILD_CLI
    OR BUILD_GUI
    OR BUILD_CLI_TESTS)
@@ -177,7 +193,8 @@ endif()
 if(BUILD_TESTS
    OR BUILD_CORE_TESTS
    OR BUILD_CLI_TESTS
-   OR BUILD_GUI_TESTS)
+   OR BUILD_GUI_TESTS
+   OR BUILD_IMAGE_CODEC_TESTS)
     include(CTest)
     add_subdirectory(tests "${PROJECT_BINARY_DIR}/unit-tests")
 endif()
@@ -198,6 +215,9 @@ if(ENABLE_CLANG_TIDY)
         list(APPEND clang_tidy_targets ${EXECUTABLE_NAME})
     endif()
     list(APPEND clang_tidy_targets gui_model)
+    if(TARGET image_codec)
+        list(APPEND clang_tidy_targets image_codec)
+    endif()
     if(BUILD_GUI)
         list(APPEND clang_tidy_targets gui)
         if(BUILD_GUI_RUNTIME)
@@ -208,6 +228,7 @@ if(ENABLE_CLANG_TIDY)
         target IN
         ITEMS uomul_tests
               cli_tests
+              image_codec_tests
               gui_tests
               gui_model_tests
               map_benchmarks

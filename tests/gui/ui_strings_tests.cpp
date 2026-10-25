@@ -10,6 +10,7 @@ TEST_CASE("uiStrings_Should_CentralizeSharedDisplayVocabulary")
 {
     REQUIRE(std::string_view(uo_mule::gui::strings::open()) == "Open");
     REQUIRE(std::string_view(uo_mule::gui::strings::cancel()) == "Cancel");
+    REQUIRE(std::string_view(uo_mule::gui::strings::hideEmpty()) == "Hide empty");
     REQUIRE(std::string_view(uo_mule::gui::strings::preferences()) == "Preferences");
     REQUIRE(uo_mule::gui::strings::dataFileLabel(uo_mule::gui::DataFileRole::radarcol) == "Radar colors");
     REQUIRE(uo_mule::gui::strings::dataFileName(uo_mule::gui::DataFileRole::radarcol) == "radarcol.mul");

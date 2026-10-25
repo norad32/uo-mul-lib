@@ -257,24 +257,87 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     }
 }
 
+[[nodiscard]] bool routeImageOrExportResult(const WorkbenchState & state, const FileBrowserResult & result)
+{
+    switch (result.target)
+    {
+        case FileBrowserTarget::imageOpen :
+            if (state.texmapsState.replacementFilePicked)
+            {
+                state.texmapsState.replacementFilePicked(result.path);
+            }
+            return true;
+        case FileBrowserTarget::imageFolderOpen :
+            if (state.texmapsState.folderReplacementFolderPicked)
+            {
+                state.texmapsState.folderReplacementFolderPicked(result.path);
+            }
+            return true;
+        case FileBrowserTarget::texmapExportFile :
+            if (state.texmapsState.exportFilePicked)
+            {
+                state.texmapsState.exportFilePicked(result.path);
+            }
+            return true;
+        case FileBrowserTarget::texmapExportFolder :
+            if (state.texmapsState.exportFolderPicked)
+            {
+                state.texmapsState.exportFolderPicked(result.path);
+            }
+            return true;
+        default :
+            return false;
+    }
+}
+
+[[nodiscard]] bool routeCompanionResult(WorkbenchState & state, const FileBrowserResult & result)
+{
+    if (result.target != FileBrowserTarget::texmapsCompanion)
+    {
+        return false;
+    }
+    static_cast<void>(applyFileSelectorCompanion(state.fileSelector, result.path));
+    return true;
+}
+
+[[nodiscard]] bool routeNewAssetResult(WorkbenchState & state, const FileBrowserResult & result)
+{
+    if (result.target != FileBrowserTarget::newRadarcolOutput && result.target != FileBrowserTarget::newTexmapsData)
+    {
+        return false;
+    }
+    createNewAsset(state, result.target, result.path);
+    return true;
+}
+
+[[nodiscard]] bool routeUnsupportedGenericResult(WorkbenchState & state, const FileBrowserResult & result)
+{
+    if (result.target != FileBrowserTarget::genericOpen || result.assetCandidate || !result.assetCandidates.empty())
+    {
+        return false;
+    }
+    state.notifications.add(NotificationSeverity::error,
+                            result.path.filename().string() + ": no supported MUL format was detected");
+    return true;
+}
+
+[[nodiscard]] bool routeFileSelectorResult(WorkbenchState & state, const FileBrowserResult & result)
+{
+    if (result.assetCandidate ||
+        (result.target != FileBrowserTarget::genericOpen && result.target != FileBrowserTarget::radarcolSource &&
+         result.target != FileBrowserTarget::texmapsIndex && result.target != FileBrowserTarget::texmapsData))
+    {
+        return false;
+    }
+    openFileSelector(state.fileSelector, result);
+    return true;
+}
+
 [[nodiscard]] bool routeFileBrowserResult(WorkbenchState & state, const FileBrowserResult & result)
 {
-    if (result.target == FileBrowserTarget::texmapsCompanion)
+    if (routeImageOrExportResult(state, result) || routeCompanionResult(state, result) || routeNewAssetResult(state, result) ||
+        routeUnsupportedGenericResult(state, result))
     {
-        static_cast<void>(applyFileSelectorCompanion(state.fileSelector, result.path));
-        return false;
-    }
-
-    if (result.target == FileBrowserTarget::newRadarcolOutput || result.target == FileBrowserTarget::newTexmapsData)
-    {
-        createNewAsset(state, result.target, result.path);
-        return false;
-    }
-
-    if (result.target == FileBrowserTarget::genericOpen && !result.assetCandidate && result.assetCandidates.empty())
-    {
-        state.notifications.add(NotificationSeverity::error,
-                                result.path.filename().string() + ": no supported MUL format was detected");
         return false;
     }
 
@@ -284,11 +347,8 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
         return openGenericAsset(state, result, result.assetCandidates.front());
     }
 
-    if (!result.assetCandidate &&
-        (result.target == FileBrowserTarget::genericOpen || result.target == FileBrowserTarget::radarcolSource ||
-         result.target == FileBrowserTarget::texmapsIndex || result.target == FileBrowserTarget::texmapsData))
+    if (routeFileSelectorResult(state, result))
     {
-        openFileSelector(state.fileSelector, result);
         return false;
     }
 

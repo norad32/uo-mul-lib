@@ -4,6 +4,7 @@
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <regex>
 #include <span>
@@ -188,6 +189,15 @@ bool contains(const AssetSelection & selection, const AssetItemId & item)
     return std::ranges::find(selection.selected, item) != selection.selected.end();
 }
 
+bool hasStagedSelection(const AssetSelection & selection, const std::function<bool(const AssetItemId &)> & itemStaged)
+{
+    if (!itemStaged)
+    {
+        return false;
+    }
+    return std::ranges::any_of(selection.selected, itemStaged);
+}
+
 std::optional<std::uint32_t> itemIndex(const AssetItemId & item) noexcept
 {
     std::uint32_t value = 0;
@@ -250,6 +260,7 @@ void resetContext(AssetWindowState & state) noexcept
     state.selectionDragStartX = 0.0F;
     state.selectionDragStartY = 0.0F;
     state.selectionDragActive = false;
+    state.selectionDragStartedOnItem = false;
     state.scrollPosition = 0.0F;
     state.scrollPositionRestorePending = true;
     state.detailsCollapsed = false;

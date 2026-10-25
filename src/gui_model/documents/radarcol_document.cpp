@@ -29,13 +29,10 @@ RadarcolDocument::RadarcolDocument(DocumentId id,
                                    std::optional<uomul::RadarColReader> reader,
                                    DocumentAccess access,
                                    std::string error) :
-    id_(id),
-    sourcePath_(std::move(sourcePath)),
-    outputPath_(sourcePath_),
-    reader_(std::move(reader)),
-    error_(std::move(error)),
-    access_(access)
+    id_(id), sourcePath_(std::move(sourcePath)), outputPath_(sourcePath_), reader_(std::move(reader))
 {
+    state_.setAccess(access);
+    state_.setError(std::move(error));
 }
 
 std::expected<RadarcolDocument, uomul::Error>
@@ -88,37 +85,35 @@ std::expected<void, uomul::Error> RadarcolDocument::handleIntent(const RadarcolD
 
     if (!result)
     {
-        error_ = result.error().message;
+        state_.setError(result.error().message);
     }
     else
     {
-        error_.clear();
+        state_.clearError();
     }
     return result;
 }
 
 void RadarcolDocument::setAccess(DocumentAccess value) noexcept
 {
-    access_ = value;
+    state_.setAccess(value);
     if (readOnly() && editor_)
     {
         editor_->abort();
         editor_.reset();
         stagedColors_.clear();
-        dirtyState_ = false;
-        displayRevision_++;
+        state_.resetChanges();
     }
 }
 
 std::expected<void, uomul::Error> RadarcolDocument::processPendingIntent()
 {
-    if (!pendingIntent_)
+    const auto intent = pendingIntent_.take();
+    if (!intent)
     {
         return {};
     }
-    const RadarcolDocumentIntent intent = std::move(*pendingIntent_);
-    pendingIntent_.reset();
-    return handleIntent(intent);
+    return handleIntent(*intent);
 }
 
 std::expected<void, uomul::Error> RadarcolDocument::beginEditing(const std::filesystem::path & output, bool outputOverwrite)
@@ -144,7 +139,7 @@ std::expected<void, uomul::Error> RadarcolDocument::beginEditing(const std::file
 
     outputPath_ = output;
     editor_.emplace(std::move(*staged));
-    dirtyState_ = false;
+    state_.setDirty(false);
     return {};
 }
 
@@ -230,13 +225,13 @@ std::expected<void, uomul::Error> RadarcolDocument::editColors(const std::vector
         }
     }
 
-    dirtyState_ = !stagedColors_.empty();
-    if (!dirtyState_ && startedEditor)
+    state_.setDirty(!stagedColors_.empty());
+    if (!state_.dirty() && startedEditor)
     {
         editor_->abort();
         editor_.reset();
     }
-    displayRevision_++;
+    state_.touch();
     return {};
 }
 
@@ -281,13 +276,13 @@ std::expected<void, uomul::Error> RadarcolDocument::revertColors(const std::vect
         stagedColors_.erase(index);
     }
 
-    dirtyState_ = !stagedColors_.empty();
-    if (!dirtyState_ && editor_)
+    state_.setDirty(!stagedColors_.empty());
+    if (!state_.dirty() && editor_)
     {
         editor_->abort();
         editor_.reset();
     }
-    displayRevision_++;
+    state_.touch();
     return {};
 }
 
@@ -313,8 +308,7 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
         editor_->abort();
         editor_.reset();
         stagedColors_.clear();
-        dirtyState_ = false;
-        displayRevision_++;
+        state_.resetChanges();
         if (*inPlace)
         {
             auto restored = uomul::RadarColReader::open(sourcePath_);
@@ -331,8 +325,7 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
     {
         editor_.reset();
         stagedColors_.clear();
-        dirtyState_ = false;
-        displayRevision_++;
+        state_.resetChanges();
         return fail(opened.error());
     }
 
@@ -340,8 +333,7 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
     reader_ = std::move(*opened);
     editor_.reset();
     stagedColors_.clear();
-    dirtyState_ = false;
-    displayRevision_++;
+    state_.resetChanges();
     return {};
 }
 
@@ -353,14 +345,13 @@ std::expected<void, uomul::Error> RadarcolDocument::discard()
         editor_.reset();
     }
     stagedColors_.clear();
-    dirtyState_ = false;
-    displayRevision_++;
+    state_.resetChanges();
     return {};
 }
 
 std::expected<void, uomul::Error> RadarcolDocument::saveAs(const std::filesystem::path & output, bool outputOverwrite)
 {
-    if (editor_ && dirtyState_)
+    if (editor_ && state_.dirty())
     {
         if (auto saved = save(); !saved)
         {
@@ -381,7 +372,7 @@ std::expected<void, uomul::Error> RadarcolDocument::saveAs(const std::filesystem
 
 std::expected<void, uomul::Error> RadarcolDocument::fail(uomul::Error documentError)
 {
-    error_ = documentError.message;
+    state_.setError(documentError.message);
     return std::unexpected(std::move(documentError));
 }
 

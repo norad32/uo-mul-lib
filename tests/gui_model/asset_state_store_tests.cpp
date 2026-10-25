@@ -83,7 +83,7 @@ TEST_CASE("assetStateStore_Should_RoundTripSemanticContextAndPresentationState")
     REQUIRE(found->state.selection.anchorIndex == state.selection.anchorIndex);
 }
 
-TEST_CASE("assetStateStore_Should_IgnoreUnknownContextsWhenLookingUpState")
+TEST_CASE("assetStateStore_Should_IgnoreUnknownContexts_If_LookingUpState")
 {
     const auto context = metadataContext();
     const std::vector<uo_mule::gui::assets::AssetStateRecord> records{
