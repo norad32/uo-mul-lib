@@ -1,6 +1,9 @@
 #include "gui/panels/texmap_panel.h"
 #include "gui/panels/asset_panel_helpers.h"
+#include "gui/presentation/dialog/dialog_presentation.h"
+#include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/strings/ui_strings.h"
+#include "gui/presentation/theme/theme.h"
 #include "gui/state/workbench_state.h"
 #include "gui/widgets/asset_window.h"
 #include "gui/widgets/texture_preview.h"
@@ -10,6 +13,8 @@
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/data_providers.h"
+#include "image_codec/image_codec.h"
+#include "uomul/texmaps/texmaps.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -27,6 +32,7 @@ namespace
 {
 
 constexpr float thumbnailSize = 64.0F;
+constexpr float replacementPreviewSize = 180.0F;
 constexpr float borderThickness = 2.0F;
 constexpr std::size_t assetCellWidth = 72U;
 constexpr std::size_t assetCellHeight = 72U;
@@ -158,6 +164,139 @@ loadTextureDetails(const TextureProvider & provider, const assets::AssetItemId &
             },
         .fieldTooltips = {},
     };
+}
+
+[[nodiscard]] TexmapsTexturePreview previewFromRgb(const image::RgbImage & image)
+{
+    TexmapsTexturePreview preview{
+        .width = image.width,
+        .height = image.height,
+        .pixels = {},
+    };
+    preview.pixels.reserve(image.pixels.size() / 3U);
+    for (std::size_t offset = 0; offset < image.pixels.size(); offset += 3U)
+    {
+        preview.pixels.push_back({
+            .red = image.pixels.at(offset),
+            .green = image.pixels.at(offset + 1U),
+            .blue = image.pixels.at(offset + 2U),
+        });
+    }
+    return preview;
+}
+
+[[nodiscard]] TexmapsTexturePreview previewFromTexture(const uomul::TextureImage & texture)
+{
+    TexmapsTexturePreview preview{
+        .width = texture.dimension,
+        .height = texture.dimension,
+        .pixels = {},
+    };
+    preview.pixels.reserve(texture.pixels.size());
+    for (const auto pixel : texture.pixels)
+    {
+        preview.pixels.push_back(texturePixelToMapColor(pixel));
+    }
+    return preview;
+}
+
+void drawReplacementDialog(TexmapsPanelState & state, TexmapsDocument & document)
+{
+    auto & replacement = state.replacement;
+    if (!replacement.visible || replacement.documentId != document.id())
+    {
+        return;
+    }
+
+    bool visible = replacement.visible;
+    const std::string popupId = "Replace Texture###document.texmaps.replace." + std::to_string(document.id());
+    if (!beginAutoSizeDialog(popupId.c_str(), &visible))
+    {
+        replacement.visible = visible;
+        return;
+    }
+
+    constexpr std::size_t replacementCount = 1U;
+    const std::string replacingLabel =
+        "Replacing " + std::to_string(replacementCount) + " texture" + (replacementCount == 1U ? "" : "s");
+    ImGui::TextUnformatted(replacingLabel.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", "Supported texture sizes: 64x64, 128x128.");
+    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", "Alpha is ignored, colors are converted to RGB555.");
+
+    if (ImGui::BeginTable("ReplacementPreview", 2, ImGuiTableFlags_BordersInnerV))
+    {
+        const auto current = document.effectiveTexture(replacement.textureId);
+        ImGui::TableNextColumn();
+        ImGui::TextColored(theme::imguiColor(theme::heading), "%s", "Current");
+        if (current && current->has_value())
+        {
+            const auto preview = previewFromTexture(**current);
+            drawTexturePreview({.width = preview.width, .height = preview.height, .pixels = preview.pixels},
+                               replacementPreviewSize);
+            ImGui::TextColored(theme::imguiColor(theme::mutedText), "%ux%u", preview.width, preview.height);
+        }
+        else
+        {
+            ImGui::TextUnformatted("No texture");
+        }
+
+        ImGui::TableNextColumn();
+        ImGui::TextColored(theme::imguiColor(theme::heading), "%s", "Replacement");
+        if (replacement.image)
+        {
+            const auto preview = previewFromRgb(*replacement.image);
+            drawTexturePreview({.width = preview.width, .height = preview.height, .pixels = preview.pixels},
+                               replacementPreviewSize);
+            ImGui::TextColored(theme::imguiColor(theme::mutedText), "%ux%u", preview.width, preview.height);
+        }
+        else
+        {
+            const TexturePreviewData emptyPreview{};
+            drawTexturePreview(emptyPreview, replacementPreviewSize);
+            ImGui::TextUnformatted("No image loaded");
+        }
+
+        const std::string openLabel = iconLabel(IconId::folderOpen, "Open");
+        const float openWidth = ImGui::CalcTextSize(openLabel.c_str()).x + (ImGui::GetStyle().FramePadding.x * 2.0F);
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0F, ImGui::GetContentRegionAvail().x - openWidth));
+        if (state.replacementFileRequested && ImGui::Button(openLabel.c_str()))
+        {
+            state.replacementFileRequested();
+        }
+        ImGui::EndTable();
+    }
+    if (!replacement.status.empty())
+    {
+        ImGui::TextWrapped("%s", replacement.status.c_str());
+    }
+
+    const std::string cancelLabel = iconLabel(IconId::cancel, "Cancel");
+    const std::string applyLabel = iconLabel(IconId::check, "Apply");
+    beginDialogFooter({cancelLabel.c_str(), applyLabel.c_str()});
+    if (dialogButton(cancelLabel.c_str()))
+    {
+        visible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    const auto texture = replacement.texture;
+    if (!texture)
+    {
+        static_cast<void>(dialogButton(applyLabel.c_str(), false));
+    }
+    else if (dialogButton(applyLabel.c_str()))
+    {
+        TexmapsDocumentIntent intent;
+        intent.kind = TexmapsDocumentIntentKind::replace;
+        intent.textureId = replacement.textureId;
+        intent.texture = texture.value();
+        document.requestIntent(std::move(intent));
+        visible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    endDialogFooter();
+    endDialog();
+    replacement.visible = visible;
 }
 
 [[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state,
@@ -308,6 +447,7 @@ private:
     const TexmapsDocument * document_ = nullptr;
 };
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 [[nodiscard]] assets::AssetAdapter makeDocumentAdapter(TexmapsPanelState & state,
                                                        TexmapsDocument & document,
                                                        const TextureProvider & provider,
@@ -362,35 +502,26 @@ private:
             .transform([&document](std::uint32_t id) { return document.hasStagedTexture(id); })
             .value_or(false);
     };
-    adapter.descriptor.actions.push_back({
-        .id = "texmaps.revert",
-        .label = "Revert",
-        .enabled = !document.readOnly() && std::ranges::any_of(state.documentAssetViews[document.id()].selection.selected,
-                                                               [&document](const assets::AssetItemId & item)
-                                                               {
-                                                                   return assets::itemIndex(item)
-                                                                       .transform([&document](std::uint32_t id)
-                                                                                  { return document.hasStagedTexture(id); })
-                                                                       .value_or(false);
-                                                               }),
-        .disabledReason = "No selected staged textures",
-        .invoke =
-            [&document, &state]
+    const auto requestReplacement = [&state, &document](const assets::AssetItemId & item)
+    {
+        const auto id = assets::itemIndex(item);
+        if (id && state.replaceRequested)
         {
-            std::vector<std::uint32_t> ids;
-            for (const auto & item : state.documentAssetViews[document.id()].selection.selected)
+            const auto present = document.hasTexture(*id);
+            if (present && *present)
             {
-                if (const auto id = assets::itemIndex(item))
-                {
-                    ids.push_back(*id);
-                }
+                state.replaceRequested(document.id(), *id);
             }
-            TexmapsDocumentIntent intent;
-            intent.kind = TexmapsDocumentIntentKind::revert;
-            intent.textureIds = std::move(ids);
-            document.requestIntent(std::move(intent));
-        },
-    });
+        }
+    };
+    adapter.descriptor.itemDoubleClicked = requestReplacement;
+    adapter.descriptor.itemContextMenu = [requestReplacement](const assets::AssetItemId & item)
+    {
+        if (ImGui::MenuItem("Replace..."))
+        {
+            requestReplacement(item);
+        }
+    };
     if (!status.message.empty())
     {
         adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
@@ -437,6 +568,30 @@ void drawTexmapsDocumentPanel(TexmapsPanelState & state,
     const DocumentTextureProvider provider(document);
     const auto adapter = makeDocumentAdapter(state, document, provider, idFormat, std::move(windowIdentity));
     assets::drawAssetWindow(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
+    drawReplacementDialog(state, document);
+}
+
+void loadTexmapsReplacement(TexmapsPanelState & state, const std::filesystem::path & path)
+{
+    state.replacement.sourcePath = path;
+    state.replacement.image.reset();
+    state.replacement.texture.reset();
+
+    auto decoded = image::decode(path);
+    if (!decoded)
+    {
+        state.replacement.status = decoded.error().message;
+        return;
+    }
+    state.replacement.image = *decoded;
+    auto texture = image::toTexture(*decoded, path);
+    if (!texture)
+    {
+        state.replacement.status = texture.error().message;
+        return;
+    }
+    state.replacement.texture = std::move(*texture);
+    state.replacement.status = "Loaded " + path.filename().string();
 }
 
 } // namespace uo_mule::gui

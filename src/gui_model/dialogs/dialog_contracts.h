@@ -38,6 +38,7 @@ enum class FileBrowserTarget : std::uint8_t
     texmapsCompanion,
     newRadarcolOutput,
     newTexmapsData,
+    imageOpen,
 };
 
 enum class MulAssetKind : std::uint8_t

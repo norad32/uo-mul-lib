@@ -1,6 +1,7 @@
 #pragma once
 
 #include "uomul/mul_common/mul_common.h"
+#include "uomul/texmaps/texmaps.h"
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -22,6 +23,10 @@ struct RgbImage
 
 /** @brief Decodes BMP or PNG input into top-down RGB pixels. */
 [[nodiscard]] std::expected<RgbImage, uomul::Error> decode(const std::filesystem::path & inputPath);
+
+/** @brief Converts a square 64x64 or 128x128 RGB image to Texmap RGB555 pixels. */
+[[nodiscard]] std::expected<uomul::TextureImage, uomul::Error> toTexture(const RgbImage & image,
+                                                                         const std::filesystem::path & sourcePath = {});
 
 /** @brief Writes top-down RGB pixels as a 24-bit BMP. */
 [[nodiscard]] std::expected<void, uomul::Error> writeBmp(const std::filesystem::path & outputPath,

@@ -5,9 +5,13 @@
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/world/map_color.h"
+#include "image_codec/image_codec.h"
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -24,6 +28,17 @@ struct TexmapsTexturePreview
     std::vector<MapColor> pixels;
 };
 
+struct TexmapsReplacementState
+{
+    bool visible = false;
+    DocumentId documentId = 0;
+    std::uint32_t textureId = 0;
+    std::filesystem::path sourcePath;
+    std::optional<image::RgbImage> image;
+    std::optional<uomul::TextureImage> texture;
+    std::string status;
+};
+
 struct TexmapsPanelState
 {
     std::unordered_map<std::uint32_t, TexmapsTexturePreview> texturePreviews;
@@ -33,7 +48,11 @@ struct TexmapsPanelState
     bool hideUnused = false;
     assets::AssetWindowState assetView;
     std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
+    TexmapsReplacementState replacement;
     std::function<void(const assets::AssetItemId &)> itemPicked;
+    std::function<void(DocumentId, std::uint32_t)> replaceRequested;
+    std::function<void()> replacementFileRequested;
+    std::function<void(const std::filesystem::path &)> replacementFilePicked;
     std::function<bool(std::uint32_t)> itemSourcePicked;
     std::function<void(std::string_view)> hoveredContext;
 };
@@ -50,5 +69,7 @@ void drawTexmapsDocumentPanel(TexmapsPanelState & state,
                               IdFormat idFormat,
                               std::string windowIdentity,
                               const std::function<void()> & becameVisible = {});
+
+void loadTexmapsReplacement(TexmapsPanelState & state, const std::filesystem::path & path);
 
 } // namespace uo_mule::gui

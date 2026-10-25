@@ -1,6 +1,7 @@
 #include "gui/frame/workbench_frame.h"
 #include "gui/commands/command_registry.h"
 #include "gui/commands/menu_bar.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/document_window.h"
 #include "gui/panels/asset_panel_helpers.h"
@@ -20,6 +21,7 @@
 #include "gui/state/notification_state.h"
 #include "gui/state/workbench_state.h"
 #include "gui/views/world/map_canvas_view.h"
+#include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/map_document.h"
@@ -44,6 +46,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <filesystem>
 #include <functional>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -257,7 +260,37 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     state.texmapsState.itemPicked = [&state](const assets::AssetItemId & item)
     {
         clearAssetNavigationStatus(state.notifications);
+        if (state.texmapsState.replacement.visible)
+        {
+            state.texmapsState.replacement.status.clear();
+            state.operationStatus.clear();
+        }
         pickAssetItem(state, item, false);
+    };
+    state.texmapsState.replacementFileRequested = [&state]
+    {
+        requestFileBrowser(state.fileBrowser,
+                           {
+                               .mode = FileBrowserMode::openFile,
+                               .target = FileBrowserTarget::imageOpen,
+                               .initialPath = state.texmapsState.replacement.sourcePath,
+                               .extension = ".bmp,.png",
+                               .title = "Open Texture Image",
+                           });
+    };
+    state.texmapsState.replacementFilePicked = [&state](const std::filesystem::path & path)
+    {
+        loadTexmapsReplacement(state.texmapsState, path);
+        state.operationStatus = state.texmapsState.replacement.status;
+        state.operationStatusSeverity =
+            state.texmapsState.replacement.texture ? NotificationSeverity::success : NotificationSeverity::error;
+    };
+    state.texmapsState.replaceRequested = [&state](DocumentId documentId, std::uint32_t textureId)
+    {
+        state.texmapsState.replacement = {};
+        state.texmapsState.replacement.visible = true;
+        state.texmapsState.replacement.documentId = documentId;
+        state.texmapsState.replacement.textureId = textureId;
     };
     state.tiledataState.itemPicked = [&state](const assets::AssetItemId & item)
     {

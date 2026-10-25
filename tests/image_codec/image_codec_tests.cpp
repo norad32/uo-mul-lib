@@ -1,6 +1,9 @@
 #include "image_codec/image_codec.h"
+#include "uomul/radarcol/radarcol.h"
+#include "uomul/texmaps/texmaps.h"
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -100,4 +103,34 @@ TEST_CASE("imageCodec_Should_RejectMismatchedRgbPixelCount")
     const auto path = directory.path() / "invalid.png";
     REQUIRE_FALSE(uo_mule::image::writePng(path, 2U, 2U, std::vector<std::uint8_t>{0U, 1U, 2U}));
     REQUIRE_FALSE(std::filesystem::exists(path));
+}
+
+TEST_CASE("imageCodec_Should_ConvertRgbPixelsToTexmapRgb555")
+{
+    uo_mule::image::RgbImage image{
+        .width = uomul::textureSmallDimension,
+        .height = uomul::textureSmallDimension,
+        .pixels = std::vector<std::uint8_t>(uomul::textureSmallPixelCount * 3U),
+    };
+    image.pixels.at(0) = fullChannel;
+
+    const auto texture = uo_mule::image::toTexture(image);
+    REQUIRE(texture);
+    if (texture)
+    {
+        REQUIRE(texture->dimension == uomul::textureSmallDimension);
+        REQUIRE(texture->pixels.size() == uomul::textureSmallPixelCount);
+        REQUIRE(texture->pixels.front() == uomul::RadarColorConverter::fromRgb888(fullChannel, 0U, 0U));
+    }
+}
+
+TEST_CASE("imageCodec_Should_RejectUnsupportedTextureDimensions")
+{
+    const uo_mule::image::RgbImage image{
+        .width = 32U,
+        .height = 32U,
+        .pixels = std::vector<std::uint8_t>(static_cast<std::size_t>(32U) * 32U * 3U),
+    };
+
+    REQUIRE_FALSE(uo_mule::image::toTexture(image));
 }

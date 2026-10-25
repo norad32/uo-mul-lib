@@ -21,6 +21,8 @@ struct DialogWindowSpec
 
 [[nodiscard]] bool
 beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None);
+[[nodiscard]] bool
+beginAutoSizeDialog(const char * popupId, bool * visible, ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None);
 void endDialog();
 void dialogHeading(const char * text);
 void dialogSubheading(const char * text);

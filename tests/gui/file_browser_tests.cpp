@@ -35,6 +35,8 @@ TEST_CASE("file browser matches extensions case insensitively")
     REQUIRE(fileBrowserMatchesFilter("terrain.MUL", ".mul"));
     REQUIRE(fileBrowserMatchesFilter("terrain.mul", ".mul"));
     REQUIRE_FALSE(fileBrowserMatchesFilter("terrain.map", ".mul"));
+    REQUIRE(fileBrowserMatchesFilter("texture.PNG", ".bmp,.png"));
+    REQUIRE_FALSE(fileBrowserMatchesFilter("texture.jpg", ".bmp,.png"));
     REQUIRE(fileBrowserMatchesFilter("terrain.mul", {}));
 }
 

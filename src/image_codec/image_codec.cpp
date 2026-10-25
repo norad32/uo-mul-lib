@@ -1,5 +1,7 @@
 #include "image_codec/image_codec.h"
 #include "uomul/mul_common/mul_common.h"
+#include "uomul/radarcol/radarcol.h"
+#include "uomul/texmaps/texmaps.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -179,6 +181,33 @@ std::expected<RgbImage, uomul::Error> decode(const std::filesystem::path & input
     RgbImage image{.width = outputWidth, .height = outputHeight, .pixels = std::vector<std::uint8_t>(*pixelBytes)};
     std::copy_n(decoded.get(), *pixelBytes, image.pixels.begin());
     return image;
+}
+
+std::expected<uomul::TextureImage, uomul::Error> toTexture(const RgbImage & image, const std::filesystem::path & sourcePath)
+{
+    if (image.width != image.height ||
+        (image.width != uomul::textureSmallDimension && image.width != uomul::textureLargeDimension))
+    {
+        return std::unexpected(
+            makeError(sourcePath, uomul::ErrorCode::invalidDimensions, "texture image dimensions must be 64x64 or 128x128"));
+    }
+
+    const auto expectedPixels = static_cast<std::size_t>(image.width) * image.height * 3U;
+    if (image.pixels.size() != expectedPixels)
+    {
+        return std::unexpected(
+            makeError(sourcePath, uomul::ErrorCode::invalidFormat, "RGB pixel count does not match texture dimensions"));
+    }
+
+    uomul::TextureImage texture;
+    texture.dimension = static_cast<uomul::TextureDimension>(image.width);
+    texture.pixels.reserve(expectedPixels / 3U);
+    for (std::size_t offset = 0; offset < image.pixels.size(); offset += 3U)
+    {
+        texture.pixels.push_back(uomul::RadarColorConverter::fromRgb888(
+            image.pixels.at(offset), image.pixels.at(offset + 1U), image.pixels.at(offset + 2U)));
+    }
+    return texture;
 }
 
 std::expected<void, uomul::Error> writeBmp(const std::filesystem::path & outputPath,
