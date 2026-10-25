@@ -27,6 +27,8 @@ namespace
         case CommandId::fileSave :
         case CommandId::fileSaveAs :
             return IconId::save;
+        case CommandId::fileExportAs :
+            return IconId::exportIcon;
         case CommandId::fileDiscard :
         case CommandId::fileClose :
             return IconId::cancel;
@@ -104,6 +106,7 @@ void drawFileMenu(WorkbenchState & state)
     ImGui::Separator();
     drawCommandItem(state, CommandId::fileSave);
     drawCommandItem(state, CommandId::fileSaveAs);
+    drawCommandItem(state, CommandId::fileExportAs);
     drawCommandItem(state, CommandId::fileDiscard);
     ImGui::Separator();
     drawCommandItem(state, CommandId::fileClose);

@@ -9,7 +9,9 @@
 #include "gui/widgets/texture_preview.h"
 #include "gui/workflows/texmap_replacement.h"
 #include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/texmaps_document.h"
+#include "gui_model/model/assets/asset_export_contracts.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/color_conversion.h"
@@ -498,6 +500,111 @@ void drawFolderReplacementDialog(TexmapsPanelState & state, TexmapsDocument & do
     folderReplacement.visible = visible;
 }
 
+[[nodiscard]] std::vector<std::uint32_t> exportSelection(const assets::AssetSelection & selection,
+                                                         const assets::AssetItemId & contextItem)
+{
+    std::vector<std::uint32_t> ids;
+    for (const auto & item : selection.selected)
+    {
+        if (const auto id = assets::itemIndex(item))
+        {
+            ids.push_back(*id);
+        }
+    }
+    if (ids.empty())
+    {
+        if (const auto id = assets::itemIndex(contextItem))
+        {
+            ids.push_back(*id);
+        }
+    }
+    return ids;
+}
+
+void requestTexmapExport(TexmapsPanelState & state, assets::AssetExportFormat format)
+{
+    if (state.exportRequested)
+    {
+        state.exportRequested(state.exportState.sourceDocumentId, state.exportState.textureIds, format);
+    }
+    state.exportState.formatVisible = false;
+    ImGui::CloseCurrentPopup();
+}
+
+void drawTexmapExportFormatDialog(TexmapsPanelState & state)
+{
+    if (!state.exportState.formatVisible)
+    {
+        return;
+    }
+    bool visible = state.exportState.formatVisible;
+    if (!beginAutoSizeDialog("Export Texmaps###document.texmaps.export-format", &visible))
+    {
+        state.exportState.formatVisible = visible;
+        return;
+    }
+    ImGui::TextUnformatted("Choose an export format.");
+    const std::string bmpLabel = iconLabel(IconId::exportIcon, "Export as BMP");
+    const std::string pngLabel = iconLabel(IconId::exportIcon, "Export as PNG");
+    if (dialogButton(bmpLabel.c_str()))
+    {
+        requestTexmapExport(state, assets::AssetExportFormat::bmp);
+    }
+    ImGui::SameLine();
+    if (dialogButton(pngLabel.c_str()))
+    {
+        requestTexmapExport(state, assets::AssetExportFormat::png);
+    }
+    ImGui::SameLine();
+    if (dialogButton("Cancel"))
+    {
+        state.exportState.formatVisible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    endDialog();
+}
+
+void drawTexmapOverwriteDialog(TexmapsPanelState & state)
+{
+    if (!state.exportState.overwriteVisible)
+    {
+        return;
+    }
+    bool visible = state.exportState.overwriteVisible;
+    if (!beginAutoSizeDialog("Overwrite Texmap Exports###document.texmaps.export-overwrite", &visible))
+    {
+        state.exportState.overwriteVisible = visible;
+        return;
+    }
+    ImGui::TextWrapped("One or more export files already exist. Overwrite them?");
+    if (dialogButton("Overwrite"))
+    {
+        if (state.exportOverwriteConfirmed)
+        {
+            state.exportOverwriteConfirmed();
+        }
+        state.exportState.overwriteVisible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (dialogButton("Cancel"))
+    {
+        if (state.exportOverwriteCancelled)
+        {
+            state.exportOverwriteCancelled();
+        }
+        state.exportState.overwriteVisible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    endDialog();
+}
+
+void drawTexmapExportDialogs(TexmapsPanelState & state)
+{
+    drawTexmapExportFormatDialog(state);
+    drawTexmapOverwriteDialog(state);
+}
+
 [[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state,
                                                const TextureProvider & provider,
                                                const Preferences & preferences,
@@ -553,6 +660,18 @@ void drawFolderReplacementDialog(TexmapsPanelState & state, TexmapsDocument & do
         {
             state.hideUnused = hideUnused;
             pendingChanges.texmapsHideUnused = hideUnused;
+        }
+    };
+    adapter.descriptor.itemContextMenu = [&state](const assets::AssetItemId & item)
+    {
+        const auto ids = exportSelection(state.assetView.selection, item);
+        if (ImGui::MenuItem("Export as BMP", nullptr, false, !ids.empty() && state.exportRequested))
+        {
+            state.exportRequested(std::nullopt, ids, assets::AssetExportFormat::bmp);
+        }
+        if (ImGui::MenuItem("Export as PNG", nullptr, false, !ids.empty() && state.exportRequested))
+        {
+            state.exportRequested(std::nullopt, ids, assets::AssetExportFormat::png);
         }
     };
     if (!status.message.empty())
@@ -664,7 +783,170 @@ private:
     const TexmapsDocument * document_ = nullptr;
 };
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+void refreshDocumentTexturePreviews(TexmapsPanelState & state, DocumentId documentId, std::uint64_t revision)
+{
+    if (state.documentTexturePreviewRevisions[documentId] == revision)
+    {
+        return;
+    }
+    state.documentTexturePreviews[documentId].clear();
+    state.documentTexturePreviewRevisions[documentId] = revision;
+}
+
+void requestDocumentReplacement(const TexmapsPanelState & state,
+                                const TexmapsDocument & document,
+                                const assets::AssetItemId & item)
+{
+    const auto id = assets::itemIndex(item);
+    if (!id || !state.replaceRequested)
+    {
+        return;
+    }
+    const auto present = document.hasTexture(*id);
+    if (present && *present)
+    {
+        state.replaceRequested(document.id(), *id);
+    }
+}
+
+[[nodiscard]] std::vector<std::uint32_t>
+documentReplacementSelection(const TexmapsPanelState & state, DocumentId documentId, const assets::AssetItemId & contextItem)
+{
+    std::vector<std::uint32_t> ids;
+    for (const auto & selected : state.documentAssetViews.at(documentId).selection.selected)
+    {
+        if (const auto id = assets::itemIndex(selected))
+        {
+            ids.push_back(*id);
+        }
+    }
+    if (ids.empty())
+    {
+        if (const auto id = assets::itemIndex(contextItem))
+        {
+            ids.push_back(*id);
+        }
+    }
+    return ids;
+}
+
+void requestDocumentFolderReplacement(const TexmapsPanelState & state,
+                                      const TexmapsDocument & document,
+                                      const assets::AssetItemId & item)
+{
+    if (document.readOnly() || !state.folderReplacementRequested)
+    {
+        return;
+    }
+    auto ids = documentReplacementSelection(state, document.id(), item);
+    if (!ids.empty())
+    {
+        state.folderReplacementRequested(document.id(), std::move(ids));
+    }
+}
+
+void drawDocumentReplacementContextMenu(const TexmapsPanelState & state,
+                                        const TexmapsDocument & document,
+                                        const assets::AssetItemId & item)
+{
+    if (ImGui::MenuItem("Replace..."))
+    {
+        requestDocumentReplacement(state, document, item);
+    }
+    if (ImGui::MenuItem("Replace from Folder..."))
+    {
+        requestDocumentFolderReplacement(state, document, item);
+    }
+}
+
+void drawDocumentExportContextMenu(const TexmapsPanelState & state,
+                                   const TexmapsDocument & document,
+                                   const assets::AssetItemId & item)
+{
+    const auto ids = exportSelection(state.documentAssetViews.at(document.id()).selection, item);
+    if (ImGui::MenuItem("Export as BMP", nullptr, false, !ids.empty() && state.exportRequested))
+    {
+        state.exportRequested(document.id(), ids, assets::AssetExportFormat::bmp);
+    }
+    if (ImGui::MenuItem("Export as PNG", nullptr, false, !ids.empty() && state.exportRequested))
+    {
+        state.exportRequested(document.id(), ids, assets::AssetExportFormat::png);
+    }
+}
+
+[[nodiscard]] std::optional<assets::AssetDragPayload> makeDocumentDragPayload(const TexmapsDocument & document,
+                                                                              const assets::AssetSelection & selection)
+{
+    if (selection.selected.size() != 1U)
+    {
+        return std::nullopt;
+    }
+    const auto id = assets::itemIndex(selection.selected.front());
+    if (!id)
+    {
+        return std::nullopt;
+    }
+    const auto texture = document.effectiveTexture(*id);
+    if (!texture || !texture->has_value())
+    {
+        return std::nullopt;
+    }
+    return makeTexmapDragPayload(selection, true, assets::AssetDragPayloadSource::document, document.id());
+}
+
+void applyDocumentTextureDrop(const TexmapsPanelState & state,
+                              TexmapsDocument & document,
+                              const assets::AssetItemId & item,
+                              const assets::AssetDragPayloadValue & payload)
+{
+    const auto targetId = assets::itemIndex(item);
+    if (!targetId || !state.resolveDragTexture)
+    {
+        return;
+    }
+    const auto texture = state.resolveDragTexture(payload);
+    if (!texture)
+    {
+        if (state.dragDropErrorReported)
+        {
+            state.dragDropErrorReported(texture.error().message);
+        }
+        return;
+    }
+    TexmapsDocumentIntent intent;
+    intent.kind = TexmapsDocumentIntentKind::replace;
+    intent.textureId = *targetId;
+    intent.texture = *texture;
+    document.requestIntent(std::move(intent));
+}
+
+void configureDocumentTextureDrop(assets::AssetAdapter & adapter, TexmapsPanelState & state, TexmapsDocument & document)
+{
+    if (document.readOnly())
+    {
+        return;
+    }
+    adapter.descriptor.acceptedDragPayloadType = std::string(assets::texmapValueDragPayloadType);
+    adapter.descriptor.itemValueDropped =
+        [&state, &document](const assets::AssetItemId & item, const assets::AssetDragPayloadValue & payload)
+    { applyDocumentTextureDrop(state, document, item, payload); };
+}
+
+void configureDocumentAssetLoading(assets::AssetAdapter & adapter,
+                                   TexmapsPanelState & state,
+                                   const TextureProvider & provider,
+                                   IdFormat idFormat,
+                                   std::unordered_map<std::uint32_t, TexmapsTexturePreview> & previews)
+{
+    adapter.loadRange = [&provider, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
+    { return loadTextureRange(provider, request, idFormat); };
+    adapter.loadSearchItems = [&state, &provider, idFormat] { return loadTextureSearch(state, provider, idFormat); };
+    adapter.loadDetails = [&provider, idFormat](const assets::AssetItemId & item)
+    { return loadTextureDetails(provider, item, idFormat); };
+    adapter.renderItem = [&previews, &provider](const assets::AssetItem & item, bool)
+    { drawDocumentTextureAsset(previews, provider, item.id, thumbnailSize); };
+}
+
 [[nodiscard]] assets::AssetAdapter makeDocumentAdapter(TexmapsPanelState & state,
                                                        TexmapsDocument & document,
                                                        const TextureProvider & provider,
@@ -674,11 +956,7 @@ private:
     const auto status = provider.status();
     auto & previews = state.documentTexturePreviews[document.id()];
     const auto revision = document.displayRevision();
-    if (state.documentTexturePreviewRevisions[document.id()] != revision)
-    {
-        previews.clear();
-        state.documentTexturePreviewRevisions[document.id()] = revision;
-    }
+    refreshDocumentTexturePreviews(state, document.id(), revision);
 
     assets::AssetAdapter adapter;
     configureAssetAdapter(
@@ -719,112 +997,21 @@ private:
             .transform([&document](std::uint32_t id) { return document.hasStagedTexture(id); })
             .value_or(false);
     };
-    const auto requestReplacement = [&state, &document](const assets::AssetItemId & item)
+    adapter.descriptor.itemDoubleClicked = [&state, &document](const assets::AssetItemId & item)
+    { requestDocumentReplacement(state, document, item); };
+    adapter.descriptor.itemContextMenu = [&state, &document](const assets::AssetItemId & item)
     {
-        const auto id = assets::itemIndex(item);
-        if (id && state.replaceRequested)
-        {
-            const auto present = document.hasTexture(*id);
-            if (present && *present)
-            {
-                state.replaceRequested(document.id(), *id);
-            }
-        }
-    };
-    const auto requestFolderReplacement = [&state, &document](const assets::AssetItemId & item)
-    {
-        if (document.readOnly() || !state.folderReplacementRequested)
-        {
-            return;
-        }
-        std::vector<std::uint32_t> ids;
-        for (const auto & selected : state.documentAssetViews[document.id()].selection.selected)
-        {
-            if (const auto id = assets::itemIndex(selected))
-            {
-                ids.push_back(*id);
-            }
-        }
-        if (ids.empty())
-        {
-            if (const auto id = assets::itemIndex(item))
-            {
-                ids.push_back(*id);
-            }
-        }
-        if (!ids.empty())
-        {
-            state.folderReplacementRequested(document.id(), std::move(ids));
-        }
-    };
-    adapter.descriptor.itemDoubleClicked = requestReplacement;
-    adapter.descriptor.itemContextMenu = [requestReplacement, requestFolderReplacement](const assets::AssetItemId & item)
-    {
-        if (ImGui::MenuItem("Replace..."))
-        {
-            requestReplacement(item);
-        }
-        if (ImGui::MenuItem("Replace from Folder..."))
-        {
-            requestFolderReplacement(item);
-        }
+        drawDocumentReplacementContextMenu(state, document, item);
+        drawDocumentExportContextMenu(state, document, item);
     };
     if (!status.message.empty())
     {
         adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
     }
-    adapter.makeDragPayload = [&document](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
-    {
-        if (selection.selected.size() != 1U)
-        {
-            return std::nullopt;
-        }
-        const auto id = assets::itemIndex(selection.selected.front());
-        if (!id)
-        {
-            return std::nullopt;
-        }
-        const auto texture = document.effectiveTexture(*id);
-        if (!texture || !texture->has_value())
-        {
-            return std::nullopt;
-        }
-        return makeTexmapDragPayload(selection, true, assets::AssetDragPayloadSource::document, document.id());
-    };
-    if (!document.readOnly())
-    {
-        adapter.descriptor.acceptedDragPayloadType = std::string(assets::texmapValueDragPayloadType);
-        adapter.descriptor.itemValueDropped =
-            [&state, &document](const assets::AssetItemId & item, const assets::AssetDragPayloadValue & payload)
-        {
-            const auto targetId = assets::itemIndex(item);
-            if (!targetId || !state.resolveDragTexture)
-            {
-                return;
-            }
-            const auto texture = state.resolveDragTexture(payload);
-            if (!texture)
-            {
-                if (state.dragDropErrorReported)
-                {
-                    state.dragDropErrorReported(texture.error().message);
-                }
-                return;
-            }
-            TexmapsDocumentIntent intent;
-            intent.kind = TexmapsDocumentIntentKind::replace;
-            intent.textureId = *targetId;
-            intent.texture = *texture;
-            document.requestIntent(std::move(intent));
-        };
-    }
-    adapter.loadRange = [&provider, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
-    { return loadTextureRange(provider, request, idFormat); };
-    adapter.loadSearchItems = [&state, &provider, idFormat] { return loadTextureSearch(state, provider, idFormat); };
-    adapter.loadDetails = [&provider, idFormat](const assets::AssetItemId & item)
-    { return loadTextureDetails(provider, item, idFormat); };
-    adapter.renderItem = [&previews, &provider](const assets::AssetItem & item, bool)
-    { drawDocumentTextureAsset(previews, provider, item.id, thumbnailSize); };
+    adapter.makeDragPayload = [&document](const assets::AssetSelection & selection)
+    { return makeDocumentDragPayload(document, selection); };
+    configureDocumentTextureDrop(adapter, state, document);
+    configureDocumentAssetLoading(adapter, state, provider, idFormat, previews);
     return adapter;
 }
 
@@ -838,6 +1025,10 @@ void drawTexmapsPanel(TexmapsPanelState & state,
 {
     const auto adapter = makeAdapter(state, provider, preferences, pendingChanges);
     assets::drawAssetWindow(adapter, state.assetView, visible);
+    if (!state.exportState.sourceIsDocument)
+    {
+        drawTexmapExportDialogs(state);
+    }
 }
 
 void drawTexmapsDocumentPanel(TexmapsPanelState & state,
@@ -862,6 +1053,10 @@ void drawTexmapsDocumentPanel(TexmapsPanelState & state,
     assets::drawAssetWindow(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
     drawReplacementDialog(state, document);
     drawFolderReplacementDialog(state, document);
+    if (state.exportState.sourceIsDocument && state.exportState.sourceDocumentId == document.id())
+    {
+        drawTexmapExportDialogs(state);
+    }
 }
 
 void loadTexmapsReplacement(TexmapsPanelState & state, const std::filesystem::path & path)

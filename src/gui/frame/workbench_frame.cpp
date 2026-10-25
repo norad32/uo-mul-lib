@@ -21,6 +21,7 @@
 #include "gui/state/notification_state.h"
 #include "gui/state/workbench_state.h"
 #include "gui/views/world/map_canvas_view.h"
+#include "gui/workflows/texmap_export.h"
 #include "gui/workflows/texmap_replacement.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/documents/document_contracts.h"
@@ -29,6 +30,7 @@
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/lifecycle/document_lifecycle.h"
+#include "gui_model/model/assets/asset_export_contracts.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/operations/operation_controller.h"
 #include "gui_model/persistence/asset_state_store.h"
@@ -330,6 +332,155 @@ void configureTexmapDragCallbacks(WorkbenchState & state)
     { state.notifications.add(NotificationSeverity::error, std::move(message)); };
 }
 
+[[nodiscard]] std::expected<std::vector<TexmapExportItem>, uomul::Error>
+collectTexmapExportItems(const WorkbenchState & state,
+                         const std::optional<DocumentId> & sourceDocumentId,
+                         const std::vector<std::uint32_t> & textureIds)
+{
+    std::vector<TexmapExportItem> items;
+    items.reserve(textureIds.size());
+    if (sourceDocumentId)
+    {
+        const auto * record = findDocument(state, *sourceDocumentId);
+        if (record == nullptr || !record->texmaps)
+        {
+            return std::unexpected(dragDropError("The source Texmaps document is no longer open."));
+        }
+        for (const auto textureId : textureIds)
+        {
+            const auto texture = record->texmaps->effectiveTexture(textureId);
+            if (!texture)
+            {
+                return std::unexpected(texture.error());
+            }
+            if (!texture->has_value())
+            {
+                return std::unexpected(dragDropError("A selected Texmap slot is empty."));
+            }
+            items.push_back({.textureId = textureId, .texture = **texture});
+        }
+        return items;
+    }
+
+    for (const auto textureId : textureIds)
+    {
+        const auto texture = textureFromProvider(state.providers.textures(), textureId);
+        if (!texture)
+        {
+            return std::unexpected(texture.error());
+        }
+        items.push_back({.textureId = textureId, .texture = *texture});
+    }
+    return items;
+}
+
+void executeTexmapExport(WorkbenchState & state, bool overwrite)
+{
+    const auto items = collectTexmapExportItems(
+        state, state.texmapsState.exportState.sourceDocumentId, state.texmapsState.exportState.textureIds);
+    if (!items)
+    {
+        state.operationStatus = items.error().message;
+        state.operationStatusSeverity = NotificationSeverity::error;
+        return;
+    }
+
+    const TexmapExportOptions options{
+        .format = state.texmapsState.exportState.format,
+        .destination = items->size() == 1U ? assets::AssetExportDestination::file : assets::AssetExportDestination::directory,
+        .outputPath = state.texmapsState.exportState.outputPath,
+        .overwrite = overwrite,
+    };
+    const auto report = exportTexmaps(*items, options);
+    if (!report)
+    {
+        if (report.error().message == "overwrite confirmation required")
+        {
+            state.texmapsState.exportState.overwriteVisible = true;
+            return;
+        }
+        state.operationStatus = report.error().message;
+        state.operationStatusSeverity = NotificationSeverity::error;
+        return;
+    }
+
+    const auto failureCount = report->failures.size();
+    state.operationStatus = "Exported " + std::to_string(report->exported) + " texture" + (report->exported == 1U ? "" : "s") +
+                            ", failed " + std::to_string(failureCount) + ".";
+    state.operationStatusSeverity = failureCount == 0U ? NotificationSeverity::success : NotificationSeverity::warning;
+    if (failureCount != 0U)
+    {
+        state.notifications.add(NotificationSeverity::warning, report->failures.front().message);
+    }
+}
+
+void configureTexmapExportCallbacks(WorkbenchState & state)
+{
+    state.texmapsState.exportRequested = [&state](std::optional<DocumentId> sourceDocumentId,
+                                                  std::vector<std::uint32_t> textureIds,
+                                                  assets::AssetExportFormat format)
+    {
+        if (textureIds.empty())
+        {
+            return;
+        }
+        state.texmapsState.exportState = {};
+        state.texmapsState.exportState.sourceIsDocument = sourceDocumentId.has_value();
+        state.texmapsState.exportState.sourceDocumentId = sourceDocumentId;
+        state.texmapsState.exportState.textureIds = std::move(textureIds);
+        state.texmapsState.exportState.format = format;
+        const auto & ids = state.texmapsState.exportState.textureIds;
+        if (ids.size() == 1U)
+        {
+            const auto filename = texmapExportFilename(ids.front(), format);
+            requestFileBrowser(state.fileBrowser,
+                               {
+                                   .mode = FileBrowserMode::saveFile,
+                                   .target = FileBrowserTarget::texmapExportFile,
+                                   .initialPath = std::filesystem::current_path() / filename,
+                                   .extension = filename.substr(filename.find_last_of('.')),
+                                   .title = "Export Texmap",
+                               });
+        }
+        else
+        {
+            requestFileBrowser(state.fileBrowser,
+                               {
+                                   .mode = FileBrowserMode::chooseDirectory,
+                                   .target = FileBrowserTarget::texmapExportFolder,
+                                   .initialPath = {},
+                                   .extension = {},
+                                   .title = "Choose Texmap Export Folder",
+                               });
+        }
+    };
+    state.texmapsState.exportFormatRequested =
+        [&state](std::optional<DocumentId> sourceDocumentId, std::vector<std::uint32_t> textureIds)
+    {
+        state.texmapsState.exportState = {};
+        state.texmapsState.exportState.formatVisible = true;
+        state.texmapsState.exportState.sourceIsDocument = sourceDocumentId.has_value();
+        state.texmapsState.exportState.sourceDocumentId = sourceDocumentId;
+        state.texmapsState.exportState.textureIds = std::move(textureIds);
+    };
+    state.texmapsState.exportFilePicked = [&state](const std::filesystem::path & path)
+    {
+        state.texmapsState.exportState.outputPath = path;
+        executeTexmapExport(state, false);
+    };
+    state.texmapsState.exportFolderPicked = [&state](const std::filesystem::path & path)
+    {
+        state.texmapsState.exportState.outputPath = path;
+        executeTexmapExport(state, false);
+    };
+    state.texmapsState.exportOverwriteConfirmed = [&state] { executeTexmapExport(state, true); };
+    state.texmapsState.exportOverwriteCancelled = [&state]
+    {
+        state.operationStatus = "Export cancelled.";
+        state.operationStatusSeverity = NotificationSeverity::info;
+    };
+}
+
 void configureFolderReplacementCallbacks(WorkbenchState & state)
 {
     state.texmapsState.folderReplacementRequested = [&state](DocumentId documentId, std::vector<std::uint32_t> textureIds)
@@ -478,6 +629,7 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     };
     configureFolderReplacementCallbacks(state);
     configureTexmapDragCallbacks(state);
+    configureTexmapExportCallbacks(state);
 }
 
 void drawVisibleMapPanels(WorkbenchState & state,

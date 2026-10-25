@@ -40,6 +40,8 @@ enum class FileBrowserTarget : std::uint8_t
     newTexmapsData,
     imageOpen,
     imageFolderOpen,
+    texmapExportFile,
+    texmapExportFolder,
 };
 
 enum class MulAssetKind : std::uint8_t

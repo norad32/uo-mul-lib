@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gui/workflows/texmap_export.h"
 #include "gui/workflows/texmap_replacement.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
@@ -49,6 +50,18 @@ struct TexmapsFolderReplacementState
     std::string status;
 };
 
+struct TexmapsExportState
+{
+    bool formatVisible = false;
+    bool overwriteVisible = false;
+    bool sourceIsDocument = false;
+    std::optional<DocumentId> sourceDocumentId;
+    std::vector<std::uint32_t> textureIds;
+    assets::AssetExportFormat format = assets::AssetExportFormat::bmp;
+    std::filesystem::path outputPath;
+    std::string status;
+};
+
 struct TexmapsPanelState
 {
     std::unordered_map<std::uint32_t, TexmapsTexturePreview> texturePreviews;
@@ -60,6 +73,7 @@ struct TexmapsPanelState
     std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
     TexmapsReplacementState replacement;
     TexmapsFolderReplacementState folderReplacement;
+    TexmapsExportState exportState;
     std::function<void(const assets::AssetItemId &)> itemPicked;
     std::function<void(DocumentId, std::uint32_t)> replaceRequested;
     std::function<void(DocumentId, std::vector<std::uint32_t>)> folderReplacementRequested;
@@ -69,6 +83,12 @@ struct TexmapsPanelState
     std::function<void(std::string, bool)> replacementStatusReported;
     std::function<std::expected<uomul::TextureImage, uomul::Error>(const assets::AssetDragPayloadValue &)> resolveDragTexture;
     std::function<void(std::string)> dragDropErrorReported;
+    std::function<void(std::optional<DocumentId>, std::vector<std::uint32_t>, assets::AssetExportFormat)> exportRequested;
+    std::function<void(std::optional<DocumentId>, std::vector<std::uint32_t>)> exportFormatRequested;
+    std::function<void(const std::filesystem::path &)> exportFilePicked;
+    std::function<void(const std::filesystem::path &)> exportFolderPicked;
+    std::function<void()> exportOverwriteConfirmed;
+    std::function<void()> exportOverwriteCancelled;
     std::function<bool(std::uint32_t)> itemSourcePicked;
     std::function<void(std::string_view)> hoveredContext;
 };

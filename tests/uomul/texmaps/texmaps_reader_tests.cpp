@@ -273,7 +273,7 @@ TEST_CASE("TexMapsReader_hasTexture_Should_RejectOutOfRangeAndEmptyTexture")
     REQUIRE_FALSE(reader->readTexture(0));
 }
 
-TEST_CASE("TexMapsReader_readTexture_Should_FailWhenDataIsTruncatedAfterOpening")
+TEST_CASE("TexMapsReader_readTexture_Should_Fail_If_DataIsTruncatedAfterOpening")
 {
     const TestDirectory directory;
     const auto index = directory.path() / "texidx.mul";

@@ -47,6 +47,7 @@ add_library(
     views/world/map_canvas_view.cpp
     views/world/tile_labels.cpp
     workflows/file_operations.cpp
+    workflows/texmap_export.cpp
     workflows/texmap_replacement.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)

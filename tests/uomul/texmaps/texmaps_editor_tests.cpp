@@ -386,7 +386,7 @@ TEST_CASE("TexMapsEditor_editTexture_Should_RejectMismatchedPixelCount")
     REQUIRE(result.error().code == uomul::ErrorCode::invalidDimensions);
 }
 
-TEST_CASE("TexMapsEditor_editTexture_Should_ExtendIndexWhenEditingBeyondSourceEntries")
+TEST_CASE("TexMapsEditor_editTexture_Should_ExtendIndex_If_EditingBeyondSourceEntries")
 {
     const TestDirectory directory;
     const auto sourceIndex = directory.path() / "source.idx";
@@ -469,7 +469,7 @@ TEST_CASE("TexMapsEditor_clearTexture_Should_RejectOutOfRangeCoordinate")
     REQUIRE(result.error().code == uomul::ErrorCode::invalidCoordinate);
 }
 
-TEST_CASE("TexMapsEditor_clearTexture_Should_ExtendIndexWhenClearingBeyondSourceEntries")
+TEST_CASE("TexMapsEditor_clearTexture_Should_ExtendIndex_If_ClearingBeyondSourceEntries")
 {
     const TestDirectory directory;
     const auto sourceIndex = directory.path() / "source.idx";
@@ -763,7 +763,7 @@ TEST_CASE("TexMapsEditor_create_Should_RejectOutputPathsAreIdentical")
     REQUIRE(editor.error().code == uomul::ErrorCode::io);
 }
 
-TEST_CASE("TexMapsEditor_createEmpty_Should_RejectWhenIndexAndDataPathsAreIdentical")
+TEST_CASE("TexMapsEditor_createEmpty_Should_Reject_If_IndexAndDataPathsAreIdentical")
 {
     const TestDirectory directory;
     const auto outputPath = directory.path() / "output.mul";

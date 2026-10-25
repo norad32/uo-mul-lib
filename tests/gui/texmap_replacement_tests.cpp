@@ -1,5 +1,7 @@
+#include "gui/workflows/texmap_export.h"
 #include "gui/workflows/texmap_replacement.h"
 #include "gui_model/documents/texmaps_document.h"
+#include "gui_model/model/assets/asset_export_contracts.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "image_codec/image_codec.h"
 #include "uomul/mul_common/mul_common.h"
@@ -114,7 +116,61 @@ makeDocument(const std::filesystem::path & directory, const std::vector<uo_mule:
 
 } // namespace
 
-TEST_CASE("Texmap replacement IDs use decimal first and support hexadecimal", "[gui][texmap-replacement]")
+namespace
+{
+
+void requireProviderDragPayload()
+{
+    using uo_mule::gui::assets::AssetDragPayloadSource;
+    using uo_mule::gui::assets::AssetSelection;
+
+    const AssetSelection selection{.selected = {{.value = "23"}}, .anchor = {}, .anchorIndex = {}};
+    const auto payload = uo_mule::gui::makeTexmapDragPayload(selection, true, AssetDragPayloadSource::provider);
+    REQUIRE(payload);
+    if (!payload)
+    {
+        return;
+    }
+    const auto & value = payload->values.at(0);
+    REQUIRE(payload->type == uo_mule::gui::assets::texmapValueDragPayloadType);
+    REQUIRE(value.item == 23U);
+    REQUIRE(value.source == AssetDragPayloadSource::provider);
+}
+
+void requireDocumentDragPayload()
+{
+    using uo_mule::gui::assets::AssetDragPayloadSource;
+    using uo_mule::gui::assets::AssetItemId;
+    using uo_mule::gui::assets::AssetSelection;
+
+    const AssetSelection selection{.selected = {{.value = "23"}}, .anchor = {}, .anchorIndex = {}};
+    const auto payload = uo_mule::gui::makeTexmapDragPayload(selection, true, AssetDragPayloadSource::document, 42);
+    REQUIRE(payload);
+    if (!payload)
+    {
+        return;
+    }
+    const auto & value = payload->values.at(0);
+    REQUIRE(value.sourceDocumentId == 42U);
+    REQUIRE(value.source == AssetDragPayloadSource::document);
+
+    const auto multiple =
+        AssetSelection{.selected = {AssetItemId{.value = "23"}, AssetItemId{.value = "24"}}, .anchor = {}, .anchorIndex = {}};
+    REQUIRE_FALSE(uo_mule::gui::makeTexmapDragPayload(multiple, true, AssetDragPayloadSource::provider));
+}
+
+void requireDragPayloadRejectsUnavailableSource()
+{
+    using uo_mule::gui::assets::AssetDragPayloadSource;
+    using uo_mule::gui::assets::AssetSelection;
+
+    const AssetSelection selection{.selected = {{.value = "23"}}, .anchor = {}, .anchorIndex = {}};
+    REQUIRE_FALSE(uo_mule::gui::makeTexmapDragPayload(selection, false, AssetDragPayloadSource::provider));
+}
+
+} // namespace
+
+TEST_CASE("texmapReplacementIds_Should_PrioritizeDecimalAndSupportHexadecimal", "[gui][texmap-replacement]")
 {
     REQUIRE(uo_mule::gui::parseTexmapImageId("10") == 10U);
     REQUIRE(uo_mule::gui::parseTexmapImageId("0x10") == 16U);
@@ -124,7 +180,7 @@ TEST_CASE("Texmap replacement IDs use decimal first and support hexadecimal", "[
     REQUIRE_FALSE(uo_mule::gui::parseTexmapImageId("not-an-id"));
 }
 
-TEST_CASE("Texmap replacement scanner handles precedence, fallback, duplicates and no-ops", "[gui][texmap-replacement]")
+TEST_CASE("texmapReplacementScanner_Should_HandlePrecedenceFallbackDuplicatesAndNoOps", "[gui][texmap-replacement]")
 {
     const TestDirectory directory;
     const auto folder = directory.path() / "images";
@@ -187,37 +243,64 @@ TEST_CASE("Texmap replacement scanner handles precedence, fallback, duplicates a
     REQUIRE(nestedRow.state == uo_mule::gui::TexmapReplacementRowState::missing);
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity)
-TEST_CASE("Texmap drag payloads require one available source texture", "[gui][texmap-drag-drop]")
+TEST_CASE("texmapDragPayload_Should_RequireOneAvailableSourceTexture", "[gui][texmap-drag-drop]")
 {
-    using uo_mule::gui::assets::AssetDragPayloadSource;
-    using uo_mule::gui::assets::AssetItemId;
-    using uo_mule::gui::assets::AssetSelection;
+    requireProviderDragPayload();
+    requireDocumentDragPayload();
+    requireDragPayloadRejectsUnavailableSource();
+}
 
-    AssetSelection selection{.selected = {{.value = "23"}}, .anchor = {}, .anchorIndex = {}};
-    const auto providerPayload = uo_mule::gui::makeTexmapDragPayload(selection, true, AssetDragPayloadSource::provider);
-    REQUIRE(providerPayload);
-    if (!providerPayload)
-    {
-        return;
-    }
-    const auto & providerValue = providerPayload->values.at(0);
-    REQUIRE(providerPayload->type == uo_mule::gui::assets::texmapValueDragPayloadType);
-    REQUIRE(providerValue.item == 23U);
-    REQUIRE(providerValue.source == AssetDragPayloadSource::provider);
+TEST_CASE("texmapExport_Should_NameEncodeAndReportRecoverableFailures", "[gui][texmap-export]")
+{
+    const TestDirectory directory;
+    const auto output = directory.path() / "exported";
+    REQUIRE(std::filesystem::create_directories(output));
 
-    const auto documentPayload = uo_mule::gui::makeTexmapDragPayload(selection, true, AssetDragPayloadSource::document, 42);
-    REQUIRE(documentPayload);
-    if (!documentPayload)
-    {
-        return;
-    }
-    const auto & documentValue = documentPayload->values.at(0);
-    REQUIRE(documentValue.sourceDocumentId == 42U);
-    REQUIRE(documentValue.source == AssetDragPayloadSource::document);
+    const auto small = uomul::TextureImage{
+        .dimension = uomul::textureSmallDimension,
+        .pixels = std::vector<std::uint16_t>(uomul::textureSmallPixelCount, 0x7FFFU),
+    };
+    const auto large = uomul::TextureImage{
+        .dimension = uomul::textureLargeDimension,
+        .pixels = std::vector<std::uint16_t>(uomul::textureLargePixelCount, 0x001FU),
+    };
+    const std::vector<uo_mule::gui::TexmapExportItem> items = {
+        {.textureId = 7U, .texture = small},
+        {.textureId = 0xABCDU, .texture = large},
+    };
 
-    selection.selected.push_back(AssetItemId{.value = "24"});
-    REQUIRE_FALSE(uo_mule::gui::makeTexmapDragPayload(selection, true, AssetDragPayloadSource::provider));
-    selection.selected.resize(1U);
-    REQUIRE_FALSE(uo_mule::gui::makeTexmapDragPayload(selection, false, AssetDragPayloadSource::provider));
+    REQUIRE(uo_mule::gui::texmapExportFilename(7U, uo_mule::gui::assets::AssetExportFormat::bmp) == "0x0007.bmp");
+    REQUIRE(uo_mule::gui::texmapExportFilename(0xABCDU, uo_mule::gui::assets::AssetExportFormat::png) == "0xABCD.png");
+
+    uo_mule::gui::TexmapExportOptions options{
+        .format = uo_mule::gui::assets::AssetExportFormat::bmp,
+        .destination = uo_mule::gui::assets::AssetExportDestination::directory,
+        .outputPath = output,
+        .overwrite = false,
+    };
+    const auto report = uo_mule::gui::exportTexmaps(items, options);
+    REQUIRE(report);
+    REQUIRE(report->exported == 2U);
+    REQUIRE(report->failures.empty());
+    REQUIRE(std::filesystem::is_regular_file(output / "0x0007.bmp"));
+    REQUIRE(std::filesystem::is_regular_file(output / "0xABCD.bmp"));
+
+    const auto overwrite = uo_mule::gui::exportTexmaps(items, options);
+    REQUIRE_FALSE(overwrite);
+    REQUIRE(overwrite.error().message == "overwrite confirmation required");
+
+    options.overwrite = true;
+    const auto overwritten = uo_mule::gui::exportTexmaps(items, options);
+    REQUIRE(overwritten);
+    REQUIRE(overwritten->exported == 2U);
+
+    const std::vector<uo_mule::gui::TexmapExportItem> mixed = {
+        {.textureId = 7U, .texture = small},
+        {.textureId = 8U, .texture = {.dimension = 32, .pixels = {}}},
+    };
+    options.overwrite = true;
+    const auto partial = uo_mule::gui::exportTexmaps(mixed, options);
+    REQUIRE(partial);
+    REQUIRE(partial->exported == 1U);
+    REQUIRE(partial->failures.size() == 1U);
 }

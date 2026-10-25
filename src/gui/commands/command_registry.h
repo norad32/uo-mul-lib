@@ -17,6 +17,7 @@ enum class CommandId : std::uint8_t
     fileOpen,
     fileNew,
     fileSaveAs,
+    fileExportAs,
     fileDiscard,
     fileClose,
     fileQuit,
