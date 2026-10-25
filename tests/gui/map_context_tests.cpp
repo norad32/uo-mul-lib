@@ -1,5 +1,5 @@
-#include "gui/workbench/workbench_state.h"
 #include "gui/documents/map_document_window.h"
+#include "gui/workbench/workbench_state.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/data_providers.h"

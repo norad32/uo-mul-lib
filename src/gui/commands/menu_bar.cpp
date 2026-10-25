@@ -6,6 +6,7 @@
 #include "gui/workbench/workbench_state.h"
 #include "gui/workflows/file_workflow.h"
 #include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/tools/tool_contracts.h"
@@ -122,7 +123,7 @@ void drawViewMenu(WorkbenchState & state)
         return;
     }
 
-    const MapDisplayMode displayMode = state.mapDocuments.active().viewState().displayMode_;
+    const MapDisplayMode displayMode = state.mapDocuments.active().viewState().displayMode;
     drawCommandItem(state, CommandId::viewTileIds, displayMode == MapDisplayMode::tileIds);
     drawCommandItem(state, CommandId::viewZ, displayMode == MapDisplayMode::z);
     drawCommandItem(state, CommandId::viewCombined, displayMode == MapDisplayMode::combined);
@@ -179,7 +180,7 @@ void drawSelectMenu(WorkbenchState & state)
         return;
     }
 
-    const MapSelectionMode selectionMode = state.mapDocuments.active().viewState().selectionMode_;
+    const MapSelectionMode selectionMode = state.mapDocuments.active().viewState().selectionMode;
     drawCommandItem(state, CommandId::toolRectangleSelect, state.toolState.activeTool() == ToolId::rectangleSelect);
     drawCommandItem(state, CommandId::toolLassoSelect, state.toolState.activeTool() == ToolId::lassoSelect);
     drawCommandItem(state, CommandId::toolFuzzySelect, state.toolState.activeTool() == ToolId::fuzzySelect);

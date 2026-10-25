@@ -1,5 +1,5 @@
-#include "gui/commands/command_registry.h"
 #include "gui/application/welcome_greetings.h"
+#include "gui/commands/command_registry.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/map_document_state.h"
@@ -323,7 +323,7 @@ TEST_CASE("workbenchSession_Should_ActivateMapDocumentsThroughTheCollection")
     REQUIRE(firstId.has_value());
     REQUIRE(session.activateDocument(firstDocumentId, mapDocumentState));
     REQUIRE(session.activeDocumentId() == firstId);
-    REQUIRE(mapDocumentState.changes().originalPath_ == firstPath);
+    REQUIRE(mapDocumentState.changes().originalPath == firstPath);
     REQUIRE(session.documents().size() == 2);
 }
 
@@ -354,5 +354,5 @@ TEST_CASE("workbenchSession_Should_KeepExistingMapTabs_If_MapsAreOpenedSequentia
     REQUIRE(firstId.has_value());
     REQUIRE(session.activateDocument(firstDocumentId, mapDocumentState));
     REQUIRE(session.activeDocumentId() == firstId);
-    REQUIRE(mapDocumentState.changes().originalPath_ == firstPath);
+    REQUIRE(mapDocumentState.changes().originalPath == firstPath);
 }

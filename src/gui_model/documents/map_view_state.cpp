@@ -1,6 +1,11 @@
 #include "gui_model/documents/map_view_state.h"
+#include "gui_model/tools/tool_contracts.h"
+#include "gui_model/world/map_selection.h"
+#include "uomul/map/map.h"
 #include <algorithm>
+#include <cstdint>
 #include <utility>
+#include <vector>
 
 namespace uo_mule::gui
 {
@@ -43,50 +48,50 @@ namespace
 
 void MapViewState::setSelectionMode(MapSelectionMode mode, uomul::Dimensions dimensions)
 {
-    if (selectionMode_ == mode)
+    if (selectionMode == mode)
     {
         return;
     }
 
-    if (mode == MapSelectionMode::blocks && selectionMask_.granularity() == ToolSelectionGranularity::tiles)
+    if (mode == MapSelectionMode::blocks && selectionMask.granularity() == ToolSelectionGranularity::tiles)
     {
-        selectionMask_.convertTilesToCoveringBlocks(dimensions);
-        tileSelection_.reset();
-        blockSelection_.reset();
-        selectionMode_ = mode;
+        selectionMask.convertTilesToCoveringBlocks(dimensions);
+        tileSelection.reset();
+        blockSelection.reset();
+        selectionMode = mode;
         return;
     }
 
-    if (mode == MapSelectionMode::tiles && selectionMask_.granularity() == ToolSelectionGranularity::blocks)
+    if (mode == MapSelectionMode::tiles && selectionMask.granularity() == ToolSelectionGranularity::blocks)
     {
-        selectionMask_.convertBlocksToTiles(dimensions);
-        tileSelection_.reset();
-        blockSelection_.reset();
-        selectionMode_ = mode;
+        selectionMask.convertBlocksToTiles(dimensions);
+        tileSelection.reset();
+        blockSelection.reset();
+        selectionMode = mode;
         return;
     }
 
-    selectionMode_ = mode;
-    tileSelection_.reset();
-    blockSelection_.reset();
-    selectionMask_.setGranularity(mode == MapSelectionMode::tiles ? ToolSelectionGranularity::tiles
-                                                                  : ToolSelectionGranularity::blocks);
+    selectionMode = mode;
+    tileSelection.reset();
+    blockSelection.reset();
+    selectionMask.setGranularity(mode == MapSelectionMode::tiles ? ToolSelectionGranularity::tiles
+                                                                 : ToolSelectionGranularity::blocks);
 }
 
 void MapViewState::setTileSelection(uomul::TileRegion region, uomul::Dimensions dimensions)
 {
-    tileSelection_ = clampTileRegion(region, dimensions);
-    blockSelection_.reset();
-    selectionMode_ = MapSelectionMode::tiles;
-    selectionMask_.replaceTileRegion(*tileSelection_, dimensions);
+    tileSelection = clampTileRegion(region, dimensions);
+    blockSelection.reset();
+    selectionMode = MapSelectionMode::tiles;
+    selectionMask.replaceTileRegion(*tileSelection, dimensions);
 }
 
 void MapViewState::setBlockSelection(uomul::BlockRegion region, uomul::Dimensions dimensions)
 {
-    blockSelection_ = clampBlockRegion(region, dimensions);
-    tileSelection_.reset();
-    selectionMode_ = MapSelectionMode::blocks;
-    selectionMask_.replaceBlockRegion(*blockSelection_, dimensions);
+    blockSelection = clampBlockRegion(region, dimensions);
+    tileSelection.reset();
+    selectionMode = MapSelectionMode::blocks;
+    selectionMask.replaceBlockRegion(*blockSelection, dimensions);
 }
 
 void MapViewState::applyTileSelection(uomul::TileRegion region, SelectionCombineMode mode, uomul::Dimensions dimensions)
@@ -100,16 +105,16 @@ void MapViewState::applyTileSelection(uomul::TileRegion region, SelectionCombine
 
     MapSelectionMask selection;
     selection.replaceTileRegion(clamped, dimensions);
-    selectionMode_ = MapSelectionMode::tiles;
-    tileSelection_.reset();
-    blockSelection_.reset();
+    selectionMode = MapSelectionMode::tiles;
+    tileSelection.reset();
+    blockSelection.reset();
     if (mode == SelectionCombineMode::add)
     {
-        selectionMask_.add(selection);
+        selectionMask.add(selection);
     }
     else
     {
-        selectionMask_.subtract(selection);
+        selectionMask.subtract(selection);
     }
 }
 
@@ -124,16 +129,16 @@ void MapViewState::applyBlockSelection(uomul::BlockRegion region, SelectionCombi
 
     MapSelectionMask selection;
     selection.replaceBlockRegion(clamped, dimensions);
-    selectionMode_ = MapSelectionMode::blocks;
-    tileSelection_.reset();
-    blockSelection_.reset();
+    selectionMode = MapSelectionMode::blocks;
+    tileSelection.reset();
+    blockSelection.reset();
     if (mode == SelectionCombineMode::add)
     {
-        selectionMask_.add(selection);
+        selectionMask.add(selection);
     }
     else
     {
-        selectionMask_.subtract(selection);
+        selectionMask.subtract(selection);
     }
 }
 
@@ -142,67 +147,67 @@ void MapViewState::applyLassoSelection(const std::vector<uomul::TileCoord> & pat
                                        uomul::Dimensions dimensions)
 {
     MapSelectionMask selection;
-    selection.setGranularity(selectionMask_.granularity());
+    selection.setGranularity(selectionMask.granularity());
     selection.replaceLasso(path, dimensions);
     if (mode == SelectionCombineMode::replace)
     {
-        selectionMask_ = std::move(selection);
+        selectionMask = std::move(selection);
     }
     else if (mode == SelectionCombineMode::add)
     {
-        selectionMask_.add(selection);
+        selectionMask.add(selection);
     }
     else
     {
-        selectionMask_.subtract(selection);
+        selectionMask.subtract(selection);
     }
-    selectionMode_ =
-        selectionMask_.granularity() == ToolSelectionGranularity::tiles ? MapSelectionMode::tiles : MapSelectionMode::blocks;
-    tileSelection_.reset();
-    blockSelection_.reset();
+    selectionMode =
+        selectionMask.granularity() == ToolSelectionGranularity::tiles ? MapSelectionMode::tiles : MapSelectionMode::blocks;
+    tileSelection.reset();
+    blockSelection.reset();
 }
 
 void MapViewState::clearHover() noexcept
 {
-    hoveredTile_.reset();
-    hoveredValue_.reset();
+    hoveredTile.reset();
+    hoveredValue.reset();
 }
 
 void MapViewState::clearSelectedTile() noexcept
 {
-    selectedTile_.reset();
-    selectedValue_.reset();
+    selectedTile.reset();
+    selectedValue.reset();
 }
 
 void MapViewState::clearSelection() noexcept
 {
-    tileSelection_.reset();
-    blockSelection_.reset();
-    selectionMask_.clear();
+    tileSelection.reset();
+    blockSelection.reset();
+    selectionMask.clear();
 }
 
 void MapViewState::selectAll(uomul::Dimensions dimensions)
 {
-    tileSelection_.reset();
-    blockSelection_.reset();
-    selectionMask_.selectAll(dimensions);
-    selectionMode_ =
-        selectionMask_.granularity() == ToolSelectionGranularity::tiles ? MapSelectionMode::tiles : MapSelectionMode::blocks;
+    tileSelection.reset();
+    blockSelection.reset();
+    selectionMask.selectAll(dimensions);
+    selectionMode =
+        selectionMask.granularity() == ToolSelectionGranularity::tiles ? MapSelectionMode::tiles : MapSelectionMode::blocks;
 }
 
 void MapViewState::invertSelection(uomul::Dimensions dimensions)
 {
-    selectionMask_.invert(dimensions);
-    tileSelection_.reset();
-    blockSelection_.reset();
+    selectionMask.invert(dimensions);
+    tileSelection.reset();
+    blockSelection.reset();
 }
 
 void MapViewState::convertTileSelectionToBlocks(uomul::Dimensions dimensions)
 {
-    selectionMask_.convertTilesToCoveringBlocks(dimensions);
-    tileSelection_.reset();
-    blockSelection_.reset();
-    selectionMode_ = MapSelectionMode::blocks;
+    selectionMask.convertTilesToCoveringBlocks(dimensions);
+    tileSelection.reset();
+    blockSelection.reset();
+    selectionMode = MapSelectionMode::blocks;
 }
 
 } // namespace uo_mule::gui

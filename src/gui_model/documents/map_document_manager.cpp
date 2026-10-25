@@ -24,7 +24,7 @@ namespace
                                                                      bool overwrite,
                                                                      std::string_view replacement)
 {
-    if (!mapDocument.changes().reader_ || !mapDocument.changes().dirty())
+    if (!mapDocument.changes().reader || !mapDocument.changes().dirty())
     {
         return {};
     }
@@ -33,7 +33,7 @@ namespace
     {
         return std::unexpected(uomul::Error{
             .code = uomul::ErrorCode::io,
-            .path = mapDocument.changes().mapPath_,
+            .path = mapDocument.changes().mapPath,
             .message = "pending map changes require save or discard before " + std::string(replacement),
         });
     }
@@ -44,7 +44,7 @@ namespace
         {
             return std::unexpected(uomul::Error{
                 .code = uomul::ErrorCode::io,
-                .path = mapDocument.changes().mapPath_,
+                .path = mapDocument.changes().mapPath,
                 .message = "save path is required before replacing a dirty map",
             });
         }
@@ -88,7 +88,7 @@ std::optional<DocumentId> MapDocumentManager::activeDocumentId() const noexcept
 
 void MapDocumentManager::stashActive() noexcept
 {
-    if (activeId_ && active_->changes().reader_)
+    if (activeId_ && active_->changes().reader)
     {
         documentStates_[*activeId_] = std::move(active_);
         canvasStates_[*activeId_] = std::move(activeCanvas_);
@@ -180,7 +180,7 @@ MapDocumentManager::activateMap(DocumentId id, const std::filesystem::path & pat
         return {};
     }
 
-    if (activeId_ && active_->changes().reader_)
+    if (activeId_ && active_->changes().reader)
     {
         documentStates_[*activeId_] = std::move(active_);
         canvasStates_[*activeId_] = std::move(activeCanvas_);
@@ -229,7 +229,7 @@ std::expected<void, uomul::Error> MapDocumentManager::closeDocument(DocumentId i
 
 void MapDocumentManager::bindActiveDocument(DocumentId id) noexcept
 {
-    if (active_->changes().reader_)
+    if (active_->changes().reader)
     {
         activeId_ = id;
     }

@@ -80,7 +80,7 @@ private:
 
 bool hasExpectedResidentState(const MapDocumentManager & manager)
 {
-    const auto selectedTile = manager.active().viewState().selectedTile_;
+    const auto selectedTile = manager.active().viewState().selectedTile;
     if (!selectedTile)
     {
         return false;
@@ -198,37 +198,37 @@ TEST_CASE("mapDocumentState_Should_OpenCreateHoverAndExposeSelectionState")
 
     REQUIRE(mapDocumentState.createEmptyMap(
         mapPath, testDimensions, PendingChangesAction::cancel, std::nullopt, false, initialTile));
-    REQUIRE(mapDocumentState.changes().reader_.has_value());
-    REQUIRE(mapDocumentState.changes().mapPath_ == mapPath);
-    REQUIRE(mapDocumentState.changes().dimensions_ == testDimensions);
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 8, .y = 9}) == initialTile);
+    REQUIRE(mapDocumentState.changes().reader.has_value());
+    REQUIRE(mapDocumentState.changes().mapPath == mapPath);
+    REQUIRE(mapDocumentState.changes().dimensions == testDimensions);
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 8, .y = 9}) == initialTile);
     const uomul::TileCoord hoveredCoordinate{.x = 8, .y = 9};
     REQUIRE(mapDocumentState.updateHover(hoveredCoordinate));
-    REQUIRE(mapDocumentState.viewState().hoveredTile_.has_value());
-    const auto hoveredTile = mapDocumentState.viewState().hoveredTile_.value_or(uomul::TileCoord{});
+    REQUIRE(mapDocumentState.viewState().hoveredTile.has_value());
+    const auto hoveredTile = mapDocumentState.viewState().hoveredTile.value_or(uomul::TileCoord{});
     REQUIRE(hoveredTile.x == hoveredCoordinate.x);
     REQUIRE(hoveredTile.y == hoveredCoordinate.y);
-    REQUIRE(mapDocumentState.viewState().hoveredValue_ == initialTile);
+    REQUIRE(mapDocumentState.viewState().hoveredValue == initialTile);
     mapDocumentState.viewState().clearHover();
-    REQUIRE_FALSE(mapDocumentState.viewState().hoveredTile_);
-    REQUIRE_FALSE(mapDocumentState.viewState().selectedTile_);
+    REQUIRE_FALSE(mapDocumentState.viewState().hoveredTile);
+    REQUIRE_FALSE(mapDocumentState.viewState().selectedTile);
     const uomul::TileCoord selectedCoordinate{.x = 3, .y = 4};
     REQUIRE(mapDocumentState.updateSelectedTile(selectedCoordinate));
-    REQUIRE(mapDocumentState.viewState().selectedTile_.has_value());
-    const auto selectedTile = mapDocumentState.viewState().selectedTile_.value_or(uomul::TileCoord{});
+    REQUIRE(mapDocumentState.viewState().selectedTile.has_value());
+    const auto selectedTile = mapDocumentState.viewState().selectedTile.value_or(uomul::TileCoord{});
     REQUIRE(selectedTile.x == selectedCoordinate.x);
     REQUIRE(selectedTile.y == selectedCoordinate.y);
-    REQUIRE(mapDocumentState.viewState().selectedValue_ == initialTile);
+    REQUIRE(mapDocumentState.viewState().selectedValue == initialTile);
     mapDocumentState.viewState().clearHover();
-    REQUIRE_FALSE(mapDocumentState.viewState().hoveredTile_);
-    REQUIRE(mapDocumentState.viewState().selectedTile_.has_value());
-    const auto remainingSelectedTile = mapDocumentState.viewState().selectedTile_.value_or(uomul::TileCoord{});
+    REQUIRE_FALSE(mapDocumentState.viewState().hoveredTile);
+    REQUIRE(mapDocumentState.viewState().selectedTile.has_value());
+    const auto remainingSelectedTile = mapDocumentState.viewState().selectedTile.value_or(uomul::TileCoord{});
     REQUIRE(remainingSelectedTile.x == selectedCoordinate.x);
     REQUIRE(remainingSelectedTile.y == selectedCoordinate.y);
 
     mapDocumentState.viewState().setTileSelection({.min = {.x = 2, .y = 3}, .maxExclusive = {.x = 4, .y = tileSelectionMaxY}},
-                                                  mapDocumentState.changes().dimensions_);
-    REQUIRE(mapDocumentState.viewState().selectionMode_ == MapSelectionMode::tiles);
+                                                  mapDocumentState.changes().dimensions);
+    REQUIRE(mapDocumentState.viewState().selectionMode == MapSelectionMode::tiles);
     const auto tileStats = mapDocumentState.selectionStats();
     REQUIRE(tileStats.has_value());
     REQUIRE(tileStats.has_value());
@@ -236,10 +236,10 @@ TEST_CASE("mapDocumentState_Should_OpenCreateHoverAndExposeSelectionState")
     REQUIRE(availableTileStats.has_value());
     REQUIRE(availableTileStats.value_or(uomul::MapStats{}).tileCount == selectedTileCount);
 
-    mapDocumentState.viewState().setSelectionMode(MapSelectionMode::blocks, mapDocumentState.changes().dimensions_);
-    REQUIRE_FALSE(mapDocumentState.viewState().tileSelection_);
+    mapDocumentState.viewState().setSelectionMode(MapSelectionMode::blocks, mapDocumentState.changes().dimensions);
+    REQUIRE_FALSE(mapDocumentState.viewState().tileSelection);
     mapDocumentState.viewState().setBlockSelection({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}},
-                                                   mapDocumentState.changes().dimensions_);
+                                                   mapDocumentState.changes().dimensions);
     const auto blockStats = mapDocumentState.selectionStats();
     REQUIRE(blockStats.has_value());
     REQUIRE(blockStats.has_value());
@@ -248,11 +248,11 @@ TEST_CASE("mapDocumentState_Should_OpenCreateHoverAndExposeSelectionState")
     REQUIRE(availableBlockStats.value_or(uomul::MapStats{}).tileCount == uomul::mapBlockTileCount);
 
     REQUIRE_FALSE(mapDocumentState.updateHover({.x = 16, .y = 0}));
-    REQUIRE_FALSE(mapDocumentState.viewState().hoveredTile_);
-    REQUIRE_FALSE(mapDocumentState.viewState().hoveredValue_);
-    REQUIRE(mapDocumentState.changes().error_);
+    REQUIRE_FALSE(mapDocumentState.viewState().hoveredTile);
+    REQUIRE_FALSE(mapDocumentState.viewState().hoveredValue);
+    REQUIRE(mapDocumentState.changes().error);
     mapDocumentState.viewState().clearHover();
-    REQUIRE_FALSE(mapDocumentState.viewState().hoveredTile_);
+    REQUIRE_FALSE(mapDocumentState.viewState().hoveredTile);
 }
 
 TEST_CASE("mapDocumentState_Should_ApplyLassoSelectionWithCombineModes")
@@ -269,8 +269,8 @@ TEST_CASE("mapDocumentState_Should_ApplyLassoSelectionWithCombineModes")
         {.x = 1, .y = 4},
     };
     mapDocumentState.viewState().applyLassoSelection(
-        firstLasso, uo_mule::gui::SelectionCombineMode::replace, mapDocumentState.changes().dimensions_);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.size() == 9);
+        firstLasso, uo_mule::gui::SelectionCombineMode::replace, mapDocumentState.changes().dimensions);
+    REQUIRE(mapDocumentState.viewState().selectionMask.size() == 9);
 
     const std::vector<uomul::TileCoord> secondLasso{
         {.x = 3, .y = 3},
@@ -279,11 +279,11 @@ TEST_CASE("mapDocumentState_Should_ApplyLassoSelectionWithCombineModes")
         {.x = 3, .y = 5},
     };
     mapDocumentState.viewState().applyLassoSelection(
-        secondLasso, uo_mule::gui::SelectionCombineMode::add, mapDocumentState.changes().dimensions_);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.size() == 12);
+        secondLasso, uo_mule::gui::SelectionCombineMode::add, mapDocumentState.changes().dimensions);
+    REQUIRE(mapDocumentState.viewState().selectionMask.size() == 12);
     mapDocumentState.viewState().applyLassoSelection(
-        secondLasso, uo_mule::gui::SelectionCombineMode::subtract, mapDocumentState.changes().dimensions_);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.size() == 8);
+        secondLasso, uo_mule::gui::SelectionCombineMode::subtract, mapDocumentState.changes().dimensions);
+    REQUIRE(mapDocumentState.viewState().selectionMask.size() == 8);
 }
 
 TEST_CASE("mapDocumentState_Should_ConvertBlockSelectionBackToClippedTiles")
@@ -295,13 +295,13 @@ TEST_CASE("mapDocumentState_Should_ConvertBlockSelectionBackToClippedTiles")
     MapDocumentState mapDocumentState;
     REQUIRE(mapDocumentState.openMap(mapPath, {.widthTiles = 16, .heightTiles = 16}));
     mapDocumentState.viewState().setBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}},
-                                                   mapDocumentState.changes().dimensions_);
-    mapDocumentState.viewState().setSelectionMode(MapSelectionMode::tiles, mapDocumentState.changes().dimensions_);
+                                                   mapDocumentState.changes().dimensions);
+    mapDocumentState.viewState().setSelectionMode(MapSelectionMode::tiles, mapDocumentState.changes().dimensions);
 
-    REQUIRE(mapDocumentState.viewState().selectionMode_ == MapSelectionMode::tiles);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.size() == 64);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.contains(uomul::TileCoord{.x = 8, .y = 8}));
-    REQUIRE(mapDocumentState.viewState().selectionMask_.contains(uomul::TileCoord{.x = 15, .y = 15}));
+    REQUIRE(mapDocumentState.viewState().selectionMode == MapSelectionMode::tiles);
+    REQUIRE(mapDocumentState.viewState().selectionMask.size() == 64);
+    REQUIRE(mapDocumentState.viewState().selectionMask.contains(uomul::TileCoord{.x = 8, .y = 8}));
+    REQUIRE(mapDocumentState.viewState().selectionMask.contains(uomul::TileCoord{.x = 15, .y = 15}));
 }
 
 TEST_CASE("mapDocumentState_Should_ExposeSparseSelectionBoundsAndStats")
@@ -313,9 +313,9 @@ TEST_CASE("mapDocumentState_Should_ExposeSparseSelectionBoundsAndStats")
     REQUIRE(mapDocumentState.openMap(mapPath, testDimensions));
     mapDocumentState.viewState().applyLassoSelection({{.x = 1, .y = 1}, {.x = 4, .y = 1}, {.x = 4, .y = 4}, {.x = 1, .y = 4}},
                                                      uo_mule::gui::SelectionCombineMode::replace,
-                                                     mapDocumentState.changes().dimensions_);
+                                                     mapDocumentState.changes().dimensions);
 
-    const auto bounds = mapDocumentState.viewState().selectionMask_.tileBounds(mapDocumentState.changes().dimensions_);
+    const auto bounds = mapDocumentState.viewState().selectionMask.tileBounds(mapDocumentState.changes().dimensions);
     REQUIRE(bounds.has_value());
     const auto boundsValue = bounds.value_or(uomul::TileRegion{});
     REQUIRE(boundsValue.min.x == 1);
@@ -341,33 +341,33 @@ TEST_CASE("mapDocumentState_Should_StageEditsAndRequireExplicitDirtyResolution")
     MapDocumentState mapDocumentState;
     REQUIRE(mapDocumentState.openMap(originalPath, testDimensions));
     mapDocumentState.viewState().setTileSelection({.min = {.x = 1, .y = 2}, .maxExclusive = {.x = 3, .y = 4}},
-                                                  mapDocumentState.changes().dimensions_);
+                                                  mapDocumentState.changes().dimensions);
     REQUIRE(mapDocumentState.fill({.id = selectionReplacementTileId, .z = filledElevation}, MapEditScope::selection));
     REQUIRE(mapDocumentState.changes().dirty());
     REQUIRE_FALSE(mapDocumentState.openMap(otherPath, testDimensions));
     REQUIRE(mapDocumentState.changes().dirty());
-    REQUIRE(mapDocumentState.changes().workingPath_.has_value());
-    const auto & stagedPath = mapDocumentState.changes().workingPath_;
-    REQUIRE(mapDocumentState.changes().mapPath_ == stagedPath.value_or(std::filesystem::path{}));
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 1, .y = 2}) ==
+    REQUIRE(mapDocumentState.changes().workingPath.has_value());
+    const auto & stagedPath = mapDocumentState.changes().workingPath;
+    REQUIRE(mapDocumentState.changes().mapPath == stagedPath.value_or(std::filesystem::path{}));
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 1, .y = 2}) ==
             uomul::MapTile{.id = selectionReplacementTileId, .z = filledElevation});
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 0, .y = 0}) == initialTile);
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 0, .y = 0}) == initialTile);
 
     REQUIRE_FALSE(mapDocumentState.openMap(otherPath, testDimensions, PendingChangesAction::cancel));
     REQUIRE(mapDocumentState.openMap(otherPath, testDimensions, PendingChangesAction::discard));
     REQUIRE_FALSE(mapDocumentState.changes().dirty());
-    REQUIRE(mapDocumentState.changes().mapPath_ == otherPath);
+    REQUIRE(mapDocumentState.changes().mapPath == otherPath);
 
     REQUIRE(mapDocumentState.openMap(originalPath, testDimensions));
     REQUIRE(mapDocumentState.replaceTileId(initialTile.id, 23, MapEditScope::wholeMap));
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 0, .y = 0}) ==
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 0, .y = 0}) ==
             uomul::MapTile{.id = selectedReplacementTileId, .z = initialTile.z});
     REQUIRE(mapDocumentState.replaceZ(initialTile.z, 12, MapEditScope::wholeMap));
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 0, .y = 0}) ==
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 0, .y = 0}) ==
             uomul::MapTile{.id = selectedReplacementTileId, .z = 12});
     REQUIRE(mapDocumentState.save(savedPath));
     REQUIRE_FALSE(mapDocumentState.changes().dirty());
-    REQUIRE(mapDocumentState.changes().mapPath_ == savedPath);
+    REQUIRE(mapDocumentState.changes().mapPath == savedPath);
     const auto savedReader = uomul::MapReader::open(savedPath, testDimensions);
     REQUIRE(savedReader);
     REQUIRE(savedReader->readTile({.x = 0, .y = 0}) == uomul::MapTile{.id = selectedReplacementTileId, .z = 12});
@@ -383,19 +383,19 @@ TEST_CASE("mapDocumentState_Should_RejectSelectionEditsWithoutSelectionAndDiscar
     REQUIRE_FALSE(mapDocumentState.replaceTileId(initialTile.id, rejectedReplacementTileId, MapEditScope::selection));
     REQUIRE_FALSE(mapDocumentState.changes().dirty());
     mapDocumentState.viewState().setBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}},
-                                                   mapDocumentState.changes().dimensions_);
+                                                   mapDocumentState.changes().dimensions);
     REQUIRE(mapDocumentState.replaceZ(initialTile.z, blockElevation, MapEditScope::selection));
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 8, .y = 8}) ==
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 8, .y = 8}) ==
             uomul::MapTile{.id = initialTile.id, .z = blockElevation});
-    REQUIRE(mapDocumentState.changes().workingPath_.has_value());
-    const auto workingPath = mapDocumentState.changes().workingPath_.value_or(std::filesystem::path{});
+    REQUIRE(mapDocumentState.changes().workingPath.has_value());
+    const auto workingPath = mapDocumentState.changes().workingPath.value_or(std::filesystem::path{});
     REQUIRE(mapDocumentState.discard());
     REQUIRE_FALSE(mapDocumentState.changes().dirty());
     REQUIRE_FALSE(std::filesystem::exists(workingPath));
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 8, .y = 8}) == initialTile);
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 8, .y = 8}) == initialTile);
     REQUIRE(mapDocumentState.closeMap());
-    REQUIRE(!mapDocumentState.changes().reader_.has_value());
-    REQUIRE(mapDocumentState.changes().mapPath_.empty());
+    REQUIRE(!mapDocumentState.changes().reader.has_value());
+    REQUIRE(mapDocumentState.changes().mapPath.empty());
 }
 
 TEST_CASE("mapDocumentState_Should_ApplyMaskedFillModesAndPreserveSparseTileSelection")
@@ -407,30 +407,30 @@ TEST_CASE("mapDocumentState_Should_ApplyMaskedFillModesAndPreserveSparseTileSele
     MapDocumentState mapDocumentState;
     REQUIRE(mapDocumentState.openMap(mapPath, testDimensions));
     mapDocumentState.viewState().setTileSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 3, .y = 3}},
-                                                  mapDocumentState.changes().dimensions_);
+                                                  mapDocumentState.changes().dimensions);
     mapDocumentState.viewState().applyTileSelection({.min = {.x = 2, .y = 2}, .maxExclusive = {.x = 3, .y = 3}},
                                                     uo_mule::gui::SelectionCombineMode::subtract,
-                                                    mapDocumentState.changes().dimensions_);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.size() == 3);
+                                                    mapDocumentState.changes().dimensions);
+    REQUIRE(mapDocumentState.viewState().selectionMask.size() == 3);
 
     const auto idFill = mapDocumentState.fillMasked({.id = 90, .z = 50}, FillMode::id);
     REQUIRE(idFill);
     REQUIRE(idFill->changedTiles == 3);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.size() == 3);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.contains(uomul::TileCoord{.x = 1, .y = 1}));
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 90, .z = initialTile.z});
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 2, .y = 2}) == initialTile);
+    REQUIRE(mapDocumentState.viewState().selectionMask.size() == 3);
+    REQUIRE(mapDocumentState.viewState().selectionMask.contains(uomul::TileCoord{.x = 1, .y = 1}));
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 90, .z = initialTile.z});
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 2, .y = 2}) == initialTile);
 
     const auto zFill = mapDocumentState.fillMasked({.id = 80, .z = 51}, FillMode::z);
     REQUIRE(zFill);
     REQUIRE(zFill->changedTiles == 3);
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 90, .z = 51});
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 90, .z = 51});
 
     const auto combinedFill = mapDocumentState.fillMasked({.id = 70, .z = 52}, FillMode::idAndZ);
     REQUIRE(combinedFill);
     REQUIRE(combinedFill->changedTiles == 3);
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 70, .z = 52});
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 0, .y = 0}) == initialTile);
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 70, .z = 52});
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 0, .y = 0}) == initialTile);
     REQUIRE(mapDocumentState.changes().dirty());
 }
 
@@ -443,24 +443,24 @@ TEST_CASE("mapDocumentState_Should_ApplyMaskedReplaceModesToSparseTiles")
     MapDocumentState mapDocumentState;
     REQUIRE(mapDocumentState.openMap(mapPath, testDimensions));
     mapDocumentState.viewState().setTileSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 3, .y = 3}},
-                                                  mapDocumentState.changes().dimensions_);
+                                                  mapDocumentState.changes().dimensions);
 
     const auto idReplace = mapDocumentState.replaceMasked(ReplaceMode::id, initialTile, {.id = 30, .z = 99});
     REQUIRE(idReplace);
     REQUIRE(idReplace->changedTiles == 4);
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 30, .z = initialTile.z});
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 0, .y = 0}) == initialTile);
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 30, .z = initialTile.z});
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 0, .y = 0}) == initialTile);
 
     const auto zReplace = mapDocumentState.replaceMasked(ReplaceMode::z, {.id = 30, .z = initialTile.z}, {.id = 40, .z = 22});
     REQUIRE(zReplace);
     REQUIRE(zReplace->changedTiles == 4);
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 30, .z = 22});
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 30, .z = 22});
 
     const auto combinedReplace = mapDocumentState.replaceMasked(ReplaceMode::idAndZ, {.id = 30, .z = 22}, {.id = 40, .z = 23});
     REQUIRE(combinedReplace);
     REQUIRE(combinedReplace->changedTiles == 4);
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 40, .z = 23});
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 0, .y = 0}) == initialTile);
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 1, .y = 1}) == uomul::MapTile{.id = 40, .z = 23});
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 0, .y = 0}) == initialTile);
 }
 
 TEST_CASE("mapDocumentState_Should_ApplyMaskedBlockEditsOnlyToSelectedBlocks")
@@ -472,18 +472,18 @@ TEST_CASE("mapDocumentState_Should_ApplyMaskedBlockEditsOnlyToSelectedBlocks")
     MapDocumentState mapDocumentState;
     REQUIRE(mapDocumentState.openMap(mapPath, testDimensions));
     mapDocumentState.viewState().setBlockSelection({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}},
-                                                   mapDocumentState.changes().dimensions_);
+                                                   mapDocumentState.changes().dimensions);
     mapDocumentState.viewState().applyBlockSelection({.min = {.x = 1, .y = 1}, .maxExclusive = {.x = 2, .y = 2}},
                                                      uo_mule::gui::SelectionCombineMode::add,
-                                                     mapDocumentState.changes().dimensions_);
+                                                     mapDocumentState.changes().dimensions);
 
     const auto result = mapDocumentState.fillMasked({.id = 61, .z = 62}, FillMode::idAndZ);
     REQUIRE(result);
     REQUIRE(result->changedTiles == 128);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.size() == 2);
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 7, .y = 7}) == uomul::MapTile{.id = 61, .z = 62});
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 8, .y = 8}) == uomul::MapTile{.id = 61, .z = 62});
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 8, .y = 7}) == initialTile);
+    REQUIRE(mapDocumentState.viewState().selectionMask.size() == 2);
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 7, .y = 7}) == uomul::MapTile{.id = 61, .z = 62});
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 8, .y = 8}) == uomul::MapTile{.id = 61, .z = 62});
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 8, .y = 7}) == initialTile);
 }
 
 TEST_CASE("mapDocumentState_Should_RejectMaskedEditsWithoutSelectionAndKeepCleanState")
@@ -499,7 +499,7 @@ TEST_CASE("mapDocumentState_Should_RejectMaskedEditsWithoutSelectionAndKeepClean
     REQUIRE_FALSE(result);
     REQUIRE(result.error().message == "selection scope requires a selection");
     REQUIRE_FALSE(mapDocumentState.changes().dirty());
-    REQUIRE(mapDocumentState.changes().reader_->readTile({.x = 1, .y = 1}) == initialTile);
+    REQUIRE(mapDocumentState.changes().reader->readTile({.x = 1, .y = 1}) == initialTile);
 }
 
 namespace
@@ -544,14 +544,14 @@ TEST_CASE("mapDocumentState_Should_FuzzySelectContiguousAndWholeMapWithAndPredic
     { return id == 20 ? std::optional<std::string>{"granite floor"} : std::optional<std::string>{"grass"}; };
 
     REQUIRE(mapDocumentState.fuzzySelect(options, {.x = 1, .y = 1}, names) == 3);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.size() == 3);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.contains(uomul::TileCoord{.x = 1, .y = 1}));
-    REQUIRE_FALSE(mapDocumentState.viewState().selectionMask_.contains(uomul::TileCoord{.x = 10, .y = 10}));
+    REQUIRE(mapDocumentState.viewState().selectionMask.size() == 3);
+    REQUIRE(mapDocumentState.viewState().selectionMask.contains(uomul::TileCoord{.x = 1, .y = 1}));
+    REQUIRE_FALSE(mapDocumentState.viewState().selectionMask.contains(uomul::TileCoord{.x = 10, .y = 10}));
 
     options.scope = uo_mule::gui::FuzzyScope::wholeMap;
     REQUIRE(mapDocumentState.fuzzySelect(options, {.x = 1, .y = 1}, names) == 4);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.size() == 4);
-    REQUIRE(mapDocumentState.viewState().selectionMask_.contains(uomul::TileCoord{.x = 10, .y = 10}));
+    REQUIRE(mapDocumentState.viewState().selectionMask.size() == 4);
+    REQUIRE(mapDocumentState.viewState().selectionMask.contains(uomul::TileCoord{.x = 10, .y = 10}));
     // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 }
 
@@ -567,19 +567,19 @@ TEST_CASE("mapDocumentState_Should_RejectUnavailableFuzzyNameAndBlockMode")
         .name = "grass",
     };
     REQUIRE_FALSE(mapDocumentState.fuzzySelect(nameOptions, {.x = 0, .y = 0}));
-    REQUIRE(mapDocumentState.changes().error_);
-    REQUIRE(mapDocumentState.changes().error_.value_or(uomul::Error{}).message == "Tiledata name matching is unavailable");
+    REQUIRE(mapDocumentState.changes().error);
+    REQUIRE(mapDocumentState.changes().error.value_or(uomul::Error{}).message == "Tiledata name matching is unavailable");
 
     mapDocumentState.viewState().setBlockSelection({.min = {.x = 0, .y = 0}, .maxExclusive = {.x = 1, .y = 1}},
-                                                   mapDocumentState.changes().dimensions_);
+                                                   mapDocumentState.changes().dimensions);
     const uo_mule::gui::FuzzySelectionOptions idOptions{
         .idEnabled = true,
         .id = initialTile.id,
         .name = {},
     };
     REQUIRE_FALSE(mapDocumentState.fuzzySelect(idOptions, {.x = 0, .y = 0}));
-    REQUIRE(mapDocumentState.changes().error_);
-    REQUIRE(mapDocumentState.changes().error_.value_or(uomul::Error{}).message == "Fuzzy Select supports tiles only");
+    REQUIRE(mapDocumentState.changes().error);
+    REQUIRE(mapDocumentState.changes().error.value_or(uomul::Error{}).message == "Fuzzy Select supports tiles only");
 }
 
 TEST_CASE("mapDocumentManager_Should_PreserveIndependentMapAndCanvasState")
@@ -598,9 +598,9 @@ TEST_CASE("mapDocumentManager_Should_PreserveIndependentMapAndCanvasState")
     MapDocumentManager manager;
     REQUIRE(manager.openMap(firstPath, testDimensions));
     manager.bindActiveDocument(1U);
-    manager.active().viewState().displayMode_ = uo_mule::gui::MapDisplayMode::combined;
+    manager.active().viewState().displayMode = uo_mule::gui::MapDisplayMode::combined;
     manager.active().viewState().setTileSelection({.min = {.x = 1, .y = 2}, .maxExclusive = {.x = 3, .y = 4}},
-                                                  manager.active().changes().dimensions_);
+                                                  manager.active().changes().dimensions);
     manager.canvasState().panX = expectedPan;
     manager.canvasState().zoom = expectedZoom;
 
@@ -611,10 +611,10 @@ TEST_CASE("mapDocumentManager_Should_PreserveIndependentMapAndCanvasState")
     REQUIRE(manager.activateMap(2U, secondPath, testDimensions));
     REQUIRE(manager.activateMap(1U, firstPath, testDimensions));
 
-    REQUIRE(manager.active().changes().originalPath_ == firstPath);
+    REQUIRE(manager.active().changes().originalPath == firstPath);
     REQUIRE(manager.active().changes().dirty());
-    REQUIRE(manager.active().viewState().displayMode_ == uo_mule::gui::MapDisplayMode::combined);
-    REQUIRE(manager.active().viewState().tileSelection_.has_value());
+    REQUIRE(manager.active().viewState().displayMode == uo_mule::gui::MapDisplayMode::combined);
+    REQUIRE(manager.active().viewState().tileSelection.has_value());
     REQUIRE(std::abs(manager.canvasState().panX - expectedPan) < comparisonTolerance);
     REQUIRE(std::abs(manager.canvasState().zoom - expectedZoom) < comparisonTolerance);
 }
@@ -661,7 +661,7 @@ TEST_CASE("mapDocumentManager_Should_DeactivateMapWithoutDiscardingResidentState
     manager.deactivateMap();
 
     REQUIRE_FALSE(manager.activeDocumentId());
-    REQUIRE(!manager.active().changes().reader_.has_value());
+    REQUIRE(!manager.active().changes().reader.has_value());
     REQUIRE(manager.activateMap(7U, mapPath, testDimensions));
     REQUIRE(manager.activeDocumentId() == 7U);
     REQUIRE(hasExpectedResidentState(manager));

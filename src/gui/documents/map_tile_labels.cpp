@@ -1,5 +1,5 @@
 #include "gui/documents/map_tile_labels.h"
-#include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "uomul/map/map.h"
 #include <string>
 

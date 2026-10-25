@@ -2,6 +2,7 @@
 #include "gui/presentation/theme.h"
 #include "gui_model/documents/map_document_manager.h"
 #include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
@@ -318,7 +319,7 @@ cachedBlock(const MapDocumentState & mapDocument, MapCanvasViewState & state, uo
     }
 
     MapCanvasCachedBlock entry{.coordinate = coordinate, .block = std::nullopt, .error = std::nullopt, .lastUsed = 0};
-    const uomul::MapReader * reader = mapDocument.changes().reader_ ? &*mapDocument.changes().reader_ : nullptr;
+    const uomul::MapReader * reader = mapDocument.changes().reader ? &*mapDocument.changes().reader : nullptr;
 
     if (reader != nullptr)
     {
@@ -606,14 +607,14 @@ void drawLassoSelection(ImDrawList & drawList, ImVec2 canvasOrigin, const MapCan
 selectionRegion(const MapCanvasViewState & state, const MapDocumentState & mapDocument, uomul::Dimensions dimensions)
 {
     std::optional<uomul::TileRegion> selection =
-        mapDocument.viewState().selectionMask_.tileBounds(mapDocument.changes().dimensions_);
-    if (mapDocument.viewState().selectionMode_ == MapSelectionMode::blocks && mapDocument.viewState().blockSelection_)
+        mapDocument.viewState().selectionMask.tileBounds(mapDocument.changes().dimensions);
+    if (mapDocument.viewState().selectionMode == MapSelectionMode::blocks && mapDocument.viewState().blockSelection)
     {
-        selection = blockRegionToTileRegion(*mapDocument.viewState().blockSelection_, dimensions);
+        selection = blockRegionToTileRegion(*mapDocument.viewState().blockSelection, dimensions);
     }
     if (state.dragStart && state.dragEnd)
     {
-        if (mapDocument.viewState().selectionMode_ == MapSelectionMode::tiles)
+        if (mapDocument.viewState().selectionMode == MapSelectionMode::tiles)
         {
             selection = tileSelectionFromDrag(*state.dragStart, *state.dragEnd, dimensions);
         }
@@ -806,7 +807,7 @@ void drawSelection(ImDrawList & drawList,
     const double marchingDistance = ImGui::GetTime() * 24.0;
     drawLassoSelection(drawList, canvasOrigin, state, marchingDistance);
     const std::optional<uomul::TileRegion> selection = selectionRegion(state, mapDocument, dimensions);
-    const MapSelectionMask & mask = mapDocument.viewState().selectionMask_;
+    const MapSelectionMask & mask = mapDocument.viewState().selectionMask;
     if ((!state.dragStart || !state.dragEnd) && !mask.empty())
     {
         drawSelectionMask(drawList,
@@ -857,7 +858,7 @@ void rasterizeLodRow(const MapDocumentState & mapDocument,
                      double scaleY,
                      MapDisplayMode mode)
 {
-    const uomul::Dimensions dimensions = mapDocument.changes().dimensions_;
+    const uomul::Dimensions dimensions = mapDocument.changes().dimensions;
     const double screenY = (static_cast<double>(pixelY) + 0.5) / (scaleY * lodRasterScale);
     const double mapY = (screenY - state.panY) / state.zoom;
 
@@ -1076,7 +1077,7 @@ void saveLodCacheKey(MapCanvasViewState & state,
         return false;
     }
 
-    const MapDisplayMode mode = mapDocument.viewState().displayMode_;
+    const MapDisplayMode mode = mapDocument.viewState().displayMode;
     if (!lodCacheMatches(
             state, textures, radarColors, tileSource, rasterWidth, rasterHeight, canvasSize, framebufferScale, mode))
     {
@@ -1102,6 +1103,65 @@ void saveLodCacheKey(MapCanvasViewState & state,
     return true;
 }
 
+void drawVisibleTiles(const MapDocumentState & mapDocument,
+                      const TextureProvider & textures,
+                      const RadarColorProvider & radarColors,
+                      MapViewTileSource tileSource,
+                      MapCanvasViewState & state,
+                      ImDrawList & drawList,
+                      ImVec2 canvasOrigin,
+                      std::uint32_t minX,
+                      std::uint32_t minY,
+                      std::uint32_t maxX,
+                      std::uint32_t maxY,
+                      MapDisplayMode mode,
+                      std::optional<uomul::Error> & visibleReadError)
+{
+    for (std::uint64_t tileY = minY; tileY < maxY; tileY++)
+    {
+        const std::uint32_t tileRow = static_cast<std::uint32_t>(tileY);
+        const std::uint32_t blockY = tileRow / uomul::mapBlockDimension;
+        const std::uint32_t localY = tileRow % uomul::mapBlockDimension;
+        std::uint32_t cachedBlockX = std::numeric_limits<std::uint32_t>::max();
+        const MapCanvasCachedBlock * cached = nullptr;
+
+        for (std::uint64_t tileX = minX; tileX < maxX; tileX++)
+        {
+            const std::uint32_t tileColumn = static_cast<std::uint32_t>(tileX);
+            const std::uint32_t blockX = tileColumn / uomul::mapBlockDimension;
+
+            if (blockX != cachedBlockX)
+            {
+                cached = &cachedBlock(mapDocument, state, {.x = blockX, .y = blockY});
+                cachedBlockX = blockX;
+            }
+
+            if (cached->block)
+            {
+                const std::uint32_t localIndex = (localY * uomul::mapBlockDimension) + (tileColumn % uomul::mapBlockDimension);
+                const uomul::MapTile tile = cached->block->at(static_cast<std::size_t>(localIndex));
+                drawCanvasTile(drawList,
+                               state,
+                               textures,
+                               radarColors,
+                               tileSource,
+                               mode,
+                               tile,
+                               tileScreenRect(canvasOrigin, state, tileColumn, tileRow));
+            }
+            else if (cached->error && !visibleReadError)
+            {
+                visibleReadError = cached->error;
+            }
+            else
+            {
+                const ScreenRect tileRect = tileScreenRect(canvasOrigin, state, tileColumn, tileRow);
+                drawList.AddRectFilled(tileRect.minimum, tileRect.maximum, unavailableColor(tileColumn, tileRow));
+            }
+        }
+    }
+}
+
 void drawCanvasContents(const MapDocumentState & mapDocument,
                         const TextureProvider & textures,
                         const RadarColorProvider & radarColors,
@@ -1117,78 +1177,54 @@ void drawCanvasContents(const MapDocumentState & mapDocument,
     drawList->AddRectFilled(canvasOrigin, canvasMaximum, theme::packedColor(theme::canvasBackground));
     drawList->PushClipRect(canvasOrigin, canvasMaximum, true);
 
-    const uomul::Dimensions dimensions = mapDocument.changes().dimensions_;
+    const uomul::Dimensions dimensions = mapDocument.changes().dimensions;
     const double tileSize = state.zoom;
     const std::uint32_t minX = visibleStart(state.panX, tileSize, dimensions.widthTiles);
     const std::uint32_t minY = visibleStart(state.panY, tileSize, dimensions.heightTiles);
     const std::uint32_t maxX = visibleEnd(canvasSize.x, state.panX, tileSize, dimensions.widthTiles);
     const std::uint32_t maxY = visibleEnd(canvasSize.y, state.panY, tileSize, dimensions.heightTiles);
-    const MapDisplayMode mode = mapDocument.viewState().displayMode_;
+    const MapDisplayMode mode = mapDocument.viewState().displayMode;
     const bool useScreenSpaceLod =
         tileSize * std::min(ImGui::GetIO().DisplayFramebufferScale.x, ImGui::GetIO().DisplayFramebufferScale.y) <
         lodZoomThreshold;
 
-    if (!useScreenSpaceLod ||
-        !drawScreenSpaceLod(
+    if (useScreenSpaceLod &&
+        drawScreenSpaceLod(
             mapDocument, textures, radarColors, tileSource, state, *drawList, canvasOrigin, canvasSize, visibleReadError))
+    {
+    }
+    else
     {
         state.lodCacheValid = false;
         state.lodReadError.reset();
-
-        for (std::uint64_t tileY = minY; tileY < maxY; tileY++)
-        {
-            const std::uint32_t tileRow = static_cast<std::uint32_t>(tileY);
-            const std::uint32_t blockY = tileRow / uomul::mapBlockDimension;
-            const std::uint32_t localY = tileRow % uomul::mapBlockDimension;
-            std::uint32_t cachedBlockX = std::numeric_limits<std::uint32_t>::max();
-            const MapCanvasCachedBlock * cached = nullptr;
-
-            for (std::uint64_t tileX = minX; tileX < maxX; tileX++)
-            {
-                const std::uint32_t tileColumn = static_cast<std::uint32_t>(tileX);
-                const std::uint32_t blockX = tileColumn / uomul::mapBlockDimension;
-
-                if (blockX != cachedBlockX)
-                {
-                    cached = &cachedBlock(mapDocument, state, {.x = blockX, .y = blockY});
-                    cachedBlockX = blockX;
-                }
-
-                if (cached->block)
-                {
-                    const std::uint32_t localIndex =
-                        (localY * uomul::mapBlockDimension) + (tileColumn % uomul::mapBlockDimension);
-                    const uomul::MapTile tile = cached->block->at(static_cast<std::size_t>(localIndex));
-                    drawCanvasTile(*drawList,
-                                   state,
-                                   textures,
-                                   radarColors,
-                                   tileSource,
-                                   mode,
-                                   tile,
-                                   tileScreenRect(canvasOrigin, state, tileColumn, tileRow));
-                }
-                else if (cached->error && !visibleReadError)
-                {
-                    visibleReadError = cached->error;
-                }
-                else
-                {
-                    const ScreenRect tileRect = tileScreenRect(canvasOrigin, state, tileColumn, tileRow);
-                    drawList->AddRectFilled(tileRect.minimum, tileRect.maximum, unavailableColor(tileColumn, tileRow));
-                }
-            }
-        }
+        drawVisibleTiles(mapDocument,
+                         textures,
+                         radarColors,
+                         tileSource,
+                         state,
+                         *drawList,
+                         canvasOrigin,
+                         minX,
+                         minY,
+                         maxX,
+                         maxY,
+                         mode,
+                         visibleReadError);
     }
 
     drawSelection(*drawList, canvasOrigin, state, mapDocument, dimensions, minX, maxX, minY, maxY);
 
-    if (!currentTile && mapDocument.viewState().selectedTile_)
+    const auto selectedTile = mapDocument.viewState().selectedTile;
+    if (!currentTile && selectedTile)
     {
-        const uomul::TileCoord tile = *mapDocument.viewState().selectedTile_;
-        const ScreenRect selectedTile = tileScreenRect(canvasOrigin, state, tile.x, tile.y);
-        drawList->AddRect(
-            selectedTile.minimum, selectedTile.maximum, theme::packedColor(theme::selection), 0.0F, ImDrawFlags_None, 1.0F);
+        const uomul::TileCoord tile = *selectedTile;
+        const ScreenRect selectedTileRect = tileScreenRect(canvasOrigin, state, tile.x, tile.y);
+        drawList->AddRect(selectedTileRect.minimum,
+                          selectedTileRect.maximum,
+                          theme::packedColor(theme::selection),
+                          0.0F,
+                          ImDrawFlags_None,
+                          1.0F);
     }
 
     if (currentTile)
@@ -1203,7 +1239,8 @@ void drawCanvasContents(const MapDocumentState & mapDocument,
                           1.0F);
     }
 
-    const uomul::MapReader * reader = mapDocument.changes().reader_ ? &*mapDocument.changes().reader_ : nullptr;
+    const auto & readerOptional = mapDocument.changes().reader;
+    const uomul::MapReader * reader = readerOptional ? readerOptional.operator->() : nullptr;
 
     if (reader != nullptr && reader->missingBlocks() > 0U)
     {
@@ -1222,9 +1259,9 @@ void drawCanvasContents(const MapDocumentState & mapDocument,
                           theme::packedColor(theme::error),
                           errorMessage.c_str());
     }
-    else if (mapDocument.changes().error_)
+    else if (const auto & error = mapDocument.changes().error; error)
     {
-        const std::string errorMessage = "Map error: " + mapDocument.changes().error_->message;
+        const std::string errorMessage = "Map error: " + error->message;
         drawList->AddText(ImVec2(canvasOrigin.x + static_cast<float>(errorTextLeftPadding),
                                  canvasOrigin.y + static_cast<float>(errorTextTopPadding)),
                           theme::packedColor(theme::error),
@@ -1236,7 +1273,7 @@ void drawCanvasContents(const MapDocumentState & mapDocument,
 
 void drawLayerButton(MapDocumentState & mapDocument, MapDisplayMode mode, const char * label)
 {
-    const bool selected = mapDocument.viewState().displayMode_ == mode;
+    const bool selected = mapDocument.viewState().displayMode == mode;
 
     if (selected)
     {
@@ -1245,7 +1282,7 @@ void drawLayerButton(MapDocumentState & mapDocument, MapDisplayMode mode, const 
 
     if (ImGui::Button(label))
     {
-        mapDocument.viewState().displayMode_ = mode;
+        mapDocument.viewState().displayMode = mode;
     }
 
     if (selected)
@@ -1282,11 +1319,11 @@ void drawLayerControls(MapDocumentState & mapDocument, MapCanvasViewState & stat
 
 void resetForDocument(const MapDocumentState & mapDocument, MapCanvasViewState & state, uomul::Dimensions dimensions)
 {
-    const bool hasDocument = mapDocument.changes().reader_.has_value();
-    const std::filesystem::path & currentPath = mapDocument.changes().mapPath_;
+    const bool hasDocument = mapDocument.changes().reader.has_value();
+    const std::filesystem::path & currentPath = mapDocument.changes().mapPath;
 
     if (state.hasDocument == hasDocument && state.documentPath == currentPath && state.documentDimensions == dimensions &&
-        state.workingPath == mapDocument.changes().workingPath_)
+        state.workingPath == mapDocument.changes().workingPath)
     {
         return;
     }
@@ -1302,7 +1339,7 @@ void resetForDocument(const MapDocumentState & mapDocument, MapCanvasViewState &
     state.dragEnd.reset();
     state.panning = false;
     state.documentPath = currentPath;
-    state.workingPath = mapDocument.changes().workingPath_;
+    state.workingPath = mapDocument.changes().workingPath;
     state.documentDimensions = dimensions;
     state.hasDocument = hasDocument;
     state.scrollResetPending = true;
@@ -1311,22 +1348,22 @@ void resetForDocument(const MapDocumentState & mapDocument, MapCanvasViewState &
 void applyNavigationRequest(MapCanvasViewState & state, const MapDocumentState & mapDocument, ImVec2 canvasSize)
 {
     const MapCanvasViewRequest request = state.navigationRequest.request;
-    if (request == MapCanvasViewRequest::none || !mapDocument.changes().reader_.has_value())
+    if (request == MapCanvasViewRequest::none || !mapDocument.changes().reader.has_value())
     {
         return;
     }
 
     const auto selectionBounds = [](const MapDocumentState & documentState) -> std::optional<uomul::TileRegion>
-    { return documentState.viewState().selectionMask_.tileBounds(documentState.changes().dimensions_); };
+    { return documentState.viewState().selectionMask.tileBounds(documentState.changes().dimensions); };
 
     if (request == MapCanvasViewRequest::fitMap)
     {
-        state.zoom = fitZoomForCanvas(mapDocument.changes().dimensions_, canvasSize);
+        state.zoom = fitZoomForCanvas(mapDocument.changes().dimensions, canvasSize);
         state.panX = (static_cast<double>(canvasSize.x) -
-                      (static_cast<double>(mapDocument.changes().dimensions_.widthTiles) * state.zoom)) /
+                      (static_cast<double>(mapDocument.changes().dimensions.widthTiles) * state.zoom)) /
                      coordinateCenterDivisor;
         state.panY = (static_cast<double>(canvasSize.y) -
-                      (static_cast<double>(mapDocument.changes().dimensions_.heightTiles) * state.zoom)) /
+                      (static_cast<double>(mapDocument.changes().dimensions.heightTiles) * state.zoom)) /
                      coordinateCenterDivisor;
     }
     else if (request == MapCanvasViewRequest::fitSelection || request == MapCanvasViewRequest::centerSelection)
@@ -1365,8 +1402,8 @@ void applyNavigationRequest(MapCanvasViewState & state, const MapDocumentState &
         const double minimum = std::min(0.0, static_cast<double>(extent) - mapExtent);
         return std::clamp(pan, std::max(-maximumPanMagnitude, minimum), 0.0);
     };
-    state.panX = clampPan(state.panX, mapDocument.changes().dimensions_.widthTiles, state.zoom, canvasSize.x);
-    state.panY = clampPan(state.panY, mapDocument.changes().dimensions_.heightTiles, state.zoom, canvasSize.y);
+    state.panX = clampPan(state.panX, mapDocument.changes().dimensions.widthTiles, state.zoom, canvasSize.x);
+    state.panY = clampPan(state.panY, mapDocument.changes().dimensions.heightTiles, state.zoom, canvasSize.y);
     state.scrollResetPending = true;
     state.lodCacheValid = false;
     state.navigationRequest.request = MapCanvasViewRequest::none;
@@ -1437,8 +1474,9 @@ void updateHover(MapDocumentState & mapDocument, std::optional<uomul::TileCoord>
         return;
     }
 
-    if (!mapDocument.viewState().hoveredTile_ || mapDocument.viewState().hoveredTile_->x != tile->x ||
-        mapDocument.viewState().hoveredTile_->y != tile->y || !mapDocument.viewState().hoveredValue_)
+    const auto hoveredTile = mapDocument.viewState().hoveredTile;
+    const auto hoveredValue = mapDocument.viewState().hoveredValue;
+    if (!hoveredTile || hoveredTile->x != tile->x || hoveredTile->y != tile->y || !hoveredValue)
     {
         const auto result = mapDocument.updateHover(*tile);
         static_cast<void>(result);
@@ -1565,7 +1603,7 @@ void updateLassoSelection(MapDocumentState & mapDocument,
     {
         return;
     }
-    mapDocument.viewState().applyLassoSelection(state.lassoPath, state.lassoCombineMode, mapDocument.changes().dimensions_);
+    mapDocument.viewState().applyLassoSelection(state.lassoPath, state.lassoCombineMode, mapDocument.changes().dimensions);
     state.lassoing = false;
     state.lassoPath.clear();
 }
@@ -1592,7 +1630,7 @@ void updateRectangleSelection(MapDocumentState & mapDocument,
     if (state.dragEnd)
     {
         const SelectionCombineMode mode = selectionCombineMode();
-        if (mapDocument.viewState().selectionMode_ == MapSelectionMode::tiles)
+        if (mapDocument.viewState().selectionMode == MapSelectionMode::tiles)
         {
             mapDocument.viewState().applyTileSelection(
                 tileSelectionFromDrag(*state.dragStart, *state.dragEnd, dimensions), mode, dimensions);
@@ -1602,7 +1640,7 @@ void updateRectangleSelection(MapDocumentState & mapDocument,
             mapDocument.viewState().applyBlockSelection(
                 blockSelectionFromDrag(*state.dragStart, *state.dragEnd, dimensions), mode, dimensions);
         }
-        const uomul::TileCoord inspectorTile = selectionInspectorTile(mapDocument.viewState().selectionMode_, *state.dragEnd);
+        const uomul::TileCoord inspectorTile = selectionInspectorTile(mapDocument.viewState().selectionMode, *state.dragEnd);
         const auto result = mapDocument.updateSelectedTile(inspectorTile);
         static_cast<void>(result);
     }
@@ -1642,31 +1680,31 @@ bool updateTilePick(const MapDocumentState & mapDocument,
                     const std::function<bool(uomul::MapTile)> & colorSourcePicked)
 {
     const bool requestedColorPick = colorSourcePicked && canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
-                                    currentTile && mapDocument.viewState().hoveredValue_;
+                                    currentTile && mapDocument.viewState().hoveredValue;
     if (requestedColorPick)
     {
-        if (const auto hoveredValue = mapDocument.viewState().hoveredValue_; hoveredValue && colorSourcePicked(*hoveredValue))
+        if (const auto hoveredValue = mapDocument.viewState().hoveredValue; hoveredValue && colorSourcePicked(*hoveredValue))
         {
             return true;
         }
     }
     const bool altClick = canvasHovered && ImGui::GetIO().KeyAlt && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     const bool requestedPick = toolState.tilePickRequested() && canvasHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
-    if ((!altClick && !requestedPick) || !currentTile || !mapDocument.viewState().hoveredValue_)
+    if ((!altClick && !requestedPick) || !currentTile || !mapDocument.viewState().hoveredValue)
     {
         return false;
     }
 
     if (toolState.tilePickRequested() && toolState.tilePickTarget() == TilePickTarget::fuzzyName)
     {
-        if (const auto name = tiledataNameLookup(mapDocument.viewState().hoveredValue_->id))
+        if (const auto name = tiledataNameLookup(mapDocument.viewState().hoveredValue->id))
         {
             toolState.setPickedTileName(*name);
         }
         return true;
     }
 
-    toolState.setPickedTile(*mapDocument.viewState().hoveredValue_);
+    toolState.setPickedTile(*mapDocument.viewState().hoveredValue);
     return true;
 }
 
@@ -1713,9 +1751,9 @@ void drawEmptyCanvas(ImVec2 canvasOrigin,
         createMap();
     }
 
-    if (mapDocument.changes().error_)
+    if (mapDocument.changes().error)
     {
-        const std::string errorMessage = "Map error: " + mapDocument.changes().error_->message;
+        const std::string errorMessage = "Map error: " + mapDocument.changes().error->message;
         drawList->AddText(ImVec2(canvasOrigin.x + static_cast<float>(errorTextLeftPadding),
                                  canvasOrigin.y + static_cast<float>(readErrorTextOffset)),
                           theme::packedColor(theme::error),
@@ -1763,20 +1801,20 @@ void clearActiveAssetPanelIfMapIsActive(const std::function<void()> & clearActiv
 } // namespace
 
 void drawMapDocumentWindow(MapDocumentManager & mapDocumentManager,
-                       ToolState & toolState,
-                       const TextureProvider & textures,
-                       const RadarColorProvider & radarColors,
-                       MapViewTileSource tileSource,
-                       const std::string & windowName,
-                       const std::function<void()> & activateDocument,
-                       const std::function<void()> & openMap,
-                       const std::function<void()> & createMap,
-                       const std::function<void(uomul::TileCoord)> & executeEdit,
-                       const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
-                       const std::function<bool(uomul::MapTile)> & colorSourcePicked,
-                       const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
-                       const std::function<void()> & clearActiveAssetPanel,
-                       bool & visible)
+                           ToolState & toolState,
+                           const TextureProvider & textures,
+                           const RadarColorProvider & radarColors,
+                           MapViewTileSource tileSource,
+                           const std::string & windowName,
+                           const std::function<void()> & activateDocument,
+                           const std::function<void()> & openMap,
+                           const std::function<void()> & createMap,
+                           const std::function<void(uomul::TileCoord)> & executeEdit,
+                           const std::function<std::optional<std::string>(std::uint16_t)> & tiledataNameLookup,
+                           const std::function<bool(uomul::MapTile)> & colorSourcePicked,
+                           const std::function<void(const MapCanvasStatus &)> & updateLastHoveredCanvas,
+                           const std::function<void()> & clearActiveAssetPanel,
+                           bool & visible)
 {
     MapCanvasViewState & state = mapDocumentManager.canvasState();
     prepareMapCanvasState(state, textures);
@@ -1797,9 +1835,9 @@ void drawMapDocumentWindow(MapDocumentManager & mapDocumentManager,
     state.panX = std::clamp(state.panX, -maximumPanMagnitude, maximumPanMagnitude);
     state.panY = std::clamp(state.panY, -maximumPanMagnitude, maximumPanMagnitude);
     state.zoom = std::clamp(state.zoom, minimumCanvasZoom, maximumCanvasZoom);
-    resetForDocument(mapDocument, state, mapDocument.changes().dimensions_);
-    const uomul::Dimensions dimensions = mapDocument.changes().dimensions_;
-    const bool hasDocument = mapDocument.changes().reader_.has_value();
+    resetForDocument(mapDocument, state, mapDocument.changes().dimensions);
+    const uomul::Dimensions dimensions = mapDocument.changes().dimensions;
+    const bool hasDocument = mapDocument.changes().reader.has_value();
 
     drawLayerControls(mapDocument, state);
     const bool canvasContentsVisible =

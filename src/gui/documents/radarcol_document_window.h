@@ -1,10 +1,10 @@
 #pragma once
 
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
-#include "gui_model/documents/map_document_state.h"
 #include "uomul/radarcol/radarcol.h"
 #include <array>
 #include <cstddef>
@@ -75,12 +75,15 @@ void openRadarcolColorPicker(RadarcolDocumentWindowState & state,
                              const assets::AssetSelection & selection);
 [[nodiscard]] bool acceptRadarcolColorSource(RadarcolDocumentWindowState & state, uomul::RadarColor color);
 void cancelRadarcolColorSource(RadarcolDocumentWindowState & state);
-void drawRadarcolPanel(RadarcolDocumentWindowState & state, const RadarColorProvider & provider, bool & visible, IdFormat idFormat);
+void drawRadarcolPanel(RadarcolDocumentWindowState & state,
+                       const RadarColorProvider & provider,
+                       bool & visible,
+                       IdFormat idFormat);
 void drawRadarcolDocumentWindow(RadarcolDocumentWindowState & state,
-                               RadarcolDocument & document,
-                               bool & visible,
-                               IdFormat idFormat,
-                               std::string windowIdentity,
-                               const std::function<void()> & becameVisible = {});
+                                RadarcolDocument & document,
+                                bool & visible,
+                                IdFormat idFormat,
+                                std::string windowIdentity,
+                                const std::function<void()> & becameVisible = {});
 
 } // namespace uo_mule::gui

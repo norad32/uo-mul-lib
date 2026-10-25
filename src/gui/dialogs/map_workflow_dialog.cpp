@@ -1,9 +1,9 @@
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_facet_dialog.h"
+#include "gui/presentation/bounded_buffer.h"
 #include "gui/presentation/dialog_presentation.h"
 #include "gui/presentation/iconography.h"
-#include "gui/presentation/bounded_buffer.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui/workbench/notification_state.h"
@@ -313,11 +313,11 @@ void requestOperation(MapDocumentManager & mapDocument, NewFileDialogState & sta
             return;
         }
 
-        if (mapDocument.active().changes().reader_.has_value())
+        if (mapDocument.active().changes().reader.has_value())
         {
             std::error_code sourcePathError;
             const std::filesystem::path source =
-                std::filesystem::weakly_canonical(mapDocument.active().changes().mapPath_, sourcePathError);
+                std::filesystem::weakly_canonical(mapDocument.active().changes().mapPath, sourcePathError);
             if (!sourcePathError && output == source)
             {
                 state.error = "New map output must not replace the currently open map";
@@ -730,7 +730,7 @@ void drawSaveAsDialog(MapDocumentManager & mapDocument, NewFileDialogState & sta
                 .kind = OperationKind::saveAs,
                 .documentId = mapDocument.activeDocumentId(),
                 .path = path,
-                .dimensions = mapDocument.active().changes().dimensions_,
+                .dimensions = mapDocument.active().changes().dimensions,
             };
             const auto transition = state.controller->begin(
                 std::move(request), mapDocument.active().changes().dirty(), exists, state.collisionPolicy);
@@ -781,7 +781,7 @@ void drawSaveAsDialog(MapDocumentManager & mapDocument, NewFileDialogState & sta
 
 void drawCloseDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & state)
 {
-    std::string filename = mapDocument.active().changes().originalPath_.filename().string();
+    std::string filename = mapDocument.active().changes().originalPath.filename().string();
     if (filename.empty())
     {
         filename = "map";
@@ -817,7 +817,7 @@ void drawCloseDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState &
         {
             static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
         }
-        const auto saved = mapDocument.save(mapDocument.active().changes().originalPath_, false);
+        const auto saved = mapDocument.save(mapDocument.active().changes().originalPath, false);
         if (!saved)
         {
             if (state.controller != nullptr)
@@ -859,7 +859,7 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
         {
             static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
         }
-        const auto saved = mapDocument.save(mapDocument.active().changes().originalPath_, false);
+        const auto saved = mapDocument.save(mapDocument.active().changes().originalPath, false);
         if (!saved)
         {
             if (state.controller != nullptr)
@@ -898,7 +898,7 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
                            {
                                .mode = FileBrowserMode::saveFile,
                                .target = FileBrowserTarget::mapSaveAs,
-                               .initialPath = mapDocument.active().changes().originalPath_,
+                               .initialPath = mapDocument.active().changes().originalPath,
                                .extension = ".mul",
                                .title = "Save Map As",
                            });

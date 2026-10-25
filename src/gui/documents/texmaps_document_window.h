@@ -101,13 +101,13 @@ void drawTexmapsPanel(TexmapsDocumentWindowState & state,
                       PendingPreferenceChanges & pendingChanges);
 
 void drawTexmapsDocumentWindow(TexmapsDocumentWindowState & state,
-                              TexmapsDocument & document,
-                              bool & visible,
-                              IdFormat idFormat,
-                              const Preferences & preferences,
-                              PendingPreferenceChanges & pendingChanges,
-                              std::string windowIdentity,
-                              const std::function<void()> & becameVisible = {});
+                               TexmapsDocument & document,
+                               bool & visible,
+                               IdFormat idFormat,
+                               const Preferences & preferences,
+                               PendingPreferenceChanges & pendingChanges,
+                               std::string windowIdentity,
+                               const std::function<void()> & becameVisible = {});
 
 void loadTexmapsReplacement(TexmapsDocumentWindowState & state, const std::filesystem::path & path);
 

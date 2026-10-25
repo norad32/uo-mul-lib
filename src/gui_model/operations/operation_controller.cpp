@@ -1,6 +1,6 @@
 #include "gui_model/operations/operation_controller.h"
-#include "gui_model/profile/data_profile.h"
 #include "gui_model/documents/map_document_state.h"
+#include "gui_model/profile/data_profile.h"
 #include <utility>
 
 namespace uo_mule::gui

@@ -177,7 +177,7 @@ void WorkbenchSession::syncDocument(MapDocumentManager & mapDocument)
     {
         static_cast<void>(sourceLocks_.acquire(document.summary.identity.id, document.summary.identity.source));
     }
-    if (mapDocument.active().changes().reader_)
+    if (mapDocument.active().changes().reader)
     {
         if (const auto id = documents_.activeId())
         {
@@ -215,7 +215,7 @@ std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId 
         return {};
     }
 
-    if (mapDocument.active().changes().reader_)
+    if (mapDocument.active().changes().reader)
     {
         mapDocument.deactivateMap();
     }
@@ -249,7 +249,7 @@ std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id,
         return std::unexpected(makeDocumentSessionError({}, "document is not open"));
     }
 
-    if (record->map && mapDocument.activeDocumentId() == id && mapDocument.active().changes().reader_)
+    if (record->map && mapDocument.activeDocumentId() == id && mapDocument.active().changes().reader)
     {
         if (auto closed = mapDocument.closeMap(); !closed)
         {
@@ -271,7 +271,7 @@ std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id,
     {
         return std::unexpected(makeDocumentSessionError({}, "document is not open"));
     }
-    if (record->map && documents_.activeId() == id && mapDocument.changes().reader_)
+    if (record->map && documents_.activeId() == id && mapDocument.changes().reader)
     {
         if (auto closed = mapDocument.closeMap(); !closed)
         {

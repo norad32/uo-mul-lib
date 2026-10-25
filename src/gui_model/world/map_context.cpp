@@ -10,25 +10,25 @@ namespace uo_mule::gui
 MapContextSnapshot makeMapContextSnapshot(const MapDocumentState & mapDocument, const std::optional<MapDocument> & document)
 {
     MapContextSnapshot snapshot;
-    snapshot.hasDocument = mapDocument.changes().reader_.has_value();
-    snapshot.hoveredTile = mapDocument.viewState().hoveredTile_;
-    snapshot.hoveredValue = mapDocument.viewState().hoveredValue_;
-    snapshot.selectedTile = mapDocument.viewState().selectedTile_;
-    snapshot.selectedValue = mapDocument.viewState().selectedValue_;
-    snapshot.hoveredBlock = mapDocument.viewState().hoveredTile_
-                                ? std::optional<uomul::BlockCoord>(tileToBlock(*mapDocument.viewState().hoveredTile_))
+    snapshot.hasDocument = mapDocument.changes().reader.has_value();
+    snapshot.hoveredTile = mapDocument.viewState().hoveredTile;
+    snapshot.hoveredValue = mapDocument.viewState().hoveredValue;
+    snapshot.selectedTile = mapDocument.viewState().selectedTile;
+    snapshot.selectedValue = mapDocument.viewState().selectedValue;
+    snapshot.hoveredBlock = mapDocument.viewState().hoveredTile
+                                ? std::optional<uomul::BlockCoord>(tileToBlock(*mapDocument.viewState().hoveredTile))
                                 : std::nullopt;
-    snapshot.selectedBlock = mapDocument.viewState().selectedTile_
-                                 ? std::optional<uomul::BlockCoord>(tileToBlock(*mapDocument.viewState().selectedTile_))
+    snapshot.selectedBlock = mapDocument.viewState().selectedTile
+                                 ? std::optional<uomul::BlockCoord>(tileToBlock(*mapDocument.viewState().selectedTile))
                                  : std::nullopt;
     snapshot.activeTile = snapshot.hoveredTile ? snapshot.hoveredTile : snapshot.selectedTile;
     snapshot.activeValue = snapshot.hoveredValue ? snapshot.hoveredValue : snapshot.selectedValue;
     snapshot.activeBlock =
         snapshot.activeTile ? std::optional<uomul::BlockCoord>(tileToBlock(*snapshot.activeTile)) : std::nullopt;
-    snapshot.selectionMode = mapDocument.viewState().selectionMode_;
-    snapshot.tileSelection = mapDocument.viewState().tileSelection_;
-    snapshot.blockSelection = mapDocument.viewState().blockSelection_;
-    snapshot.selectionBounds = mapDocument.viewState().selectionMask_.tileBounds(mapDocument.changes().dimensions_);
+    snapshot.selectionMode = mapDocument.viewState().selectionMode;
+    snapshot.tileSelection = mapDocument.viewState().tileSelection;
+    snapshot.blockSelection = mapDocument.viewState().blockSelection;
+    snapshot.selectionBounds = mapDocument.viewState().selectionMask.tileBounds(mapDocument.changes().dimensions);
     if (document)
     {
         snapshot.documentId = document->id;

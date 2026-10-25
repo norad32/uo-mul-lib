@@ -73,7 +73,7 @@ TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")
     REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::openMap);
 
     REQUIRE(state.commands.execute(CommandId::viewCombined, state));
-    REQUIRE(state.mapDocuments.active().viewState().displayMode_ == uo_mule::gui::MapDisplayMode::combined);
+    REQUIRE(state.mapDocuments.active().viewState().displayMode == uo_mule::gui::MapDisplayMode::combined);
 
     REQUIRE(state.commands.execute(CommandId::panelTexmaps, state));
     REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
@@ -178,12 +178,12 @@ TEST_CASE("selectionCommands_Should_OperateOnTheActiveMapMask")
     state.session.syncDocument(state.mapDocuments);
 
     REQUIRE(state.commands.execute(CommandId::selectionAll, state));
-    REQUIRE(state.mapDocuments.active().viewState().selectionMask_.size() == 64);
+    REQUIRE(state.mapDocuments.active().viewState().selectionMask.size() == 64);
     REQUIRE(state.commands.execute(CommandId::selectionInvert, state));
-    REQUIRE(state.mapDocuments.active().viewState().selectionMask_.empty());
+    REQUIRE(state.mapDocuments.active().viewState().selectionMask.empty());
     REQUIRE(state.commands.execute(CommandId::selectionAll, state));
     REQUIRE(state.commands.execute(CommandId::selectionNone, state));
-    REQUIRE(state.mapDocuments.active().viewState().selectionMask_.empty());
+    REQUIRE(state.mapDocuments.active().viewState().selectionMask.empty());
 
     REQUIRE(state.mapDocuments.closeMap());
     std::filesystem::remove(mapPath);
@@ -201,11 +201,11 @@ TEST_CASE("selectionCommands_Should_SynchronizeToolRegionWithMapState")
 
     REQUIRE(state.commands.execute(CommandId::selectionBlocks, state));
     REQUIRE(state.toolState.selectionGranularity() == uo_mule::gui::ToolSelectionGranularity::blocks);
-    REQUIRE(state.mapDocuments.active().viewState().selectionMode_ == uo_mule::gui::MapSelectionMode::blocks);
+    REQUIRE(state.mapDocuments.active().viewState().selectionMode == uo_mule::gui::MapSelectionMode::blocks);
 
     REQUIRE(state.commands.execute(CommandId::selectionTiles, state));
     REQUIRE(state.toolState.selectionGranularity() == uo_mule::gui::ToolSelectionGranularity::tiles);
-    REQUIRE(state.mapDocuments.active().viewState().selectionMode_ == uo_mule::gui::MapSelectionMode::tiles);
+    REQUIRE(state.mapDocuments.active().viewState().selectionMode == uo_mule::gui::MapSelectionMode::tiles);
 
     REQUIRE(state.mapDocuments.closeMap());
     std::filesystem::remove(mapPath);

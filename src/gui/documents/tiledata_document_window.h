@@ -38,11 +38,11 @@ void drawTiledataPanel(TiledataDocumentWindowState & state,
                        IdFormat idFormat);
 
 void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
-                               TiledataDocument & document,
-                               const TextureProvider & textures,
-                               const RadarColorProvider & radarColors,
-                               bool & visible,
-                               IdFormat idFormat,
-                               std::string windowIdentity);
+                                TiledataDocument & document,
+                                const TextureProvider & textures,
+                                const RadarColorProvider & radarColors,
+                                bool & visible,
+                                IdFormat idFormat,
+                                std::string windowIdentity);
 
 } // namespace uo_mule::gui

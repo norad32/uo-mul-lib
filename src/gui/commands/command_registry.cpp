@@ -2,15 +2,16 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/documents/map_document_window.h"
 #include "gui/documents/radarcol_document_window.h"
 #include "gui/presentation/strings.h"
 #include "gui/workbench/workbench_state.h"
-#include "gui/documents/map_document_window.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/map_document.h"
 #include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/input/coordinate_parser.h"
@@ -60,7 +61,7 @@ CommandAvailability requiresMapReadyProfile(const WorkbenchState & state)
 
 CommandAvailability requiresMapDocument(const WorkbenchState & state)
 {
-    if (!state.mapDocuments.active().changes().reader_.has_value())
+    if (!state.mapDocuments.active().changes().reader.has_value())
     {
         return {.enabled = false, .disabledReason = "No map is open"};
     }
@@ -71,7 +72,7 @@ ToolContext toolContext(const WorkbenchState & state)
 {
     const DocumentRecord * active = state.session.activeDocumentRecord();
     const bool mapOpen = active != nullptr && active->summary.identity.kind == DocumentKind::map &&
-                         state.mapDocuments.active().changes().reader_.has_value();
+                         state.mapDocuments.active().changes().reader.has_value();
     return {
         .mapDocumentOpen = mapOpen,
         .mapEditable = mapOpen && active->summary.access == DocumentAccess::editable,
@@ -102,12 +103,12 @@ CommandAvailability requiresActiveLocation(const WorkbenchState & state)
 
 CommandAvailability requiresMapForSave(const WorkbenchState & state)
 {
-    if (!state.mapDocuments.active().changes().reader_.has_value() || !state.mapDocuments.active().changes().dirty())
+    if (!state.mapDocuments.active().changes().reader.has_value() || !state.mapDocuments.active().changes().dirty())
     {
         return {
             .enabled = false,
             .disabledReason =
-                !state.mapDocuments.active().changes().reader_.has_value() ? "No map is open" : "There are no staged changes",
+                !state.mapDocuments.active().changes().reader.has_value() ? "No map is open" : "There are no staged changes",
         };
     }
     return enabled(state);
@@ -310,7 +311,7 @@ void executeSelectionAll(WorkbenchState & state)
         asset->selectAll();
         return;
     }
-    state.mapDocuments.active().viewState().selectAll(state.mapDocuments.active().changes().dimensions_);
+    state.mapDocuments.active().viewState().selectAll(state.mapDocuments.active().changes().dimensions);
 }
 
 void executeSelectionNone(WorkbenchState & state)
@@ -330,7 +331,7 @@ void executeSelectionInvert(WorkbenchState & state)
         asset->invertSelection();
         return;
     }
-    state.mapDocuments.active().viewState().invertSelection(state.mapDocuments.active().changes().dimensions_);
+    state.mapDocuments.active().viewState().invertSelection(state.mapDocuments.active().changes().dimensions);
 }
 
 void copyActiveRadarcolSelection(WorkbenchState & state)
@@ -638,7 +639,7 @@ void registerFileOpenCommands(CommandRegistry & registry)
             }
             if (active->map)
             {
-                const auto saved = state.mapDocuments.save(state.mapDocuments.active().changes().originalPath_, false);
+                const auto saved = state.mapDocuments.save(state.mapDocuments.active().changes().originalPath, false);
                 if (!saved)
                 {
                     state.menuBarState.fileDialog.error = strings::formatError(saved.error());
@@ -724,7 +725,7 @@ void registerFileSaveCommands(CommandRegistry & registry)
             if (state.mapDocuments.active().changes().dirty())
             {
                 state.menuBarState.fileDialog.savePath.fill('\0');
-                if (const auto path = state.mapDocuments.active().changes().originalPath_; !path.empty())
+                if (const auto path = state.mapDocuments.active().changes().originalPath; !path.empty())
                 {
                     const std::string value = path.string();
                     const std::size_t length = std::min(value.size(), state.menuBarState.fileDialog.savePath.size() - 1U);
@@ -735,7 +736,7 @@ void registerFileSaveCommands(CommandRegistry & registry)
                                    {
                                        .mode = FileBrowserMode::saveFile,
                                        .target = FileBrowserTarget::mapSaveAs,
-                                       .initialPath = state.mapDocuments.active().changes().originalPath_,
+                                       .initialPath = state.mapDocuments.active().changes().originalPath,
                                        .extension = ".mul",
                                        .title = "Save Map As",
                                    });
@@ -834,7 +835,7 @@ void registerViewCommands(CommandRegistry & registry)
         "Display tile IDs",
         "",
         enabled,
-        [](WorkbenchState & state) { state.mapDocuments.active().viewState().displayMode_ = MapDisplayMode::tileIds; });
+        [](WorkbenchState & state) { state.mapDocuments.active().viewState().displayMode = MapDisplayMode::tileIds; });
     add(registry,
         CommandId::viewZ,
         "view.display.z",
@@ -843,7 +844,7 @@ void registerViewCommands(CommandRegistry & registry)
         "Display elevation",
         "",
         enabled,
-        [](WorkbenchState & state) { state.mapDocuments.active().viewState().displayMode_ = MapDisplayMode::z; });
+        [](WorkbenchState & state) { state.mapDocuments.active().viewState().displayMode = MapDisplayMode::z; });
     add(registry,
         CommandId::viewCombined,
         "view.display.combined",
@@ -852,7 +853,7 @@ void registerViewCommands(CommandRegistry & registry)
         "Display tile IDs and elevation",
         "",
         enabled,
-        [](WorkbenchState & state) { state.mapDocuments.active().viewState().displayMode_ = MapDisplayMode::combined; });
+        [](WorkbenchState & state) { state.mapDocuments.active().viewState().displayMode = MapDisplayMode::combined; });
     add(registry,
         CommandId::viewToggleLogPanel,
         "view.logs.toggle",
@@ -956,8 +957,8 @@ void registerSelectionCommands(CommandRegistry & registry)
                 ToolSelectionGranularity::tiles, toolContext(state), state.toolRegistry);
             if (result.accepted)
             {
-                state.mapDocuments.active().viewState().setSelectionMode(
-                    MapSelectionMode::tiles, state.mapDocuments.active().changes().dimensions_);
+                state.mapDocuments.active().viewState().setSelectionMode(MapSelectionMode::tiles,
+                                                                         state.mapDocuments.active().changes().dimensions);
             }
         });
     add(registry,
@@ -974,8 +975,8 @@ void registerSelectionCommands(CommandRegistry & registry)
                 ToolSelectionGranularity::blocks, toolContext(state), state.toolRegistry);
             if (result.accepted)
             {
-                state.mapDocuments.active().viewState().setSelectionMode(
-                    MapSelectionMode::blocks, state.mapDocuments.active().changes().dimensions_);
+                state.mapDocuments.active().viewState().setSelectionMode(MapSelectionMode::blocks,
+                                                                         state.mapDocuments.active().changes().dimensions);
             }
         });
     add(registry,

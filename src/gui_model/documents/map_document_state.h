@@ -93,7 +93,7 @@ public:
                                                                        uomul::TileCoord origin,
                                                                        const FuzzyTiledataNameLookup & tiledataNameLookup = {});
 
-    [[nodiscard]] std::expected<std::optional<uomul::MapStats>, uomul::Error> selectionStats();
+    [[nodiscard]] std::expected<std::optional<uomul::MapStats>, uomul::Error> selectionStats() const;
     [[nodiscard]] std::expected<void, uomul::Error> updateHover(uomul::TileCoord tile);
     [[nodiscard]] std::expected<void, uomul::Error> updateSelectedTile(uomul::TileCoord tile);
 

@@ -265,52 +265,56 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
             if (state.texmapsState.replacementFilePicked)
             {
                 const auto path = result.path;
-                state.deferWorkflowAction([&state, path]
-                {
-                    if (state.texmapsState.replacementFilePicked)
+                state.deferWorkflowAction(
+                    [&state, path]
                     {
-                        state.texmapsState.replacementFilePicked(path);
-                    }
-                });
+                        if (state.texmapsState.replacementFilePicked)
+                        {
+                            state.texmapsState.replacementFilePicked(path);
+                        }
+                    });
             }
             return true;
         case FileBrowserTarget::imageFolderOpen :
             if (state.texmapsState.folderReplacementFolderPicked)
             {
                 const auto path = result.path;
-                state.deferWorkflowAction([&state, path]
-                {
-                    if (state.texmapsState.folderReplacementFolderPicked)
+                state.deferWorkflowAction(
+                    [&state, path]
                     {
-                        state.texmapsState.folderReplacementFolderPicked(path);
-                    }
-                });
+                        if (state.texmapsState.folderReplacementFolderPicked)
+                        {
+                            state.texmapsState.folderReplacementFolderPicked(path);
+                        }
+                    });
             }
             return true;
         case FileBrowserTarget::texmapExportFile :
             if (state.texmapsState.exportFilePicked)
             {
                 const auto path = result.path;
-                state.deferWorkflowAction([&state, path]
-                {
-                    if (state.texmapsState.exportFilePicked)
+                state.deferWorkflowAction(
+                    [&state, path]
                     {
-                        state.texmapsState.exportFilePicked(path);
-                    }
-                });
+                        if (state.texmapsState.exportFilePicked)
+                        {
+                            state.texmapsState.exportFilePicked(path);
+                        }
+                    });
             }
             return true;
         case FileBrowserTarget::texmapExportFolder :
             if (state.texmapsState.exportFolderPicked)
             {
                 const auto path = result.path;
-                state.deferWorkflowAction([&state, path]
-                {
-                    if (state.texmapsState.exportFolderPicked)
+                state.deferWorkflowAction(
+                    [&state, path]
                     {
-                        state.texmapsState.exportFolderPicked(path);
-                    }
-                });
+                        if (state.texmapsState.exportFolderPicked)
+                        {
+                            state.texmapsState.exportFolderPicked(path);
+                        }
+                    });
             }
             return true;
         default :
@@ -376,7 +380,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     {
         const auto candidate = result.assetCandidates.front();
         state.deferWorkflowAction([&state, result, candidate]
-        { static_cast<void>(openGenericAsset(state, result, candidate)); });
+                                  { static_cast<void>(openGenericAsset(state, result, candidate)); });
         return false;
     }
 
@@ -388,7 +392,8 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     if (result.target == FileBrowserTarget::genericOpen && result.assetCandidate)
     {
         const auto candidate = *result.assetCandidate;
-        state.deferWorkflowAction([&state, result, candidate] { static_cast<void>(openGenericAsset(state, result, candidate)); });
+        state.deferWorkflowAction([&state, result, candidate]
+                                  { static_cast<void>(openGenericAsset(state, result, candidate)); });
         return false;
     }
 

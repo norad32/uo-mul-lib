@@ -1,4 +1,5 @@
 #include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "gui_model/tools/tool_contracts.h"
 #include "gui_model/world/map_color.h"
 #include "gui_model/world/map_selection.h"
@@ -151,7 +152,7 @@ editSelectedBlocks(const MapDocumentState & mapDocument, uomul::MapEditor & edit
 {
     std::uint64_t changedTiles = 0;
     for (const uomul::BlockCoord block :
-         affectedBlocks(mapDocument.viewState().selectionMask_, mapDocument.changes().dimensions_))
+         affectedBlocks(mapDocument.viewState().selectionMask, mapDocument.changes().dimensions))
     {
         const uomul::BlockRegion region{
             .min = block,
@@ -166,15 +167,15 @@ editSelectedBlocks(const MapDocumentState & mapDocument, uomul::MapEditor & edit
                 const std::uint32_t minX = coordinate.x * uomul::mapBlockDimension;
                 const std::uint32_t minY = coordinate.y * uomul::mapBlockDimension;
                 const std::uint32_t maxX =
-                    std::min(mapDocument.changes().dimensions_.widthTiles, minX + uomul::mapBlockDimension);
+                    std::min(mapDocument.changes().dimensions.widthTiles, minX + uomul::mapBlockDimension);
                 const std::uint32_t maxY =
-                    std::min(mapDocument.changes().dimensions_.heightTiles, minY + uomul::mapBlockDimension);
+                    std::min(mapDocument.changes().dimensions.heightTiles, minY + uomul::mapBlockDimension);
                 for (std::uint32_t y = minY; y < maxY; y++)
                 {
                     for (std::uint32_t x = minX; x < maxX; x++)
                     {
                         const uomul::TileCoord tile{.x = x, .y = y};
-                        if (!selectedTile(mapDocument.viewState().selectionMask_, tile, block))
+                        if (!selectedTile(mapDocument.viewState().selectionMask, tile, block))
                         {
                             continue;
                         }
@@ -393,9 +394,14 @@ void addSample(SelectionSamples & samples, uomul::MapTile tile)
 [[nodiscard]] SelectionSamples collectSelectionSamples(const MapDocumentState & mapDocument)
 {
     SelectionSamples samples;
-    const MapSelectionMask & selection = mapDocument.viewState().selectionMask_;
-    const uomul::Dimensions dimensions = mapDocument.changes().dimensions_;
-    const uomul::MapReader & reader = *mapDocument.changes().reader_;
+    const MapSelectionMask & selection = mapDocument.viewState().selectionMask;
+    const uomul::Dimensions dimensions = mapDocument.changes().dimensions;
+    const auto & readerOptional = mapDocument.changes().reader;
+    if (!readerOptional)
+    {
+        return samples;
+    }
+    const uomul::MapReader & reader = *readerOptional;
     if (selection.granularity() == ToolSelectionGranularity::tiles)
     {
         selection.forEachSelectedTile(
@@ -589,7 +595,7 @@ std::uint8_t zGrayscale(std::int8_t z) noexcept
 
 MapDocumentState::~MapDocumentState()
 {
-    changes_.reader_.reset();
+    changes_.reader.reset();
     removeWorkingFile();
 }
 
@@ -627,13 +633,13 @@ std::expected<void, uomul::Error> MapDocumentState::createEmptyMap(const std::fi
                                                                    bool overwriteOutput,
                                                                    uomul::MapTile initialTile)
 {
-    if (changes_.reader_)
+    if (changes_.reader)
     {
         std::error_code currentPathError;
         std::error_code originalPathError;
         std::error_code outputPathError;
-        const auto currentPath = std::filesystem::weakly_canonical(changes_.mapPath_, currentPathError);
-        const auto sourcePath = std::filesystem::weakly_canonical(changes_.originalPath_, originalPathError);
+        const auto currentPath = std::filesystem::weakly_canonical(changes_.mapPath, currentPathError);
+        const auto sourcePath = std::filesystem::weakly_canonical(changes_.originalPath, originalPathError);
         const auto canonicalOutput = std::filesystem::weakly_canonical(path, outputPathError);
 
         if (!outputPathError &&
@@ -643,7 +649,7 @@ std::expected<void, uomul::Error> MapDocumentState::createEmptyMap(const std::fi
         }
     }
 
-    if (changes_.reader_ && changes_.dirty() && action == PendingChangesAction::save && (!savePath || *savePath == path))
+    if (changes_.reader && changes_.dirty() && action == PendingChangesAction::save && (!savePath || *savePath == path))
     {
         return fail(makeMapDocumentError(path, "cannot replace the requested new-map path while saving staged changes"));
     }
@@ -685,7 +691,7 @@ std::expected<void, uomul::Error> MapDocumentState::createEmptyMap(const std::fi
 
 std::expected<void, uomul::Error> MapDocumentState::save(const std::filesystem::path & outputPath, bool overwriteOutput)
 {
-    if (!changes_.reader_)
+    if (!changes_.reader)
     {
         return fail(makeMapDocumentError(outputPath, "no map is open"));
     }
@@ -700,21 +706,21 @@ std::expected<void, uomul::Error> MapDocumentState::save(const std::filesystem::
         return {};
     }
 
-    auto inPlace = uomul::detail::MulCommon::pathsExactlyMatch(changes_.mapPath_, outputPath);
+    auto inPlace = uomul::detail::MulCommon::pathsExactlyMatch(changes_.mapPath, outputPath);
     if (!inPlace)
     {
         return fail(inPlace.error());
     }
 
-    auto replacesOriginal = uomul::detail::MulCommon::pathsExactlyMatch(changes_.originalPath_, outputPath);
+    auto replacesOriginal = uomul::detail::MulCommon::pathsExactlyMatch(changes_.originalPath, outputPath);
     if (!replacesOriginal)
     {
         return fail(replacesOriginal.error());
     }
 
-    auto editor = uomul::MapEditor::create(changes_.mapPath_,
+    auto editor = uomul::MapEditor::create(changes_.mapPath,
                                            outputPath,
-                                           changes_.dimensions_,
+                                           changes_.dimensions,
                                            {.overwriteOutput = overwriteOutput || *inPlace || *replacesOriginal});
 
     if (!editor)
@@ -724,35 +730,35 @@ std::expected<void, uomul::Error> MapDocumentState::save(const std::filesystem::
 
     if (*inPlace)
     {
-        changes_.reader_.reset();
+        changes_.reader.reset();
     }
 
     if (auto committed = editor->commit(); !committed)
     {
         if (*inPlace)
         {
-            auto restored = uomul::MapReader::open(changes_.mapPath_, changes_.dimensions_);
+            auto restored = uomul::MapReader::open(changes_.mapPath, changes_.dimensions);
             if (restored)
             {
-                changes_.reader_ = std::move(*restored);
+                changes_.reader = std::move(*restored);
             }
         }
         return fail(committed.error());
     }
 
-    auto opened = uomul::MapReader::open(outputPath, changes_.dimensions_);
+    auto opened = uomul::MapReader::open(outputPath, changes_.dimensions);
     if (!opened)
     {
         return fail(opened.error());
     }
 
-    const MapSelectionMode selectionMode = viewState_.selectionMode_;
-    const auto tileSelection = viewState_.tileSelection_;
-    const auto blockSelection = viewState_.blockSelection_;
+    const MapSelectionMode selectionMode = viewState_.selectionMode;
+    const auto tileSelection = viewState_.tileSelection;
+    const auto blockSelection = viewState_.blockSelection;
     replaceDocument(std::move(*opened), outputPath, outputPath);
-    viewState_.selectionMode_ = selectionMode;
-    viewState_.tileSelection_ = tileSelection;
-    viewState_.blockSelection_ = blockSelection;
+    viewState_.selectionMode = selectionMode;
+    viewState_.tileSelection = tileSelection;
+    viewState_.blockSelection = blockSelection;
 
     return {};
 }
@@ -764,13 +770,13 @@ std::expected<void, uomul::Error> MapDocumentState::discard()
         return {};
     }
 
-    auto opened = uomul::MapReader::open(changes_.originalPath_, changes_.dimensions_);
+    auto opened = uomul::MapReader::open(changes_.originalPath, changes_.dimensions);
     if (!opened)
     {
         return fail(opened.error());
     }
 
-    replaceDocument(std::move(*opened), changes_.originalPath_, changes_.originalPath_);
+    replaceDocument(std::move(*opened), changes_.originalPath, changes_.originalPath);
     return {};
 }
 
@@ -778,20 +784,20 @@ std::expected<void, uomul::Error> MapDocumentState::closeMap()
 {
     if (changes_.dirty())
     {
-        return fail(makeMapDocumentError(changes_.mapPath_, "pending map changes require save or discard before closing"));
+        return fail(makeMapDocumentError(changes_.mapPath, "pending map changes require save or discard before closing"));
     }
 
-    changes_.reader_.reset();
+    changes_.reader.reset();
     removeWorkingFile();
-    changes_.dimensions_ = {};
-    changes_.mapPath_.clear();
-    changes_.originalPath_.clear();
-    viewState_.tileSelection_.reset();
-    viewState_.blockSelection_.reset();
-    viewState_.selectionMask_.clear();
+    changes_.dimensions = {};
+    changes_.mapPath.clear();
+    changes_.originalPath.clear();
+    viewState_.tileSelection.reset();
+    viewState_.blockSelection.reset();
+    viewState_.selectionMask.clear();
     viewState_.clearHover();
     viewState_.clearSelectedTile();
-    changes_.error_.reset();
+    changes_.error.reset();
 
     return {};
 }
@@ -806,17 +812,17 @@ std::expected<void, uomul::Error> MapDocumentState::fill(uomul::MapTile value, M
                 return editor.fill(value);
             }
 
-            if (viewState_.selectionMode_ == MapSelectionMode::tiles && viewState_.tileSelection_)
+            if (viewState_.selectionMode == MapSelectionMode::tiles && viewState_.tileSelection)
             {
-                return editor.fillTiles(*viewState_.tileSelection_, value);
+                return editor.fillTiles(*viewState_.tileSelection, value);
             }
 
-            if (viewState_.selectionMode_ == MapSelectionMode::blocks && viewState_.blockSelection_)
+            if (viewState_.selectionMode == MapSelectionMode::blocks && viewState_.blockSelection)
             {
-                return editor.fillBlocks(*viewState_.blockSelection_, value);
+                return editor.fillBlocks(*viewState_.blockSelection, value);
             }
 
-            return std::unexpected(makeMapDocumentError(changes_.mapPath_, "selection scope requires a selection"));
+            return std::unexpected(makeMapDocumentError(changes_.mapPath, "selection scope requires a selection"));
         });
 }
 
@@ -830,17 +836,17 @@ std::expected<void, uomul::Error> MapDocumentState::replaceTileId(std::uint16_t 
                 return editor.replaceIds(from, to);
             }
 
-            if (viewState_.selectionMode_ == MapSelectionMode::tiles && viewState_.tileSelection_)
+            if (viewState_.selectionMode == MapSelectionMode::tiles && viewState_.tileSelection)
             {
-                return editor.replaceIdsTiles(*viewState_.tileSelection_, from, to);
+                return editor.replaceIdsTiles(*viewState_.tileSelection, from, to);
             }
 
-            if (viewState_.selectionMode_ == MapSelectionMode::blocks && viewState_.blockSelection_)
+            if (viewState_.selectionMode == MapSelectionMode::blocks && viewState_.blockSelection)
             {
-                return editor.replaceIdsBlocks(*viewState_.blockSelection_, from, to);
+                return editor.replaceIdsBlocks(*viewState_.blockSelection, from, to);
             }
 
-            return std::unexpected(makeMapDocumentError(changes_.mapPath_, "selection scope requires a selection"));
+            return std::unexpected(makeMapDocumentError(changes_.mapPath, "selection scope requires a selection"));
         });
 }
 
@@ -854,25 +860,25 @@ std::expected<void, uomul::Error> MapDocumentState::replaceZ(std::int8_t from, s
                 return editor.replaceZ(from, to);
             }
 
-            if (viewState_.selectionMode_ == MapSelectionMode::tiles && viewState_.tileSelection_)
+            if (viewState_.selectionMode == MapSelectionMode::tiles && viewState_.tileSelection)
             {
-                return editor.replaceZTiles(*viewState_.tileSelection_, from, to);
+                return editor.replaceZTiles(*viewState_.tileSelection, from, to);
             }
 
-            if (viewState_.selectionMode_ == MapSelectionMode::blocks && viewState_.blockSelection_)
+            if (viewState_.selectionMode == MapSelectionMode::blocks && viewState_.blockSelection)
             {
-                return editor.replaceZBlocks(*viewState_.blockSelection_, from, to);
+                return editor.replaceZBlocks(*viewState_.blockSelection, from, to);
             }
 
-            return std::unexpected(makeMapDocumentError(changes_.mapPath_, "selection scope requires a selection"));
+            return std::unexpected(makeMapDocumentError(changes_.mapPath, "selection scope requires a selection"));
         });
 }
 
 std::expected<MapEditResult, uomul::Error> MapDocumentState::fillMasked(uomul::MapTile value, FillMode mode)
 {
-    if (viewState_.selectionMask_.empty())
+    if (viewState_.selectionMask.empty())
     {
-        const auto failure = fail(makeMapDocumentError(changes_.mapPath_, "selection scope requires a selection"));
+        const auto failure = fail(makeMapDocumentError(changes_.mapPath, "selection scope requires a selection"));
         return std::unexpected(failure.error());
     }
 
@@ -887,9 +893,9 @@ std::expected<MapEditResult, uomul::Error> MapDocumentState::fillMasked(uomul::M
 std::expected<MapEditResult, uomul::Error>
 MapDocumentState::replaceMasked(ReplaceMode mode, uomul::MapTile source, uomul::MapTile target)
 {
-    if (viewState_.selectionMask_.empty())
+    if (viewState_.selectionMask.empty())
     {
-        const auto failure = fail(makeMapDocumentError(changes_.mapPath_, "selection scope requires a selection"));
+        const auto failure = fail(makeMapDocumentError(changes_.mapPath, "selection scope requires a selection"));
         return std::unexpected(failure.error());
     }
 
@@ -907,72 +913,72 @@ std::expected<std::size_t, uomul::Error> MapDocumentState::fuzzySelect(const Fuz
                                                                        uomul::TileCoord origin,
                                                                        const FuzzyTiledataNameLookup & tiledataNameLookup)
 {
-    if (!changes_.reader_)
+    if (!changes_.reader)
     {
-        return std::unexpected(fail(makeMapDocumentError(changes_.mapPath_, "no map is open")).error());
+        return std::unexpected(fail(makeMapDocumentError(changes_.mapPath, "no map is open")).error());
     }
-    if (viewState_.selectionMask_.granularity() == ToolSelectionGranularity::blocks)
+    if (viewState_.selectionMask.granularity() == ToolSelectionGranularity::blocks)
     {
-        return std::unexpected(fail(makeMapDocumentError(changes_.mapPath_, "Fuzzy Select supports tiles only")).error());
+        return std::unexpected(fail(makeMapDocumentError(changes_.mapPath, "Fuzzy Select supports tiles only")).error());
     }
     if (!options.idEnabled && !options.zEnabled && !options.nameEnabled)
     {
-        return std::unexpected(fail(makeMapDocumentError(changes_.mapPath_, "enable at least one fuzzy criterion")).error());
+        return std::unexpected(fail(makeMapDocumentError(changes_.mapPath, "enable at least one fuzzy criterion")).error());
     }
     if (options.nameEnabled && !tiledataNameLookup)
     {
-        return std::unexpected(fail(makeMapDocumentError(changes_.mapPath_, "Tiledata name matching is unavailable")).error());
+        return std::unexpected(fail(makeMapDocumentError(changes_.mapPath, "Tiledata name matching is unavailable")).error());
     }
-    if (origin.x >= changes_.dimensions_.widthTiles || origin.y >= changes_.dimensions_.heightTiles)
+    if (origin.x >= changes_.dimensions.widthTiles || origin.y >= changes_.dimensions.heightTiles)
     {
         return std::unexpected(
-            fail(makeMapDocumentError(changes_.mapPath_, "fuzzy selection origin is outside the map")).error());
+            fail(makeMapDocumentError(changes_.mapPath, "fuzzy selection origin is outside the map")).error());
     }
 
     if (options.scope == FuzzyScope::contiguous)
     {
-        const auto originValue = changes_.reader_->readTile(origin);
+        const auto originValue = changes_.reader->readTile(origin);
         if (!originValue)
         {
             return std::unexpected(originValue.error());
         }
         if (!fuzzyTileMatches(*originValue, options, tiledataNameLookup))
         {
-            viewState_.selectionMask_.clear();
-            viewState_.tileSelection_.reset();
-            viewState_.blockSelection_.reset();
-            viewState_.selectionMode_ = MapSelectionMode::tiles;
-            changes_.error_.reset();
+            viewState_.selectionMask.clear();
+            viewState_.tileSelection.reset();
+            viewState_.blockSelection.reset();
+            viewState_.selectionMode = MapSelectionMode::tiles;
+            changes_.error.reset();
             return std::size_t{0};
         }
     }
 
     const std::vector<uomul::TileCoord> selected =
         options.scope == FuzzyScope::wholeMap
-            ? scanWholeMap(*changes_.reader_, changes_.dimensions_, options, tiledataNameLookup)
-            : scanContiguous(*changes_.reader_, changes_.dimensions_, origin, options, tiledataNameLookup);
+            ? scanWholeMap(*changes_.reader, changes_.dimensions, options, tiledataNameLookup)
+            : scanContiguous(*changes_.reader, changes_.dimensions, origin, options, tiledataNameLookup);
 
-    viewState_.selectionMask_.clear();
-    viewState_.selectionMask_.setGranularity(ToolSelectionGranularity::tiles);
+    viewState_.selectionMask.clear();
+    viewState_.selectionMask.setGranularity(ToolSelectionGranularity::tiles);
     for (const uomul::TileCoord tile : selected)
     {
-        viewState_.selectionMask_.selectTile(tile, changes_.dimensions_);
+        viewState_.selectionMask.selectTile(tile, changes_.dimensions);
     }
-    viewState_.tileSelection_.reset();
-    viewState_.blockSelection_.reset();
-    viewState_.selectionMode_ = MapSelectionMode::tiles;
-    changes_.error_.reset();
+    viewState_.tileSelection.reset();
+    viewState_.blockSelection.reset();
+    viewState_.selectionMode = MapSelectionMode::tiles;
+    changes_.error.reset();
     return selected.size();
 }
 
-std::expected<std::optional<uomul::MapStats>, uomul::Error> MapDocumentState::selectionStats()
+std::expected<std::optional<uomul::MapStats>, uomul::Error> MapDocumentState::selectionStats() const
 {
-    if (!changes_.reader_)
+    if (!changes_.reader)
     {
         return std::optional<uomul::MapStats>{};
     }
 
-    if (viewState_.selectionMask_.empty())
+    if (viewState_.selectionMask.empty())
     {
         return std::optional<uomul::MapStats>{};
     }
@@ -982,44 +988,44 @@ std::expected<std::optional<uomul::MapStats>, uomul::Error> MapDocumentState::se
 
 std::expected<void, uomul::Error> MapDocumentState::updateHover(uomul::TileCoord tile)
 {
-    if (!changes_.reader_)
+    if (!changes_.reader)
     {
         viewState_.clearHover();
-        return fail(makeMapDocumentError(changes_.mapPath_, "no map is open"));
+        return fail(makeMapDocumentError(changes_.mapPath, "no map is open"));
     }
 
-    auto value = changes_.reader_->readTile(tile);
+    auto value = changes_.reader->readTile(tile);
     if (!value)
     {
         viewState_.clearHover();
         return fail(value.error());
     }
 
-    viewState_.hoveredTile_ = tile;
-    viewState_.hoveredValue_ = *value;
-    changes_.error_.reset();
+    viewState_.hoveredTile = tile;
+    viewState_.hoveredValue = *value;
+    changes_.error.reset();
 
     return {};
 }
 
 std::expected<void, uomul::Error> MapDocumentState::updateSelectedTile(uomul::TileCoord tile)
 {
-    if (!changes_.reader_)
+    if (!changes_.reader)
     {
         viewState_.clearSelectedTile();
-        return fail(makeMapDocumentError(changes_.mapPath_, "no map is open"));
+        return fail(makeMapDocumentError(changes_.mapPath, "no map is open"));
     }
 
-    auto value = changes_.reader_->readTile(tile);
+    auto value = changes_.reader->readTile(tile);
     if (!value)
     {
         viewState_.clearSelectedTile();
         return fail(value.error());
     }
 
-    viewState_.selectedTile_ = tile;
-    viewState_.selectedValue_ = *value;
-    changes_.error_.reset();
+    viewState_.selectedTile = tile;
+    viewState_.selectedValue = *value;
+    changes_.error.reset();
 
     return {};
 }
@@ -1035,7 +1041,7 @@ std::expected<void, uomul::Error> MapDocumentState::resolvePendingChanges(Pendin
 
     if (action == PendingChangesAction::cancel)
     {
-        return fail(makeMapDocumentError(changes_.mapPath_, "pending map changes require save or discard"));
+        return fail(makeMapDocumentError(changes_.mapPath, "pending map changes require save or discard"));
     }
 
     if (action == PendingChangesAction::discard)
@@ -1045,7 +1051,7 @@ std::expected<void, uomul::Error> MapDocumentState::resolvePendingChanges(Pendin
 
     if (!savePath)
     {
-        return fail(makeMapDocumentError(changes_.mapPath_, "a save path is required to resolve pending map changes"));
+        return fail(makeMapDocumentError(changes_.mapPath, "a save path is required to resolve pending map changes"));
     }
 
     return save(*savePath, overwriteSave);
@@ -1053,12 +1059,12 @@ std::expected<void, uomul::Error> MapDocumentState::resolvePendingChanges(Pendin
 
 std::expected<void, uomul::Error> MapDocumentState::applyEdit(const EditOperation & operation)
 {
-    if (!changes_.reader_)
+    if (!changes_.reader)
     {
-        return fail(makeMapDocumentError(changes_.mapPath_, "no map is open"));
+        return fail(makeMapDocumentError(changes_.mapPath, "no map is open"));
     }
 
-    const auto sourcePath = changes_.mapPath_;
+    const auto sourcePath = changes_.mapPath;
     auto outputPath = createWorkingPath(sourcePath);
 
     if (!outputPath)
@@ -1066,7 +1072,7 @@ std::expected<void, uomul::Error> MapDocumentState::applyEdit(const EditOperatio
         return fail(outputPath.error());
     }
 
-    auto editor = uomul::MapEditor::create(sourcePath, *outputPath, changes_.dimensions_);
+    auto editor = uomul::MapEditor::create(sourcePath, *outputPath, changes_.dimensions);
     if (!editor)
     {
         return fail(editor.error());
@@ -1082,7 +1088,7 @@ std::expected<void, uomul::Error> MapDocumentState::applyEdit(const EditOperatio
         return fail(committed.error());
     }
 
-    auto opened = uomul::MapReader::open(*outputPath, changes_.dimensions_);
+    auto opened = uomul::MapReader::open(*outputPath, changes_.dimensions);
     if (!opened)
     {
         std::error_code ignoredError;
@@ -1090,29 +1096,29 @@ std::expected<void, uomul::Error> MapDocumentState::applyEdit(const EditOperatio
         return fail(opened.error());
     }
 
-    const auto selectionMode = viewState_.selectionMode_;
-    const auto tileSelection = viewState_.tileSelection_;
-    const auto blockSelection = viewState_.blockSelection_;
-    const auto selectionMask = viewState_.selectionMask_;
-    replaceDocument(std::move(*opened), *outputPath, changes_.originalPath_, *outputPath);
-    viewState_.selectionMode_ = selectionMode;
-    viewState_.tileSelection_ = tileSelection;
-    viewState_.blockSelection_ = blockSelection;
-    viewState_.selectionMask_ = selectionMask;
-    changes_.error_.reset();
+    const auto selectionMode = viewState_.selectionMode;
+    const auto tileSelection = viewState_.tileSelection;
+    const auto blockSelection = viewState_.blockSelection;
+    const auto selectionMask = viewState_.selectionMask;
+    replaceDocument(std::move(*opened), *outputPath, changes_.originalPath, *outputPath);
+    viewState_.selectionMode = selectionMode;
+    viewState_.tileSelection = tileSelection;
+    viewState_.blockSelection = blockSelection;
+    viewState_.selectionMask = selectionMask;
+    changes_.error.reset();
 
     return {};
 }
 
 std::expected<MapEditResult, uomul::Error> MapDocumentState::applyCountedEdit(const CountedEditOperation & operation)
 {
-    if (!changes_.reader_)
+    if (!changes_.reader)
     {
-        const auto failure = fail(makeMapDocumentError(changes_.mapPath_, "no map is open"));
+        const auto failure = fail(makeMapDocumentError(changes_.mapPath, "no map is open"));
         return std::unexpected(failure.error());
     }
 
-    const auto sourcePath = changes_.mapPath_;
+    const auto sourcePath = changes_.mapPath;
     auto outputPath = createWorkingPath(sourcePath);
     if (!outputPath)
     {
@@ -1120,7 +1126,7 @@ std::expected<MapEditResult, uomul::Error> MapDocumentState::applyCountedEdit(co
         return std::unexpected(failure.error());
     }
 
-    auto editor = uomul::MapEditor::create(sourcePath, *outputPath, changes_.dimensions_);
+    auto editor = uomul::MapEditor::create(sourcePath, *outputPath, changes_.dimensions);
     if (!editor)
     {
         const auto failure = fail(editor.error());
@@ -1140,7 +1146,7 @@ std::expected<MapEditResult, uomul::Error> MapDocumentState::applyCountedEdit(co
         return std::unexpected(failure.error());
     }
 
-    auto opened = uomul::MapReader::open(*outputPath, changes_.dimensions_);
+    auto opened = uomul::MapReader::open(*outputPath, changes_.dimensions);
     if (!opened)
     {
         std::error_code ignoredError;
@@ -1149,23 +1155,23 @@ std::expected<MapEditResult, uomul::Error> MapDocumentState::applyCountedEdit(co
         return std::unexpected(failure.error());
     }
 
-    const auto selectionMode = viewState_.selectionMode_;
-    const auto tileSelection = viewState_.tileSelection_;
-    const auto blockSelection = viewState_.blockSelection_;
-    const auto selectionMask = viewState_.selectionMask_;
-    replaceDocument(std::move(*opened), *outputPath, changes_.originalPath_, *outputPath);
-    viewState_.selectionMode_ = selectionMode;
-    viewState_.tileSelection_ = tileSelection;
-    viewState_.blockSelection_ = blockSelection;
-    viewState_.selectionMask_ = selectionMask;
-    changes_.error_.reset();
+    const auto selectionMode = viewState_.selectionMode;
+    const auto tileSelection = viewState_.tileSelection;
+    const auto blockSelection = viewState_.blockSelection;
+    const auto selectionMask = viewState_.selectionMask;
+    replaceDocument(std::move(*opened), *outputPath, changes_.originalPath, *outputPath);
+    viewState_.selectionMode = selectionMode;
+    viewState_.tileSelection = tileSelection;
+    viewState_.blockSelection = blockSelection;
+    viewState_.selectionMask = selectionMask;
+    changes_.error.reset();
 
     return MapEditResult{.changedTiles = *changed};
 }
 
 std::expected<void, uomul::Error> MapDocumentState::fail(uomul::Error error)
 {
-    changes_.error_ = error;
+    changes_.error = error;
     return std::unexpected(std::move(error));
 }
 
@@ -1174,19 +1180,19 @@ void MapDocumentState::replaceDocument(uomul::MapReader reader,
                                        std::filesystem::path originalPath,
                                        std::optional<std::filesystem::path> workingPath)
 {
-    const auto previousWorkingPath = changes_.workingPath_;
-    changes_.reader_ = std::move(reader);
-    changes_.dimensions_ = changes_.reader_->dimensions();
-    changes_.mapPath_ = std::move(path);
-    changes_.originalPath_ = std::move(originalPath);
-    changes_.workingPath_ = std::move(workingPath);
-    viewState_.tileSelection_.reset();
-    viewState_.blockSelection_.reset();
+    const auto previousWorkingPath = changes_.workingPath;
+    changes_.reader = std::move(reader);
+    changes_.dimensions = changes_.reader->dimensions();
+    changes_.mapPath = std::move(path);
+    changes_.originalPath = std::move(originalPath);
+    changes_.workingPath = std::move(workingPath);
+    viewState_.tileSelection.reset();
+    viewState_.blockSelection.reset();
     viewState_.clearHover();
     viewState_.clearSelectedTile();
-    changes_.error_.reset();
+    changes_.error.reset();
 
-    if (previousWorkingPath && (!changes_.workingPath_ || *previousWorkingPath != *changes_.workingPath_))
+    if (previousWorkingPath && (!changes_.workingPath || *previousWorkingPath != *changes_.workingPath))
     {
         std::error_code ignoredError;
         std::filesystem::remove(*previousWorkingPath, ignoredError);
@@ -1195,11 +1201,11 @@ void MapDocumentState::replaceDocument(uomul::MapReader reader,
 
 void MapDocumentState::removeWorkingFile() noexcept
 {
-    if (changes_.workingPath_)
+    if (changes_.workingPath)
     {
         std::error_code ignoredError;
-        std::filesystem::remove(*changes_.workingPath_, ignoredError);
-        changes_.workingPath_.reset();
+        std::filesystem::remove(*changes_.workingPath, ignoredError);
+        changes_.workingPath.reset();
     }
 }
 

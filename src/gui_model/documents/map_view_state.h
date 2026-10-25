@@ -39,15 +39,15 @@ struct MapViewState
     void invertSelection(uomul::Dimensions dimensions);
     void convertTileSelectionToBlocks(uomul::Dimensions dimensions);
 
-    MapDisplayMode displayMode_ = MapDisplayMode::tileIds;
-    MapSelectionMode selectionMode_ = MapSelectionMode::tiles;
-    std::optional<uomul::TileRegion> tileSelection_;
-    std::optional<uomul::BlockRegion> blockSelection_;
-    MapSelectionMask selectionMask_;
-    std::optional<uomul::TileCoord> hoveredTile_;
-    std::optional<uomul::MapTile> hoveredValue_;
-    std::optional<uomul::TileCoord> selectedTile_;
-    std::optional<uomul::MapTile> selectedValue_;
+    MapDisplayMode displayMode = MapDisplayMode::tileIds;
+    MapSelectionMode selectionMode = MapSelectionMode::tiles;
+    std::optional<uomul::TileRegion> tileSelection;
+    std::optional<uomul::BlockRegion> blockSelection;
+    MapSelectionMask selectionMask;
+    std::optional<uomul::TileCoord> hoveredTile;
+    std::optional<uomul::MapTile> hoveredValue;
+    std::optional<uomul::TileCoord> selectedTile;
+    std::optional<uomul::MapTile> selectedValue;
 };
 
 } // namespace uo_mule::gui

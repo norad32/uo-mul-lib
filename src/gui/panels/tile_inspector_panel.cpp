@@ -1,8 +1,8 @@
 #include "gui/panels/tile_inspector_panel.h"
 #include "gui/presentation/iconography.h"
 #include "gui/presentation/strings.h"
-#include "gui/presentation/theme.h"
 #include "gui/presentation/texture_preview.h"
+#include "gui/presentation/theme.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
@@ -91,7 +91,7 @@ void drawTileInspectorPanel(const MapDocumentState & mapDocument,
 
     if (contentsVisible)
     {
-        if (!mapDocument.changes().reader_.has_value())
+        if (!mapDocument.changes().reader.has_value())
         {
             ImGui::TextUnformatted("No map open");
         }

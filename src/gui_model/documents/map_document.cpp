@@ -160,7 +160,7 @@ std::string mapFacetKey(uomul::Dimensions dimensions)
 
 void DocumentManager::sync(const MapDocumentState & mapDocument)
 {
-    if (!mapDocument.changes().reader_)
+    if (!mapDocument.changes().reader)
     {
         const std::optional<DocumentId> activeId = activeId_;
         const DocumentRecord * record = activeId ? find(*activeId) : nullptr;
@@ -171,11 +171,11 @@ void DocumentManager::sync(const MapDocumentState & mapDocument)
         return;
     }
 
-    const auto & workingPath = mapDocument.changes().workingPath_;
+    const auto & workingPath = mapDocument.changes().workingPath;
     const DocumentIdentity identity{
         .id = 0,
         .kind = DocumentKind::map,
-        .source = makeDocumentSourceIdentity({mapDocument.changes().originalPath_}),
+        .source = makeDocumentSourceIdentity({mapDocument.changes().originalPath}),
     };
     DocumentRecord * record = findByIdentity(identity);
     if (record == nullptr)
@@ -184,10 +184,10 @@ void DocumentManager::sync(const MapDocumentState & mapDocument)
         MapDocument map{
             .id = id,
             .identity = {.id = id, .kind = identity.kind, .source = identity.source},
-            .sourcePath = mapDocument.changes().originalPath_,
+            .sourcePath = mapDocument.changes().originalPath,
             .workingPath = workingPath.value_or(std::filesystem::path{}),
-            .facetKey = mapFacetKey(mapDocument.changes().dimensions_),
-            .dimensions = mapDocument.changes().dimensions_,
+            .facetKey = mapFacetKey(mapDocument.changes().dimensions),
+            .dimensions = mapDocument.changes().dimensions,
             .dirty = mapDocument.changes().dirty(),
         };
         record = &documents_.emplace_back(DocumentRecord{
@@ -205,8 +205,8 @@ void DocumentManager::sync(const MapDocumentState & mapDocument)
     }
 
     record->map->workingPath = workingPath.value_or(std::filesystem::path{});
-    record->map->facetKey = mapFacetKey(mapDocument.changes().dimensions_);
-    record->map->dimensions = mapDocument.changes().dimensions_;
+    record->map->facetKey = mapFacetKey(mapDocument.changes().dimensions);
+    record->map->dimensions = mapDocument.changes().dimensions;
     record->map->dirty = mapDocument.changes().dirty();
     record->summary = record->map->summary();
     activeId_ = record->summary.identity.id;

@@ -1,26 +1,26 @@
 #include "gui/workbench/workbench.h"
+#include "gui/application/layout_store.h"
+#include "gui/application/welcome_view.h"
 #include "gui/commands/command_registry.h"
 #include "gui/commands/menu_bar.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/document_window_name.h"
-#include "gui/presentation/asset_browser_helpers.h"
+#include "gui/documents/map_document_window.h"
+#include "gui/documents/radarcol_document_window.h"
+#include "gui/documents/texmaps_document_window.h"
+#include "gui/documents/tiledata_document_window.h"
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/panels/icon_gallery_panel.h"
 #include "gui/panels/log_panel.h"
-#include "gui/documents/radarcol_document_window.h"
-#include "gui/documents/texmaps_document_window.h"
 #include "gui/panels/tile_inspector_panel.h"
-#include "gui/documents/tiledata_document_window.h"
 #include "gui/panels/tool_palette_panel.h"
-#include "gui/application/layout_store.h"
+#include "gui/presentation/asset_browser_helpers.h"
 #include "gui/presentation/iconography.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
-#include "gui/application/welcome_view.h"
 #include "gui/workbench/notification_state.h"
 #include "gui/workbench/workbench_state.h"
-#include "gui/documents/map_document_window.h"
 #include "gui/workflows/texmap_export_workflow.h"
 #include "gui/workflows/texmap_replacement_workflow.h"
 #include "gui_model/dialogs/dialog_contracts.h"
@@ -465,19 +465,21 @@ void configureTexmapExportCallbacks(WorkbenchState & state)
     };
     state.texmapsState.exportFilePicked = [&state](const std::filesystem::path & path)
     {
-        state.deferWorkflowAction([&state, path]
-        {
-            state.texmapsState.exportState.outputPath = path;
-            executeTexmapExport(state, false);
-        });
+        state.deferWorkflowAction(
+            [&state, path]
+            {
+                state.texmapsState.exportState.outputPath = path;
+                executeTexmapExport(state, false);
+            });
     };
     state.texmapsState.exportFolderPicked = [&state](const std::filesystem::path & path)
     {
-        state.deferWorkflowAction([&state, path]
-        {
-            state.texmapsState.exportState.outputPath = path;
-            executeTexmapExport(state, false);
-        });
+        state.deferWorkflowAction(
+            [&state, path]
+            {
+                state.texmapsState.exportState.outputPath = path;
+                executeTexmapExport(state, false);
+            });
     };
     state.texmapsState.exportOverwriteConfirmed = [&state]
     { state.deferWorkflowAction([&state] { executeTexmapExport(state, true); }); };
@@ -506,27 +508,28 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
     };
     state.texmapsState.folderReplacementFolderPicked = [&state](const std::filesystem::path & path)
     {
-        state.deferWorkflowAction([&state, path]
-        {
-            state.texmapsState.folderReplacement.visible = true;
-            const auto * record = findDocument(state, state.texmapsState.folderReplacement.documentId);
-            if (record == nullptr || !record->texmaps)
+        state.deferWorkflowAction(
+            [&state, path]
             {
-                state.texmapsState.folderReplacement.status = "The Texmaps document is no longer open.";
-                state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
-                return;
-            }
-            const auto scanned =
-                scanTexmapReplacementFolder(path, state.texmapsState.folderReplacement.textureIds, *record->texmaps);
-            if (!scanned)
-            {
-                state.texmapsState.folderReplacement.status = scanned.error().message;
-                state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
-                return;
-            }
-            state.texmapsState.folderReplacement.replacement = *scanned;
-            state.texmapsState.folderReplacement.status.clear();
-        });
+                state.texmapsState.folderReplacement.visible = true;
+                const auto * record = findDocument(state, state.texmapsState.folderReplacement.documentId);
+                if (record == nullptr || !record->texmaps)
+                {
+                    state.texmapsState.folderReplacement.status = "The Texmaps document is no longer open.";
+                    state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
+                    return;
+                }
+                const auto scanned =
+                    scanTexmapReplacementFolder(path, state.texmapsState.folderReplacement.textureIds, *record->texmaps);
+                if (!scanned)
+                {
+                    state.texmapsState.folderReplacement.status = scanned.error().message;
+                    state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
+                    return;
+                }
+                state.texmapsState.folderReplacement.replacement = *scanned;
+                state.texmapsState.folderReplacement.status.clear();
+            });
     };
 }
 
@@ -564,14 +567,15 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     };
     state.texmapsState.replacementFilePicked = [&state](const std::filesystem::path & path)
     {
-        state.deferWorkflowAction([&state, path]
-        {
-            state.texmapsState.replacement.visible = true;
-            loadTexmapsReplacement(state.texmapsState, path);
-            state.operationStatus = state.texmapsState.replacement.status;
-            state.operationStatusSeverity =
-                state.texmapsState.replacement.texture ? NotificationSeverity::success : NotificationSeverity::error;
-        });
+        state.deferWorkflowAction(
+            [&state, path]
+            {
+                state.texmapsState.replacement.visible = true;
+                loadTexmapsReplacement(state.texmapsState, path);
+                state.operationStatus = state.texmapsState.replacement.status;
+                state.operationStatusSeverity =
+                    state.texmapsState.replacement.texture ? NotificationSeverity::success : NotificationSeverity::error;
+            });
     };
     state.texmapsState.replacementStatusReported = [&state](std::string message, bool success)
     {
@@ -665,7 +669,7 @@ void drawVisibleMapPanels(WorkbenchState & state,
     const MapContextSnapshot context = state.session.contextSnapshot(state.mapDocuments);
     const DocumentRecord * active = state.session.activeDocumentRecord();
     const bool mapActive =
-        active != nullptr && active->map.has_value() && state.mapDocuments.active().changes().reader_.has_value();
+        active != nullptr && active->map.has_value() && state.mapDocuments.active().changes().reader.has_value();
 
     if (mapActive && state.panelRegistry.find(PanelId::tileInspector)->visible)
     {
@@ -846,9 +850,9 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
         ImGui::SameLine();
     }
     const std::string profileStatus = strings::formatProfileStatus(state.activeProfile.name);
-    const std::string mapStatus = strings::formatMapStatus(!state.mapDocuments.active().changes().reader_.has_value()
+    const std::string mapStatus = strings::formatMapStatus(!state.mapDocuments.active().changes().reader.has_value()
                                                                ? std::filesystem::path{}
-                                                               : state.mapDocuments.active().changes().mapPath_);
+                                                               : state.mapDocuments.active().changes().mapPath);
     const std::string stateStatus = strings::formatStateStatus(state.mapDocuments.active().changes().dirty());
     const std::string readinessStatus = strings::formatDataStatus(state.session.profileState());
     const std::string radarcolStatus = strings::formatRadarcolStatus(state.providers.radarColors().status().source);
@@ -1022,11 +1026,11 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         bool visible = true;
         dockDocumentWindow();
         drawRadarcolDocumentWindow(state.radarcolState,
-                                  *document.radarcol,
-                                  visible,
-                                  state.preferences.idFormat,
-                                  windowName,
-                                  [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
+                                   *document.radarcol,
+                                   visible,
+                                   state.preferences.idFormat,
+                                   windowName,
+                                   [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
         if (!visible)
         {
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
@@ -1039,12 +1043,12 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         bool visible = true;
         dockDocumentWindow();
         drawTiledataDocumentWindow(state.tiledataState,
-                                  *document.tiledata,
-                                  state.providers.textures(),
-                                  state.providers.radarColors(),
-                                  visible,
-                                  state.preferences.idFormat,
-                                  windowName);
+                                   *document.tiledata,
+                                   state.providers.textures(),
+                                   state.providers.radarColors(),
+                                   visible,
+                                   state.preferences.idFormat,
+                                   windowName);
         if (!visible)
         {
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
@@ -1057,13 +1061,13 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         bool visible = true;
         dockDocumentWindow();
         drawTexmapsDocumentWindow(state.texmapsState,
-                                 *document.texmaps,
-                                 visible,
-                                 state.preferences.idFormat,
-                                 state.preferences,
-                                 state.pendingPreferenceChanges,
-                                 windowName,
-                                 [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
+                                  *document.texmaps,
+                                  visible,
+                                  state.preferences.idFormat,
+                                  state.preferences,
+                                  state.pendingPreferenceChanges,
+                                  windowName,
+                                  [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
         if (!visible)
         {
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
@@ -1168,8 +1172,8 @@ void applyDeferredWorkflowActions(WorkbenchState & state)
 {
     while (!state.deferredWorkflowActions.empty())
     {
-        auto actions = std::move(state.deferredWorkflowActions);
-        for (auto & action : actions)
+        const auto actions = std::move(state.deferredWorkflowActions);
+        for (const auto & action : actions)
         {
             action();
         }
@@ -1528,7 +1532,7 @@ void applyProfileChange(WorkbenchState & state)
     {
         state.session.setStartupState(StartupState::workbench);
     }
-    if (!state.mapDocuments.active().changes().reader_.has_value())
+    if (!state.mapDocuments.active().changes().reader.has_value())
     {
         state.welcomeGreetingSelected = false;
         state.welcomeGreeting.clear();
@@ -1690,7 +1694,7 @@ void applyPendingPersistence(WorkbenchState & state)
 [[nodiscard]] bool welcomeShell(const WorkbenchState & state) noexcept
 {
     return state.session.startupState() == StartupState::mapWelcome &&
-           !state.mapDocuments.active().changes().reader_.has_value() && !state.session.hasDocuments();
+           !state.mapDocuments.active().changes().reader.has_value() && !state.session.hasDocuments();
 }
 
 void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool welcome)
@@ -1739,12 +1743,12 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
         drawPendingAssetCloseDialog(state);
         drawMapPanels(state, state.blockInspectorState, state.radarcolState, state.texmapsState);
         notifyRadarcolFallback(state);
-        if (state.mapDocuments.active().changes().reader_.has_value() &&
-            state.recentMapRecordedPath != state.mapDocuments.active().changes().mapPath_)
+        if (state.mapDocuments.active().changes().reader.has_value() &&
+            state.recentMapRecordedPath != state.mapDocuments.active().changes().mapPath)
         {
-            state.session.recordRecentFile(state.mapDocuments.active().changes().mapPath_,
-                                           state.mapDocuments.active().changes().dimensions_);
-            state.recentMapRecordedPath = state.mapDocuments.active().changes().mapPath_;
+            state.session.recordRecentFile(state.mapDocuments.active().changes().mapPath,
+                                           state.mapDocuments.active().changes().dimensions);
+            state.recentMapRecordedPath = state.mapDocuments.active().changes().mapPath;
         }
         applyPendingDocumentAction(state);
         processDocumentIntents(state);

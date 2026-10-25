@@ -1,17 +1,17 @@
 #pragma once
 
+#include "gui/application/layout_store.h"
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
-#include "gui/panels/block_inspector_panel.h"
+#include "gui/documents/map_document_window.h"
 #include "gui/documents/radarcol_document_window.h"
 #include "gui/documents/texmaps_document_window.h"
 #include "gui/documents/tiledata_document_window.h"
-#include "gui/application/layout_store.h"
+#include "gui/panels/block_inspector_panel.h"
 #include "gui/workbench/notification_state.h"
-#include "gui/documents/map_document_window.h"
 #include "gui_model/dialogs/dialog_host.h"
 #include "gui_model/documents/document_descriptors.h"
 #include "gui_model/documents/map_document_manager.h"
@@ -113,10 +113,7 @@ struct WorkbenchState
     bool assetStateResetRequested = false;
     bool assetStateRestored = false;
 
-    void deferWorkflowAction(std::function<void()> action)
-    {
-        deferredWorkflowActions.push_back(std::move(action));
-    }
+    void deferWorkflowAction(std::function<void()> action) { deferredWorkflowActions.push_back(std::move(action)); }
 };
 
 } // namespace uo_mule::gui
