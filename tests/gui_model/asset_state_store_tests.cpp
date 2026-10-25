@@ -65,11 +65,11 @@ TEST_CASE("assetStateStore_Should_RoundTripSemanticContextAndPresentationState")
     state.selection.anchor = {.value = "9"};
     state.selection.anchorIndex = 3U;
     const auto context = metadataContext();
-    const auto record = uo_mule::gui::assets::captureAssetState("profile-a", "workspace-a", context, state);
+    const auto record = uo_mule::gui::assets::captureAssetState("profile-a", "asset-window-a", context, state);
 
     uo_mule::gui::assets::saveAssetState(path, {record});
     const auto loaded = uo_mule::gui::assets::loadAssetState(path);
-    const auto * found = uo_mule::gui::assets::findAssetState(loaded, "profile-a", "workspace-a", context);
+    const auto * found = uo_mule::gui::assets::findAssetState(loaded, "profile-a", "asset-window-a", context);
 
     REQUIRE(found != nullptr);
     REQUIRE(found->context == context);
@@ -87,19 +87,19 @@ TEST_CASE("assetStateStore_Should_IgnoreUnknownContexts_If_LookingUpState")
 {
     const auto context = metadataContext();
     const std::vector<uo_mule::gui::assets::AssetStateRecord> records{
-        {.profileIdentity = "profile-a", .workspaceIdentity = "workspace-a", .context = context, .state = {}},
+        {.profileIdentity = "profile-a", .assetWindowIdentity = "asset-window-a", .context = context, .state = {}},
     };
     auto unknown = context;
     unknown.contextId = "view.unknown";
 
-    REQUIRE(uo_mule::gui::assets::findAssetState(records, "profile-a", "workspace-a", unknown) == nullptr);
-    REQUIRE(uo_mule::gui::assets::findAssetState(records, "profile-b", "workspace-a", context) == nullptr);
+    REQUIRE(uo_mule::gui::assets::findAssetState(records, "profile-a", "asset-window-a", unknown) == nullptr);
+    REQUIRE(uo_mule::gui::assets::findAssetState(records, "profile-b", "asset-window-a", context) == nullptr);
 }
 
 TEST_CASE("assetStateStore_Should_ResetAssetStateWithoutChangingDocuments")
 {
     std::vector<uo_mule::gui::assets::AssetStateRecord> records{
-        {.profileIdentity = "profile-a", .workspaceIdentity = "workspace-a", .context = metadataContext(), .state = {}},
+        {.profileIdentity = "profile-a", .assetWindowIdentity = "asset-window-a", .context = metadataContext(), .state = {}},
     };
 
     uo_mule::gui::assets::resetAssetState(records);

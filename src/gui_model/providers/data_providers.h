@@ -2,7 +2,7 @@
 
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/profile/data_profile.h"
-#include "gui_model/workspaces/map_workspace.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/world/map_color.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/tiledata/tiledata.h"

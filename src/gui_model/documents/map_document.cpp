@@ -1,13 +1,13 @@
 #include "gui_model/documents/map_document.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/documents/tiledata_document.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/source/source_identity.h"
 #include "gui_model/source/tiledata_source.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -158,9 +158,9 @@ std::string mapFacetKey(uomul::Dimensions dimensions)
     return "custom-" + std::to_string(dimensions.widthTiles) + "x" + std::to_string(dimensions.heightTiles);
 }
 
-void DocumentManager::sync(const MapWorkspace & workspace)
+void DocumentManager::sync(const MapDocumentState & mapDocument)
 {
-    if (workspace.reader() == nullptr)
+    if (!mapDocument.changes().reader_)
     {
         const std::optional<DocumentId> activeId = activeId_;
         const DocumentRecord * record = activeId ? find(*activeId) : nullptr;
@@ -171,11 +171,11 @@ void DocumentManager::sync(const MapWorkspace & workspace)
         return;
     }
 
-    const auto & workingPath = workspace.workingPath();
+    const auto & workingPath = mapDocument.changes().workingPath_;
     const DocumentIdentity identity{
         .id = 0,
         .kind = DocumentKind::map,
-        .source = makeDocumentSourceIdentity({workspace.originalPath()}),
+        .source = makeDocumentSourceIdentity({mapDocument.changes().originalPath_}),
     };
     DocumentRecord * record = findByIdentity(identity);
     if (record == nullptr)
@@ -184,11 +184,11 @@ void DocumentManager::sync(const MapWorkspace & workspace)
         MapDocument map{
             .id = id,
             .identity = {.id = id, .kind = identity.kind, .source = identity.source},
-            .sourcePath = workspace.originalPath(),
+            .sourcePath = mapDocument.changes().originalPath_,
             .workingPath = workingPath.value_or(std::filesystem::path{}),
-            .facetKey = mapFacetKey(workspace.dimensions()),
-            .dimensions = workspace.dimensions(),
-            .dirty = workspace.dirty(),
+            .facetKey = mapFacetKey(mapDocument.changes().dimensions_),
+            .dimensions = mapDocument.changes().dimensions_,
+            .dirty = mapDocument.changes().dirty(),
         };
         record = &documents_.emplace_back(DocumentRecord{
             .summary = map.summary(),
@@ -205,9 +205,9 @@ void DocumentManager::sync(const MapWorkspace & workspace)
     }
 
     record->map->workingPath = workingPath.value_or(std::filesystem::path{});
-    record->map->facetKey = mapFacetKey(workspace.dimensions());
-    record->map->dimensions = workspace.dimensions();
-    record->map->dirty = workspace.dirty();
+    record->map->facetKey = mapFacetKey(mapDocument.changes().dimensions_);
+    record->map->dimensions = mapDocument.changes().dimensions_;
+    record->map->dirty = mapDocument.changes().dirty();
     record->summary = record->map->summary();
     activeId_ = record->summary.identity.id;
 }

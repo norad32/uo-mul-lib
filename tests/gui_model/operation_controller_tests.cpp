@@ -1,6 +1,6 @@
 #include "gui_model/operations/operation_controller.h"
 #include "gui_model/profile/data_profile.h"
-#include "gui_model/workspaces/map_workspace.h"
+#include "gui_model/documents/map_document_state.h"
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
 

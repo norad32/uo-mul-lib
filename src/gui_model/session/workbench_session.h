@@ -2,10 +2,10 @@
 
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/map_document.h"
+#include "gui_model/documents/map_document_manager.h"
 #include "gui_model/persistence/recent_files.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/source/source_locks.h"
-#include "gui_model/workspaces/map_workspace_manager.h"
 #include "gui_model/world/map_context.h"
 #include <cstdint>
 
@@ -54,12 +54,12 @@ public:
                           std::filesystem::path companionPath = {},
                           std::uint32_t itemCount = 0);
     void refreshRecentFiles();
-    void syncDocument(MapWorkspaceManager & workspace);
-    void syncDocument(const MapWorkspace & workspace);
-    [[nodiscard]] std::expected<void, uomul::Error> activateDocument(DocumentId id, MapWorkspaceManager & workspace);
-    [[nodiscard]] std::expected<void, uomul::Error> activateDocument(DocumentId id, MapWorkspace & workspace);
-    [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id, MapWorkspaceManager & workspace);
-    [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id, MapWorkspace & workspace);
+    void syncDocument(MapDocumentManager & mapDocument);
+    void syncDocument(const MapDocumentState & mapDocument);
+    [[nodiscard]] std::expected<void, uomul::Error> activateDocument(DocumentId id, MapDocumentManager & mapDocument);
+    [[nodiscard]] std::expected<void, uomul::Error> activateDocument(DocumentId id, MapDocumentState & mapDocument);
+    [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id, MapDocumentManager & mapDocument);
+    [[nodiscard]] std::expected<void, uomul::Error> closeDocument(DocumentId id, MapDocumentState & mapDocument);
     [[nodiscard]] const std::vector<DocumentRecord> & documents() const noexcept;
     [[nodiscard]] std::vector<DocumentRecord> & documentsMutable() noexcept;
     void syncAssetDocuments() noexcept;
@@ -69,8 +69,8 @@ public:
     [[nodiscard]] std::optional<DocumentIdentity> activeDocumentIdentity() const;
     [[nodiscard]] bool hasDocuments() const noexcept;
     [[nodiscard]] const std::optional<MapDocument> & activeDocument() const noexcept;
-    [[nodiscard]] MapContextSnapshot contextSnapshot(const MapWorkspaceManager & workspace) const;
-    [[nodiscard]] MapContextSnapshot contextSnapshot(const MapWorkspace & workspace) const;
+    [[nodiscard]] MapContextSnapshot contextSnapshot(const MapDocumentManager & mapDocument) const;
+    [[nodiscard]] MapContextSnapshot contextSnapshot(const MapDocumentState & mapDocument) const;
 
 private:
     ProfileReadinessState profileState_ = ProfileReadinessState::needsProfile;

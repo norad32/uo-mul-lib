@@ -1,5 +1,5 @@
 #include "gui/panels/log_panel.h"
-#include "gui/presentation/theme/theme.h"
+#include "gui/presentation/theme.h"
 #include "gui_model/persistence/preferences.h"
 #include "logger/gui_log_sink.h"
 #include <algorithm>

@@ -1,11 +1,11 @@
 #include "gui/panels/tile_inspector_panel.h"
-#include "gui/presentation/icons/iconography.h"
-#include "gui/presentation/strings/ui_strings.h"
-#include "gui/presentation/theme/theme.h"
-#include "gui/widgets/texture_preview.h"
+#include "gui/presentation/iconography.h"
+#include "gui/presentation/strings.h"
+#include "gui/presentation/theme.h"
+#include "gui/presentation/texture_preview.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_color.h"
 #include "gui_model/world/map_context.h"
 #include "uomul/map/map.h"
@@ -80,7 +80,7 @@ void drawTileDetails(const MapContextSnapshot & context,
 
 } // namespace
 
-void drawTileInspectorPanel(const MapWorkspace & workspace,
+void drawTileInspectorPanel(const MapDocumentState & mapDocument,
                             const MapContextSnapshot & context,
                             const DataProviders & providers,
                             IdFormat idFormat,
@@ -91,7 +91,7 @@ void drawTileInspectorPanel(const MapWorkspace & workspace,
 
     if (contentsVisible)
     {
-        if (workspace.reader() == nullptr)
+        if (!mapDocument.changes().reader_.has_value())
         {
             ImGui::TextUnformatted("No map open");
         }

@@ -2,11 +2,11 @@
 #include "core/app_info.h"
 #include "gui/application/gui_resources.h"
 #include "gui/commands/menu_bar.h"
-#include "gui/frame/workbench_frame.h"
-#include "gui/persistence/layout_store.h"
-#include "gui/presentation/fonts/imgui_fonts.h"
-#include "gui/presentation/theme/theme.h"
-#include "gui/state/workbench_state.h"
+#include "gui/workbench/workbench.h"
+#include "gui/application/layout_store.h"
+#include "gui/presentation/imgui_fonts.h"
+#include "gui/presentation/theme.h"
+#include "gui/workbench/workbench_state.h"
 #include "gui_model/persistence/asset_state_store.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/session/workbench_session.h"
@@ -324,11 +324,11 @@ void renderFrame(GLFWwindow * window)
 
 void drawFrame(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchState & state)
 {
-    drawWorkbenchFrame(window, logSink, state);
+    drawWorkbench(window, logSink, state);
     renderFrame(window);
 }
 
-void captureWindowLayout(GLFWwindow * window, WorkspaceLayout & layout, bool fullscreen)
+void captureWindowLayout(GLFWwindow * window, AppLayout & layout, bool fullscreen)
 {
     if (fullscreen)
     {
@@ -407,7 +407,7 @@ int Application::run()
         }
     }
     state.session.updateProfile(state.activeProfile);
-    state.workspace.invalidateProviderCaches();
+    state.mapDocuments.invalidateProviderCaches();
     if (state.session.mapReady() && !state.preferences.showWelcomeOnStartup)
     {
         state.session.setStartupState(StartupState::workbench);
@@ -436,7 +436,7 @@ int Application::run()
 
     if (state.workbenchLayoutApplied)
     {
-        captureWindowLayout(window.get(), state.layout, state.preferences.workspaceFullscreen);
+        captureWindowLayout(window.get(), state.layout, state.preferences.fullscreen);
         const char * dockingIni = ImGui::SaveIniSettingsToMemory();
         state.layout.dockingIni = dockingIni == nullptr ? std::string{} : std::string(dockingIni);
         saveLayout(state.panelRegistry, state.layout);

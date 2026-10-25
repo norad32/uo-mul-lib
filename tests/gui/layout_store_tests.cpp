@@ -1,5 +1,5 @@
 #include "core/app_info.h"
-#include "gui/persistence/layout_store.h"
+#include "gui/application/layout_store.h"
 #include "gui_model/layout/panel_registry.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
@@ -9,7 +9,7 @@ namespace
 {
 } // namespace
 
-TEST_CASE("workspaceLayout_Should_RoundTripWindowPanelsAndDockSettings")
+TEST_CASE("appLayout_Should_RoundTripWindowPanelsAndDockSettings")
 {
     constexpr int expectedX = 37;
     constexpr int expectedY = 42;
@@ -21,7 +21,7 @@ TEST_CASE("workspaceLayout_Should_RoundTripWindowPanelsAndDockSettings")
 
     uo_mule::gui::PanelRegistry expectedRegistry;
     expectedRegistry.find(uo_mule::gui::PanelId::texmaps)->visible = false;
-    uo_mule::gui::WorkspaceLayout expectedLayout{
+    uo_mule::gui::AppLayout expectedLayout{
         .window =
             {
                 .geometryValid = true,
@@ -36,7 +36,7 @@ TEST_CASE("workspaceLayout_Should_RoundTripWindowPanelsAndDockSettings")
     uo_mule::gui::saveLayout(layoutFile, expectedRegistry, expectedLayout);
 
     uo_mule::gui::PanelRegistry actualRegistry;
-    uo_mule::gui::WorkspaceLayout actualLayout;
+    uo_mule::gui::AppLayout actualLayout;
     uo_mule::gui::loadLayout(layoutFile, actualRegistry, actualLayout);
 
     REQUIRE(std::filesystem::is_regular_file(layoutFile));

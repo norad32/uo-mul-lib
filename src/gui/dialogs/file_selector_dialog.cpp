@@ -1,8 +1,8 @@
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
-#include "gui/presentation/dialog/dialog_presentation.h"
-#include "gui/presentation/icons/iconography.h"
-#include "gui/presentation/theme/theme.h"
+#include "gui/presentation/dialog_presentation.h"
+#include "gui/presentation/iconography.h"
+#include "gui/presentation/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include <algorithm>
 #include <cctype>

@@ -1,5 +1,5 @@
-#include "gui/workflows/texmap_export.h"
-#include "gui/workflows/texmap_replacement.h"
+#include "gui/workflows/texmap_export_workflow.h"
+#include "gui/workflows/texmap_replacement_workflow.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/model/assets/asset_export_contracts.h"
 #include "gui_model/model/assets/asset_window_contracts.h"

@@ -32,7 +32,7 @@ void writeSource(std::ostream & output, const AssetSourceContext & context)
 
 bool readRecord(std::istream & file, AssetStateRecord & record)
 {
-    file >> std::quoted(record.profileIdentity) >> std::quoted(record.workspaceIdentity);
+    file >> std::quoted(record.profileIdentity) >> std::quoted(record.assetWindowIdentity);
     std::string marker;
     file >> marker;
     if (marker != "context")
@@ -165,7 +165,7 @@ void saveAssetState(const std::filesystem::path & path, const std::vector<AssetS
     file << "schema_version " << currentAssetStateSchemaVersion << '\n';
     for (const auto & record : records)
     {
-        file << "record " << std::quoted(record.profileIdentity) << ' ' << std::quoted(record.workspaceIdentity) << ' ';
+        file << "record " << std::quoted(record.profileIdentity) << ' ' << std::quoted(record.assetWindowIdentity) << ' ';
         writeSource(file, record.context);
         file << "presentation " << static_cast<int>(record.state.presentation) << "\nquery "
              << std::quoted(record.state.query.filter) << ' ' << std::quoted(record.state.query.sortKey) << ' '
@@ -198,12 +198,12 @@ void resetAssetState(std::vector<AssetStateRecord> & records) noexcept
 
 const AssetStateRecord * findAssetState(const std::vector<AssetStateRecord> & records,
                                         const std::string & profileIdentity,
-                                        const std::string & workspaceIdentity,
+                                        const std::string & assetWindowIdentity,
                                         const AssetSourceContext & context) noexcept
 {
     for (const auto & record : records)
     {
-        if (record.profileIdentity == profileIdentity && record.workspaceIdentity == workspaceIdentity &&
+        if (record.profileIdentity == profileIdentity && record.assetWindowIdentity == assetWindowIdentity &&
             record.context == context)
         {
             return &record;
@@ -224,13 +224,13 @@ void restoreAssetState(const AssetStateRecord & record, AssetWindowState & state
 }
 
 AssetStateRecord captureAssetState(const std::string & profileIdentity,
-                                   const std::string & workspaceIdentity,
+                                   const std::string & assetWindowIdentity,
                                    const AssetSourceContext & context,
                                    const AssetWindowState & state)
 {
     return {
         .profileIdentity = profileIdentity,
-        .workspaceIdentity = workspaceIdentity,
+        .assetWindowIdentity = assetWindowIdentity,
         .context = context,
         .state = state,
     };

@@ -239,9 +239,9 @@ void applyGeneralPreference(Preferences & preferences, std::string_view key, std
     {
         preferences.texmapsTablePresentation = value == "1";
     }
-    else if (key == "workspace_fullscreen")
+    else if (key == "fullscreen")
     {
-        preferences.workspaceFullscreen = value == "1";
+        preferences.fullscreen = value == "1";
     }
     else if (key == "map_view_tile_source")
     {
@@ -410,7 +410,7 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
     contents << "id_format " << (preferences.idFormat == IdFormat::decimal ? "decimal" : "hexadecimal") << '\n';
     contents << "texmaps_hide_unused " << static_cast<int>(preferences.texmapsHideUnused) << '\n';
     contents << "texmaps_table_presentation " << static_cast<int>(preferences.texmapsTablePresentation) << '\n';
-    contents << "workspace_fullscreen " << static_cast<int>(preferences.workspaceFullscreen) << '\n';
+    contents << "fullscreen " << static_cast<int>(preferences.fullscreen) << '\n';
     contents << "map_view_tile_source "
              << (preferences.mapViewTileSource == MapViewTileSource::radarcol ? "radarcol" : "textures") << '\n';
     contents << "tool_active " << toolName(preferences.tools.activeTool) << '\n';

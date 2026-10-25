@@ -1,10 +1,10 @@
 #pragma once
 
 #include "gui/dialogs/file_browser_dialog.h"
-#include "gui/state/notification_state.h"
+#include "gui/workbench/notification_state.h"
+#include "gui_model/documents/map_document_manager.h"
 #include "gui_model/operations/operation_controller.h"
 #include "gui_model/profile/data_profile.h"
-#include "gui_model/workspaces/map_workspace_manager.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
 #include <array>
@@ -94,7 +94,7 @@ struct NewFileDialogState
     std::string error;
 };
 
-void drawNewFileDialog(MapWorkspaceManager & workspace,
+void drawNewFileDialog(MapDocumentManager & mapDocument,
                        NewFileDialogState & state,
                        OperationController & controller,
                        OutputCollisionPolicy collisionPolicy,
@@ -105,7 +105,7 @@ void drawNewFileDialog(MapWorkspaceManager & workspace,
 void cancelFileDialog(NewFileDialogState & state);
 void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult & result);
 
-void requestCloseOperation(MapWorkspaceManager & workspace,
+void requestCloseOperation(MapDocumentManager & mapDocument,
                            NewFileDialogState & state,
                            OperationController & controller,
                            PendingMapOperationKind kind,

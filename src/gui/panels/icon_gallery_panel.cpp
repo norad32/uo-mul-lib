@@ -1,5 +1,5 @@
 #include "gui/panels/icon_gallery_panel.h"
-#include "gui/presentation/icons/iconography.h"
+#include "gui/presentation/iconography.h"
 #include <cstddef>
 #include <imgui.h>
 #include <string>

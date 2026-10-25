@@ -1,11 +1,11 @@
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/map_document.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/source/source_identity.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "uomul/map/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
@@ -146,14 +146,14 @@ TEST_CASE("DocumentManager_Should_ReuseMapIdentityForEquivalentCanonicalPaths")
     REQUIRE_FALSE(ignoredError);
     REQUIRE(uomul::MapEditor::createEmpty(sourcePath, dimensions));
 
-    uo_mule::gui::MapWorkspace workspace;
+    uo_mule::gui::MapDocumentState mapDocumentState;
     uo_mule::gui::DocumentManager documents;
-    REQUIRE(workspace.openMap(sourcePath, dimensions));
-    documents.sync(workspace);
+    REQUIRE(mapDocumentState.openMap(sourcePath, dimensions));
+    documents.sync(mapDocumentState);
     const auto firstId = documents.active().value_or(uo_mule::gui::MapDocument{}).id;
 
-    REQUIRE(workspace.openMap(equivalentPath, dimensions));
-    documents.sync(workspace);
+    REQUIRE(mapDocumentState.openMap(equivalentPath, dimensions));
+    documents.sync(mapDocumentState);
 
     REQUIRE(documents.active().value_or(uo_mule::gui::MapDocument{}).id == firstId);
 }
@@ -190,9 +190,9 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
     });
-    uo_mule::gui::MapWorkspace workspace;
-    REQUIRE(workspace.openMap(mapPath, dimensions));
-    documents.sync(workspace);
+    uo_mule::gui::MapDocumentState mapDocumentState;
+    REQUIRE(mapDocumentState.openMap(mapPath, dimensions));
+    documents.sync(mapDocumentState);
 
     REQUIRE(radarcolId != 0);
     REQUIRE(pairId != 0);

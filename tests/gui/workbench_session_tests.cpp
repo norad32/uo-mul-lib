@@ -1,12 +1,12 @@
 #include "gui/commands/command_registry.h"
-#include "gui/shell/welcome_greetings.h"
-#include "gui/state/workbench_state.h"
+#include "gui/application/welcome_greetings.h"
+#include "gui/workbench/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/persistence/recent_files.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/session/workbench_session.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "uomul/map/map.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
@@ -262,7 +262,7 @@ namespace
 {
 
 void requireActiveMapContext(const uo_mule::gui::WorkbenchSession & session,
-                             const uo_mule::gui::MapWorkspace & workspace,
+                             const uo_mule::gui::MapDocumentState & mapDocumentState,
                              const std::filesystem::path & mapPath)
 {
     REQUIRE(session.activeDocument().has_value());
@@ -274,7 +274,7 @@ void requireActiveMapContext(const uo_mule::gui::WorkbenchSession & session,
     }
     REQUIRE(activeDocument->id != 0);
     REQUIRE(activeDocument->sourcePath == mapPath);
-    REQUIRE(session.contextSnapshot(workspace).hasDocument);
+    REQUIRE(session.contextSnapshot(mapDocumentState).hasDocument);
 }
 
 } // namespace
@@ -286,15 +286,15 @@ TEST_CASE("documentManager_Should_AssignStableIdsAndExposeContext")
     const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
     REQUIRE(uomul::MapEditor::createEmpty(mapPath, dimensions));
 
-    uo_mule::gui::MapWorkspace workspace;
-    REQUIRE(workspace.openMap(mapPath, dimensions));
+    uo_mule::gui::MapDocumentState mapDocumentState;
+    REQUIRE(mapDocumentState.openMap(mapPath, dimensions));
     uo_mule::gui::WorkbenchSession session(directory.path() / "recent.conf");
-    session.syncDocument(workspace);
+    session.syncDocument(mapDocumentState);
 
-    requireActiveMapContext(session, workspace, mapPath);
+    requireActiveMapContext(session, mapDocumentState, mapPath);
 
-    REQUIRE(workspace.closeMap());
-    session.syncDocument(workspace);
+    REQUIRE(mapDocumentState.closeMap());
+    session.syncDocument(mapDocumentState);
     REQUIRE_FALSE(session.activeDocument().has_value());
 }
 
@@ -307,23 +307,23 @@ TEST_CASE("workbenchSession_Should_ActivateMapDocumentsThroughTheCollection")
     REQUIRE(uomul::MapEditor::createEmpty(firstPath, dimensions));
     REQUIRE(uomul::MapEditor::createEmpty(secondPath, dimensions));
 
-    uo_mule::gui::MapWorkspace workspace;
+    uo_mule::gui::MapDocumentState mapDocumentState;
     uo_mule::gui::WorkbenchSession session(directory.path() / "recent.conf");
-    REQUIRE(workspace.openMap(firstPath, dimensions));
-    session.syncDocument(workspace);
+    REQUIRE(mapDocumentState.openMap(firstPath, dimensions));
+    session.syncDocument(mapDocumentState);
     const auto firstId = session.activeDocumentId();
     REQUIRE(firstId.has_value());
-    REQUIRE(workspace.openMap(secondPath, dimensions));
-    session.syncDocument(workspace);
+    REQUIRE(mapDocumentState.openMap(secondPath, dimensions));
+    session.syncDocument(mapDocumentState);
     const auto secondId = session.activeDocumentId();
     REQUIRE(secondId.has_value());
     REQUIRE(firstId != secondId);
 
     const auto firstDocumentId = firstId.value_or(0);
     REQUIRE(firstId.has_value());
-    REQUIRE(session.activateDocument(firstDocumentId, workspace));
+    REQUIRE(session.activateDocument(firstDocumentId, mapDocumentState));
     REQUIRE(session.activeDocumentId() == firstId);
-    REQUIRE(workspace.originalPath() == firstPath);
+    REQUIRE(mapDocumentState.changes().originalPath_ == firstPath);
     REQUIRE(session.documents().size() == 2);
 }
 
@@ -336,15 +336,15 @@ TEST_CASE("workbenchSession_Should_KeepExistingMapTabs_If_MapsAreOpenedSequentia
     REQUIRE(uomul::MapEditor::createEmpty(firstPath, dimensions));
     REQUIRE(uomul::MapEditor::createEmpty(secondPath, dimensions));
 
-    uo_mule::gui::MapWorkspace workspace;
+    uo_mule::gui::MapDocumentState mapDocumentState;
     uo_mule::gui::WorkbenchSession session(directory.path() / "recent.conf");
-    REQUIRE(workspace.openMap(firstPath, dimensions));
-    session.syncDocument(workspace);
+    REQUIRE(mapDocumentState.openMap(firstPath, dimensions));
+    session.syncDocument(mapDocumentState);
     const auto firstId = session.activeDocumentId();
     REQUIRE(firstId.has_value());
 
-    REQUIRE(workspace.openMap(secondPath, dimensions));
-    session.syncDocument(workspace);
+    REQUIRE(mapDocumentState.openMap(secondPath, dimensions));
+    session.syncDocument(mapDocumentState);
     const auto secondId = session.activeDocumentId();
     REQUIRE(secondId.has_value());
     REQUIRE(secondId != firstId);
@@ -352,7 +352,7 @@ TEST_CASE("workbenchSession_Should_KeepExistingMapTabs_If_MapsAreOpenedSequentia
 
     const auto firstDocumentId = firstId.value_or(0);
     REQUIRE(firstId.has_value());
-    REQUIRE(session.activateDocument(firstDocumentId, workspace));
+    REQUIRE(session.activateDocument(firstDocumentId, mapDocumentState));
     REQUIRE(session.activeDocumentId() == firstId);
-    REQUIRE(workspace.originalPath() == firstPath);
+    REQUIRE(mapDocumentState.changes().originalPath_ == firstPath);
 }

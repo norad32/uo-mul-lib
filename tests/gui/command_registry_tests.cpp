@@ -1,9 +1,9 @@
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/map_workflow_dialog.h"
-#include "gui/state/workbench_state.h"
+#include "gui/workbench/workbench_state.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/tools/tool_contracts.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "uomul/map/map.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
@@ -73,7 +73,7 @@ TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")
     REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::openMap);
 
     REQUIRE(state.commands.execute(CommandId::viewCombined, state));
-    REQUIRE(state.workspace.displayMode() == uo_mule::gui::MapDisplayMode::combined);
+    REQUIRE(state.mapDocuments.active().viewState().displayMode_ == uo_mule::gui::MapDisplayMode::combined);
 
     REQUIRE(state.commands.execute(CommandId::panelTexmaps, state));
     REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
@@ -118,15 +118,15 @@ TEST_CASE("toolCommands_Should_ActivateThroughRegistry_If_MapIsOpen")
     const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};
     const auto mapPath = std::filesystem::temp_directory_path() / "uo-mule-tool-command-map.mul";
     std::filesystem::remove(mapPath);
-    REQUIRE(state.workspace.createEmptyMap(mapPath, dimensions));
-    state.session.syncDocument(state.workspace);
+    REQUIRE(state.mapDocuments.createEmptyMap(mapPath, dimensions));
+    state.session.syncDocument(state.mapDocuments);
 
     REQUIRE(state.commands.execute(CommandId::toolRectangleSelect, state));
     REQUIRE(state.toolState.activeTool() == uo_mule::gui::ToolId::rectangleSelect);
     REQUIRE(state.commands.executeShortcut("P", state));
     REQUIRE(state.toolState.activeTool() == uo_mule::gui::ToolId::move);
 
-    REQUIRE(state.workspace.closeMap());
+    REQUIRE(state.mapDocuments.closeMap());
     std::filesystem::remove(mapPath);
 }
 
@@ -174,40 +174,40 @@ TEST_CASE("selectionCommands_Should_OperateOnTheActiveMapMask")
     const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};
     const auto mapPath = std::filesystem::temp_directory_path() / "uo-mule-selection-command-map.mul";
     std::filesystem::remove(mapPath);
-    REQUIRE(state.workspace.createEmptyMap(mapPath, dimensions));
-    state.session.syncDocument(state.workspace);
+    REQUIRE(state.mapDocuments.createEmptyMap(mapPath, dimensions));
+    state.session.syncDocument(state.mapDocuments);
 
     REQUIRE(state.commands.execute(CommandId::selectionAll, state));
-    REQUIRE(state.workspace.selectionMask().size() == 64);
+    REQUIRE(state.mapDocuments.active().viewState().selectionMask_.size() == 64);
     REQUIRE(state.commands.execute(CommandId::selectionInvert, state));
-    REQUIRE(state.workspace.selectionMask().empty());
+    REQUIRE(state.mapDocuments.active().viewState().selectionMask_.empty());
     REQUIRE(state.commands.execute(CommandId::selectionAll, state));
     REQUIRE(state.commands.execute(CommandId::selectionNone, state));
-    REQUIRE(state.workspace.selectionMask().empty());
+    REQUIRE(state.mapDocuments.active().viewState().selectionMask_.empty());
 
-    REQUIRE(state.workspace.closeMap());
+    REQUIRE(state.mapDocuments.closeMap());
     std::filesystem::remove(mapPath);
 }
 
-TEST_CASE("selectionCommands_Should_SynchronizeToolRegionWithWorkspace")
+TEST_CASE("selectionCommands_Should_SynchronizeToolRegionWithMapState")
 {
     WorkbenchState state;
     const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
     const auto mapPath = std::filesystem::temp_directory_path() / "uo-mule-selection-region-command-map.mul";
     std::filesystem::remove(mapPath);
-    REQUIRE(state.workspace.createEmptyMap(mapPath, dimensions));
-    state.session.syncDocument(state.workspace);
+    REQUIRE(state.mapDocuments.createEmptyMap(mapPath, dimensions));
+    state.session.syncDocument(state.mapDocuments);
     REQUIRE(state.commands.execute(CommandId::toolRectangleSelect, state));
 
     REQUIRE(state.commands.execute(CommandId::selectionBlocks, state));
     REQUIRE(state.toolState.selectionGranularity() == uo_mule::gui::ToolSelectionGranularity::blocks);
-    REQUIRE(state.workspace.selectionMode() == uo_mule::gui::MapSelectionMode::blocks);
+    REQUIRE(state.mapDocuments.active().viewState().selectionMode_ == uo_mule::gui::MapSelectionMode::blocks);
 
     REQUIRE(state.commands.execute(CommandId::selectionTiles, state));
     REQUIRE(state.toolState.selectionGranularity() == uo_mule::gui::ToolSelectionGranularity::tiles);
-    REQUIRE(state.workspace.selectionMode() == uo_mule::gui::MapSelectionMode::tiles);
+    REQUIRE(state.mapDocuments.active().viewState().selectionMode_ == uo_mule::gui::MapSelectionMode::tiles);
 
-    REQUIRE(state.workspace.closeMap());
+    REQUIRE(state.mapDocuments.closeMap());
     std::filesystem::remove(mapPath);
 }
 

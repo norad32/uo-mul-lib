@@ -1,4 +1,4 @@
-#include "gui/state/workbench_state.h"
+#include "gui/workbench/workbench_state.h"
 #include <catch2/catch_test_macros.hpp>
 
 using uo_mule::gui::PendingPreferenceChanges;

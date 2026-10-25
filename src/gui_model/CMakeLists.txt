@@ -33,8 +33,9 @@ set(GUI_MODEL_SOURCES
     world/map_context.cpp
     world/map_selection.cpp
     world/combine_contracts.cpp
-    workspaces/map_workspace.cpp
-    workspaces/map_workspace_manager.cpp
+    documents/map_view_state.cpp
+    documents/map_document_state.cpp
+    documents/map_document_manager.cpp
     tools/tool_contracts.cpp
     tools/tool_state.cpp)
 

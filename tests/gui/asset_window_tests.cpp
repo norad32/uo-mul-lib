@@ -1,4 +1,4 @@
-#include "gui/widgets/asset_window.h"
+#include "gui/presentation/asset_browser.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include <catch2/catch_test_macros.hpp>
 

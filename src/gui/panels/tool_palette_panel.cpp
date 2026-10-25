@@ -1,18 +1,18 @@
 #include "gui/panels/tool_palette_panel.h"
 #include "gui/commands/command_registry.h"
-#include "gui/presentation/fonts/imgui_fonts.h"
-#include "gui/presentation/icons/iconography.h"
-#include "gui/presentation/theme/theme.h"
-#include "gui/state/notification_state.h"
-#include "gui/state/workbench_state.h"
+#include "gui/presentation/imgui_fonts.h"
+#include "gui/presentation/iconography.h"
+#include "gui/presentation/theme.h"
+#include "gui/workbench/notification_state.h"
+#include "gui/workbench/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/map_document.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/tools/tool_contracts.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "imgui.h"
 #include "uomul/map/map.h"
 #include <algorithm>
@@ -64,8 +64,8 @@ constexpr std::size_t fuzzyNameBufferSize = 128U;
 ToolContext toolContext(const WorkbenchState & state)
 {
     const DocumentRecord * active = state.session.activeDocumentRecord();
-    const bool mapOpen =
-        active != nullptr && active->summary.identity.kind == DocumentKind::map && state.workspace.reader() != nullptr;
+    const bool mapOpen = active != nullptr && active->summary.identity.kind == DocumentKind::map &&
+                         state.mapDocuments.active().changes().reader_.has_value();
     const bool mapEditable = mapOpen && active->summary.access == DocumentAccess::editable;
     return {
         .mapDocumentOpen = mapOpen,
@@ -403,9 +403,10 @@ void drawSelectionGranularity(WorkbenchState & state, const ToolContext & contex
     {
         const auto result =
             state.toolState.setSelectionGranularity(ToolSelectionGranularity::tiles, context, state.toolRegistry);
-        if (result.accepted && state.workspace.selectionMode() != MapSelectionMode::tiles)
+        if (result.accepted && state.mapDocuments.active().viewState().selectionMode_ != MapSelectionMode::tiles)
         {
-            state.workspace.setSelectionMode(MapSelectionMode::tiles);
+            state.mapDocuments.active().viewState().setSelectionMode(
+                MapSelectionMode::tiles, state.mapDocuments.active().changes().dimensions_);
         }
     }
     ImGui::SameLine();
@@ -413,9 +414,10 @@ void drawSelectionGranularity(WorkbenchState & state, const ToolContext & contex
     {
         const auto result =
             state.toolState.setSelectionGranularity(ToolSelectionGranularity::blocks, context, state.toolRegistry);
-        if (result.accepted && state.workspace.selectionMode() != MapSelectionMode::blocks)
+        if (result.accepted && state.mapDocuments.active().viewState().selectionMode_ != MapSelectionMode::blocks)
         {
-            state.workspace.setSelectionMode(MapSelectionMode::blocks);
+            state.mapDocuments.active().viewState().setSelectionMode(
+                MapSelectionMode::blocks, state.mapDocuments.active().changes().dimensions_);
         }
     }
 }
