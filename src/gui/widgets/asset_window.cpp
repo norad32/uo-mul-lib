@@ -196,7 +196,9 @@ void drawPresentationControls(const AssetAdapter & adapter, AssetWindowState & s
     }
     if (adapter.descriptor.inlinePresentationControl)
     {
-        ImGui::SameLine();
+        ImGui::SameLine(0.0F, 0.0F);
+        ImGui::TextUnformatted("     ");
+        ImGui::SameLine(0.0F, 0.0F);
         adapter.descriptor.inlinePresentationControl();
     }
 }

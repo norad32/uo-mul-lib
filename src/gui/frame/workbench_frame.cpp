@@ -1045,6 +1045,8 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
                                  *document.texmaps,
                                  visible,
                                  state.preferences.idFormat,
+                                 state.preferences,
+                                 state.pendingPreferenceChanges,
                                  windowName,
                                  [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
         if (!visible)

@@ -69,6 +69,7 @@ struct TexmapsPanelState
     std::unordered_map<DocumentId, std::uint64_t> documentTexturePreviewRevisions;
     std::uint64_t texturePreviewRevision = 0;
     bool hideUnused = false;
+    std::unordered_map<DocumentId, bool> documentHideUnused;
     assets::AssetWindowState assetView;
     std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
     TexmapsReplacementState replacement;
@@ -103,6 +104,8 @@ void drawTexmapsDocumentPanel(TexmapsPanelState & state,
                               TexmapsDocument & document,
                               bool & visible,
                               IdFormat idFormat,
+                              const Preferences & preferences,
+                              PendingPreferenceChanges & pendingChanges,
                               std::string windowIdentity,
                               const std::function<void()> & becameVisible = {});
 

@@ -607,6 +607,22 @@ void drawTexmapExportDialogs(TexmapsPanelState & state)
     drawTexmapOverwriteDialog(state);
 }
 
+void drawHideEmptyControl(bool & hideUnused, PendingPreferenceChanges & pendingChanges)
+{
+    const std::string eyeLabel = iconFontAvailable() ? iconGlyph(IconId::eye) : strings::hideEmpty();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(eyeLabel.c_str());
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("%s", strings::hideEmpty());
+    }
+    ImGui::SameLine();
+    if (ImGui::Checkbox("##TexmapsHideEmpty", &hideUnused))
+    {
+        pendingChanges.texmapsHideUnused = hideUnused;
+    }
+}
+
 [[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state,
                                                const TextureProvider & provider,
                                                const Preferences & preferences,
@@ -614,7 +630,10 @@ void drawTexmapExportDialogs(TexmapsPanelState & state)
 {
     const IdFormat idFormat = preferences.idFormat;
     const ProviderStatus status = provider.status();
-    state.hideUnused = preferences.texmapsHideUnused;
+    if (!pendingChanges.texmapsHideUnused)
+    {
+        state.hideUnused = preferences.texmapsHideUnused;
+    }
     if (state.texturePreviewRevision != status.revision)
     {
         state.texturePreviews.clear();
@@ -656,14 +675,7 @@ void drawTexmapExportDialogs(TexmapsPanelState & state)
         return id && state.itemSourcePicked ? state.itemSourcePicked(*id) : false;
     };
     adapter.descriptor.inlinePresentationControl = [&state, &pendingChanges]
-    {
-        bool hideUnused = state.hideUnused;
-        if (ImGui::Checkbox(strings::hideUnused(), &hideUnused))
-        {
-            state.hideUnused = hideUnused;
-            pendingChanges.texmapsHideUnused = hideUnused;
-        }
-    };
+    { drawHideEmptyControl(state.hideUnused, pendingChanges); };
     adapter.descriptor.itemContextMenu = [&state](const assets::AssetItemId & item)
     {
         const auto ids = exportSelection(state.assetView.selection, item);
@@ -936,23 +948,38 @@ void configureDocumentTextureDrop(assets::AssetAdapter & adapter, TexmapsPanelSt
 
 void configureDocumentAssetLoading(assets::AssetAdapter & adapter,
                                    TexmapsPanelState & state,
-                                   const TextureProvider & provider,
+                                   TexmapsDocument & document,
                                    IdFormat idFormat,
                                    std::unordered_map<std::uint32_t, TexmapsTexturePreview> & previews)
 {
-    adapter.loadRange = [&provider, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
-    { return loadTextureRange(provider, request, idFormat); };
-    adapter.loadSearchItems = [&state, &provider, idFormat] { return loadTextureSearch(state, provider, idFormat); };
-    adapter.loadDetails = [&provider, idFormat](const assets::AssetItemId & item)
-    { return loadTextureDetails(provider, item, idFormat); };
-    adapter.renderItem = [&previews, &provider](const assets::AssetItem & item, bool)
-    { drawDocumentTextureAsset(previews, provider, item.id, thumbnailSize); };
+    adapter.loadRange = [&document, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
+    {
+        const DocumentTextureProvider provider(document);
+        return loadTextureRange(provider, request, idFormat);
+    };
+    adapter.loadSearchItems = [&state, &document, idFormat]
+    {
+        const DocumentTextureProvider provider(document);
+        return loadTextureSearch(state, provider, idFormat);
+    };
+    adapter.loadDetails = [&document, idFormat](const assets::AssetItemId & item)
+    {
+        const DocumentTextureProvider provider(document);
+        return loadTextureDetails(provider, item, idFormat);
+    };
+    adapter.renderItem = [&previews, &document](const assets::AssetItem & item, bool)
+    {
+        const DocumentTextureProvider provider(document);
+        drawDocumentTextureAsset(previews, provider, item.id, thumbnailSize);
+    };
 }
 
 [[nodiscard]] assets::AssetAdapter makeDocumentAdapter(TexmapsPanelState & state,
                                                        TexmapsDocument & document,
                                                        const TextureProvider & provider,
                                                        IdFormat idFormat,
+                                                       PendingPreferenceChanges & pendingChanges,
+                                                       bool & hideUnused,
                                                        std::string windowIdentity)
 {
     const auto status = provider.status();
@@ -961,26 +988,30 @@ void configureDocumentAssetLoading(assets::AssetAdapter & adapter,
     refreshDocumentTexturePreviews(state, document.id(), revision);
 
     assets::AssetAdapter adapter;
-    configureAssetAdapter(
-        adapter.descriptor,
-        {
-            .viewId = "document.texmaps." + std::to_string(document.id()),
-            .windowIdentity = std::move(windowIdentity),
-            .title = "Texmaps",
-            .sourceTooltip = "Source: " + document.sourceIndexPath().string(),
-            .cacheContext = std::to_string(static_cast<int>(idFormat)) + "|revision=" + std::to_string(revision),
-            .source =
-                {
-                    .kind = DocumentKind::texmapPair,
-                    .contextKind = assets::AssetSourceContext::Kind::document,
-                    .source = document.sourceIdentity(),
-                    .contextId = "document.texmaps." + std::to_string(document.id()),
-                },
-            .itemPicked = state.itemPicked,
-            .hoveredContext = state.hoveredContext,
-        });
+    configureAssetAdapter(adapter.descriptor,
+                          {
+                              .viewId = "document.texmaps." + std::to_string(document.id()),
+                              .windowIdentity = std::move(windowIdentity),
+                              .title = "Texmaps",
+                              .sourceTooltip = "Source: " + document.sourceIndexPath().string(),
+                              .cacheContext = std::to_string(static_cast<int>(idFormat)) +
+                                              "|hide=" + std::to_string(static_cast<int>(hideUnused)) +
+                                              "|revision=" + std::to_string(revision),
+                              .source =
+                                  {
+                                      .kind = DocumentKind::texmapPair,
+                                      .contextKind = assets::AssetSourceContext::Kind::document,
+                                      .source = document.sourceIdentity(),
+                                      .contextId = "document.texmaps." + std::to_string(document.id()),
+                                  },
+                              .itemPicked = state.itemPicked,
+                              .hoveredContext = state.hoveredContext,
+                          });
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
     { return formatAssetItemId(item, idFormat); };
+    adapter.descriptor.queryWhenEmpty = hideUnused;
+    adapter.descriptor.inlinePresentationControl = [&hideUnused, &pendingChanges]
+    { drawHideEmptyControl(hideUnused, pendingChanges); };
     adapter.descriptor.renderSelectionPreview = [&previews, &provider](const assets::AssetItemId & item, float size)
     { drawDocumentTextureAsset(previews, provider, item, size); };
     adapter.descriptor.selectionPreviewSize = thumbnailSize;
@@ -1029,7 +1060,7 @@ void configureDocumentAssetLoading(assets::AssetAdapter & adapter,
     adapter.makeDragPayload = [&document](const assets::AssetSelection & selection)
     { return makeDocumentDragPayload(document, selection); };
     configureDocumentTextureDrop(adapter, state, document);
-    configureDocumentAssetLoading(adapter, state, provider, idFormat, previews);
+    configureDocumentAssetLoading(adapter, state, document, idFormat, previews);
     return adapter;
 }
 
@@ -1053,9 +1084,13 @@ void drawTexmapsDocumentPanel(TexmapsPanelState & state,
                               TexmapsDocument & document,
                               bool & visible,
                               IdFormat idFormat,
+                              const Preferences & preferences,
+                              PendingPreferenceChanges & pendingChanges,
                               std::string windowIdentity,
                               const std::function<void()> & becameVisible)
 {
+    const bool initialHideUnused = pendingChanges.texmapsHideUnused.value_or(preferences.texmapsHideUnused);
+    bool & hideUnused = state.documentHideUnused.try_emplace(document.id(), initialHideUnused).first->second;
     if (!document.reader())
     {
         if (ImGui::Begin(windowIdentity.c_str(), &visible))
@@ -1067,7 +1102,8 @@ void drawTexmapsDocumentPanel(TexmapsPanelState & state,
     }
 
     const DocumentTextureProvider provider(document);
-    const auto adapter = makeDocumentAdapter(state, document, provider, idFormat, std::move(windowIdentity));
+    const auto adapter =
+        makeDocumentAdapter(state, document, provider, idFormat, pendingChanges, hideUnused, std::move(windowIdentity));
     assets::drawAssetWindow(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
     drawReplacementDialog(state, document);
     drawFolderReplacementDialog(state, document, idFormat);
