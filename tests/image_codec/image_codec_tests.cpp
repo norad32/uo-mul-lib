@@ -4,16 +4,23 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace
 {
 
+constexpr std::uint8_t fullChannel = 0xFFU;
 std::atomic<std::uint64_t> testDirectoryCounter = 0;
 
 class TestDirectory
 {
 public:
+    TestDirectory(const TestDirectory &) = delete;
+    TestDirectory & operator=(const TestDirectory &) = delete;
+    TestDirectory(TestDirectory &&) = delete;
+    TestDirectory & operator=(TestDirectory &&) = delete;
+
     TestDirectory()
     {
         const auto sequence = testDirectoryCounter.fetch_add(1);
@@ -33,20 +40,23 @@ private:
     std::filesystem::path path_;
 };
 
-const std::vector<std::uint8_t> samplePixels{
-    0xFFU,
-    0x00U,
-    0x00U,
-    0x00U,
-    0xFFU,
-    0x00U,
-    0x00U,
-    0x00U,
-    0xFFU,
-    0xFFU,
-    0xFFU,
-    0xFFU,
-};
+[[nodiscard]] std::vector<std::uint8_t> samplePixels()
+{
+    return {
+        fullChannel,
+        0x00U,
+        0x00U,
+        0x00U,
+        fullChannel,
+        0x00U,
+        0x00U,
+        0x00U,
+        fullChannel,
+        fullChannel,
+        fullChannel,
+        fullChannel,
+    };
+}
 
 } // namespace
 
@@ -54,7 +64,8 @@ TEST_CASE("imageCodec_Should_RoundTripRgbPixelsThroughBmp")
 {
     const TestDirectory directory;
     const auto path = directory.path() / "sample.bmp";
-    REQUIRE(uo_mule::image::writeBmp(path, 2U, 2U, samplePixels));
+    const auto pixels = samplePixels();
+    REQUIRE(uo_mule::image::writeBmp(path, 2U, 2U, pixels));
 
     const auto decoded = uo_mule::image::decode(path);
     REQUIRE(decoded);
@@ -62,7 +73,7 @@ TEST_CASE("imageCodec_Should_RoundTripRgbPixelsThroughBmp")
     {
         REQUIRE(decoded->width == 2U);
         REQUIRE(decoded->height == 2U);
-        REQUIRE(decoded->pixels == samplePixels);
+        REQUIRE(decoded->pixels == pixels);
     }
 }
 
@@ -70,7 +81,8 @@ TEST_CASE("imageCodec_Should_RoundTripRgbPixelsThroughPng")
 {
     const TestDirectory directory;
     const auto path = directory.path() / "sample.png";
-    REQUIRE(uo_mule::image::writePng(path, 2U, 2U, samplePixels));
+    const auto pixels = samplePixels();
+    REQUIRE(uo_mule::image::writePng(path, 2U, 2U, pixels));
 
     const auto decoded = uo_mule::image::decode(path);
     REQUIRE(decoded);
@@ -78,7 +90,7 @@ TEST_CASE("imageCodec_Should_RoundTripRgbPixelsThroughPng")
     {
         REQUIRE(decoded->width == 2U);
         REQUIRE(decoded->height == 2U);
-        REQUIRE(decoded->pixels == samplePixels);
+        REQUIRE(decoded->pixels == pixels);
     }
 }
 

@@ -3,10 +3,16 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
+#include <filesystem>
 #include <fstream>
+#include <ios>
 #include <limits>
 #include <memory>
+#include <span>
 #include <string>
+#include <system_error>
+#include <utility>
 #include <vector>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -16,6 +22,7 @@
 
 namespace uo_mule::image
 {
+
 namespace
 {
 
@@ -32,6 +39,7 @@ expectedPixelBytes(const std::filesystem::path & path, std::uint32_t width, std:
     {
         return std::unexpected(makeError(path, uomul::ErrorCode::invalidDimensions, "image dimensions must be nonzero"));
     }
+
     const auto pixels = static_cast<std::uint64_t>(width) * height;
     if (pixels > std::numeric_limits<std::size_t>::max() / channelCount)
     {
@@ -50,17 +58,20 @@ expectedPixelBytes(const std::filesystem::path & path, std::uint32_t width, std:
     {
         return std::unexpected(expected.error());
     }
+
     if (pixels.size() != *expected)
     {
         return std::unexpected(
             makeError(path, uomul::ErrorCode::invalidFormat, "RGB pixel count does not match image dimensions"));
     }
+
     if (width > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
         height > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
         width > static_cast<std::uint32_t>(std::numeric_limits<int>::max() / 3))
     {
         return std::unexpected(makeError(path, uomul::ErrorCode::invalidDimensions, "image dimensions exceed codec limits"));
     }
+
     return {};
 }
 
@@ -84,15 +95,23 @@ expectedPixelBytes(const std::filesystem::path & path, std::uint32_t width, std:
         return std::unexpected(makeError(path, uomul::ErrorCode::io, "could not open image file"));
     }
 
-    std::vector<unsigned char> bytes(static_cast<std::size_t>(size));
-    if (!bytes.empty())
+    std::vector<char> rawBytes(static_cast<std::size_t>(size));
+    if (!rawBytes.empty())
     {
-        input.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        input.read(rawBytes.data(), static_cast<std::streamsize>(rawBytes.size()));
         if (!input)
         {
             return std::unexpected(makeError(path, uomul::ErrorCode::io, "could not read image file"));
         }
     }
+
+    std::vector<unsigned char> bytes;
+    bytes.reserve(rawBytes.size());
+    for (const char byte : rawBytes)
+    {
+        bytes.push_back(static_cast<unsigned char>(byte));
+    }
+
     return bytes;
 }
 
@@ -117,6 +136,7 @@ expectedPixelBytes(const std::filesystem::path & path, std::uint32_t width, std:
     {
         return std::unexpected(makeError(path, uomul::ErrorCode::io, "image encoder could not write output"));
     }
+
     return {};
 }
 
@@ -132,17 +152,16 @@ std::expected<RgbImage, uomul::Error> decode(const std::filesystem::path & input
 
     int width = 0;
     int height = 0;
-    int sourceChannels = 0;
     const auto byteCount = static_cast<int>(bytes->size());
-    std::unique_ptr<unsigned char, decltype(&stbi_image_free)> decoded(
-        stbi_load_from_memory(bytes->data(), byteCount, &width, &height, &sourceChannels, 3), stbi_image_free);
-    static_cast<void>(sourceChannels);
+    const std::unique_ptr<unsigned char, decltype(&stbi_image_free)> decoded(
+        stbi_load_from_memory(bytes->data(), byteCount, &width, &height, nullptr, 3), stbi_image_free);
     if (!decoded)
     {
         const char * reason = stbi_failure_reason();
         return std::unexpected(
             makeError(inputPath, uomul::ErrorCode::invalidFormat, reason == nullptr ? "image decoder rejected input" : reason));
     }
+
     if (width <= 0 || height <= 0)
     {
         return std::unexpected(makeError(inputPath, uomul::ErrorCode::invalidDimensions, "image dimensions are invalid"));
@@ -150,11 +169,13 @@ std::expected<RgbImage, uomul::Error> decode(const std::filesystem::path & input
 
     const auto outputWidth = static_cast<std::uint32_t>(width);
     const auto outputHeight = static_cast<std::uint32_t>(height);
+
     auto pixelBytes = expectedPixelBytes(inputPath, outputWidth, outputHeight);
     if (!pixelBytes)
     {
         return std::unexpected(pixelBytes.error());
     }
+
     RgbImage image{.width = outputWidth, .height = outputHeight, .pixels = std::vector<std::uint8_t>(*pixelBytes)};
     std::copy_n(decoded.get(), *pixelBytes, image.pixels.begin());
     return image;
