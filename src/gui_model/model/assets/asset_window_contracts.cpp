@@ -250,6 +250,7 @@ void resetContext(AssetWindowState & state) noexcept
     state.selectionDragStartX = 0.0F;
     state.selectionDragStartY = 0.0F;
     state.selectionDragActive = false;
+    state.selectionDragStartedOnItem = false;
     state.scrollPosition = 0.0F;
     state.scrollPositionRestorePending = true;
     state.detailsCollapsed = false;

@@ -443,12 +443,13 @@ void appendDragSelection(AssetWindowState & state,
 void updateSelectionDragState(const AssetAdapter & adapter, AssetWindowState & state)
 {
     const ImGuiIO & io = ImGui::GetIO();
-    if (state.selectionDragActive && !io.MouseDown[ImGuiMouseButton_Left])
+    if (!io.MouseDown[ImGuiMouseButton_Left])
     {
         state.selectionDragActive = false;
+        state.selectionDragStartedOnItem = false;
     }
     if (!state.selectionDragActive && adapter.descriptor.capabilities.selection == AssetSelectionMode::multiple &&
-        ImGui::IsMouseDragging(ImGuiMouseButton_Left) && ImGui::IsWindowHovered())
+        !state.selectionDragStartedOnItem && ImGui::IsMouseDragging(ImGuiMouseButton_Left) && ImGui::IsWindowHovered())
     {
         state.selectionDragActive = true;
         state.selectionDragStartX = io.MouseClickedPos[ImGuiMouseButton_Left].x;
@@ -477,6 +478,7 @@ void drawSelectionMarquee(const AssetWindowState & state)
 
 void updateSelectionOnClick(const AssetAdapter & adapter, AssetWindowState & state, const AssetItem & item, std::size_t index)
 {
+    state.selectionDragStartedOnItem = true;
     if (adapter.descriptor.itemSourcePicked && adapter.descriptor.itemSourcePicked(item.id))
     {
         return;
@@ -579,7 +581,7 @@ AssetItemInteraction drawItemControl(const AssetAdapter & adapter,
 
 void drawItemDragSource(const AssetAdapter & adapter, const AssetWindowState & state)
 {
-    if (!adapter.makeDragPayload || !ImGui::BeginDragDropSource())
+    if (!adapter.makeDragPayload || !ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
     {
         return;
     }

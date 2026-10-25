@@ -188,6 +188,7 @@ struct AssetWindowState
     float selectionDragStartX = 0.0F;
     float selectionDragStartY = 0.0F;
     bool selectionDragActive = false;
+    bool selectionDragStartedOnItem = false;
     bool detailsCollapsed = false;
     std::function<void()> selectAll;
     std::function<void()> selectNone;
