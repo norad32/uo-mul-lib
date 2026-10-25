@@ -62,6 +62,7 @@ target_link_libraries(
            glfw
            OpenGL::GL
            gui_model
+           image_codec
            logger
            options)
 file(
