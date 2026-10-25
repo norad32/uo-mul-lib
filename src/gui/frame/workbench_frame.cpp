@@ -721,6 +721,23 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         return;
     }
 
+    if (document.summary.identity.kind == DocumentKind::texmapPair && document.texmaps)
+    {
+        bool visible = true;
+        dockDocumentWindow();
+        drawTexmapsDocumentPanel(state.texmapsState,
+                                 *document.texmaps,
+                                 visible,
+                                 state.preferences.idFormat,
+                                 windowName,
+                                 [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
+        if (!visible)
+        {
+            requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
+        }
+        return;
+    }
+
     bool visible = true;
     dockDocumentWindow();
     if (ImGui::Begin(windowName.c_str(), &visible))
