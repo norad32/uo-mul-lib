@@ -151,11 +151,11 @@ void DocumentManager::sync(const MapDocumentState & mapDocument)
 {
     if (!mapDocument.changes().reader)
     {
-        const std::optional<DocumentId> activeId = activeId_;
-        const DocumentRecord * record = activeId ? find(*activeId) : nullptr;
-        if (activeId && record != nullptr && record->map)
+        const auto record =
+            std::ranges::find_if(documents_, [](const DocumentRecord & candidate) { return candidate.map.has_value(); });
+        if (record != documents_.end())
         {
-            static_cast<void>(close(*activeId));
+            static_cast<void>(close(record->summary.identity.id));
         }
         return;
     }

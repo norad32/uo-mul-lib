@@ -896,7 +896,7 @@ void registerPanelCommands(CommandRegistry & registry)
         "view.panel.radarcol",
         "Radarcol",
         "Windows",
-        "Show or hide radar colors",
+        "Show or hide the configured Radarcol document",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
@@ -905,7 +905,7 @@ void registerPanelCommands(CommandRegistry & registry)
         "view.panel.texmaps",
         "Texmaps",
         "Windows",
-        "Show or hide textures",
+        "Show or hide the configured Texmaps document",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::texmaps)); });
@@ -914,7 +914,7 @@ void registerPanelCommands(CommandRegistry & registry)
         "view.panel.tiledata",
         "Tiledata",
         "Windows",
-        "Show or hide Tiledata records",
+        "Show or hide the configured Tiledata document",
         "",
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tiledata)); });

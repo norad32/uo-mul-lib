@@ -54,7 +54,7 @@ void requireMappingRange(std::span<const std::uint32_t> ranges, const uo_mule::g
 TEST_CASE("iconography_Should_HaveOneValidMappingPerSemanticId")
 {
     const auto mappings = uo_mule::gui::iconMappings();
-    REQUIRE(mappings.size() == 81);
+    REQUIRE(mappings.size() == 80);
 
     std::set<uo_mule::gui::IconId> ids;
     for (const auto & mapping : mappings)

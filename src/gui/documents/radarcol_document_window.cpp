@@ -345,7 +345,10 @@ void drawRadarcolItem(const RadarColorProvider & provider, RadarcolBrowserKind k
         return;
     }
     const auto color = provider.rawColor(radarcolRawIndex(kind, *index)).value_or(0);
-    ImGui::ColorButton("##RadarcolColor", colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(swatchSize, swatchSize));
+    ImGui::ColorButton("##RadarcolColor",
+                       colorToImVec4(color),
+                       ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoPicker,
+                       ImVec2(swatchSize, swatchSize));
 }
 
 [[nodiscard]] std::vector<assets::AssetItem> loadRadarcolRange(const RadarColorProvider & provider,
@@ -433,7 +436,8 @@ void drawRadarcolPreview(const RadarColorProvider & provider,
 {
     const auto index = assets::itemIndex(item);
     const auto color = index ? provider.rawColor(radarcolRawIndex(kind, *index)).value_or(0) : uomul::RadarColor{};
-    ImGui::ColorButton(id, colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(size, size));
+    ImGui::ColorButton(
+        id, colorToImVec4(color), ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoPicker, ImVec2(size, size));
 }
 
 void drawRadarcolPreview(const RadarcolDocument & document,
@@ -444,7 +448,8 @@ void drawRadarcolPreview(const RadarcolDocument & document,
 {
     const auto index = assets::itemIndex(item);
     const auto color = index ? document.rawColor(radarcolRawIndex(kind, *index)).value_or(0) : uomul::RadarColor{};
-    ImGui::ColorButton(id, colorToImVec4(color), ImGuiColorEditFlags_NoTooltip, ImVec2(size, size));
+    ImGui::ColorButton(
+        id, colorToImVec4(color), ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoPicker, ImVec2(size, size));
 }
 
 [[nodiscard]] std::vector<assets::AssetItem> loadRadarcolRange(const RadarcolDocument & document,

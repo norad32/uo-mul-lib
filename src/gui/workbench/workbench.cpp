@@ -40,6 +40,7 @@
 #include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/session/workbench_session.h"
+#include "gui_model/source/source_identity.h"
 #include "gui_model/tools/tool_contracts.h"
 #include "gui_model/world/map_canvas_state.h"
 #include "gui_model/world/map_context.h"
@@ -533,6 +534,53 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
     };
 }
 
+[[nodiscard]] DocumentRecord * openConfiguredMetadataDocument(WorkbenchState & state, DocumentKind kind)
+{
+    const auto source = configuredDocumentSourceIdentity(state.activeProfile, kind);
+    if (!source)
+    {
+        state.notifications.add(NotificationSeverity::error, "The metadata source is not configured");
+        return nullptr;
+    }
+
+    const auto role = kind == DocumentKind::texmapPair ? SourceRole::index : SourceRole::primary;
+    const auto * path = source->path(role);
+    if (path == nullptr || path->empty())
+    {
+        state.notifications.add(NotificationSeverity::error, "The metadata source file is not configured");
+        return nullptr;
+    }
+
+    const DocumentSummary summary{
+        .identity = {.kind = kind, .source = *source},
+        .displayName = path->filename().string(),
+        .sourceKind = DocumentSourceKind::configuredMetadata,
+        .validation = DocumentValidationState::unknown,
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+        .dirty = false,
+    };
+    const DocumentId id = state.session.openDocument(summary);
+    if (id == 0)
+    {
+        state.notifications.add(NotificationSeverity::error, "The metadata document could not be opened");
+        return nullptr;
+    }
+    if (auto activated = state.session.activateDocument(id, state.mapDocuments); !activated)
+    {
+        state.notifications.add(NotificationSeverity::error, activated.error().message);
+        return nullptr;
+    }
+    for (auto & document : state.session.documentsMutable())
+    {
+        if (document.summary.identity.id == id)
+        {
+            return &document;
+        }
+    }
+    return nullptr;
+}
+
 void configureMapPanelCallbacks(WorkbenchState & state)
 {
     state.radarcolState.clearStatus = [&state] { clearAssetNavigationStatus(state.notifications); };
@@ -651,10 +699,7 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     configureTexmapExportCallbacks(state);
 }
 
-void drawVisibleMapPanels(WorkbenchState & state,
-                          BlockInspectorPanelState & blockInspectorState,
-                          RadarcolDocumentWindowState & radarcolState,
-                          TexmapsDocumentWindowState & texmapsState)
+void drawVisibleMapPanels(WorkbenchState & state, BlockInspectorPanelState & blockInspectorState)
 {
     if (state.panelRegistry.find(PanelId::toolPalette)->visible)
     {
@@ -689,39 +734,12 @@ void drawVisibleMapPanels(WorkbenchState & state,
                                 blockInspectorState,
                                 state.panelRegistry.find(PanelId::blockInspector)->visible);
     }
-    if (state.panelRegistry.find(PanelId::radarcol)->visible)
-    {
-        drawRadarcolPanel(radarcolState,
-                          state.providers.radarColors(),
-                          state.panelRegistry.find(PanelId::radarcol)->visible,
-                          state.preferences.idFormat);
-    }
-    if (state.panelRegistry.find(PanelId::texmaps)->visible)
-    {
-        drawTexmapsPanel(texmapsState,
-                         state.providers.textures(),
-                         state.panelRegistry.find(PanelId::texmaps)->visible,
-                         state.preferences,
-                         state.pendingPreferenceChanges);
-    }
-    if (state.panelRegistry.find(PanelId::tiledata)->visible)
-    {
-        drawTiledataPanel(state.tiledataState,
-                          state.providers.tiledata(),
-                          state.providers.textures(),
-                          state.providers.radarColors(),
-                          state.panelRegistry.find(PanelId::tiledata)->visible,
-                          state.preferences.idFormat);
-    }
 }
 
-void drawMapPanels(WorkbenchState & state,
-                   BlockInspectorPanelState & blockInspectorState,
-                   RadarcolDocumentWindowState & radarcolState,
-                   TexmapsDocumentWindowState & texmapsState)
+void drawMapPanels(WorkbenchState & state, BlockInspectorPanelState & blockInspectorState)
 {
     configureMapPanelCallbacks(state);
-    drawVisibleMapPanels(state, blockInspectorState, radarcolState, texmapsState);
+    drawVisibleMapPanels(state, blockInspectorState);
 }
 
 void applyPendingPreferenceChanges(WorkbenchState & state)
@@ -987,9 +1005,72 @@ void executeMapEdit(WorkbenchState & state, uomul::TileCoord origin)
     };
 }
 
+void ensureConfiguredMetadataViewDocument(WorkbenchState & state, DocumentKind kind)
+{
+    const auto source = configuredDocumentSourceIdentity(state.activeProfile, kind);
+    if (!source)
+    {
+        return;
+    }
+    const auto * path = source->path(kind == DocumentKind::texmapPair ? SourceRole::index : SourceRole::primary);
+    if (path == nullptr || path->empty())
+    {
+        return;
+    }
+    for (const auto & document : state.session.documents())
+    {
+        if (document.summary.identity.kind == kind && document.summary.identity.source == *source)
+        {
+            return;
+        }
+    }
+    static_cast<void>(openConfiguredMetadataDocument(state, kind));
+}
+
+[[nodiscard]] PanelId metadataPanelId(DocumentKind kind) noexcept
+{
+    if (kind == DocumentKind::texmapPair)
+    {
+        return PanelId::texmaps;
+    }
+    if (kind == DocumentKind::tiledata)
+    {
+        return PanelId::tiledata;
+    }
+    return PanelId::radarcol;
+}
+
+[[nodiscard]] bool metadataViewVisible(const WorkbenchState & state, DocumentKind kind) noexcept
+{
+    const auto * descriptor = state.panelRegistry.find(metadataPanelId(kind));
+    return descriptor != nullptr && descriptor->visible;
+}
+
+void hideConfiguredMetadataView(WorkbenchState & state, const DocumentSummary & summary)
+{
+    if (summary.sourceKind != DocumentSourceKind::configuredMetadata)
+    {
+        return;
+    }
+    auto * descriptor = state.panelRegistry.find(metadataPanelId(summary.identity.kind));
+    if (descriptor != nullptr)
+    {
+        descriptor->visible = false;
+    }
+}
+
+[[nodiscard]] bool shouldDrawDocumentWindow(const WorkbenchState & state, const DocumentSummary & summary) noexcept
+{
+    return summary.sourceKind != DocumentSourceKind::configuredMetadata || metadataViewVisible(state, summary.identity.kind);
+}
+
 void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
 {
     const std::string windowName = documentWindowName(document.summary);
+    if (!shouldDrawDocumentWindow(state, document.summary))
+    {
+        return;
+    }
     if (document.summary.identity.kind == DocumentKind::map && document.map)
     {
         bool visible = true;
@@ -1033,6 +1114,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
                                    [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
         if (!visible)
         {
+            hideConfiguredMetadataView(state, document.summary);
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
         }
         return;
@@ -1051,6 +1133,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
                                    windowName);
         if (!visible)
         {
+            hideConfiguredMetadataView(state, document.summary);
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
         }
         return;
@@ -1070,6 +1153,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
                                   [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
         if (!visible)
         {
+            hideConfiguredMetadataView(state, document.summary);
             requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
         }
         return;
@@ -1093,6 +1177,18 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
 
 void drawDocumentWindows(WorkbenchState & state)
 {
+    if (metadataViewVisible(state, DocumentKind::radarcol))
+    {
+        ensureConfiguredMetadataViewDocument(state, DocumentKind::radarcol);
+    }
+    if (metadataViewVisible(state, DocumentKind::texmapPair))
+    {
+        ensureConfiguredMetadataViewDocument(state, DocumentKind::texmapPair);
+    }
+    if (metadataViewVisible(state, DocumentKind::tiledata))
+    {
+        ensureConfiguredMetadataViewDocument(state, DocumentKind::tiledata);
+    }
     for (auto & document : state.session.documentsMutable())
     {
         drawDocumentWindow(state, document);
@@ -1159,6 +1255,8 @@ void processDocumentIntent(WorkbenchState & state, DocumentRecord & document)
     }
 }
 
+void syncProviders(WorkbenchState & state);
+
 void processDocumentIntents(WorkbenchState & state)
 {
     for (auto & document : state.session.documentsMutable())
@@ -1166,6 +1264,7 @@ void processDocumentIntents(WorkbenchState & state)
         processDocumentIntent(state, document);
     }
     state.session.syncAssetDocuments();
+    syncProviders(state);
 }
 
 void applyDeferredWorkflowActions(WorkbenchState & state)
@@ -1542,6 +1641,7 @@ void applyProfileChange(WorkbenchState & state)
 void syncProviders(WorkbenchState & state)
 {
     state.providers.sync(state.activeProfile);
+    state.providers.syncDocuments(state.session.documents());
     const ProviderRevisions revisions = state.providers.revisions();
     if (revisions == state.providerRevisions)
     {
@@ -1741,7 +1841,7 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
         drawDockSpace(state, bottomPanelHeight);
         drawDocumentSurface(state);
         drawPendingAssetCloseDialog(state);
-        drawMapPanels(state, state.blockInspectorState, state.radarcolState, state.texmapsState);
+        drawMapPanels(state, state.blockInspectorState);
         notifyRadarcolFallback(state);
         if (state.mapDocuments.active().changes().reader.has_value() &&
             state.recentMapRecordedPath != state.mapDocuments.active().changes().mapPath)

@@ -17,6 +17,8 @@
 namespace uo_mule::gui
 {
 
+struct DocumentRecord;
+
 enum class ProviderAssetState : std::uint8_t
 {
     unavailable,
@@ -130,6 +132,7 @@ public:
     DataProviders & operator=(const DataProviders &) = delete;
 
     void sync(const DataProfile & profile);
+    void syncDocuments(const std::vector<DocumentRecord> & documents);
     // Same-path external replacements require an explicit refresh until file watching exists.
     [[nodiscard]] bool refresh(const DataProfile & profile);
     void invalidate() noexcept;

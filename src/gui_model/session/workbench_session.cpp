@@ -171,7 +171,9 @@ void WorkbenchSession::refreshRecentFiles()
 
 void WorkbenchSession::syncDocument(MapDocumentManager & mapDocument)
 {
+    const auto previousActiveId = documents_.activeId();
     documents_.sync(mapDocument.active());
+    const auto mapDocumentId = documents_.activeId();
     sourceLocks_.clear();
     for (const auto & document : documents_.documents())
     {
@@ -179,9 +181,16 @@ void WorkbenchSession::syncDocument(MapDocumentManager & mapDocument)
     }
     if (mapDocument.active().changes().reader)
     {
-        if (const auto id = documents_.activeId())
+        if (mapDocumentId)
         {
-            mapDocument.bindActiveDocument(*id);
+            mapDocument.bindActiveDocument(*mapDocumentId);
+        }
+    }
+    if (previousActiveId && previousActiveId != mapDocumentId)
+    {
+        if (const auto * previous = documents_.find(*previousActiveId); previous != nullptr && !previous->map)
+        {
+            static_cast<void>(documents_.activate(*previousActiveId));
         }
     }
 }
@@ -215,10 +224,6 @@ std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId 
         return {};
     }
 
-    if (mapDocument.active().changes().reader)
-    {
-        mapDocument.deactivateMap();
-    }
     static_cast<void>(documents_.activate(id));
     return {};
 }

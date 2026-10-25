@@ -335,8 +335,6 @@ TEST_CASE("texmapsDocument_Should_RejectPairAliases")
     const TestDirectory directory;
     const auto sourceIndex = directory.path() / "source.idx";
     const auto sourceData = directory.path() / "source.mul";
-    const auto outputIndex = directory.path() / "output.idx";
-    const auto outputData = directory.path() / "output.mul";
     REQUIRE(createPair(sourceIndex, sourceData));
 
     auto editable = uo_mule::gui::TexmapsDocument::open(aliasDocumentId, sourceIndex, sourceData);

@@ -1,21 +1,32 @@
+#include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document.h"
+#include "gui_model/documents/radarcol_document.h"
+#include "gui_model/documents/texmaps_document.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/providers/embedded_radarcol.h"
 #include "gui_model/source/source_identity.h"
 #include "uomul/radarcol/radarcol.h"
+#include "uomul/texmaps/texmaps.h"
 #include "uomul/tiledata/tiledata.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
 
 namespace
 {
+
+constexpr std::uint16_t replacementRadarColor =
+    0x7FFFU; // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+constexpr std::uint16_t replacementTexturePixel =
+    0x1234U; // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 
 class TemporaryDirectory
 {
@@ -71,6 +82,22 @@ uo_mule::gui::DataProfile profileWithRadarcol(const std::filesystem::path & path
     profile.sourceRoot = path.parent_path();
     profile.files[uo_mule::gui::DataFileRole::radarcol] = {.path = path.filename()};
     return profile;
+}
+
+uo_mule::gui::DataProfile profileWithTexmaps(const std::filesystem::path & indexPath, const std::filesystem::path & dataPath)
+{
+    uo_mule::gui::DataProfile profile;
+    profile.sourceRoot = indexPath.parent_path();
+    profile.files[uo_mule::gui::DataFileRole::texidx] = {.path = indexPath.filename()};
+    profile.files[uo_mule::gui::DataFileRole::texmaps] = {.path = dataPath.filename()};
+    return profile;
+}
+
+void createTexmaps(const std::filesystem::path & indexPath, const std::filesystem::path & dataPath)
+{
+    auto editor = uomul::TexMapsEditor::createEmpty(indexPath, dataPath);
+    REQUIRE(editor);
+    REQUIRE(editor->commit());
 }
 
 } // namespace
@@ -198,6 +225,138 @@ TEST_CASE("DataProviders_Should_ExposeEffectiveRadarcolSourceIdentity")
 
     REQUIRE(providers.radarColors().status().sourceIdentity == uo_mule::gui::makeDocumentSourceIdentity({path}));
     REQUIRE(providers.radarColors().rawColor(0U).has_value());
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+TEST_CASE("DataProviders_Should_SynchronizeConfiguredRadarcolDocumentChanges")
+{
+    const TemporaryDirectory directory;
+    const auto path = directory.path() / "radarcol.mul";
+    createRadarcol(path, 0U);
+    const auto profile = profileWithRadarcol(path);
+
+    uo_mule::gui::DocumentManager documents;
+    documents.updateMetadataSources(profile);
+    const auto documentId = documents.open({
+        .identity = {.kind = uo_mule::gui::DocumentKind::radarcol, .source = uo_mule::gui::makeDocumentSourceIdentity({path})},
+        .displayName = path.filename().string(),
+        .sourceKind = uo_mule::gui::DocumentSourceKind::configuredMetadata,
+        .validation = uo_mule::gui::DocumentValidationState::valid,
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+        .dirty = false,
+    });
+    REQUIRE(documentId != 0U);
+
+    uo_mule::gui::DataProviders providers;
+    providers.sync(profile);
+    providers.syncDocuments(documents.documents());
+    const auto before = providers.radarColors().status().revision;
+    REQUIRE(providers.radarColors().rawColor(0U) == std::optional<uomul::RadarColor>{0U});
+
+    auto * record = documents.findMutable(documentId);
+    REQUIRE(record != nullptr);
+    REQUIRE(record->radarcol.has_value());
+    if (record == nullptr || !record->radarcol)
+    {
+        return;
+    }
+    auto & radarcol = *record->radarcol;
+    REQUIRE(radarcol.handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::editColors,
+        .colorEdits = {{.colorIndex = 0U, .color = replacementRadarColor}},
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
+
+    providers.syncDocuments(documents.documents());
+    REQUIRE(providers.radarColors().status().revision > before);
+    REQUIRE(providers.radarColors().rawColor(0U) == std::optional<uomul::RadarColor>{replacementRadarColor});
+
+    REQUIRE(radarcol.handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::discard,
+        .colorEdits = {},
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
+    providers.syncDocuments(documents.documents());
+    REQUIRE(providers.radarColors().rawColor(0U) == std::optional<uomul::RadarColor>{0U});
+}
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+TEST_CASE("DataProviders_Should_SynchronizeConfiguredTexmapsDocumentChanges")
+{
+    const TemporaryDirectory directory;
+    const auto indexPath = directory.path() / "texidx.mul";
+    const auto dataPath = directory.path() / "texmaps.mul";
+    createTexmaps(indexPath, dataPath);
+    const auto profile = profileWithTexmaps(indexPath, dataPath);
+
+    uo_mule::gui::DocumentManager documents;
+    documents.updateMetadataSources(profile);
+    const auto documentId = documents.open({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::texmapPair,
+                .source = uo_mule::gui::makeRoleAwareDocumentSourceIdentity({
+                    {.role = uo_mule::gui::SourceRole::index, .path = indexPath},
+                    {.role = uo_mule::gui::SourceRole::data, .path = dataPath},
+                }),
+            },
+        .displayName = indexPath.filename().string(),
+        .sourceKind = uo_mule::gui::DocumentSourceKind::configuredMetadata,
+        .validation = uo_mule::gui::DocumentValidationState::valid,
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+        .dirty = false,
+    });
+    REQUIRE(documentId != 0U);
+
+    uo_mule::gui::DataProviders providers;
+    providers.sync(profile);
+    providers.syncDocuments(documents.documents());
+    const auto before = providers.textures().status().revision;
+    REQUIRE_FALSE(providers.textures().hasTexture(0U).value_or(true));
+
+    auto * record = documents.findMutable(documentId);
+    REQUIRE(record != nullptr);
+    REQUIRE(record->texmaps.has_value());
+    if (record == nullptr || !record->texmaps)
+    {
+        return;
+    }
+    auto & texmaps = *record->texmaps;
+    const uomul::TextureImage replacement{
+        .dimension = uomul::textureSmallDimension,
+        .pixels = std::vector<std::uint16_t>(uomul::textureSmallPixelCount, replacementTexturePixel),
+    };
+    REQUIRE(texmaps.handleIntent({
+        .kind = uo_mule::gui::TexmapsDocumentIntentKind::replace,
+        .outputIndexPath = {},
+        .outputDataPath = {},
+        .overwriteOutput = false,
+        .textureId = 0U,
+        .texture = replacement,
+        .textureEdits = {},
+        .textureIds = {},
+    }));
+
+    providers.syncDocuments(documents.documents());
+    REQUIRE(providers.textures().status().revision > before);
+    REQUIRE(providers.textures().hasTexture(0U).value_or(false));
+
+    REQUIRE(texmaps.handleIntent({
+        .kind = uo_mule::gui::TexmapsDocumentIntentKind::discard,
+        .outputIndexPath = {},
+        .outputDataPath = {},
+        .overwriteOutput = false,
+        .textureId = 0U,
+        .texture = {},
+        .textureEdits = {},
+        .textureIds = {},
+    }));
+    providers.syncDocuments(documents.documents());
+    REQUIRE_FALSE(providers.textures().hasTexture(0U).value_or(true));
 }
 
 TEST_CASE("DataProviders_Should_ExposeStableUnavailableMetadataSourceStatus")

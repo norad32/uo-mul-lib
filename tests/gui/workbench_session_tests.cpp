@@ -2,6 +2,8 @@
 #include "gui/commands/command_registry.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document_manager.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/persistence/recent_files.h"
@@ -325,6 +327,45 @@ TEST_CASE("workbenchSession_Should_ActivateMapDocumentsThroughTheCollection")
     REQUIRE(session.activeDocumentId() == firstId);
     REQUIRE(mapDocumentState.changes().originalPath == firstPath);
     REQUIRE(session.documents().size() == 2);
+}
+
+TEST_CASE("workbenchSession_Should_KeepMapActiveWhenMetadataDocumentIsActivated")
+{
+    const TemporaryDirectory directory;
+    const auto mapPath = directory.path() / "map0.mul";
+    const auto radarcolPath = directory.path() / "radarcol.mul";
+    const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath, dimensions));
+    createValidRadarcol(radarcolPath);
+
+    uo_mule::gui::MapDocumentManager mapDocuments;
+    REQUIRE(mapDocuments.openMap(mapPath, dimensions));
+    uo_mule::gui::WorkbenchSession session(directory.path() / "recent.conf");
+    session.updateProfile(validProfile(directory.path()));
+    session.syncDocument(mapDocuments);
+
+    const auto mapId = session.activeDocumentId();
+    REQUIRE(mapId.has_value());
+    const auto metadataId = session.openDocument({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::radarcol,
+                .source = uo_mule::gui::makeDocumentSourceIdentity({radarcolPath}),
+            },
+        .displayName = radarcolPath.filename().string(),
+        .sourceKind = uo_mule::gui::DocumentSourceKind::configuredMetadata,
+        .validation = uo_mule::gui::DocumentValidationState::unknown,
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+        .dirty = false,
+    });
+    REQUIRE(metadataId != 0U);
+
+    REQUIRE(session.activateDocument(metadataId, mapDocuments));
+    REQUIRE(mapDocuments.active().changes().reader.has_value());
+    REQUIRE(mapDocuments.activeDocumentId() == mapId);
+    session.syncDocument(mapDocuments);
+    REQUIRE(session.activeDocumentId() == metadataId);
 }
 
 TEST_CASE("workbenchSession_Should_KeepExistingMapTabs_If_MapsAreOpenedSequentially")

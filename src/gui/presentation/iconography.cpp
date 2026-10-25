@@ -11,7 +11,7 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::array<IconMapping, 81> mappings{
+constexpr std::array<IconMapping, 80> mappings{
     {
         {.id = IconId::selection, .codepoint = 0xF0489, .outlineCodepoint = 0xF0489},
         {.id = IconId::pan, .codepoint = 0xF01BE, .outlineCodepoint = 0xF01BE},
@@ -96,7 +96,7 @@ constexpr std::array<IconMapping, 81> mappings{
     },
 };
 
-constexpr std::array<std::string_view, 81> names{
+constexpr std::array<std::string_view, 80> names{
     {
         "selection",
         "pan",
@@ -181,7 +181,7 @@ constexpr std::array<std::string_view, 81> names{
     },
 };
 
-constexpr std::array<std::string_view, 81> mdiNames{
+constexpr std::array<std::string_view, 80> mdiNames{
     {
         "selection",
         "cursor-move",
@@ -204,7 +204,6 @@ constexpr std::array<std::string_view, 81> mdiNames{
         "identifier",
         "eye-lock",
         "tune",
-        "folder-open",
         "alert-box",
         "folder-open",
         "information",
@@ -267,7 +266,7 @@ constexpr std::array<std::string_view, 81> mdiNames{
     },
 };
 
-constexpr std::array<std::string_view, 81> mdiOutlineNames{
+constexpr std::array<std::string_view, 80> mdiOutlineNames{
     {
         "selection",
         "cursor-move",
@@ -290,7 +289,6 @@ constexpr std::array<std::string_view, 81> mdiOutlineNames{
         "identifier",
         "eye-lock-outline",
         "tune-variant",
-        "folder-open-outline",
         "alert-box-outline",
         "folder-open-outline",
         "information-outline",
