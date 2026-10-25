@@ -16,15 +16,15 @@ flowchart LR
     G -->|Save| D
     G -->|Discard| D
     G -->|Keep editing| F
-    D --> H([Close file])
-    H --> A
+    D --> H([Close Document])
+    H --> I([Release Document])
 ```
 
 A clean *Document* represents its saved *file* or *file set*. Making a change
 creates *Changes* and makes the *Document* *Dirty*. *Save* or *Discard* returns
 it to a clean state. A *Dirty* *Document* must resolve its *Changes* before it can
-close. Closing the *file* releases the *Document* and returns the lifecycle to
-Open *file*.
+close. Closing the *Document* releases its identity, locks, and session state. A
+later Open command starts a new lifecycle cycle.
 
 ## Opening a file
 
@@ -63,8 +63,8 @@ The *Save* *Operation* has four steps.
 
 1. **Check the *Changes*.** For example, a map edit must contain a valid tile ID
    and position.
-2. **Check the output paths.** Required *files* must exist, outputs must be
-   writable, and output paths must not overlap unexpectedly. Existing outputs
+2. **Check the paths.** Required input companions must exist, outputs must be
+   writable or creatable, and output paths must not overlap unexpectedly. Existing outputs
    need confirmation or permission to replace. In-place saves may use the *file*
    path. Other outputs must not point to the *file* or to each other.
 3. **Save the *file* or *file set*.** For example, saving a Texmap *Document*
@@ -98,14 +98,14 @@ successful *Save*. *Discard* removes the *Changes* and closes. Cancel keeps the
 
 Some formats use several *files*. Texmaps uses `texidx.mul` and `texmaps.mul`.
 These *files* form one logical *file set* and one *Document*. The application
-validates and saves them together. It does not treat them as unrelated
-*Documents*.
+validates and saves them together. The save is one logical operation and must
+retain recoverable *Changes* if any output step fails.
 
 ## Applying GUI Commands
 
 The GUI applies lifecycle *Commands* after drawing is complete. A
 *Document window* or *Panel* reads current state during drawing and emits a
-*Command*. The frame then applies the *Command* through a workflow or
+*Command*. The workbench then applies the *Command* through a workflow or
 *Operation*. That work
 may create *Changes*, perform *Save* or *Discard*, or close a *Document*.
 
@@ -115,16 +115,16 @@ out of render traversal.
 ```mermaid
 sequenceDiagram
     participant DocumentWindow as Document window
-    participant Frame
+    participant Workbench
     participant Model
     participant Disk
 
-    DocumentWindow->>Frame: Draw current state
-    DocumentWindow->>Frame: Request a command
-    Frame->>Model: Apply command after drawing
+    DocumentWindow->>Workbench: Draw current state
+    DocumentWindow->>Workbench: Request a command
+    Workbench->>Model: Apply command after drawing
     Model->>Disk: Read or write data
-    Model-->>Frame: Return new state
-    Frame-->>DocumentWindow: Draw updated state
+    Model-->>Workbench: Return new state
+    Workbench-->>DocumentWindow: Draw updated state
 ```
 
 Drawing code must not write *files*, change profile settings, close *Documents*,

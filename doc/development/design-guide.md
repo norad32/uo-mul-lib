@@ -8,7 +8,7 @@ glossary](../glossary.md) for standard vocabulary.
 
 The GUI uses the [Catppuccin Mocha](https://github.com/catppuccin/catppuccin)
 palette. Palette values and semantic roles are defined in
-[`theme.h`](../../src/gui/presentation/theme/theme.h). Presentation code uses
+[`theme.h`](../../src/gui/presentation/theme.h). Presentation code uses
 semantic roles instead of introducing local colors.
 
 | Semantic role | Palette value | Use in the GUI |
@@ -41,8 +41,8 @@ icons, or structure.
 ## Strings
 
 User-facing strings belong to the presentation string layer in
-[`ui_strings.h`](../../src/gui/presentation/strings/ui_strings.h) and
-[`ui_strings.cpp`](../../src/gui/presentation/strings/ui_strings.cpp).
+[`strings.h`](../../src/gui/presentation/strings.h) and
+[`strings.cpp`](../../src/gui/presentation/strings.cpp).
 
 - Use shared string functions for labels, menu names, status text, tooltips, and
   common empty or unavailable messages.
@@ -62,9 +62,9 @@ font. The bundled font is
 [`materialdesignicons-webfont.ttf`](../../assets/fonts/materialdesignicons-webfont.ttf).
 
 Semantic icon definitions live in
-[`iconography.h`](../../src/gui/presentation/icons/iconography.h) and their
+[`iconography.h`](../../src/gui/presentation/iconography.h) and their
 mapping lives in
-[`iconography.cpp`](../../src/gui/presentation/icons/iconography.cpp).
+[`iconography.cpp`](../../src/gui/presentation/iconography.cpp).
 
 - Use `IconId` and semantic names instead of raw codepoints or font names.
 - Use `iconLabel` for icon-plus-label controls. Text remains the fallback when

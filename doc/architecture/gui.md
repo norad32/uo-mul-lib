@@ -35,7 +35,7 @@ readers, profile fallback, *Document* identity, save policy, or mutations.
 - The `gui_model` component is headless. It owns *Documents*, *File sets*,
   *Changes*, *View state*, profiles, providers, persistence, lifecycle contracts,
   and typed *Operations*.
-- The `gui` component owns frame composition, presentation, GUI surfaces, menus,
+- The `gui` component owns workbench composition, presentation, GUI surfaces, menus,
   workflows, themes, icons, and layout. It translates interaction into model
   requests and uses adapters and contracts.
 - The `uomul` component remains a standalone MUL library. Format logic stays out
@@ -85,7 +85,7 @@ readers, profile fallback, *Document* identity, save policy, or mutations.
 - *Operation*: Validates and applies a domain mutation. It preserves the prior
   state when validation or execution fails, and its result updates *Changes*.
 
-## Frame safety
+## Render safety
 
 Rendering uses this sequence:
 
@@ -96,7 +96,7 @@ flowchart LR
     finish --> apply["Apply Command, Workflow, or Operation"]
 ```
 
-Rendering code reads state and emits requests. After traversal, the frame applies
+Rendering code reads state and emits requests. After traversal, the workbench applies
 *Commands*, *Workflows*, and *Operations*. This sequence keeps *File* writes,
 profile changes, *Document* closes, and collection erasure outside rendering.
 

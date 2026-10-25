@@ -2,6 +2,23 @@
 
 This document defines formatting, diagnostics, testing, and verification rules.
 
+## Verification baseline
+
+At minimum, run the test preset matching the build being changed:
+
+```sh
+cmake --build --preset debug-gui --target gui_tests gui_model_tests gui -j2
+cmake --build --preset debug-uomul --target uomul_tests image_codec_tests -j2
+ctest --test-dir build/debug-gui --output-on-failure
+ctest --test-dir build/debug-uomul --output-on-failure
+```
+
+For headless or release changes, use the corresponding `release-headless` or
+`release-gui` build and CTest presets. Package changes must also pass the
+`package_consumer` test registered by CMake.
+
+Documentation changes must pass a relative-link check and `git diff --check`.
+
 ## Formatting
 
 Format all C++ source and header files with
@@ -50,7 +67,7 @@ Examples:
 ```cpp
 TEST_CASE("imageCodec_Should_RoundTripRgbPixelsThroughPng")
 TEST_CASE("TexMapsReader_open_Should_RejectMissingIndexFile")
-TEST_CASE("mapWorkspace_Should_RejectMaskedEditsWithoutSelection")
+TEST_CASE("mapEditing_Should_RejectMaskedEditsWithoutSelection")
 TEST_CASE("RadarColReader_open_Should_RejectMissingFile_If_PathDoesNotExist")
 ```
 

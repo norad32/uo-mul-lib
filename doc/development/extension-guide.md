@@ -20,7 +20,7 @@ adding deferred domain work.
 
 ## Required flow
 
-Surfaces read state and emit typed requests. The frame applies the request after
+Surfaces read state and emit typed requests. The workbench applies the request after
 rendering completes.
 
 ```text
@@ -63,13 +63,13 @@ contracts.
 | Touch | Responsibility |
 | --- | --- |
 | `src/gui_model/documents/<name>_document.h/.cpp` | Identity, validation, *Changes*, read model, and document operations |
-| `src/gui_model/documents/document_contracts.h/.cpp` | Document kind, stable name, access, and source policy |
+| `src/gui_model/documents/document_contracts.h` | Document kind, stable name, access, and source policy |
 | `src/gui_model/documents/document_descriptors.h/.cpp` | Creation summary and document factory registration |
 | `src/gui_model/source/` | Source identity, role validation, and file locks when needed |
 | `src/gui_model/lifecycle/` | Open, activate, close, *Save*, and *Discard* transitions when needed |
 | `src/gui_model/CMakeLists.txt` | Register model implementation sources |
 | `tests/gui_model/<name>_document_tests.cpp` | Open, validation, edits, dirty state, save, discard, and failure behavior |
-| `src/gui/documents/` or `src/gui/frame/` | Document window adapter and presentation dispatch |
+| `src/gui/documents/` or `src/gui/workbench/` | Document window adapter and presentation dispatch |
 | `src/gui/CMakeLists.txt` | Register GUI implementation sources |
 | `tests/gui/` | Window composition and presentation behavior |
 
@@ -89,11 +89,11 @@ A new *Panel* presents auxiliary or shared content. It does not own a
 | --- | --- |
 | `src/gui_model/layout/panel_registry.h/.cpp` | `PanelId`, title, stable key, and default visibility |
 | `src/gui/panels/<name>_panel.h/.cpp` | Panel rendering and request adapters |
-| `src/gui/frame/workbench_frame.cpp` | Draw the visible panel and connect model state |
+| `src/gui/workbench/workbench.cpp` | Draw the visible panel and connect model state |
 | `src/gui/commands/command_registry.h/.cpp` | Stable show or hide *Command* and availability |
 | `src/gui/commands/menu_bar.cpp` | Add the panel command to the menu |
-| `src/gui/presentation/strings/` | Panel title, labels, status, and disabled reasons |
-| `src/gui/presentation/icons/` | Semantic symbols when the panel uses icons |
+| `src/gui/presentation/` | Panel title, labels, status, and disabled reasons |
+| `src/gui/presentation/` | Semantic symbols when the panel uses icons |
 | `src/gui/CMakeLists.txt` | Register panel sources |
 | `tests/gui/` | Empty, unavailable, invalid, and interaction presentation |
 
@@ -111,16 +111,14 @@ renderer.
 | `src/gui_model/dialogs/dialog_contracts.h/.cpp` | Dialog ID, request payload, result payload, and stable popup ID |
 | `src/gui_model/dialogs/dialog_host.h/.cpp` | Request ownership, replacement, cancellation, and generation checks |
 | `src/gui/dialogs/<name>_dialog.h/.cpp` | Rendering, input collection, and result emission |
-| `src/gui/presentation/dialog/` | Shared sizing, centering, headings, and button presentation |
+| `src/gui/presentation/` | Shared sizing, centering, headings, and button presentation |
 | `src/gui/workflows/` | Multi-step decisions that use the dialog result |
-| `src/gui/presentation/strings/` | Dialog labels, guidance, diagnostics, and button text |
-| `src/gui/presentation/icons/` | Semantic symbols for dialog actions |
 | `src/gui_model/CMakeLists.txt` and `src/gui/CMakeLists.txt` | Register model and renderer sources |
 | `tests/gui_model/` | Open, cancel, validation failure, replacement, and acceptance contracts |
 | `tests/gui/` | Rendering and request-routing behavior |
 
 Keep validation, selection state, and accepted results in the model contract.
-The renderer presents state and emits a typed result. The frame or *Workflow*
+The renderer presents state and emits a typed result. The workbench or *Workflow*
 applies that result after rendering. Follow the [dialog rules in the design
 guide](design-guide.md#dialogs).
 
@@ -147,7 +145,7 @@ available, missing, invalid, unsupported, fallback, and rebinding states.
 
 ## Persistent state
 
-Classify new state as frame, session, preference, layout, *Document*, *Changes*,
+Classify new state as workbench runtime, session, preference, layout, *Document*, *Changes*,
 *View state*, or asset state. Define its owner, stable key, schema impact, and
 reset behavior. Keep state with different lifetimes in separate persistence
-records. Add round-trip and reset tests when the state is persisted.
+records.

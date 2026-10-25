@@ -22,6 +22,9 @@ flowchart LR
     executable --> gui
 ```
 
+The diagram is a conceptual dependency view. `core`, `logger`, `options`, and
+the platform libraries are omitted from the diagram for readability.
+
 ## uomul
 
 `uomul` is a standalone UO MUL library for reading and editing MUL *files*. It has
@@ -56,7 +59,7 @@ immediate-mode rendering. Dear ImGui is vendored and pinned through
 `cmake/GuiDependencies.cmake`. Its backends use
 [GLFW](https://github.com/glfw/glfw) for windows and input and OpenGL for
 rendering. The GUI also loads the [Material Design Icons](https://github.com/Templarian/MaterialDesign-Webfont)
-font as an application asset. It owns frame composition and runtime setup. It
+font as an application asset. It owns workbench composition and runtime setup. It
 presents *Document windows*, *Panels*, *Canvases*, and *Dialogs*. It provides
 presentation helpers, *Commands*, menus, workflows, strings, icons, themes, and
 layout. It translates user interaction into model requests.
