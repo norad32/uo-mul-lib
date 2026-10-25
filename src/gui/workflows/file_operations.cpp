@@ -268,6 +268,15 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
         return false;
     }
 
+    if (result.target == FileBrowserTarget::imageFolderOpen)
+    {
+        if (state.texmapsState.folderReplacementFolderPicked)
+        {
+            state.texmapsState.folderReplacementFolderPicked(result.path);
+        }
+        return false;
+    }
+
     if (result.target == FileBrowserTarget::texmapsCompanion)
     {
         static_cast<void>(applyFileSelectorCompanion(state.fileSelector, result.path));

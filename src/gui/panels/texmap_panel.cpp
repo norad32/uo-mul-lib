@@ -7,6 +7,7 @@
 #include "gui/state/workbench_state.h"
 #include "gui/widgets/asset_window.h"
 #include "gui/widgets/texture_preview.h"
+#include "gui/workflows/texmap_replacement.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
@@ -33,6 +34,8 @@ namespace
 
 constexpr float thumbnailSize = 64.0F;
 constexpr float replacementPreviewSize = 180.0F;
+constexpr float folderReplacementRowsHeight = 260.0F;
+constexpr int folderReplacementColumnCount = 5;
 constexpr float borderThickness = 2.0F;
 constexpr std::size_t assetCellWidth = 72U;
 constexpr std::size_t assetCellHeight = 72U;
@@ -299,6 +302,165 @@ void drawReplacementDialog(TexmapsPanelState & state, TexmapsDocument & document
     replacement.visible = visible;
 }
 
+[[nodiscard]] const char * folderRowStateLabel(const TexmapReplacementRow & row) noexcept
+{
+    if (row.state == TexmapReplacementRowState::valid)
+    {
+        return row.noOp ? "No change" : "Valid";
+    }
+    if (row.state == TexmapReplacementRowState::ambiguous)
+    {
+        return "Ambiguous";
+    }
+    if (row.state == TexmapReplacementRowState::invalid)
+    {
+        return "Invalid";
+    }
+    return "Missing";
+}
+
+void drawFolderReplacementRows(const TexmapFolderReplacement & replacement)
+{
+    const auto tableFlags = static_cast<ImGuiTableFlags>(static_cast<unsigned int>(ImGuiTableFlags_Borders) |
+                                                         static_cast<unsigned int>(ImGuiTableFlags_RowBg) |
+                                                         static_cast<unsigned int>(ImGuiTableFlags_SizingStretchProp));
+    if (!ImGui::BeginChild("FolderReplacementRows", ImVec2(0.0F, folderReplacementRowsHeight), ImGuiChildFlags_Borders))
+    {
+        return;
+    }
+    if (ImGui::BeginTable("FolderReplacementOverview", folderReplacementColumnCount, tableFlags))
+    {
+        ImGui::TableSetupColumn("ID");
+        ImGui::TableSetupColumn("Filename");
+        ImGui::TableSetupColumn("Current");
+        ImGui::TableSetupColumn("Replacement");
+        ImGui::TableSetupColumn("Status");
+        ImGui::TableHeadersRow();
+        for (const auto & row : replacement.rows)
+        {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            const auto id = strings::formatId(row.textureId, IdFormat::decimal);
+            ImGui::TextUnformatted(id.c_str());
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(row.filename.empty() ? "-" : row.filename.c_str());
+            ImGui::TableNextColumn();
+            if (row.currentDimension == 0U)
+            {
+                ImGui::TextUnformatted("-");
+            }
+            else
+            {
+                ImGui::TextColored(theme::imguiColor(theme::mutedText), "%ux%u", row.currentDimension, row.currentDimension);
+            }
+            ImGui::TableNextColumn();
+            if (row.replacementWidth == 0U || row.replacementHeight == 0U)
+            {
+                ImGui::TextUnformatted("-");
+            }
+            else
+            {
+                ImGui::TextColored(theme::imguiColor(theme::mutedText), "%ux%u", row.replacementWidth, row.replacementHeight);
+            }
+            ImGui::TableNextColumn();
+            const auto stateColor = row.state == TexmapReplacementRowState::valid ? theme::success : theme::error;
+            ImGui::TextColored(theme::imguiColor(stateColor), "%s", folderRowStateLabel(row));
+            if (!row.message.empty())
+            {
+                ImGui::SetItemTooltip("%s", row.message.c_str());
+            }
+        }
+        ImGui::EndTable();
+    }
+    ImGui::EndChild();
+}
+
+void applyFolderReplacement(TexmapsPanelState & state, TexmapsDocument & document)
+{
+    auto & folderReplacement = state.folderReplacement;
+    std::vector<TexmapsTextureEdit> edits;
+    std::size_t validCount = 0;
+    for (const auto & row : folderReplacement.replacement.rows)
+    {
+        if (!texmapReplacementRowValid(row) || !row.texture)
+        {
+            continue;
+        }
+        validCount++;
+        edits.push_back({.textureId = row.textureId, .texture = row.texture.value()});
+    }
+    const std::size_t skippedCount = folderReplacement.replacement.rows.size() - validCount;
+    if (!edits.empty())
+    {
+        TexmapsDocumentIntent intent;
+        intent.kind = TexmapsDocumentIntentKind::replace;
+        intent.textureEdits = std::move(edits);
+        document.requestIntent(std::move(intent));
+    }
+    const std::string status = "Replaced " + std::to_string(validCount) + " texture" + (validCount == 1U ? "" : "s") +
+                               ", skipped " + std::to_string(skippedCount) + ".";
+    folderReplacement.status = status;
+    if (state.replacementStatusReported)
+    {
+        state.replacementStatusReported(status, true);
+    }
+}
+
+void drawFolderReplacementDialog(TexmapsPanelState & state, TexmapsDocument & document)
+{
+    auto & folderReplacement = state.folderReplacement;
+    if (!folderReplacement.visible || folderReplacement.documentId != document.id())
+    {
+        return;
+    }
+
+    bool visible = folderReplacement.visible;
+    const std::string popupId = "Replace from Folder###document.texmaps.folder-replace." + std::to_string(document.id());
+    if (!beginAutoSizeDialog(popupId.c_str(), &visible))
+    {
+        folderReplacement.visible = visible;
+        return;
+    }
+
+    const std::size_t replacementCount = folderReplacement.textureIds.size();
+    const std::string replacingLabel =
+        "Replacing " + std::to_string(replacementCount) + " texture" + (replacementCount == 1U ? "" : "s");
+    ImGui::TextUnformatted(replacingLabel.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", "BMP is preferred; PNG is used as a fallback.");
+    if (folderReplacement.replacement.folder.empty())
+    {
+        ImGui::TextUnformatted("Choose a folder to scan for replacement images.");
+    }
+    else
+    {
+        ImGui::Text("Folder: %s", folderReplacement.replacement.folder.string().c_str());
+        drawFolderReplacementRows(folderReplacement.replacement);
+    }
+    if (!folderReplacement.status.empty())
+    {
+        ImGui::TextWrapped("%s", folderReplacement.status.c_str());
+    }
+
+    const std::string cancelLabel = iconLabel(IconId::cancel, "Cancel");
+    const std::string applyLabel = iconLabel(IconId::check, "Apply");
+    beginDialogFooter({cancelLabel.c_str(), applyLabel.c_str()});
+    if (dialogButton(cancelLabel.c_str()))
+    {
+        visible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (dialogButton(applyLabel.c_str()))
+    {
+        applyFolderReplacement(state, document);
+        visible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    endDialogFooter();
+    endDialog();
+    folderReplacement.visible = visible;
+}
+
 [[nodiscard]] assets::AssetAdapter makeAdapter(TexmapsPanelState & state,
                                                const TextureProvider & provider,
                                                const Preferences & preferences,
@@ -514,12 +676,42 @@ private:
             }
         }
     };
+    const auto requestFolderReplacement = [&state, &document](const assets::AssetItemId & item)
+    {
+        if (document.readOnly() || !state.folderReplacementRequested)
+        {
+            return;
+        }
+        std::vector<std::uint32_t> ids;
+        for (const auto & selected : state.documentAssetViews[document.id()].selection.selected)
+        {
+            if (const auto id = assets::itemIndex(selected))
+            {
+                ids.push_back(*id);
+            }
+        }
+        if (ids.empty())
+        {
+            if (const auto id = assets::itemIndex(item))
+            {
+                ids.push_back(*id);
+            }
+        }
+        if (!ids.empty())
+        {
+            state.folderReplacementRequested(document.id(), std::move(ids));
+        }
+    };
     adapter.descriptor.itemDoubleClicked = requestReplacement;
-    adapter.descriptor.itemContextMenu = [requestReplacement](const assets::AssetItemId & item)
+    adapter.descriptor.itemContextMenu = [requestReplacement, requestFolderReplacement](const assets::AssetItemId & item)
     {
         if (ImGui::MenuItem("Replace..."))
         {
             requestReplacement(item);
+        }
+        if (ImGui::MenuItem("Replace from Folder..."))
+        {
+            requestFolderReplacement(item);
         }
     };
     if (!status.message.empty())
@@ -569,6 +761,7 @@ void drawTexmapsDocumentPanel(TexmapsPanelState & state,
     const auto adapter = makeDocumentAdapter(state, document, provider, idFormat, std::move(windowIdentity));
     assets::drawAssetWindow(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
     drawReplacementDialog(state, document);
+    drawFolderReplacementDialog(state, document);
 }
 
 void loadTexmapsReplacement(TexmapsPanelState & state, const std::filesystem::path & path)

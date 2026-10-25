@@ -39,6 +39,7 @@ enum class FileBrowserTarget : std::uint8_t
     newRadarcolOutput,
     newTexmapsData,
     imageOpen,
+    imageFolderOpen,
 };
 
 enum class MulAssetKind : std::uint8_t

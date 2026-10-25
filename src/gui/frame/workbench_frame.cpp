@@ -21,6 +21,7 @@
 #include "gui/state/notification_state.h"
 #include "gui/state/workbench_state.h"
 #include "gui/views/world/map_canvas_view.h"
+#include "gui/workflows/texmap_replacement.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
@@ -249,6 +250,57 @@ void pickAssetItem(WorkbenchState & state, const assets::AssetItemId & item, boo
     static_cast<void>(state.toolState.setPickedTileId(static_cast<std::int32_t>(*id)));
 }
 
+[[nodiscard]] const DocumentRecord * findDocument(const WorkbenchState & state, DocumentId documentId)
+{
+    for (const auto & record : state.session.documents())
+    {
+        if (record.summary.identity.id == documentId)
+        {
+            return &record;
+        }
+    }
+    return nullptr;
+}
+
+void configureFolderReplacementCallbacks(WorkbenchState & state)
+{
+    state.texmapsState.folderReplacementRequested = [&state](DocumentId documentId, std::vector<std::uint32_t> textureIds)
+    {
+        state.texmapsState.folderReplacement = {};
+        state.texmapsState.folderReplacement.visible = true;
+        state.texmapsState.folderReplacement.documentId = documentId;
+        state.texmapsState.folderReplacement.textureIds = std::move(textureIds);
+        requestFileBrowser(state.fileBrowser,
+                           {
+                               .mode = FileBrowserMode::chooseDirectory,
+                               .target = FileBrowserTarget::imageFolderOpen,
+                               .initialPath = {},
+                               .extension = {},
+                               .title = "Choose Texture Replacement Folder",
+                           });
+    };
+    state.texmapsState.folderReplacementFolderPicked = [&state](const std::filesystem::path & path)
+    {
+        const auto * record = findDocument(state, state.texmapsState.folderReplacement.documentId);
+        if (record == nullptr || !record->texmaps)
+        {
+            state.texmapsState.folderReplacement.status = "The Texmaps document is no longer open.";
+            state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
+            return;
+        }
+        const auto scanned =
+            scanTexmapReplacementFolder(path, state.texmapsState.folderReplacement.textureIds, *record->texmaps);
+        if (!scanned)
+        {
+            state.texmapsState.folderReplacement.status = scanned.error().message;
+            state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
+            return;
+        }
+        state.texmapsState.folderReplacement.replacement = *scanned;
+        state.texmapsState.folderReplacement.status.clear();
+    };
+}
+
 void configureMapPanelCallbacks(WorkbenchState & state)
 {
     state.radarcolState.clearStatus = [&state] { clearAssetNavigationStatus(state.notifications); };
@@ -260,9 +312,11 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     state.texmapsState.itemPicked = [&state](const assets::AssetItemId & item)
     {
         clearAssetNavigationStatus(state.notifications);
-        if (state.texmapsState.replacement.visible)
+        if (state.texmapsState.replacement.visible || state.texmapsState.folderReplacement.visible ||
+            !state.texmapsState.folderReplacement.status.empty())
         {
             state.texmapsState.replacement.status.clear();
+            state.texmapsState.folderReplacement.status.clear();
             state.operationStatus.clear();
         }
         pickAssetItem(state, item, false);
@@ -284,6 +338,11 @@ void configureMapPanelCallbacks(WorkbenchState & state)
         state.operationStatus = state.texmapsState.replacement.status;
         state.operationStatusSeverity =
             state.texmapsState.replacement.texture ? NotificationSeverity::success : NotificationSeverity::error;
+    };
+    state.texmapsState.replacementStatusReported = [&state](std::string message, bool success)
+    {
+        state.operationStatus = std::move(message);
+        state.operationStatusSeverity = success ? NotificationSeverity::success : NotificationSeverity::error;
     };
     state.texmapsState.replaceRequested = [&state](DocumentId documentId, std::uint32_t textureId)
     {
@@ -349,6 +408,7 @@ void configureMapPanelCallbacks(WorkbenchState & state)
         const std::uint32_t index = statics ? uomul::radarStaticColorOffset + id : id;
         return acceptRadarcolColorSource(state.radarcolState, state.providers.radarColors().rawColor(index).value_or(0));
     };
+    configureFolderReplacementCallbacks(state);
 }
 
 void drawVisibleMapPanels(WorkbenchState & state,

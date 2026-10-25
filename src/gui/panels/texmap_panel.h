@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gui/workflows/texmap_replacement.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
@@ -39,6 +40,15 @@ struct TexmapsReplacementState
     std::string status;
 };
 
+struct TexmapsFolderReplacementState
+{
+    bool visible = false;
+    DocumentId documentId = 0;
+    std::vector<std::uint32_t> textureIds;
+    TexmapFolderReplacement replacement;
+    std::string status;
+};
+
 struct TexmapsPanelState
 {
     std::unordered_map<std::uint32_t, TexmapsTexturePreview> texturePreviews;
@@ -49,10 +59,14 @@ struct TexmapsPanelState
     assets::AssetWindowState assetView;
     std::unordered_map<DocumentId, assets::AssetWindowState> documentAssetViews;
     TexmapsReplacementState replacement;
+    TexmapsFolderReplacementState folderReplacement;
     std::function<void(const assets::AssetItemId &)> itemPicked;
     std::function<void(DocumentId, std::uint32_t)> replaceRequested;
+    std::function<void(DocumentId, std::vector<std::uint32_t>)> folderReplacementRequested;
     std::function<void()> replacementFileRequested;
     std::function<void(const std::filesystem::path &)> replacementFilePicked;
+    std::function<void(const std::filesystem::path &)> folderReplacementFolderPicked;
+    std::function<void(std::string, bool)> replacementStatusReported;
     std::function<bool(std::uint32_t)> itemSourcePicked;
     std::function<void(std::string_view)> hoveredContext;
 };
