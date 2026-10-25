@@ -1,4 +1,5 @@
 #include "gui/panels/radarcol_panel.h"
+#include "gui/panels/asset_panel_helpers.h"
 #include "gui/presentation/dialog/dialog_presentation.h"
 #include "gui/presentation/icons/iconography.h"
 #include "gui/presentation/strings/ui_strings.h"
@@ -559,28 +560,35 @@ void drawRadarcolKindControl(RadarcolBrowserKind & browserKind)
 }
 
 [[nodiscard]] assets::AssetAdapter
-makeAdapter(RadarcolPanelState & state, const RadarColorProvider & provider, IdFormat idFormat, std::string viewId)
+makeAdapter(RadarcolPanelState & state, const RadarColorProvider & provider, IdFormat idFormat, std::string_view viewId)
 {
     const ProviderStatus status = provider.status();
     const RadarcolBrowserKind kind = state.browserKind;
     assets::AssetAdapter adapter;
-    adapter.descriptor.viewId = std::move(viewId);
-    adapter.descriptor.title = "Radarcol";
-    adapter.descriptor.sourceTooltip = "Source: " + std::string(providerSourceName(status.source));
-    adapter.descriptor.cacheContext = std::to_string(static_cast<int>(kind)) + "|" +
-                                      std::to_string(static_cast<int>(idFormat)) +
-                                      "|revision=" + std::to_string(status.revision);
+    configureAssetAdapter(adapter.descriptor,
+                          {
+                              .viewId = std::string(viewId),
+                              .windowIdentity = {},
+                              .title = "Radarcol",
+                              .sourceTooltip = "Source: " + std::string(providerSourceName(status.source)),
+                              .cacheContext = std::to_string(static_cast<int>(kind)) + "|" +
+                                              std::to_string(static_cast<int>(idFormat)) +
+                                              "|revision=" + std::to_string(status.revision),
+                              .source =
+                                  {
+                                      .kind = DocumentKind::radarcol,
+                                      .contextKind = assets::AssetSourceContext::Kind::metadataView,
+                                      .source = status.sourceIdentity,
+                                      .contextId = std::string(viewId),
+                                  },
+                              .itemPicked = state.itemPicked,
+                              .hoveredContext = state.hoveredContext,
+                          });
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
-    {
-        return assets::itemIndex(item)
-            .transform([idFormat](std::uint32_t id) { return strings::formatId(id, idFormat); })
-            .value_or(item.value);
-    };
+    { return formatAssetItemId(item, idFormat); };
     adapter.descriptor.renderSelectionPreview = [&provider, kind](const assets::AssetItemId & item, float size)
     { drawRadarcolPreview(provider, kind, item, size, "##RadarcolSelectionColor"); };
     adapter.descriptor.selectionPreviewSize = swatchSize;
-    adapter.descriptor.itemPicked = state.itemPicked;
-    adapter.descriptor.hoveredContext = state.hoveredContext;
     adapter.descriptor.itemSourcePicked = [&state, &provider, kind](const assets::AssetItemId & item)
     {
         const auto index = assets::itemIndex(item);
@@ -590,12 +598,6 @@ makeAdapter(RadarcolPanelState & state, const RadarColorProvider & provider, IdF
     {
         adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
     }
-    adapter.descriptor.source = {
-        .kind = DocumentKind::radarcol,
-        .contextKind = assets::AssetSourceContext::Kind::metadataView,
-        .source = status.sourceIdentity,
-        .contextId = adapter.descriptor.viewId,
-    };
     const auto source = adapter.descriptor.source;
     adapter.makeDragPayload =
         [&provider, kind, source](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
@@ -612,6 +614,7 @@ makeAdapter(RadarcolPanelState & state, const RadarColorProvider & provider, IdF
         }
         return assets::AssetDragPayload{
             .type = std::string(assets::assetValueDragPayloadType),
+            .label = "Radarcol color",
             .source = source,
             .items = selection.selected,
             .values = {{.item = *index, .value = static_cast<std::uint32_t>(*color)}},
@@ -793,34 +796,35 @@ void drawRadarcolDocumentView(RadarcolPanelState & state,
 {
     const RadarcolBrowserKind kind = state.documentBrowserKinds[document.id()];
     assets::AssetAdapter adapter;
-    adapter.descriptor.viewId = std::move(viewId);
-    adapter.descriptor.windowIdentity = std::move(windowIdentity);
-    adapter.descriptor.title = "Radarcol";
-    adapter.descriptor.sourceTooltip = "Source: " + document.sourcePath().string();
-    adapter.descriptor.cacheContext = std::to_string(static_cast<int>(kind)) + "|" +
-                                      std::to_string(static_cast<int>(idFormat)) +
-                                      "|revision=" + std::to_string(document.displayRevision());
+    const std::string documentViewId = std::move(viewId);
+    configureAssetAdapter(adapter.descriptor,
+                          {
+                              .viewId = documentViewId,
+                              .windowIdentity = std::move(windowIdentity),
+                              .title = "Radarcol",
+                              .sourceTooltip = "Source: " + document.sourcePath().string(),
+                              .cacheContext = std::to_string(static_cast<int>(kind)) + "|" +
+                                              std::to_string(static_cast<int>(idFormat)) +
+                                              "|revision=" + std::to_string(document.displayRevision()),
+                              .source =
+                                  {
+                                      .kind = DocumentKind::radarcol,
+                                      .contextKind = assets::AssetSourceContext::Kind::document,
+                                      .source = makeDocumentSourceIdentity({document.sourcePath()}),
+                                      .contextId = documentViewId,
+                                  },
+                              .itemPicked = state.itemPicked,
+                              .hoveredContext = state.hoveredContext,
+                          });
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
-    {
-        return assets::itemIndex(item)
-            .transform([idFormat](std::uint32_t id) { return strings::formatId(id, idFormat); })
-            .value_or(item.value);
-    };
+    { return formatAssetItemId(item, idFormat); };
     adapter.descriptor.renderSelectionPreview = [&document, kind](const assets::AssetItemId & item, float size)
     { drawRadarcolPreview(document, kind, item, size, "##RadarcolSelectionColor"); };
     adapter.descriptor.selectionPreviewSize = swatchSize;
-    adapter.descriptor.itemPicked = state.itemPicked;
-    adapter.descriptor.hoveredContext = state.hoveredContext;
     adapter.descriptor.itemSourcePicked = [&state, &document, kind](const assets::AssetItemId & item)
     {
         const auto index = assets::itemIndex(item);
         return index ? acceptRadarcolColorSource(state, document.rawColor(radarcolRawIndex(kind, *index)).value_or(0)) : false;
-    };
-    adapter.descriptor.source = {
-        .kind = DocumentKind::radarcol,
-        .contextKind = assets::AssetSourceContext::Kind::document,
-        .source = makeDocumentSourceIdentity({document.sourcePath()}),
-        .contextId = adapter.descriptor.viewId,
     };
     const auto source = adapter.descriptor.source;
     adapter.makeDragPayload =
@@ -838,6 +842,7 @@ void drawRadarcolDocumentView(RadarcolPanelState & state,
         }
         return assets::AssetDragPayload{
             .type = std::string(assets::assetValueDragPayloadType),
+            .label = "Radarcol color",
             .source = source,
             .items = selection.selected,
             .values = {{.item = *index, .value = static_cast<std::uint32_t>(*color)}},

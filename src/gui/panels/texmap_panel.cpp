@@ -1,4 +1,5 @@
 #include "gui/panels/texmap_panel.h"
+#include "gui/panels/asset_panel_helpers.h"
 #include "gui/presentation/strings/ui_strings.h"
 #include "gui/state/workbench_state.h"
 #include "gui/widgets/asset_window.h"
@@ -58,13 +59,6 @@ texturePreview(TexmapsPanelState & state, const TextureProvider & provider, std:
         }
     }
     return iterator->second;
-}
-
-[[nodiscard]] std::string formatTextureId(const assets::AssetItemId & item, IdFormat idFormat)
-{
-    return assets::itemIndex(item)
-        .transform([idFormat](std::uint32_t id) { return strings::formatId(id, idFormat); })
-        .value_or(item.value);
 }
 
 void drawTextureAsset(TexmapsPanelState & state, const TextureProvider & provider, const assets::AssetItemId & item, float size)
@@ -161,24 +155,35 @@ loadTextureDetails(const TextureProvider & provider, const assets::AssetItemId &
         state.texturePreviewRevision = status.revision;
     }
     assets::AssetAdapter adapter;
-    adapter.descriptor.viewId = "view.texmaps";
-    adapter.descriptor.title = "Texmaps";
-    adapter.descriptor.sourceTooltip = "Source: " + sourceLabel(status);
-    adapter.descriptor.cacheContext = std::to_string(static_cast<int>(idFormat)) + "|" +
-                                      std::to_string(static_cast<int>(state.hideUnused)) +
-                                      "|revision=" + std::to_string(status.revision);
+    configureAssetAdapter(adapter.descriptor,
+                          {
+                              .viewId = "view.texmaps",
+                              .windowIdentity = {},
+                              .title = "Texmaps",
+                              .sourceTooltip = "Source: " + sourceLabel(status),
+                              .cacheContext = std::to_string(static_cast<int>(idFormat)) + "|" +
+                                              std::to_string(static_cast<int>(state.hideUnused)) +
+                                              "|revision=" + std::to_string(status.revision),
+                              .source =
+                                  {
+                                      .kind = DocumentKind::texmapPair,
+                                      .contextKind = assets::AssetSourceContext::Kind::metadataView,
+                                      .source = status.sourceIdentity,
+                                      .contextId = "view.texmaps",
+                                  },
+                              .itemPicked = state.itemPicked,
+                              .hoveredContext = state.hoveredContext,
+                          });
     adapter.descriptor.defaultPresentation =
         preferences.texmapsTablePresentation ? assets::AssetPresentation::table : assets::AssetPresentation::grid;
     adapter.descriptor.presentationChanged = [&pendingChanges](assets::AssetPresentation presentation)
     { pendingChanges.texmapsTablePresentation = presentation == assets::AssetPresentation::table; };
     adapter.descriptor.queryWhenEmpty = state.hideUnused;
     adapter.descriptor.formatSelectionId = [idFormat](const assets::AssetItemId & item)
-    { return formatTextureId(item, idFormat); };
+    { return formatAssetItemId(item, idFormat); };
     adapter.descriptor.renderSelectionPreview = [&state, &provider](const assets::AssetItemId & item, float size)
     { drawTextureAsset(state, provider, item, size); };
     adapter.descriptor.selectionPreviewSize = thumbnailSize;
-    adapter.descriptor.itemPicked = state.itemPicked;
-    adapter.descriptor.hoveredContext = state.hoveredContext;
     adapter.descriptor.itemSourcePicked = [&state](const assets::AssetItemId & item)
     {
         const auto id = assets::itemIndex(item);
@@ -197,12 +202,6 @@ loadTextureDetails(const TextureProvider & provider, const assets::AssetItemId &
     {
         adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
     }
-    adapter.descriptor.source = {
-        .kind = DocumentKind::texmapPair,
-        .contextKind = assets::AssetSourceContext::Kind::metadataView,
-        .source = status.sourceIdentity,
-        .contextId = "view.texmaps",
-    };
     adapter.descriptor.capabilities = {
         .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
                          static_cast<std::uint8_t>(assets::AssetPresentationCapability::table),

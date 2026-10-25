@@ -32,6 +32,7 @@ add_library(
     frame/workbench_frame.cpp
     presentation/formatting/file_size.cpp
     panels/block_inspector_panel.cpp
+    panels/asset_panel_helpers.cpp
     panels/icon_gallery_panel.cpp
     panels/tile_inspector_panel.cpp
     panels/log_panel.cpp

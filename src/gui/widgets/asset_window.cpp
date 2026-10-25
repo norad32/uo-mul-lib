@@ -587,7 +587,7 @@ void drawItemDragSource(const AssetAdapter & adapter, const AssetWindowState & s
     if (payload && payload->values.size() == 1U)
     {
         ImGui::SetDragDropPayload(payload->type.c_str(), payload->values.data(), sizeof(AssetDragPayloadValue));
-        ImGui::TextUnformatted("Radarcol color");
+        ImGui::TextUnformatted(payload->label.empty() ? "Asset value" : payload->label.c_str());
     }
     ImGui::EndDragDropSource();
 }

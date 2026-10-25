@@ -3,6 +3,7 @@
 #include "gui/commands/menu_bar.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/document_window.h"
+#include "gui/panels/asset_panel_helpers.h"
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/panels/icon_gallery_panel.h"
 #include "gui/panels/log_panel.h"
@@ -245,32 +246,22 @@ void pickAssetItem(WorkbenchState & state, const assets::AssetItemId & item, boo
     static_cast<void>(state.toolState.setPickedTileId(static_cast<std::int32_t>(*id)));
 }
 
-void clearAssetNavigationStatus(WorkbenchState & state)
-{
-    std::erase_if(state.notifications.entries,
-                  [](const Notification & notification)
-                  {
-                      return notification.message == "Tile is not visible with the current filter." ||
-                             notification.message == "Texture is not visible with the current filter.";
-                  });
-}
-
 void configureMapPanelCallbacks(WorkbenchState & state)
 {
-    state.radarcolState.clearStatus = [&state] { clearAssetNavigationStatus(state); };
+    state.radarcolState.clearStatus = [&state] { clearAssetNavigationStatus(state.notifications); };
     state.radarcolState.itemPicked = [&state](const assets::AssetItemId & item)
     {
-        clearAssetNavigationStatus(state);
+        clearAssetNavigationStatus(state.notifications);
         pickAssetItem(state, item, false);
     };
     state.texmapsState.itemPicked = [&state](const assets::AssetItemId & item)
     {
-        clearAssetNavigationStatus(state);
+        clearAssetNavigationStatus(state.notifications);
         pickAssetItem(state, item, false);
     };
     state.tiledataState.itemPicked = [&state](const assets::AssetItemId & item)
     {
-        clearAssetNavigationStatus(state);
+        clearAssetNavigationStatus(state.notifications);
         pickAssetItem(state, item, true);
     };
     state.tiledataState.assetView.focusResult = [&state](bool visible)

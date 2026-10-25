@@ -5,6 +5,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace
 {
@@ -72,6 +73,15 @@ TEST_CASE("assetSourceContext_Should_KeepMetadataAndDocumentContextsSeparate")
 
     REQUIRE_FALSE(metadata == document);
     REQUIRE(metadata.source == document.source);
+}
+
+TEST_CASE("assetDragPayload_Should_ExposeAReusableDisplayLabel")
+{
+    uo_mule::gui::assets::AssetDragPayload payload;
+    payload.type = std::string(uo_mule::gui::assets::assetValueDragPayloadType);
+    payload.label = "Radarcol color";
+
+    REQUIRE(payload.label == "Radarcol color");
 }
 
 TEST_CASE("assetSelection_Should_ReplaceSingleSelectionAndTrackAnchor")

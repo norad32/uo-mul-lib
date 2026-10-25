@@ -153,6 +153,7 @@ struct AssetDragPayloadValue
 struct AssetDragPayload
 {
     std::string type;
+    std::string label;
     AssetSourceContext source;
     std::vector<AssetItemId> items;
     std::vector<AssetDragPayloadValue> values;
