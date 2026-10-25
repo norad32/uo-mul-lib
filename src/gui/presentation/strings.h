@@ -4,6 +4,7 @@
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/session/workbench_session.h"
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -48,6 +49,43 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * blockInspector() noexcept;
 [[nodiscard]] const char * radarcol() noexcept;
 [[nodiscard]] const char * texmaps() noexcept;
+[[nodiscard]] const char * radarcolFallbackTitle() noexcept;
+[[nodiscard]] const char * radarcolFallbackMessage() noexcept;
+[[nodiscard]] const char * radarcolFallbackQuestion() noexcept;
+[[nodiscard]] const char * createDefaultRadarcol() noexcept;
+[[nodiscard]] const char * defaultRadarcolCreated() noexcept;
+[[nodiscard]] const char * continueWithEmbedded() noexcept;
+[[nodiscard]] const char * closeWithoutSaving() noexcept;
+[[nodiscard]] const char * windowsMenu() noexcept;
+[[nodiscard]] const char * selectMenu() noexcept;
+[[nodiscard]] const char * toolsMenu() noexcept;
+[[nodiscard]] const char * worldMenu() noexcept;
+[[nodiscard]] const char * noMapOpen() noexcept;
+[[nodiscard]] const char * tileInspectionUnavailable() noexcept;
+[[nodiscard]] const char * noTileUnderPointerOrSelected() noexcept;
+[[nodiscard]] const char * hoverBlockToInspect() noexcept;
+[[nodiscard]] const char * clear() noexcept;
+[[nodiscard]] const char * sourceTexmapUnavailable() noexcept;
+[[nodiscard]] const char * sourceTexmapUnsupportedDimensions() noexcept;
+[[nodiscard]] const char * sourceTexmapInvalidPixels() noexcept;
+[[nodiscard]] const char * sourceTexmapsDocumentClosed() noexcept;
+[[nodiscard]] const char * sourceTexmapSlotEmpty() noexcept;
+[[nodiscard]] const char * selectedTexmapSlotEmpty() noexcept;
+[[nodiscard]] const char * exportTexmap() noexcept;
+[[nodiscard]] const char * chooseTexmapExportFolder() noexcept;
+[[nodiscard]] const char * exportCancelled() noexcept;
+[[nodiscard]] const char * chooseTextureReplacementFolder() noexcept;
+[[nodiscard]] const char * openTextureImage() noexcept;
+[[nodiscard]] const char * metadataSourceNotConfigured() noexcept;
+[[nodiscard]] const char * metadataSourceFileNotConfigured() noexcept;
+[[nodiscard]] const char * metadataDocumentCouldNotOpen() noexcept;
+[[nodiscard]] const char * tileNotVisibleWithCurrentFilter() noexcept;
+[[nodiscard]] const char * textureNotVisibleWithCurrentFilter() noexcept;
+[[nodiscard]] std::string formatRadarcolFallbackWarning(std::string_view detail);
+[[nodiscard]] const char * noExternalRadarcolFallbackWarning() noexcept;
+[[nodiscard]] const char * pickMapTileOrAsset() noexcept;
+[[nodiscard]] std::string formatEditingRadarcols(std::size_t count);
+[[nodiscard]] std::string formatSelectedColors(std::size_t count);
 
 [[nodiscard]] std::string_view providerSourceName(ProviderSourceKind source) noexcept;
 [[nodiscard]] std::string_view profileReadinessName(ProfileReadinessState state) noexcept;
@@ -62,6 +100,8 @@ namespace uo_mule::gui::strings
 [[nodiscard]] std::string formatStateStatus(bool dirty);
 [[nodiscard]] std::string formatDataStatus(ProfileReadinessState state);
 [[nodiscard]] std::string formatRadarcolStatus(ProviderSourceKind source);
+[[nodiscard]] std::string formatSaveChangesPrompt(std::string_view filename);
+[[nodiscard]] const char * discardChangesWarning() noexcept;
 [[nodiscard]] std::string formatId(std::uint32_t id, IdFormat format);
 [[nodiscard]] const char * idInputFormat(IdFormat format) noexcept;
 

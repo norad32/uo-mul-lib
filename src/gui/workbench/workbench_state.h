@@ -102,12 +102,14 @@ struct WorkbenchState
     std::vector<logger::GuiLogEntry> logEntries;
     bool followLogScroll = true;
     bool shouldClose = false;
+    bool quitRequested = false;
     bool startupLoaded = false;
     bool nativeWelcomeWindowMode = false;
     std::filesystem::path recentMapRecordedPath;
     std::string welcomeGreeting;
     bool welcomeGreetingSelected = false;
     std::uint64_t radarcolNotificationRevision = 0;
+    bool radarcolFallbackPromptVisible = false;
     ProviderRevisions providerRevisions;
     std::vector<assets::AssetStateRecord> assetStateRecords;
     bool assetStateResetRequested = false;

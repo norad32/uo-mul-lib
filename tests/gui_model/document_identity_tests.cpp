@@ -51,6 +51,24 @@ bool isInvalidConfiguredDocument(const uo_mule::gui::DocumentRecord * document)
            !document->radarcol->error().empty();
 }
 
+uo_mule::gui::RadarcolDocument * mutableRadarcolDocument(uo_mule::gui::DocumentRecord * record)
+{
+    if (record == nullptr || !record->radarcol)
+    {
+        return nullptr;
+    }
+    return &record->radarcol.value();
+}
+
+const uo_mule::gui::RadarcolDocument * radarcolDocument(const uo_mule::gui::DocumentRecord * record)
+{
+    if (record == nullptr || !record->radarcol)
+    {
+        return nullptr;
+    }
+    return &record->radarcol.value();
+}
+
 class TestDirectory
 {
 public:
@@ -258,6 +276,51 @@ TEST_CASE("DocumentManager_Should_OpenStandaloneRadarcolAsAnEditableReaderBacked
     REQUIRE(radarColorCount(radarcol) == uomul::radarColorCount);
 }
 
+TEST_CASE("DocumentManager_Should_RejectClosingDirtyRadarcol")
+{
+    const TestDirectory directory;
+    const auto radarcolPath = testRoot() / "dirty-radarcol.mul";
+    createRadarcol(radarcolPath);
+
+    uo_mule::gui::DocumentManager documents;
+    const auto documentId = documents.open({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::radarcol,
+                .source = uo_mule::gui::makeDocumentSourceIdentity({radarcolPath}),
+            },
+        .displayName = radarcolPath.filename().string(),
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+    });
+    REQUIRE(documentId != 0U);
+
+    auto * record = documents.findMutable(documentId);
+    REQUIRE(record != nullptr);
+    auto * radarcol = mutableRadarcolDocument(record);
+    REQUIRE(radarcol != nullptr);
+    if (radarcol == nullptr)
+    {
+        return;
+    }
+    REQUIRE(radarcol->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::editColors,
+        .colorEdits = {{.colorIndex = 0U, .color = 1U}},
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
+    REQUIRE_FALSE(documents.close(documentId));
+    REQUIRE(documents.find(documentId) != nullptr);
+
+    REQUIRE(radarcol->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::discard,
+        .colorEdits = {},
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
+    REQUIRE(documents.close(documentId));
+}
+
 TEST_CASE("DocumentManager_Should_KeepInvalidConfiguredRadarcolEditable")
 {
     const TestDirectory directory;
@@ -283,6 +346,40 @@ TEST_CASE("DocumentManager_Should_KeepInvalidConfiguredRadarcolEditable")
     const auto * document = documents.find(documentId);
 
     REQUIRE(isInvalidConfiguredDocument(document));
+}
+
+TEST_CASE("DocumentManager_Should_KeepInvalidStandaloneRadarcolAsDiagnosticPlaceholder")
+{
+    const TestDirectory directory;
+    const auto radarcolPath = testRoot() / "broken-standalone-radarcol.mul";
+    std::ofstream(radarcolPath, std::ios::binary).put('\0');
+
+    uo_mule::gui::DocumentManager documents;
+    const auto documentId = documents.open({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::radarcol,
+                .source = uo_mule::gui::makeDocumentSourceIdentity({radarcolPath}),
+            },
+        .displayName = radarcolPath.filename().string(),
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+    });
+    const auto * document = documents.find(documentId);
+
+    REQUIRE(documentId != 0U);
+    REQUIRE(document != nullptr);
+    REQUIRE(document->summary.sourceKind == uo_mule::gui::DocumentSourceKind::standalone);
+    REQUIRE(document->summary.validation == uo_mule::gui::DocumentValidationState::invalid);
+    REQUIRE(document->radarcol.has_value());
+    const auto * radarcol = radarcolDocument(document);
+    REQUIRE(radarcol != nullptr);
+    if (radarcol == nullptr)
+    {
+        return;
+    }
+    REQUIRE_FALSE(radarcol->reader());
+    REQUIRE_FALSE(radarcol->error().empty());
 }
 
 TEST_CASE("ConfiguredDocumentSource_Should_MatchCanonicalRadarcolPaths")

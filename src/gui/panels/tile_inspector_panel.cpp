@@ -41,7 +41,7 @@ void drawTileDetails(const MapContextSnapshot & context,
 
     if (!tileValue || !dataValue)
     {
-        ImGui::TextUnformatted("Tile inspection data unavailable");
+        ImGui::TextUnformatted(strings::tileInspectionUnavailable());
         return;
     }
 
@@ -93,11 +93,11 @@ void drawTileInspectorPanel(const MapDocumentState & mapDocument,
     {
         if (!mapDocument.changes().reader.has_value())
         {
-            ImGui::TextUnformatted("No map open");
+            ImGui::TextUnformatted(strings::noMapOpen());
         }
         else if (!context.activeTile || !context.activeValue)
         {
-            ImGui::TextUnformatted("No tile under pointer or selected");
+            ImGui::TextUnformatted(strings::noTileUnderPointerOrSelected());
         }
         else
         {

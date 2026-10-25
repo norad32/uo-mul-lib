@@ -1,13 +1,21 @@
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/workbench/workbench_state.h"
+#include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/map_view_state.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/lifecycle/document_lifecycle.h"
+#include "gui_model/source/source_identity.h"
 #include "gui_model/tools/tool_contracts.h"
 #include "uomul/map/map.h"
+#include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
+#include <fstream>
+#include <ios>
+#include <optional>
 #include <string>
 
 using uo_mule::gui::CommandId;
@@ -24,6 +32,13 @@ void requireAssetCommandEnabled(const WorkbenchState & state, CommandId command)
 void requireAssetCommandExecuted(WorkbenchState & state, CommandId command)
 {
     REQUIRE(state.commands.execute(command, state));
+}
+
+void createRadarcol(const std::filesystem::path & path)
+{
+    std::ofstream radarcol(path, std::ios::binary);
+    radarcol.seekp(static_cast<std::streamoff>(uomul::radarColorCount * sizeof(uomul::RadarColor)) - 1);
+    radarcol.put('\0');
 }
 
 } // namespace
@@ -100,6 +115,89 @@ TEST_CASE("commandRegistry_Should_DispatchRegisteredShortcuts")
     REQUIRE(state.commands.executeShortcut("Ctrl+N", state));
     REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::newType);
     REQUIRE_FALSE(state.commands.executeShortcut("Ctrl+P", state));
+}
+
+TEST_CASE("fileCloseCommand_Should_RequestTheActiveMetadataDocument")
+{
+    WorkbenchState state;
+    const auto path = std::filesystem::temp_directory_path() / "uo-mule-command-close-radarcol.mul";
+    std::filesystem::remove(path);
+    createRadarcol(path);
+    const auto id = state.session.openDocument({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::radarcol,
+                .source = uo_mule::gui::makeDocumentSourceIdentity({path}),
+            },
+        .displayName = path.filename().string(),
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+    });
+    REQUIRE(id != 0U);
+
+    REQUIRE(state.commands.execute(CommandId::fileClose, state));
+    const auto request = state.documentLifecycle.takeClose();
+    REQUIRE(request.has_value());
+    REQUIRE(request.value_or(uo_mule::gui::DocumentCloseRequest{}).id == id);
+    REQUIRE_FALSE(state.shouldClose);
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("fileCloseCommand_Should_RequestTheActiveMapDocument")
+{
+    WorkbenchState state;
+    const auto path = std::filesystem::temp_directory_path() / "uo-mule-command-close-map.mul";
+    std::filesystem::remove(path);
+    const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};
+    REQUIRE(state.mapDocuments.createEmptyMap(path, dimensions));
+    state.session.syncDocument(state.mapDocuments);
+    const auto id = state.session.activeDocumentId();
+    REQUIRE(id.has_value());
+
+    REQUIRE(state.commands.execute(CommandId::fileClose, state));
+    const auto request = state.documentLifecycle.takeClose();
+    REQUIRE(request.has_value());
+    REQUIRE(request.value_or(uo_mule::gui::DocumentCloseRequest{}).id == id.value_or(0U));
+
+    REQUIRE(state.mapDocuments.closeMap());
+    state.session.syncDocument(state.mapDocuments);
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("fileCloseCommand_Should_RequestTheActiveTexmapPlaceholder")
+{
+    WorkbenchState state;
+    const auto indexPath = std::filesystem::temp_directory_path() / "uo-mule-command-close-texidx.mul";
+    const auto dataPath = std::filesystem::temp_directory_path() / "uo-mule-command-close-texmaps.mul";
+    const auto id = state.session.openDocument({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::texmapPair,
+                .source = uo_mule::gui::makeRoleAwareDocumentSourceIdentity({
+                    {.role = uo_mule::gui::SourceRole::index, .path = indexPath},
+                    {.role = uo_mule::gui::SourceRole::data, .path = dataPath},
+                }),
+            },
+        .displayName = "Texmap Pair",
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+    });
+    REQUIRE(id != 0U);
+
+    REQUIRE(state.commands.execute(CommandId::fileClose, state));
+    const auto request = state.documentLifecycle.takeClose();
+    REQUIRE(request.has_value());
+    REQUIRE(request.value_or(uo_mule::gui::DocumentCloseRequest{}).id == id);
+}
+
+TEST_CASE("fileQuitCommand_Should_RequestApplicationCloseWithoutDocuments")
+{
+    WorkbenchState state;
+
+    REQUIRE(state.commands.execute(CommandId::fileQuit, state));
+    REQUIRE(state.shouldClose);
+    REQUIRE_FALSE(state.quitRequested);
 }
 
 TEST_CASE("toolCommands_Should_ExposeSharedActivationMetadata")

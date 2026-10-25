@@ -786,12 +786,12 @@ void drawCloseDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState &
     {
         filename = "map";
     }
-    ImGui::Text("Save changes to \"%s\" before closing?", filename.c_str());
-    ImGui::TextColored(
-        theme::imguiColor(theme::mutedText), "%s", "If you close without saving, your changes will be discarded.");
+    const std::string savePrompt = strings::formatSaveChangesPrompt(filename);
+    ImGui::TextUnformatted(savePrompt.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", strings::discardChangesWarning());
 
-    beginDialogFooter({"Close without saving", "Cancel", "Save"});
-    if (dialogButton(iconLabel(IconId::close, "Close without saving").c_str()))
+    beginDialogFooter({strings::closeWithoutSaving(), strings::cancel(), strings::save()});
+    if (dialogButton(iconLabel(IconId::close, strings::closeWithoutSaving()).c_str()))
     {
         if (state.controller != nullptr)
         {

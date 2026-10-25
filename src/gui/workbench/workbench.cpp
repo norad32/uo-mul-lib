@@ -4,6 +4,7 @@
 #include "gui/commands/command_registry.h"
 #include "gui/commands/menu_bar.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/document_window_name.h"
 #include "gui/documents/map_document_window.h"
@@ -29,6 +30,7 @@
 #include "gui_model/documents/map_document.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/radarcol_document.h"
+#include "gui_model/documents/texmaps_document.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/lifecycle/document_lifecycle.h"
 #include "gui_model/model/assets/asset_export_contracts.h"
@@ -280,17 +282,17 @@ void pickAssetItem(WorkbenchState & state, const assets::AssetItemId & item, boo
     const auto source = provider.texture(textureId);
     if (!source)
     {
-        return std::unexpected(dragDropError("The source Texmap texture is unavailable."));
+        return std::unexpected(dragDropError(strings::sourceTexmapUnavailable()));
     }
     if (source->width != source->height ||
         (source->width != uomul::textureSmallDimension && source->width != uomul::textureLargeDimension))
     {
-        return std::unexpected(dragDropError("The source Texmap texture has unsupported dimensions."));
+        return std::unexpected(dragDropError(strings::sourceTexmapUnsupportedDimensions()));
     }
     const auto expectedPixels = static_cast<std::size_t>(source->width) * source->height;
     if (source->pixels.size() != expectedPixels)
     {
-        return std::unexpected(dragDropError("The source Texmap texture has invalid pixel data."));
+        return std::unexpected(dragDropError(strings::sourceTexmapInvalidPixels()));
     }
     uomul::TextureImage texture{
         .dimension = static_cast<uomul::TextureDimension>(source->width),
@@ -316,7 +318,7 @@ void configureTexmapDragCallbacks(WorkbenchState & state)
         const auto * record = findDocument(state, payload.sourceDocumentId);
         if (record == nullptr || !record->texmaps)
         {
-            return std::unexpected(dragDropError("The source Texmaps document is no longer open."));
+            return std::unexpected(dragDropError(strings::sourceTexmapsDocumentClosed()));
         }
         const auto source = record->texmaps->effectiveTexture(payload.item);
         if (!source)
@@ -325,7 +327,7 @@ void configureTexmapDragCallbacks(WorkbenchState & state)
         }
         if (!source->has_value())
         {
-            return std::unexpected(dragDropError("The source Texmap slot is empty."));
+            return std::unexpected(dragDropError(strings::sourceTexmapSlotEmpty()));
         }
         return **source;
     };
@@ -345,7 +347,7 @@ collectTexmapExportItems(const WorkbenchState & state,
         const auto * record = findDocument(state, *sourceDocumentId);
         if (record == nullptr || !record->texmaps)
         {
-            return std::unexpected(dragDropError("The source Texmaps document is no longer open."));
+            return std::unexpected(dragDropError(strings::sourceTexmapsDocumentClosed()));
         }
         for (const auto textureId : textureIds)
         {
@@ -356,7 +358,7 @@ collectTexmapExportItems(const WorkbenchState & state,
             }
             if (!texture->has_value())
             {
-                return std::unexpected(dragDropError("A selected Texmap slot is empty."));
+                return std::unexpected(dragDropError(strings::selectedTexmapSlotEmpty()));
             }
             items.push_back({.textureId = textureId, .texture = **texture});
         }
@@ -440,7 +442,7 @@ void configureTexmapExportCallbacks(WorkbenchState & state)
                                    .target = FileBrowserTarget::texmapExportFile,
                                    .initialPath = std::filesystem::current_path() / filename,
                                    .extension = filename.substr(filename.find_last_of('.')),
-                                   .title = "Export Texmap",
+                                   .title = strings::exportTexmap(),
                                });
         }
         else
@@ -451,7 +453,7 @@ void configureTexmapExportCallbacks(WorkbenchState & state)
                                    .target = FileBrowserTarget::texmapExportFolder,
                                    .initialPath = {},
                                    .extension = {},
-                                   .title = "Choose Texmap Export Folder",
+                                   .title = strings::chooseTexmapExportFolder(),
                                });
         }
     };
@@ -486,7 +488,7 @@ void configureTexmapExportCallbacks(WorkbenchState & state)
     { state.deferWorkflowAction([&state] { executeTexmapExport(state, true); }); };
     state.texmapsState.exportOverwriteCancelled = [&state]
     {
-        state.operationStatus = "Export cancelled.";
+        state.operationStatus = strings::exportCancelled();
         state.operationStatusSeverity = NotificationSeverity::info;
     };
 }
@@ -504,7 +506,7 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
                                .target = FileBrowserTarget::imageFolderOpen,
                                .initialPath = {},
                                .extension = {},
-                               .title = "Choose Texture Replacement Folder",
+                               .title = strings::chooseTextureReplacementFolder(),
                            });
     };
     state.texmapsState.folderReplacementFolderPicked = [&state](const std::filesystem::path & path)
@@ -516,7 +518,7 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
                 const auto * record = findDocument(state, state.texmapsState.folderReplacement.documentId);
                 if (record == nullptr || !record->texmaps)
                 {
-                    state.texmapsState.folderReplacement.status = "The Texmaps document is no longer open.";
+                    state.texmapsState.folderReplacement.status = strings::sourceTexmapsDocumentClosed();
                     state.texmapsState.replacementStatusReported(state.texmapsState.folderReplacement.status, false);
                     return;
                 }
@@ -539,7 +541,7 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
     const auto source = configuredDocumentSourceIdentity(state.activeProfile, kind);
     if (!source)
     {
-        state.notifications.add(NotificationSeverity::error, "The metadata source is not configured");
+        state.notifications.add(NotificationSeverity::error, strings::metadataSourceNotConfigured());
         return nullptr;
     }
 
@@ -547,7 +549,7 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
     const auto * path = source->path(role);
     if (path == nullptr || path->empty())
     {
-        state.notifications.add(NotificationSeverity::error, "The metadata source file is not configured");
+        state.notifications.add(NotificationSeverity::error, strings::metadataSourceFileNotConfigured());
         return nullptr;
     }
 
@@ -563,7 +565,7 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
     const DocumentId id = state.session.openDocument(summary);
     if (id == 0)
     {
-        state.notifications.add(NotificationSeverity::error, "The metadata document could not be opened");
+        state.notifications.add(NotificationSeverity::error, strings::metadataDocumentCouldNotOpen());
         return nullptr;
     }
     if (auto activated = state.session.activateDocument(id, state.mapDocuments); !activated)
@@ -610,7 +612,7 @@ void configureMapPanelCallbacks(WorkbenchState & state)
                                .target = FileBrowserTarget::imageOpen,
                                .initialPath = state.texmapsState.replacement.sourcePath,
                                .extension = ".bmp,.png",
-                               .title = "Open Texture Image",
+                               .title = strings::openTextureImage(),
                            });
     };
     state.texmapsState.replacementFilePicked = [&state](const std::filesystem::path & path)
@@ -646,14 +648,14 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     {
         if (!visible)
         {
-            state.notifications.add(NotificationSeverity::info, "Tile is not visible with the current filter.");
+            state.notifications.add(NotificationSeverity::info, strings::tileNotVisibleWithCurrentFilter());
         }
     };
     state.texmapsState.assetView.focusResult = [&state](bool visible)
     {
         if (!visible)
         {
-            state.notifications.add(NotificationSeverity::info, "Texture is not visible with the current filter.");
+            state.notifications.add(NotificationSeverity::info, strings::textureNotVisibleWithCurrentFilter());
         }
     };
     state.radarcolState.showInTiledata = [&state](std::uint32_t id, bool statics)
@@ -763,16 +765,65 @@ void applyPendingPreferenceChanges(WorkbenchState & state)
 void notifyRadarcolFallback(WorkbenchState & state)
 {
     const ProviderStatus status = state.providers.radarColors().status();
-    if (status.source != ProviderSourceKind::embeddedDefaultWithWarning ||
-        status.revision == state.radarcolNotificationRevision)
+    const bool usingEmbeddedFallback =
+        status.source == ProviderSourceKind::embeddedDefault || status.source == ProviderSourceKind::embeddedDefaultWithWarning;
+    if (!usingEmbeddedFallback || status.revision == state.radarcolNotificationRevision)
     {
         state.radarcolNotificationRevision = status.revision;
+        if (!usingEmbeddedFallback)
+        {
+            state.radarcolFallbackPromptVisible = false;
+        }
         return;
     }
 
     state.radarcolNotificationRevision = status.revision;
+    state.radarcolFallbackPromptVisible = true;
     state.notifications.add(NotificationSeverity::warning,
-                            "Configured Radarcol is unavailable; using Embedded Radarcol fallback. " + status.message);
+                            status.source == ProviderSourceKind::embeddedDefaultWithWarning
+                                ? strings::formatRadarcolFallbackWarning(status.message)
+                                : strings::noExternalRadarcolFallbackWarning());
+}
+
+void drawRadarcolFallbackWorkflow(WorkbenchState & state)
+{
+    if (!state.radarcolFallbackPromptVisible)
+    {
+        return;
+    }
+
+    const std::string popupName = std::string(strings::radarcolFallbackTitle()) + "###dialog.radarcol-fallback";
+    if (!ImGui::BeginPopupModal(popupName.c_str(), &state.radarcolFallbackPromptVisible, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::OpenPopup(popupName.c_str());
+        return;
+    }
+
+    ImGui::TextUnformatted(strings::radarcolFallbackMessage());
+    ImGui::TextUnformatted(strings::radarcolFallbackQuestion());
+    ImGui::Separator();
+    if (ImGui::Button(strings::createDefaultRadarcol()))
+    {
+        const auto initialPath =
+            state.activeProfile.sourceRoot.empty() ? std::filesystem::path{} : state.activeProfile.sourceRoot / "radarcol.mul";
+        requestFileBrowser(state.fileBrowser,
+                           {
+                               .mode = FileBrowserMode::saveFile,
+                               .target = FileBrowserTarget::defaultRadarcolOutput,
+                               .initialPath = initialPath,
+                               .extension = ".mul",
+                               .title = strings::createDefaultRadarcol(),
+                           });
+        state.radarcolFallbackPromptVisible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button(strings::continueWithEmbedded()))
+    {
+        state.radarcolFallbackPromptVisible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
 }
 
 void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
@@ -821,17 +872,16 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
     const bool radarcolEditing = state.radarcolState.colorPicker.open || state.radarcolState.colorPicker.sourceMode;
     if (state.radarcolState.colorPicker.sourceMode)
     {
-        drawStatusText("Pick a map tile or asset. Press Esc to cancel.", NotificationSeverity::info);
+        drawStatusText(strings::pickMapTileOrAsset(), NotificationSeverity::info);
     }
     else if (radarcolEditing)
     {
-        drawStatusText("Editing " + std::to_string(state.radarcolState.colorPicker.targetIndices.size()) +
-                           " Radarcols. Press Esc to cancel.",
+        drawStatusText(strings::formatEditingRadarcols(state.radarcolState.colorPicker.targetIndices.size()),
                        NotificationSeverity::info);
     }
     else
     {
-        drawStatusText("Selected colors: " + std::to_string(selectedRadarcolColors), NotificationSeverity::info);
+        drawStatusText(strings::formatSelectedColors(selectedRadarcolColors), NotificationSeverity::info);
     }
     if (!radarcolEditing && !state.operationStatus.empty())
     {
@@ -1200,6 +1250,23 @@ void drawDocumentSurface(WorkbenchState & state)
     drawDocumentWindows(state);
 }
 
+void continueQuit(WorkbenchState & state)
+{
+    if (!state.quitRequested)
+    {
+        return;
+    }
+    if (state.session.documents().empty())
+    {
+        state.quitRequested = false;
+        state.shouldClose = true;
+        return;
+    }
+
+    state.documentLifecycle.requestClose(
+        {.id = state.session.documents().front().summary.identity.id, .dirtyPolicy = DocumentCloseDirtyPolicy::prompt});
+}
+
 void finishPendingAssetClose(WorkbenchState & state, DocumentId id, PendingChangesAction action)
 {
     if (action == PendingChangesAction::save)
@@ -1212,6 +1279,10 @@ void finishPendingAssetClose(WorkbenchState & state, DocumentId id, PendingChang
             {
                 state.notifications.add(NotificationSeverity::error, closed.error().message);
             }
+            else
+            {
+                continueQuit(state);
+            }
         }
     }
     else if (action == PendingChangesAction::discard)
@@ -1221,6 +1292,10 @@ void finishPendingAssetClose(WorkbenchState & state, DocumentId id, PendingChang
         if (!closed)
         {
             state.notifications.add(NotificationSeverity::error, closed.error().message);
+        }
+        else
+        {
+            continueQuit(state);
         }
     }
 }
@@ -1279,6 +1354,65 @@ void applyDeferredWorkflowActions(WorkbenchState & state)
     }
 }
 
+[[nodiscard]] DocumentRecord * findMutableDocument(WorkbenchState & state, DocumentId id)
+{
+    for (auto & candidate : state.session.documentsMutable())
+    {
+        if (candidate.summary.identity.id == id)
+        {
+            return &candidate;
+        }
+    }
+    return nullptr;
+}
+
+[[nodiscard]] std::string pendingAssetFilename(const DocumentRecord * record)
+{
+    if (record != nullptr && record->radarcol)
+    {
+        const std::string filename = record->radarcol->sourcePath().filename().string();
+        return filename.empty() ? record->summary.displayName : filename;
+    }
+    if (record != nullptr && record->texmaps)
+    {
+        const std::string filename = record->texmaps->sourceIndexPath().filename().string();
+        return filename.empty() ? record->summary.displayName : filename;
+    }
+    return "document";
+}
+
+void requestPendingAssetResolution(WorkbenchState & state, DocumentRecord * record, PendingChangesAction action)
+{
+    if (record != nullptr && record->radarcol)
+    {
+        static_cast<void>(state.operationController.resolveDirty(action));
+        record->radarcol->requestIntent({
+            .kind = action == PendingChangesAction::discard ? RadarcolDocumentIntentKind::discard
+                                                            : RadarcolDocumentIntentKind::save,
+            .colorEdits = {},
+            .outputPath = {},
+            .overwriteOutput = false,
+        });
+        state.pendingAssetCloseAction = action;
+    }
+    else if (record != nullptr && record->texmaps)
+    {
+        static_cast<void>(state.operationController.resolveDirty(action));
+        record->texmaps->requestIntent({
+            .kind =
+                action == PendingChangesAction::discard ? TexmapsDocumentIntentKind::discard : TexmapsDocumentIntentKind::save,
+            .outputIndexPath = {},
+            .outputDataPath = {},
+            .overwriteOutput = false,
+            .textureId = 0,
+            .texture = uomul::TextureImage(),
+            .textureEdits = {},
+            .textureIds = {},
+        });
+        state.pendingAssetCloseAction = action;
+    }
+}
+
 void drawPendingAssetCloseDialog(WorkbenchState & state)
 {
     if (!state.pendingAssetCloseDecision)
@@ -1294,43 +1428,17 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
         return;
     }
 
-    DocumentRecord * record = nullptr;
-    for (auto & candidate : state.session.documentsMutable())
-    {
-        if (candidate.summary.identity.id == id)
-        {
-            record = &candidate;
-            break;
-        }
-    }
-    std::string filename = "document";
-    if (record != nullptr && record->radarcol)
-    {
-        filename = record->radarcol->sourcePath().filename().string();
-        if (filename.empty())
-        {
-            filename = record->summary.displayName;
-        }
-    }
+    DocumentRecord * record = findMutableDocument(state, id);
+    const std::string filename = pendingAssetFilename(record);
 
-    ImGui::Text("Save changes to \"%s\" before closing?", filename.c_str());
-    ImGui::TextColored(
-        theme::imguiColor(theme::mutedText), "%s", "If you close without saving, your changes will be discarded.");
+    const std::string savePrompt = strings::formatSaveChangesPrompt(filename);
+    ImGui::TextUnformatted(savePrompt.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", strings::discardChangesWarning());
 
-    const std::string closeWithoutSavingLabel = iconLabel(IconId::close, "Close without saving");
+    const std::string closeWithoutSavingLabel = iconLabel(IconId::close, strings::closeWithoutSaving());
     if (ImGui::Button(closeWithoutSavingLabel.c_str()))
     {
-        if (record != nullptr && record->radarcol)
-        {
-            static_cast<void>(state.operationController.resolveDirty(PendingChangesAction::discard));
-            record->radarcol->requestIntent({
-                .kind = RadarcolDocumentIntentKind::discard,
-                .colorEdits = {},
-                .outputPath = {},
-                .overwriteOutput = false,
-            });
-            state.pendingAssetCloseAction = PendingChangesAction::discard;
-        }
+        requestPendingAssetResolution(state, record, PendingChangesAction::discard);
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
@@ -1339,6 +1447,7 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
     {
         state.pendingAssetCloseDecision.reset();
         state.pendingAssetCloseAction.reset();
+        state.quitRequested = false;
         static_cast<void>(state.operationController.cancel());
         ImGui::CloseCurrentPopup();
     }
@@ -1346,17 +1455,7 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
     const std::string saveLabel = iconLabel(IconId::save, "Save");
     if (ImGui::Button(saveLabel.c_str()))
     {
-        if (record != nullptr && record->radarcol)
-        {
-            static_cast<void>(state.operationController.resolveDirty(PendingChangesAction::save));
-            record->radarcol->requestIntent({
-                .kind = RadarcolDocumentIntentKind::save,
-                .colorEdits = {},
-                .outputPath = {},
-                .overwriteOutput = false,
-            });
-            state.pendingAssetCloseAction = PendingChangesAction::save;
-        }
+        requestPendingAssetResolution(state, record, PendingChangesAction::save);
         ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -1409,9 +1508,13 @@ void applyPendingDocumentAction(WorkbenchState & state)
         }
         if (requested->map)
         {
-            static_cast<void>(state.commands.execute(CommandId::fileClose, state));
+            requestCloseOperation(state.mapDocuments,
+                                  state.menuBarState.fileDialog,
+                                  state.operationController,
+                                  PendingMapOperationKind::close,
+                                  state.notifications);
         }
-        else if (requested->radarcol)
+        else if (requested->radarcol || requested->texmaps)
         {
             OperationRequest operation{};
             operation.kind = OperationKind::close;
@@ -1430,6 +1533,10 @@ void applyPendingDocumentAction(WorkbenchState & state)
     if (!closed)
     {
         state.notifications.add(NotificationSeverity::error, closed.error().message);
+    }
+    else
+    {
+        continueQuit(state);
     }
 }
 
@@ -1823,6 +1930,7 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
         state.recentMapRecordedPath.clear();
         drawWelcomeView(state);
         notifyRadarcolFallback(state);
+        drawRadarcolFallbackWorkflow(state);
         profileChanged = drawMenuBar(state, false);
     }
     else
@@ -1843,6 +1951,7 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
         drawPendingAssetCloseDialog(state);
         drawMapPanels(state, state.blockInspectorState);
         notifyRadarcolFallback(state);
+        drawRadarcolFallbackWorkflow(state);
         if (state.mapDocuments.active().changes().reader.has_value() &&
             state.recentMapRecordedPath != state.mapDocuments.active().changes().mapPath)
         {
@@ -1874,6 +1983,11 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
     }
 
     state.session.syncDocument(state.mapDocuments);
+    if (state.quitRequested && !state.mapDocuments.active().changes().reader &&
+        state.menuBarState.fileDialog.mode == MapFileDialogMode::none && !state.pendingAssetCloseDecision)
+    {
+        continueQuit(state);
+    }
 
     const bool wasWelcome = welcome;
     welcome = welcomeShell(state);

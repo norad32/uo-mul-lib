@@ -10,6 +10,7 @@
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/radarcol_document.h"
+#include "gui_model/profile/data_profile.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/source/source_identity.h"
 #include "uomul/radarcol/radarcol.h"
@@ -130,8 +131,45 @@ void openCreatedAsset(WorkbenchState & state,
     }
 }
 
+bool createDefaultRadarcolImpl(WorkbenchState & state, const std::filesystem::path & path)
+{
+    auto created = uomul::RadarColEditor::createEmpty(path);
+    if (!created)
+    {
+        state.notifications.add(NotificationSeverity::error, strings::formatError(created.error()));
+        return false;
+    }
+    if (auto committed = created->commit(); !committed)
+    {
+        state.notifications.add(NotificationSeverity::error, strings::formatError(committed.error()));
+        return false;
+    }
+
+    const auto sourceRoot = state.activeProfile.sourceRoot;
+    const auto relativePath = sourceRoot.empty() ? std::filesystem::path{} : path.lexically_relative(sourceRoot);
+    state.activeProfile.files[DataFileRole::radarcol] = {
+        .path = relativePath.empty() || relativePath.native().starts_with("..") ? path : relativePath,
+        .userOverride = true,
+    };
+    state.session.updateProfile(state.activeProfile);
+    state.providers.sync(state.activeProfile);
+    state.assetStateRestored = false;
+    if (!state.activeProfile.name.empty())
+    {
+        state.menuBarState.preferencesDialog.workingProfile = state.activeProfile;
+        state.menuBarState.preferencesDialog.profileSaveRequested = true;
+    }
+    state.notifications.add(NotificationSeverity::success, strings::defaultRadarcolCreated());
+    return true;
+}
+
 void createNewAsset(WorkbenchState & state, FileBrowserTarget target, const std::filesystem::path & path)
 {
+    if (target == FileBrowserTarget::defaultRadarcolOutput)
+    {
+        static_cast<void>(createDefaultRadarcolImpl(state, path));
+        return;
+    }
     if (target == FileBrowserTarget::newRadarcolOutput)
     {
         auto created = uomul::RadarColEditor::createEmpty(path);
@@ -332,7 +370,8 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 
 [[nodiscard]] bool routeNewAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 {
-    if (result.target != FileBrowserTarget::newRadarcolOutput && result.target != FileBrowserTarget::newTexmapsData)
+    if (result.target != FileBrowserTarget::newRadarcolOutput && result.target != FileBrowserTarget::defaultRadarcolOutput &&
+        result.target != FileBrowserTarget::newTexmapsData)
     {
         return false;
     }
@@ -521,6 +560,11 @@ bool drawFileDialogs(WorkbenchState & state)
 }
 
 } // namespace
+
+bool createDefaultRadarcol(WorkbenchState & state, const std::filesystem::path & path)
+{
+    return createDefaultRadarcolImpl(state, path);
+}
 
 bool drawFileWorkflow(WorkbenchState & state)
 {

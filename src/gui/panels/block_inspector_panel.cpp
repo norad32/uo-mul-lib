@@ -1,5 +1,6 @@
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/documents/map_tile_labels.h"
+#include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/map_view_state.h"
@@ -318,11 +319,11 @@ void drawBlockInspectorContents(MapDocumentState & mapDocument,
 {
     if (reader == nullptr)
     {
-        ImGui::TextUnformatted("No map open");
+        ImGui::TextUnformatted(strings::noMapOpen());
     }
     else if (!state.blockCoordinate)
     {
-        ImGui::TextUnformatted("Hover a block in the map canvas to inspect it");
+        ImGui::TextUnformatted(strings::hoverBlockToInspect());
     }
     else
     {

@@ -1,4 +1,5 @@
 #include "gui/documents/map_document_window.h"
+#include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui_model/documents/map_document_manager.h"
 #include "gui_model/documents/map_document_state.h"
@@ -1737,7 +1738,7 @@ void drawEmptyCanvas(ImVec2 canvasOrigin,
     drawList->AddText(
         ImVec2(canvasOrigin.x + static_cast<float>(noMapTextPadding), canvasOrigin.y + static_cast<float>(noMapTextPadding)),
         theme::packedColor(theme::primaryText),
-        "No map open");
+        strings::noMapOpen());
 
     ImGui::SetCursorScreenPos(ImVec2(canvasOrigin.x + static_cast<float>(noMapTextPadding),
                                      canvasOrigin.y + static_cast<float>(noMapTextPadding + noMapButtonOffset)));

@@ -259,6 +259,25 @@ std::expected<void, uomul::Error> RadarcolDocument::revertColors(const std::vect
 
 std::expected<void, uomul::Error> RadarcolDocument::save()
 {
+    if (!editor_ && !stagedColors_.empty())
+    {
+        auto staged = uomul::RadarColEditor::create(sourcePath_, outputPath_, {.overwriteOutput = overwriteOutput_});
+        if (!staged)
+        {
+            return fail(staged.error());
+        }
+        editor_.emplace(std::move(*staged));
+        for (const auto & [index, color] : stagedColors_)
+        {
+            if (auto edited = editor_->editRawColor(index, color); !edited)
+            {
+                editor_->abort();
+                editor_.reset();
+                return fail(edited.error());
+            }
+        }
+    }
+
     if (!editor_)
     {
         return fail(makeDocumentError(outputPath_, "Radarcol has no staged changes"));
@@ -276,10 +295,10 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
 
     if (auto committed = editor_->commit(); !committed)
     {
-        editor_->abort();
+        // The underlying editor has already closed or aborted its transaction
+        // on commit failure. Keep the logical changes so the user can retry or
+        // discard them explicitly.
         editor_.reset();
-        stagedColors_.clear();
-        state_.resetChanges();
         if (*inPlace)
         {
             auto restored = uomul::RadarColReader::open(sourcePath_);
@@ -295,8 +314,6 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
     if (!opened)
     {
         editor_.reset();
-        stagedColors_.clear();
-        state_.resetChanges();
         return fail(opened.error());
     }
 

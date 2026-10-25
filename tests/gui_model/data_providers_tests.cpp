@@ -401,3 +401,79 @@ TEST_CASE("DataProviders_Should_ReadConfiguredTiledataMapAndStaticRecords")
     REQUIRE(tiledata.status(3U).state == uo_mule::gui::ProviderAssetState::available);
     REQUIRE(tiledata.staticStatus(0U).state == uo_mule::gui::ProviderAssetState::available);
 }
+
+TEST_CASE("DataProviders_Should_SynchronizeConfiguredTiledataDocument")
+{
+    const TemporaryDirectory directory;
+    const auto path = directory.path() / "tiledata.mul";
+    createTiledata(path);
+
+    uo_mule::gui::DataProfile profile;
+    profile.sourceRoot = path.parent_path();
+    profile.files[uo_mule::gui::DataFileRole::tiledata] = {.path = path.filename()};
+
+    uo_mule::gui::DocumentManager documents;
+    documents.updateMetadataSources(profile);
+    const auto documentId = documents.open({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::tiledata,
+                .source = uo_mule::gui::makeDocumentSourceIdentity({path}),
+            },
+        .displayName = path.filename().string(),
+        .sourceKind = uo_mule::gui::DocumentSourceKind::configuredMetadata,
+        .validation = uo_mule::gui::DocumentValidationState::valid,
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+        .dirty = false,
+    });
+    REQUIRE(documentId != 0U);
+
+    uo_mule::gui::DataProviders providers;
+    providers.sync(profile);
+    const auto profileRevision = providers.tiledata().status().revision;
+    providers.syncDocuments(documents.documents());
+
+    REQUIRE(providers.tiledata().status().revision > profileRevision);
+    REQUIRE(providers.tiledata().status().sourceIdentity == uo_mule::gui::makeDocumentSourceIdentity({path}));
+    const auto tile = providers.tiledata().mapTile(3U);
+    REQUIRE(tile.has_value());
+    const auto tileName = tile.has_value() ? tile->record.name : std::string{};
+    REQUIRE(tileName == "grass");
+}
+
+TEST_CASE("DataProviders_Should_PreserveInvalidConfiguredTiledataDocumentStatus")
+{
+    const TemporaryDirectory directory;
+    const auto path = directory.path() / "broken-tiledata.mul";
+    std::ofstream(path, std::ios::binary).put('\0');
+
+    uo_mule::gui::DataProfile profile;
+    profile.sourceRoot = path.parent_path();
+    profile.files[uo_mule::gui::DataFileRole::tiledata] = {.path = path.filename()};
+
+    uo_mule::gui::DocumentManager documents;
+    documents.updateMetadataSources(profile);
+    const auto documentId = documents.open({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::tiledata,
+                .source = uo_mule::gui::makeDocumentSourceIdentity({path}),
+            },
+        .displayName = path.filename().string(),
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+    });
+    REQUIRE(documentId != 0U);
+
+    uo_mule::gui::DataProviders providers;
+    providers.sync(profile);
+    providers.syncDocuments(documents.documents());
+    const auto status = providers.tiledata().status();
+
+    REQUIRE(status.state == uo_mule::gui::ProviderAssetState::invalid);
+    REQUIRE(status.source == uo_mule::gui::ProviderSourceKind::externalConfigured);
+    REQUIRE(status.sourceIdentity == uo_mule::gui::makeDocumentSourceIdentity({path}));
+    REQUIRE_FALSE(status.message.empty());
+    REQUIRE_FALSE(providers.tiledata().mapTile(3U));
+}

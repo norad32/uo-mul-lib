@@ -3,6 +3,7 @@
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/documents/radarcol_document_window.h"
 #include "gui/presentation/iconography.h"
+#include "gui/presentation/strings.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui/workflows/file_workflow.h"
 #include "gui_model/documents/map_document_state.h"
@@ -97,7 +98,7 @@ void drawCommandItem(WorkbenchState & state, CommandId id, bool selected = false
 
 void drawFileMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("File"))
+    if (!ImGui::BeginMenu(strings::fileMenu()))
     {
         return;
     }
@@ -118,7 +119,7 @@ void drawFileMenu(WorkbenchState & state)
 
 void drawViewMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("View"))
+    if (!ImGui::BeginMenu(strings::viewMenu()))
     {
         return;
     }
@@ -134,7 +135,7 @@ void drawViewMenu(WorkbenchState & state)
 
 void drawWindowsMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Windows"))
+    if (!ImGui::BeginMenu(strings::windowsMenu()))
     {
         return;
     }
@@ -154,7 +155,7 @@ void drawWindowsMenu(WorkbenchState & state)
 
 void drawEditMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Edit"))
+    if (!ImGui::BeginMenu(strings::editMenu()))
     {
         return;
     }
@@ -175,7 +176,7 @@ void drawEditMenu(WorkbenchState & state)
 
 void drawSelectMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Select"))
+    if (!ImGui::BeginMenu(strings::selectMenu()))
     {
         return;
     }
@@ -197,7 +198,7 @@ void drawSelectMenu(WorkbenchState & state)
 
 void drawToolsMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Tools"))
+    if (!ImGui::BeginMenu(strings::toolsMenu()))
     {
         return;
     }
@@ -216,7 +217,7 @@ void drawToolsMenu(WorkbenchState & state)
 
 void drawWorldMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("World"))
+    if (!ImGui::BeginMenu(strings::worldMenu()))
     {
         return;
     }

@@ -37,6 +37,7 @@ enum class FileBrowserTarget : std::uint8_t
     texmapsData,
     texmapsCompanion,
     newRadarcolOutput,
+    defaultRadarcolOutput,
     newTexmapsData,
     imageOpen,
     imageFolderOpen,

@@ -4,6 +4,7 @@
 #include "gui_model/documents/map_document.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/documents/texmaps_document.h"
+#include "gui_model/documents/tiledata_document.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/embedded_radarcol.h"
@@ -466,6 +467,7 @@ public:
         if (path_.empty())
         {
             status_ = unavailableStatus(revision_, "Tiledata is not configured");
+            profileStatus_ = status_;
             return;
         }
 
@@ -480,6 +482,7 @@ public:
                 .sourceIdentity = makeDocumentSourceIdentity({path_}),
                 .revision = revision_,
             };
+            profileStatus_ = status_;
             return;
         }
 
@@ -493,6 +496,7 @@ public:
                 .sourceIdentity = makeDocumentSourceIdentity({path_}),
                 .revision = revision_,
             };
+            profileStatus_ = status_;
             return;
         }
         layout_ = resolved;
@@ -504,6 +508,7 @@ public:
             .sourceIdentity = makeDocumentSourceIdentity({path_}),
             .revision = revision_,
         };
+        profileStatus_ = status_;
     }
 
     void invalidate() noexcept
@@ -514,6 +519,48 @@ public:
         revision_++;
         status_ = unavailableStatus(revision_, "Tile data is not loaded");
         status_.sourceIdentity = makeDocumentSourceIdentity({path_});
+        profileStatus_ = status_;
+    }
+
+    void syncDocument(const TiledataDocument * document)
+    {
+        if (document == document_)
+        {
+            return;
+        }
+
+        document_ = document;
+        revision_++;
+        if (document_ == nullptr)
+        {
+            status_ = profileStatus_;
+            status_.revision = revision_;
+            return;
+        }
+
+        layout_.reset();
+        reader_.reset();
+        const auto source = makeDocumentSourceIdentity({document_->sourcePath()});
+        if (!document_->reader())
+        {
+            status_ = {
+                .state = ProviderAssetState::invalid,
+                .source = ProviderSourceKind::externalConfigured,
+                .message = document_->error(),
+                .sourceIdentity = source,
+                .revision = revision_,
+            };
+            return;
+        }
+
+        layout_ = document_->layout();
+        status_ = {
+            .state = ProviderAssetState::available,
+            .source = ProviderSourceKind::externalConfigured,
+            .message = {},
+            .sourceIdentity = source,
+            .revision = revision_,
+        };
     }
 
     [[nodiscard]] ProviderStatus status() const override { return status_; }
@@ -555,9 +602,29 @@ public:
         }
         return status_;
     }
-    [[nodiscard]] std::optional<uomul::TiledataLayout> layout() const override { return layout_; }
+    [[nodiscard]] std::optional<uomul::TiledataLayout> layout() const override
+    {
+        if (document_ == nullptr)
+        {
+            return layout_;
+        }
+        if (!document_->reader())
+        {
+            return std::nullopt;
+        }
+        return document_->layout();
+    }
     [[nodiscard]] std::optional<ProviderMapTile> mapTile(std::uint16_t id) const override
     {
+        if (document_ != nullptr)
+        {
+            if (!document_->reader())
+            {
+                return std::nullopt;
+            }
+            const auto record = document_->reader()->readMapTile(id);
+            return record ? std::optional<ProviderMapTile>(ProviderMapTile{.id = id, .record = *record}) : std::nullopt;
+        }
         if (!reader_)
         {
             return std::nullopt;
@@ -567,6 +634,15 @@ public:
     }
     [[nodiscard]] std::optional<ProviderStaticTile> staticTile(std::uint32_t id) const override
     {
+        if (document_ != nullptr)
+        {
+            if (!document_->reader())
+            {
+                return std::nullopt;
+            }
+            const auto record = document_->reader()->readStaticTile(id);
+            return record ? std::optional<ProviderStaticTile>(ProviderStaticTile{.id = id, .record = *record}) : std::nullopt;
+        }
         if (!reader_)
         {
             return std::nullopt;
@@ -580,7 +656,9 @@ private:
     TiledataLayoutSelection layoutSelection_ = TiledataLayoutSelection::autoDetect;
     std::optional<uomul::TiledataLayout> layout_;
     std::optional<uomul::TiledataReader> reader_;
+    const TiledataDocument * document_ = nullptr;
     ProviderStatus status_;
+    ProviderStatus profileStatus_;
     std::uint64_t revision_ = 0;
     bool synchronized_ = false;
 };
@@ -598,6 +676,7 @@ public:
     {
         const RadarcolDocument * radarDocument = nullptr;
         const TexmapsDocument * texmapsDocument = nullptr;
+        const TiledataDocument * tiledataDocument = nullptr;
         for (const auto & document : documents)
         {
             if (document.summary.sourceKind != DocumentSourceKind::configuredMetadata)
@@ -612,9 +691,14 @@ public:
             {
                 texmapsDocument = &*document.texmaps;
             }
+            if (document.tiledata)
+            {
+                tiledataDocument = &*document.tiledata;
+            }
         }
         radar.syncDocument(radarDocument);
         textures.syncDocument(texmapsDocument);
+        tiledata.syncDocument(tiledataDocument);
     }
 };
 

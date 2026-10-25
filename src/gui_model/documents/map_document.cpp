@@ -275,6 +275,14 @@ bool DocumentManager::close(DocumentId id) noexcept
         return false;
     }
 
+    // Staged metadata documents must be resolved explicitly before their
+    // identity and changes can be released. MapDocumentManager owns the
+    // corresponding map-state transition, so map records are checked there.
+    if ((record->radarcol && record->radarcol->dirty()) || (record->texmaps && record->texmaps->dirty()))
+    {
+        return false;
+    }
+
     documents_.erase(record);
     if (activeId_ && *activeId_ == id)
     {

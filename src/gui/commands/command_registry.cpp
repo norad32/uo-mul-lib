@@ -17,6 +17,7 @@
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/input/radarcol_color_input.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/lifecycle/document_lifecycle.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/session/workbench_session.h"
@@ -389,10 +390,20 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
     }
 }
 
-void requestClose(WorkbenchState & state, PendingMapOperationKind kind)
+void requestClose(WorkbenchState & state, bool quit)
 {
-    requestCloseOperation(
-        state.mapDocuments, state.menuBarState.fileDialog, state.operationController, kind, state.notifications);
+    state.quitRequested = quit;
+    const auto activeId = state.session.activeDocumentId();
+    if (!activeId)
+    {
+        if (quit)
+        {
+            state.quitRequested = false;
+            state.shouldClose = true;
+        }
+        return;
+    }
+    state.documentLifecycle.requestClose({.id = *activeId, .dirtyPolicy = DocumentCloseDirtyPolicy::prompt});
 }
 
 void togglePanel(bool & visibility)
@@ -786,10 +797,10 @@ void registerFileSaveCommands(CommandRegistry & registry)
         "file.close",
         "Close",
         "File",
-        "Close the current map",
+        "Close the current document",
         "",
         enabled,
-        [](WorkbenchState & state) { requestClose(state, PendingMapOperationKind::close); });
+        [](WorkbenchState & state) { requestClose(state, false); });
 }
 
 void registerFileCloseCommands(CommandRegistry & registry)
@@ -799,10 +810,10 @@ void registerFileCloseCommands(CommandRegistry & registry)
         "file.quit",
         "Quit",
         "File",
-        "Close the map and quit",
+        "Close documents and quit",
         "Ctrl+Q",
         enabled,
-        [](WorkbenchState & state) { requestClose(state, PendingMapOperationKind::quit); });
+        [](WorkbenchState & state) { requestClose(state, true); });
 }
 
 void registerFileCommands(CommandRegistry & registry)
