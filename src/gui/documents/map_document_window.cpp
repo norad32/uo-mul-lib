@@ -1,4 +1,5 @@
 #include "gui/documents/map_document_window.h"
+#include "gui/presentation/dialog_presentation.h"
 #include "gui/presentation/map_texture_cache.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
@@ -1191,7 +1192,7 @@ void drawLayerButton(MapDocumentState & mapDocument, MapDisplayMode mode, const 
     }
 }
 
-void drawLayerControls(MapDocumentState & mapDocument, MapCanvasViewState & state)
+void drawLayerControls(MapDocumentState & mapDocument, CoordinateDialogState & coordinateDialog)
 {
     drawLayerButton(mapDocument, MapDisplayMode::tileIds, "Textures");
     ImGui::SameLine();
@@ -1202,18 +1203,18 @@ void drawLayerControls(MapDocumentState & mapDocument, MapCanvasViewState & stat
     ImGui::SameLine();
     if (ImGui::Button(strings::goToCoordinate()))
     {
-        state.coordinateInputKind = CoordinateKind::tile;
-        state.coordinateInputFocusRequested = true;
-        state.coordinateInput.fill('\0');
-        state.coordinatePopupRequested = true;
+        coordinateDialog.inputKind = CoordinateKind::tile;
+        coordinateDialog.inputFocusRequested = true;
+        coordinateDialog.input.fill('\0');
+        coordinateDialog.requested = true;
     }
     ImGui::SameLine();
     if (ImGui::Button(strings::goToBlock()))
     {
-        state.coordinateInputKind = CoordinateKind::block;
-        state.coordinateInputFocusRequested = true;
-        state.coordinateInput.fill('\0');
-        state.coordinatePopupRequested = true;
+        coordinateDialog.inputKind = CoordinateKind::block;
+        coordinateDialog.inputFocusRequested = true;
+        coordinateDialog.input.fill('\0');
+        coordinateDialog.requested = true;
     }
 }
 
@@ -1309,14 +1310,14 @@ void applyNavigationRequest(MapCanvasViewState & state, const MapDocumentState &
     state.navigationRequest.request = MapCanvasViewRequest::none;
 }
 
-void drawCoordinatePopup(MapCanvasViewState & state)
+void drawCoordinatePopup(MapCanvasViewState & state, CoordinateDialogState & coordinateDialog)
 {
-    if (state.coordinatePopupRequested)
+    if (coordinateDialog.requested)
     {
-        state.coordinatePopupRequested = false;
-        state.coordinateDialogVisible = true;
+        coordinateDialog.requested = false;
+        coordinateDialog.visible = true;
     }
-    if (!state.coordinateDialogVisible)
+    if (!coordinateDialog.visible)
     {
         return;
     }
@@ -1325,27 +1326,27 @@ void drawCoordinatePopup(MapCanvasViewState & state)
     constexpr auto coordinateDialogFlags = static_cast<ImGuiWindowFlags>(
         static_cast<unsigned int>(ImGuiWindowFlags_AlwaysAutoResize) | static_cast<unsigned int>(ImGuiWindowFlags_NoDocking) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoTitleBar) | static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings));
-    if (!ImGui::Begin("Go to Coordinate###map.coordinate-dialog", &state.coordinateDialogVisible, coordinateDialogFlags))
+    if (!beginTransientDialog("Go to Coordinate###map.coordinate-dialog", &coordinateDialog.visible, coordinateDialogFlags))
     {
-        ImGui::End();
+        endTransientDialog();
         return;
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
     {
-        state.coordinateInput.fill('\0');
-        state.coordinateDialogVisible = false;
-        ImGui::End();
+        coordinateDialog.input.fill('\0');
+        coordinateDialog.visible = false;
+        endTransientDialog();
         return;
     }
-    ImGui::TextUnformatted(state.coordinateInputKind == CoordinateKind::tile ? "Enter x y." : "Enter block x y.");
-    if (state.coordinateInputFocusRequested)
+    ImGui::TextUnformatted(coordinateDialog.inputKind == CoordinateKind::tile ? "Enter x y." : "Enter block x y.");
+    if (coordinateDialog.inputFocusRequested)
     {
         ImGui::SetKeyboardFocusHere();
-        state.coordinateInputFocusRequested = false;
+        coordinateDialog.inputFocusRequested = false;
     }
     const bool submitted = ImGui::InputText(
-        "##Coordinate", state.coordinateInput.data(), state.coordinateInput.size(), ImGuiInputTextFlags_EnterReturnsTrue);
-    const auto parsed = parseCoordinate(state.coordinateInput.data(), state.coordinateInputKind);
+        "##Coordinate", coordinateDialog.input.data(), coordinateDialog.input.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+    const auto parsed = parseCoordinate(coordinateDialog.input.data(), coordinateDialog.inputKind);
     if (submitted)
     {
         if (parsed)
@@ -1355,15 +1356,15 @@ void drawCoordinatePopup(MapCanvasViewState & state)
                                                                         .y = parsed->value.y * uomul::mapBlockDimension,}
                                                      : parsed->value;
             state.navigationRequest.request = MapCanvasViewRequest::centerSelection;
-            state.coordinateInput.fill('\0');
-            state.coordinateDialogVisible = false;
+            coordinateDialog.input.fill('\0');
+            coordinateDialog.visible = false;
         }
     }
-    if (!parsed && state.coordinateInput.front() != '\0')
+    if (!parsed && coordinateDialog.input.front() != '\0')
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "%s", parsed.error().c_str());
     }
-    ImGui::End();
+    endTransientDialog();
 }
 
 void updateHover(MapDocumentState & mapDocument, std::optional<uomul::TileCoord> tile)
@@ -1702,6 +1703,7 @@ void clearActiveAssetPanelIfMapIsActive(const std::function<void()> & clearActiv
 
 void drawMapDocumentWindow(MapDocumentManager & mapDocumentManager,
                            ToolState & toolState,
+                           CoordinateDialogState & coordinateDialog,
                            const TextureProvider & textures,
                            const RadarColorProvider & radarColors,
                            MapViewTileSource tileSource,
@@ -1739,7 +1741,7 @@ void drawMapDocumentWindow(MapDocumentManager & mapDocumentManager,
     const uomul::Dimensions dimensions = mapDocument.changes().dimensions;
     const bool hasDocument = mapDocument.changes().reader.has_value();
 
-    drawLayerControls(mapDocument, state);
+    drawLayerControls(mapDocument, coordinateDialog);
     const bool canvasContentsVisible =
         ImGui::BeginChild("MapCanvasViewport",
                           ImVec2(0.0F, 0.0F),
@@ -1816,7 +1818,7 @@ void drawMapDocumentWindow(MapDocumentManager & mapDocumentManager,
 
     ImGui::EndChild();
 
-    drawCoordinatePopup(state);
+    drawCoordinatePopup(state, coordinateDialog);
 
     ImGui::End();
 }

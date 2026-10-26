@@ -74,9 +74,19 @@ bool beginAutoSizeDialog(const char * popupId, bool * visible, ImGuiWindowFlags 
     return ImGui::BeginPopupModal(popupId, visible, modalFlags(flags));
 }
 
+bool beginTransientDialog(const char * windowId, bool * visible, ImGuiWindowFlags flags)
+{
+    return ImGui::Begin(windowId, visible, flags);
+}
+
 void endDialog()
 {
     ImGui::EndPopup();
+}
+
+void endTransientDialog()
+{
+    ImGui::End();
 }
 
 void dialogHeading(const char * text)

@@ -1,10 +1,8 @@
 #pragma once
 
 #include "gui_model/documents/map_document_state.h"
-#include "gui_model/input/coordinate_parser.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/world/map_color.h"
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -17,8 +15,6 @@ namespace uo_mule::gui
 {
 
 inline constexpr double defaultMapCanvasZoom = 12.0;
-inline constexpr std::size_t coordinateInputBufferSize = 64;
-
 struct MapCanvasCachedBlock
 {
     uomul::BlockCoord coordinate{};
@@ -128,11 +124,6 @@ struct MapCanvasViewState
     std::vector<uomul::TileCoord> lassoPath;
     bool scrollResetPending = false;
     MapCanvasNavigationRequest navigationRequest;
-    bool coordinatePopupRequested = false;
-    bool coordinateDialogVisible = false;
-    CoordinateKind coordinateInputKind = CoordinateKind::tile;
-    bool coordinateInputFocusRequested = false;
-    std::array<char, coordinateInputBufferSize> coordinateInput{};
 };
 
 } // namespace uo_mule::gui

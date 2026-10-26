@@ -18,6 +18,7 @@
 #include "gui/panels/tile_inspector_panel.h"
 #include "gui/panels/tool_palette_panel.h"
 #include "gui/presentation/asset_browser_helpers.h"
+#include "gui/presentation/dialog_presentation.h"
 #include "gui/presentation/iconography.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
@@ -825,9 +826,8 @@ void drawRadarcolFallbackWorkflow(WorkbenchState & state)
     }
 
     const std::string popupName = std::string(strings::radarcolFallbackTitle()) + "###dialog.radarcol-fallback";
-    if (!ImGui::BeginPopupModal(popupName.c_str(), &state.radarcolFallbackPromptVisible, ImGuiWindowFlags_AlwaysAutoResize))
+    if (!beginAutoSizeDialog(popupName.c_str(), &state.radarcolFallbackPromptVisible))
     {
-        ImGui::OpenPopup(popupName.c_str());
         return;
     }
 
@@ -855,7 +855,7 @@ void drawRadarcolFallbackWorkflow(WorkbenchState & state)
         state.radarcolFallbackPromptVisible = false;
         ImGui::CloseCurrentPopup();
     }
-    ImGui::EndPopup();
+    endDialog();
 }
 
 void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
@@ -1248,6 +1248,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         drawMapDocumentWindow(
             state.mapDocuments,
             state.toolState,
+            state.coordinateDialog,
             state.providers.textures(),
             state.providers.radarColors(),
             state.preferences.mapViewTileSource,

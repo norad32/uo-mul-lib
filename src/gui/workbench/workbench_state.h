@@ -93,6 +93,7 @@ struct WorkbenchState
     std::optional<PreferencesDialogResult> pendingPreferencesResult;
     std::optional<DataProfile> pendingProfileSave;
     std::vector<std::function<void()>> deferredWorkflowActions;
+    CoordinateDialogState coordinateDialog;
     MenuBarState menuBarState;
     DialogHostState dialogHost;
     FileBrowserState fileBrowser;

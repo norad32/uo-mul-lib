@@ -392,11 +392,10 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
             state.dialogHost->cancel();
         }
         const std::string title = iconLabel(IconId::preferences, strings::preferencesDialogTitle());
-        ImGui::OpenPopup(title.c_str());
-        if (ImGui::BeginPopupModal(title.c_str()))
+        if (beginDialog(title.c_str(), nullptr, largeDialogSpec(), ImGuiWindowFlags_NoResize))
         {
             ImGui::CloseCurrentPopup();
-            ImGui::EndPopup();
+            endDialog();
         }
         state.closeRequested = false;
         return std::nullopt;

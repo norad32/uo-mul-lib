@@ -380,10 +380,10 @@ void togglePanel(bool & visibility)
 
 void requestCoordinateDialog(WorkbenchState & state, CoordinateKind kind)
 {
-    state.mapDocuments.canvasState().coordinateInputKind = kind;
-    state.mapDocuments.canvasState().coordinateInputFocusRequested = true;
-    state.mapDocuments.canvasState().coordinateInput.fill('\0');
-    state.mapDocuments.canvasState().coordinatePopupRequested = true;
+    state.coordinateDialog.inputKind = kind;
+    state.coordinateDialog.inputFocusRequested = true;
+    state.coordinateDialog.input.fill('\0');
+    state.coordinateDialog.requested = true;
 }
 
 bool & panelVisibility(WorkbenchState & state, PanelId id)

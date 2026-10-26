@@ -168,7 +168,7 @@ std::optional<DialogResult> drawFileSelector(FileSelectorState & state, std::uin
     {
         if (drawCandidate(state, index))
         {
-            ImGui::EndPopup();
+            endDialog();
             return DialogResult{
                 .id = DialogId::fileSelector,
                 .action = DialogAction::chooseCompanion,
@@ -189,7 +189,7 @@ std::optional<DialogResult> drawFileSelector(FileSelectorState & state, std::uin
         (canAccept && ImGui::IsKeyPressed(ImGuiKey_Enter)))
     {
         endDialogFooter();
-        ImGui::EndPopup();
+        endDialog();
         return DialogResult{
             .id = DialogId::fileSelector,
             .action = DialogAction::accept,
@@ -201,7 +201,7 @@ std::optional<DialogResult> drawFileSelector(FileSelectorState & state, std::uin
     if (dialogButton(iconLabel(IconId::cancel, strings::cancel()).c_str()))
     {
         endDialogFooter();
-        ImGui::EndPopup();
+        endDialog();
         return DialogResult{
             .id = DialogId::fileSelector,
             .action = DialogAction::cancel,

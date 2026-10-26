@@ -1,10 +1,12 @@
 #pragma once
 
+#include "gui_model/input/coordinate_parser.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/tools/tool_state.h"
 #include "gui_model/world/map_canvas_state.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -15,11 +17,23 @@ namespace uo_mule::gui
 
 class MapDocumentManager;
 
+inline constexpr std::size_t coordinateDialogBufferSize = 64;
+
+struct CoordinateDialogState
+{
+    bool requested = false;
+    bool visible = false;
+    CoordinateKind inputKind = CoordinateKind::tile;
+    bool inputFocusRequested = false;
+    std::array<char, coordinateDialogBufferSize> input{};
+};
+
 [[nodiscard]] MapColor
 mapCanvasTileColor(MapDisplayMode mode, uomul::MapTile tile, const RadarColorProvider & radarColors) noexcept;
 
 void drawMapDocumentWindow(MapDocumentManager & mapDocument,
                            ToolState & toolState,
+                           CoordinateDialogState & coordinateDialog,
                            const TextureProvider & textures,
                            const RadarColorProvider & radarColors,
                            MapViewTileSource tileSource,
