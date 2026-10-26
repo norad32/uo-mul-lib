@@ -92,6 +92,11 @@ constexpr std::size_t openShortcutIndex = 3;
 constexpr std::size_t newShortcutIndex = 4;
 constexpr std::size_t quitShortcutIndex = 5;
 constexpr std::size_t goToShortcutIndex = 6;
+
+void ensureConfiguredMetadataViewDocument(WorkbenchState & state, DocumentKind kind);
+void ensureConfiguredMetadataWindows(WorkbenchState & state);
+void focusConfiguredMetadataWindow(WorkbenchState & state, DocumentKind kind);
+[[nodiscard]] bool metadataViewVisible(const WorkbenchState & state, DocumentKind kind) noexcept;
 constexpr std::size_t fullscreenShortcutIndex = 7;
 constexpr std::size_t assetEditShortcutIndex = 8;
 constexpr std::size_t assetCopyShortcutIndex = 9;
@@ -157,12 +162,9 @@ void drawDockSpace(WorkbenchState & state, float bottomPanelHeight)
         {
             ImGui::DockBuilderDockWindow(documentWindowName(document.summary).c_str(), centerNode);
         }
-        ImGui::DockBuilderDockWindow("Tool Palette###view.tool-palette", toolNode);
-        ImGui::DockBuilderDockWindow("Tile Inspector###view.tile-inspector", leftBottomNode);
-        ImGui::DockBuilderDockWindow("Block Inspector###view.block-inspector", leftTopNode);
-        ImGui::DockBuilderDockWindow("Texmaps###view.texmaps", rightNode);
-        ImGui::DockBuilderDockWindow("Radarcol###view.radarcol", rightNode);
-        ImGui::DockBuilderDockWindow("Tiledata###view.tiledata", rightNode);
+        ImGui::DockBuilderDockWindow("Tool Palette###panel.tool-palette", toolNode);
+        ImGui::DockBuilderDockWindow("Tile Inspector###panel.tile-inspector", leftBottomNode);
+        ImGui::DockBuilderDockWindow("Block Inspector###panel.block-inspector", leftTopNode);
         ImGui::DockBuilderFinish(dockSpaceId);
     }
     ImGui::DockSpace(dockSpaceId, ImVec2(viewport->WorkSize.x, availableDockHeight), dockSpaceFlags);
@@ -634,32 +636,18 @@ void configureMapPanelCallbacks(WorkbenchState & state)
         clearAssetNavigationStatus(state.notifications);
         pickAssetItem(state, item, true);
     };
-    state.tiledataState.assetView.focusResult = [&state](bool visible)
-    {
-        if (!visible)
-        {
-            state.notifications.add(NotificationSeverity::info, strings::tileNotVisibleWithCurrentFilter());
-        }
-    };
-    state.texmapsState.assetView.focusResult = [&state](bool visible)
-    {
-        if (!visible)
-        {
-            state.notifications.add(NotificationSeverity::info, strings::textureNotVisibleWithCurrentFilter());
-        }
-    };
     state.radarcolState.showInTiledata = [&state](std::uint32_t id, bool statics)
     {
-        state.panelRegistry.find(PanelId::tiledata)->visible = true;
+        state.windowRegistry.find(WindowId::tiledata)->visible = true;
         state.tiledataState.browserKind = statics ? TiledataBrowserKind::statics : TiledataBrowserKind::map;
         state.tiledataState.assetView.requestedItem = {.value = std::to_string(id)};
-        ImGui::SetWindowFocus("Tiledata###view.tiledata");
+        focusConfiguredMetadataWindow(state, DocumentKind::tiledata);
     };
     state.radarcolState.showInTexmaps = [&state](std::uint32_t id)
     {
-        state.panelRegistry.find(PanelId::texmaps)->visible = true;
+        state.windowRegistry.find(WindowId::texmaps)->visible = true;
         state.texmapsState.assetView.requestedItem = {.value = std::to_string(id)};
-        ImGui::SetWindowFocus("Texmaps###view.texmaps");
+        focusConfiguredMetadataWindow(state, DocumentKind::texmapPair);
     };
     state.radarcolState.activeTileColor = [&state] -> std::optional<uomul::RadarColor>
     {
@@ -699,7 +687,7 @@ void drawVisibleMapPanels(WorkbenchState & state, BlockInspectorPanelState & blo
     }
     if (state.panelRegistry.find(PanelId::iconGallery)->visible)
     {
-        drawIconGalleryPanel(state.panelRegistry.find(PanelId::iconGallery)->visible, iconFontAvailable());
+        drawIconGalleryPanel(iconFontAvailable(), state.panelRegistry.find(PanelId::iconGallery)->visible);
     }
 
     MapDocumentState & mapDocument = state.mapDocuments.active();
@@ -1021,7 +1009,7 @@ ImGuiID documentDockNodeId()
     return centralNode == nullptr ? 0U : centralNode->ID;
 }
 
-void requestDocumentClose(WorkbenchState & state, DocumentId id, bool dirty);
+void requestDocumentClose(WorkbenchState & state, DocumentId id);
 void evictClosedDocumentState(WorkbenchState & state, DocumentId id);
 
 void activateDocumentOrNotify(WorkbenchState & state, DocumentId id)
@@ -1121,22 +1109,52 @@ void ensureConfiguredMetadataViewDocument(WorkbenchState & state, DocumentKind k
     static_cast<void>(openConfiguredMetadataDocument(state, kind));
 }
 
-[[nodiscard]] PanelId metadataPanelId(DocumentKind kind) noexcept
+void ensureConfiguredMetadataWindows(WorkbenchState & state)
+{
+    if (metadataViewVisible(state, DocumentKind::radarcol))
+    {
+        ensureConfiguredMetadataViewDocument(state, DocumentKind::radarcol);
+    }
+    if (metadataViewVisible(state, DocumentKind::texmapPair))
+    {
+        ensureConfiguredMetadataViewDocument(state, DocumentKind::texmapPair);
+    }
+    if (metadataViewVisible(state, DocumentKind::tiledata))
+    {
+        ensureConfiguredMetadataViewDocument(state, DocumentKind::tiledata);
+    }
+}
+
+void focusConfiguredMetadataWindow(WorkbenchState & state, DocumentKind kind)
+{
+    ensureConfiguredMetadataViewDocument(state, kind);
+    for (const auto & document : state.session.documents())
+    {
+        if (document.summary.identity.kind == kind &&
+            document.summary.sourceKind == DocumentSourceKind::configuredMetadata)
+        {
+            ImGui::SetWindowFocus(documentWindowName(document.summary).c_str());
+            return;
+        }
+    }
+}
+
+[[nodiscard]] WindowId metadataWindowId(DocumentKind kind) noexcept
 {
     if (kind == DocumentKind::texmapPair)
     {
-        return PanelId::texmaps;
+        return WindowId::texmaps;
     }
     if (kind == DocumentKind::tiledata)
     {
-        return PanelId::tiledata;
+        return WindowId::tiledata;
     }
-    return PanelId::radarcol;
+    return WindowId::radarcol;
 }
 
 [[nodiscard]] bool metadataViewVisible(const WorkbenchState & state, DocumentKind kind) noexcept
 {
-    const auto * descriptor = state.panelRegistry.find(metadataPanelId(kind));
+    const auto * descriptor = state.windowRegistry.find(metadataWindowId(kind));
     return descriptor != nullptr && descriptor->visible;
 }
 
@@ -1146,7 +1164,7 @@ void hideConfiguredMetadataView(WorkbenchState & state, const DocumentSummary & 
     {
         return;
     }
-    auto * descriptor = state.panelRegistry.find(metadataPanelId(summary.identity.kind));
+    auto * descriptor = state.windowRegistry.find(metadataWindowId(summary.identity.kind));
     if (descriptor != nullptr)
     {
         descriptor->visible = false;
@@ -1156,6 +1174,48 @@ void hideConfiguredMetadataView(WorkbenchState & state, const DocumentSummary & 
 [[nodiscard]] bool shouldDrawDocumentWindow(const WorkbenchState & state, const DocumentSummary & summary) noexcept
 {
     return summary.sourceKind != DocumentSourceKind::configuredMetadata || metadataViewVisible(state, summary.identity.kind);
+}
+
+void forwardMetadataAssetRequest(WorkbenchState & state,
+                                 DocumentKind kind,
+                                 assets::AssetWindowState & sourceState,
+                                 std::unordered_map<DocumentId, assets::AssetWindowState> & documentStates)
+{
+    if (!sourceState.requestedItem && !sourceState.requestedItemIndex)
+    {
+        return;
+    }
+    for (const auto & document : state.session.documents())
+    {
+        if (document.summary.identity.kind != kind || document.summary.sourceKind != DocumentSourceKind::configuredMetadata)
+        {
+            continue;
+        }
+        auto & targetState = documentStates[document.summary.identity.id];
+        if (kind == DocumentKind::tiledata)
+        {
+            targetState.focusResult = [&state](bool visible)
+            {
+                if (!visible)
+                {
+                    state.notifications.add(NotificationSeverity::info, strings::tileNotVisibleWithCurrentFilter());
+                }
+            };
+        }
+        else if (kind == DocumentKind::texmapPair)
+        {
+            targetState.focusResult = [&state](bool visible)
+            {
+                if (!visible)
+                {
+                    state.notifications.add(NotificationSeverity::info, strings::textureNotVisibleWithCurrentFilter());
+                }
+            };
+        }
+        targetState.requestedItem = std::move(sourceState.requestedItem);
+        targetState.requestedItemIndex = std::move(sourceState.requestedItemIndex);
+        return;
+    }
 }
 
 void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
@@ -1199,7 +1259,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             visible);
         if (!visible)
         {
-            requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
+            requestDocumentClose(state, document.summary.identity.id);
         }
         return;
     }
@@ -1217,7 +1277,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         if (!visible)
         {
             hideConfiguredMetadataView(state, document.summary);
-            requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
+            requestDocumentClose(state, document.summary.identity.id);
         }
         return;
     }
@@ -1236,7 +1296,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         if (!visible)
         {
             hideConfiguredMetadataView(state, document.summary);
-            requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
+            requestDocumentClose(state, document.summary.identity.id);
         }
         return;
     }
@@ -1256,7 +1316,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         if (!visible)
         {
             hideConfiguredMetadataView(state, document.summary);
-            requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
+            requestDocumentClose(state, document.summary.identity.id);
         }
         return;
     }
@@ -1274,24 +1334,18 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
     ImGui::End();
     if (!visible)
     {
-        requestDocumentClose(state, document.summary.identity.id, document.summary.dirty);
+        requestDocumentClose(state, document.summary.identity.id);
     }
 }
 
 void drawDocumentWindows(WorkbenchState & state)
 {
-    if (metadataViewVisible(state, DocumentKind::radarcol))
-    {
-        ensureConfiguredMetadataViewDocument(state, DocumentKind::radarcol);
-    }
-    if (metadataViewVisible(state, DocumentKind::texmapPair))
-    {
-        ensureConfiguredMetadataViewDocument(state, DocumentKind::texmapPair);
-    }
-    if (metadataViewVisible(state, DocumentKind::tiledata))
-    {
-        ensureConfiguredMetadataViewDocument(state, DocumentKind::tiledata);
-    }
+    forwardMetadataAssetRequest(
+        state, DocumentKind::radarcol, state.radarcolState.assetView, state.radarcolState.documentAssetViews);
+    forwardMetadataAssetRequest(
+        state, DocumentKind::texmapPair, state.texmapsState.assetView, state.texmapsState.documentAssetViews);
+    forwardMetadataAssetRequest(
+        state, DocumentKind::tiledata, state.tiledataState.assetView, state.tiledataState.documentAssetViews);
     for (auto & document : state.session.documentsMutable())
     {
         drawDocumentWindow(state, document);
@@ -1320,7 +1374,7 @@ void continueQuit(WorkbenchState & state)
         {.id = state.session.documents().front().summary.identity.id, .dirtyPolicy = DocumentCloseDirtyPolicy::prompt});
 }
 
-void finishPendingAssetClose(WorkbenchState & state, DocumentId id, PendingChangesAction action)
+void finishPendingDocumentClose(WorkbenchState & state, DocumentId id, PendingChangesAction action)
 {
     if (action == PendingChangesAction::save)
     {
@@ -1355,6 +1409,8 @@ void finishPendingAssetClose(WorkbenchState & state, DocumentId id, PendingChang
     }
 }
 
+void rearmPendingDocumentClose(WorkbenchState & state, DocumentId id);
+
 void processDocumentIntent(WorkbenchState & state, DocumentRecord & document)
 {
     if (!document.radarcol && !document.texmaps)
@@ -1366,22 +1422,21 @@ void processDocumentIntent(WorkbenchState & state, DocumentRecord & document)
     if (!result)
     {
         state.notifications.add(NotificationSeverity::error, result.error().message);
-        if (state.pendingAssetCloseDecision && state.pendingAssetCloseAction &&
-            *state.pendingAssetCloseDecision == document.summary.identity.id &&
-            *state.pendingAssetCloseAction == PendingChangesAction::discard)
+        if (state.pendingDocumentCloseDecision && state.pendingDocumentCloseAction &&
+            *state.pendingDocumentCloseDecision == document.summary.identity.id)
         {
-            static_cast<void>(state.operationController.failDirtyResolution());
+            rearmPendingDocumentClose(state, document.summary.identity.id);
         }
         return;
     }
-    if (state.pendingAssetCloseDecision && state.pendingAssetCloseAction &&
-        *state.pendingAssetCloseDecision == document.summary.identity.id)
+    if (state.pendingDocumentCloseDecision && state.pendingDocumentCloseAction &&
+        *state.pendingDocumentCloseDecision == document.summary.identity.id)
     {
-        const DocumentId id = *state.pendingAssetCloseDecision;
-        const PendingChangesAction action = *state.pendingAssetCloseAction;
-        state.pendingAssetCloseDecision.reset();
-        state.pendingAssetCloseAction.reset();
-        finishPendingAssetClose(state, id, action);
+        const DocumentId id = *state.pendingDocumentCloseDecision;
+        const PendingChangesAction action = *state.pendingDocumentCloseAction;
+        state.pendingDocumentCloseDecision.reset();
+        state.pendingDocumentCloseAction.reset();
+        finishPendingDocumentClose(state, id, action);
     }
 }
 
@@ -1421,7 +1476,7 @@ void applyDeferredWorkflowActions(WorkbenchState & state)
     return nullptr;
 }
 
-[[nodiscard]] std::string pendingAssetFilename(const DocumentRecord * record)
+[[nodiscard]] std::string pendingDocumentFilename(const DocumentRecord * record)
 {
     if (record != nullptr && record->radarcol)
     {
@@ -1433,14 +1488,103 @@ void applyDeferredWorkflowActions(WorkbenchState & state)
         const std::string filename = record->texmaps->sourceIndexPath().filename().string();
         return filename.empty() ? record->summary.displayName : filename;
     }
+    if (record != nullptr && record->map)
+    {
+        const std::string filename = record->map->sourcePath.filename().string();
+        return filename.empty() ? record->summary.displayName : filename;
+    }
     return "document";
 }
 
-void requestPendingAssetResolution(WorkbenchState & state, DocumentRecord * record, PendingChangesAction action)
+void closePendingDocument(WorkbenchState & state, DocumentId id)
 {
-    if (record != nullptr && record->radarcol)
+    const auto closed = state.session.closeDocument(id, state.mapDocuments);
+    if (!closed)
     {
-        static_cast<void>(state.operationController.resolveDirty(action));
+        state.notifications.add(NotificationSeverity::error, closed.error().message);
+    }
+    else
+    {
+        evictClosedDocumentState(state, id);
+        continueQuit(state);
+    }
+}
+
+void rearmPendingDocumentClose(WorkbenchState & state, DocumentId id)
+{
+    state.pendingDocumentCloseAction.reset();
+    static_cast<void>(state.operationController.cancel());
+    const auto transition = state.operationController.begin(
+        {.kind = OperationKind::close, .documentId = id, .path = {}, .dimensions = {}, .initialTile = {}},
+        true,
+        false,
+        OutputCollisionPolicy::confirm);
+    if (transition.kind != OperationTransitionKind::showDirtyDecision)
+    {
+        state.pendingDocumentCloseDecision.reset();
+    }
+}
+
+void requestPendingDocumentResolution(WorkbenchState & state, DocumentRecord * record, PendingChangesAction action)
+{
+    if (record == nullptr)
+    {
+        return;
+    }
+
+    if (record->map)
+    {
+        const auto transition = state.operationController.resolveDirty(action);
+        if (transition.kind == OperationTransitionKind::rejected)
+        {
+            state.notifications.add(NotificationSeverity::error, transition.error);
+            return;
+        }
+
+        if (action == PendingChangesAction::save)
+        {
+            const auto saved = state.mapDocuments.save(state.mapDocuments.active().changes().originalPath, false);
+            if (!saved)
+            {
+                static_cast<void>(state.operationController.completeSave(false));
+                state.notifications.add(NotificationSeverity::error, saved.error().message);
+                rearmPendingDocumentClose(state, record->summary.identity.id);
+                return;
+            }
+            const auto completed = state.operationController.completeSave(true);
+            if (completed.kind != OperationTransitionKind::execute)
+            {
+                state.notifications.add(NotificationSeverity::error, completed.error);
+                rearmPendingDocumentClose(state, record->summary.identity.id);
+                return;
+            }
+        }
+        else
+        {
+            const auto discarded = state.mapDocuments.discard();
+            if (!discarded)
+            {
+                state.notifications.add(NotificationSeverity::error, discarded.error().message);
+                rearmPendingDocumentClose(state, record->summary.identity.id);
+                return;
+            }
+        }
+
+        const DocumentId id = record->summary.identity.id;
+        state.pendingDocumentCloseDecision.reset();
+        state.pendingDocumentCloseAction.reset();
+        closePendingDocument(state, id);
+        return;
+    }
+
+    if (record->radarcol)
+    {
+        const auto transition = state.operationController.resolveDirty(action);
+        if (transition.kind == OperationTransitionKind::rejected)
+        {
+            state.notifications.add(NotificationSeverity::error, transition.error);
+            return;
+        }
         record->radarcol->requestIntent({
             .kind = action == PendingChangesAction::discard ? RadarcolDocumentIntentKind::discard
                                                             : RadarcolDocumentIntentKind::save,
@@ -1448,11 +1592,16 @@ void requestPendingAssetResolution(WorkbenchState & state, DocumentRecord * reco
             .outputPath = {},
             .overwriteOutput = false,
         });
-        state.pendingAssetCloseAction = action;
+        state.pendingDocumentCloseAction = action;
     }
     else if (record != nullptr && record->texmaps)
     {
-        static_cast<void>(state.operationController.resolveDirty(action));
+        const auto transition = state.operationController.resolveDirty(action);
+        if (transition.kind == OperationTransitionKind::rejected)
+        {
+            state.notifications.add(NotificationSeverity::error, transition.error);
+            return;
+        }
         record->texmaps->requestIntent({
             .kind =
                 action == PendingChangesAction::discard ? TexmapsDocumentIntentKind::discard : TexmapsDocumentIntentKind::save,
@@ -1464,27 +1613,27 @@ void requestPendingAssetResolution(WorkbenchState & state, DocumentRecord * reco
             .textureEdits = {},
             .textureIds = {},
         });
-        state.pendingAssetCloseAction = action;
+        state.pendingDocumentCloseAction = action;
     }
 }
 
-void drawPendingAssetCloseDialog(WorkbenchState & state)
+void drawPendingDocumentCloseDialog(WorkbenchState & state)
 {
-    if (!state.pendingAssetCloseDecision)
+    if (!state.pendingDocumentCloseDecision)
     {
         return;
     }
-    const auto id = *state.pendingAssetCloseDecision;
+    const auto id = *state.pendingDocumentCloseDecision;
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(dialogCenterPivot, dialogCenterPivot));
-    if (!ImGui::BeginPopup("PendingAssetClose###dialog.pending-asset-close"))
+    if (!ImGui::BeginPopup("PendingDocumentClose###dialog.pending-document-close"))
     {
-        ImGui::OpenPopup("PendingAssetClose###dialog.pending-asset-close");
+        ImGui::OpenPopup("PendingDocumentClose###dialog.pending-document-close");
         return;
     }
 
     DocumentRecord * record = findMutableDocument(state, id);
-    const std::string filename = pendingAssetFilename(record);
+    const std::string filename = pendingDocumentFilename(record);
 
     const std::string savePrompt = strings::formatSaveChangesPrompt(filename);
     ImGui::TextUnformatted(savePrompt.c_str());
@@ -1493,15 +1642,15 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
     const std::string closeWithoutSavingLabel = iconLabel(IconId::close, strings::closeWithoutSaving());
     if (ImGui::Button(closeWithoutSavingLabel.c_str()))
     {
-        requestPendingAssetResolution(state, record, PendingChangesAction::discard);
+        requestPendingDocumentResolution(state, record, PendingChangesAction::discard);
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
     const std::string cancelLabel = iconLabel(IconId::cancel, "Cancel");
     if (ImGui::Button(cancelLabel.c_str()))
     {
-        state.pendingAssetCloseDecision.reset();
-        state.pendingAssetCloseAction.reset();
+        state.pendingDocumentCloseDecision.reset();
+        state.pendingDocumentCloseAction.reset();
         state.quitRequested = false;
         static_cast<void>(state.operationController.cancel());
         ImGui::CloseCurrentPopup();
@@ -1510,15 +1659,14 @@ void drawPendingAssetCloseDialog(WorkbenchState & state)
     const std::string saveLabel = iconLabel(IconId::save, "Save");
     if (ImGui::Button(saveLabel.c_str()))
     {
-        requestPendingAssetResolution(state, record, PendingChangesAction::save);
+        requestPendingDocumentResolution(state, record, PendingChangesAction::save);
         ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
 }
 
-void requestDocumentClose(WorkbenchState & state, DocumentId id, bool dirty)
+void requestDocumentClose(WorkbenchState & state, DocumentId id)
 {
-    static_cast<void>(dirty);
     state.documentLifecycle.requestClose({.id = id, .dirtyPolicy = DocumentCloseDirtyPolicy::prompt});
 }
 
@@ -1561,25 +1709,14 @@ void applyPendingDocumentAction(WorkbenchState & state)
             state.notifications.add(NotificationSeverity::error, activated.error().message);
             return;
         }
-        if (requested->map)
+        const auto transition = state.operationController.begin(
+            {.kind = OperationKind::close, .documentId = id, .path = {}, .dimensions = {}, .initialTile = {}},
+            true,
+            false,
+            OutputCollisionPolicy::confirm);
+        if (transition.kind == OperationTransitionKind::showDirtyDecision)
         {
-            requestCloseOperation(state.mapDocuments,
-                                  state.menuBarState.fileDialog,
-                                  state.operationController,
-                                  PendingMapOperationKind::close,
-                                  state.notifications);
-        }
-        else if (requested->radarcol || requested->texmaps)
-        {
-            OperationRequest operation{};
-            operation.kind = OperationKind::close;
-            operation.documentId = id;
-            const auto transition =
-                state.operationController.begin(std::move(operation), true, false, OutputCollisionPolicy::confirm);
-            if (transition.kind == OperationTransitionKind::showDirtyDecision)
-            {
-                state.pendingAssetCloseDecision = id;
-            }
+            state.pendingDocumentCloseDecision = id;
         }
         return;
     }
@@ -1851,11 +1988,11 @@ void restoreMetadataAssetState(WorkbenchState & state)
         return;
     }
     const auto radarContext =
-        metadataContext(DocumentKind::radarcol, state.providers.radarColors().status().sourceIdentity, "view.radarcol");
+        metadataContext(DocumentKind::radarcol, state.providers.radarColors().status().sourceIdentity, "window.radarcol");
     const auto texmapContext =
-        metadataContext(DocumentKind::texmapPair, state.providers.textures().status().sourceIdentity, "view.texmaps");
+        metadataContext(DocumentKind::texmapPair, state.providers.textures().status().sourceIdentity, "window.texmaps");
     const auto tiledataContext =
-        metadataContext(DocumentKind::tiledata, state.providers.tiledata().status().sourceIdentity, "view.tiledata");
+        metadataContext(DocumentKind::tiledata, state.providers.tiledata().status().sourceIdentity, "window.tiledata");
     if (const auto * record =
             assets::findAssetState(state.assetStateRecords, state.activeProfile.name, "default", radarContext);
         record != nullptr)
@@ -1972,9 +2109,9 @@ void applyPendingPersistence(WorkbenchState & state)
     }
 
     const auto radarContext =
-        metadataContext(DocumentKind::radarcol, state.providers.radarColors().status().sourceIdentity, "view.radarcol");
+        metadataContext(DocumentKind::radarcol, state.providers.radarColors().status().sourceIdentity, "window.radarcol");
     const auto texmapContext =
-        metadataContext(DocumentKind::texmapPair, state.providers.textures().status().sourceIdentity, "view.texmaps");
+        metadataContext(DocumentKind::texmapPair, state.providers.textures().status().sourceIdentity, "window.texmaps");
     updateAssetStateRecord(
         state.assetStateRecords,
         assets::captureAssetState(state.activeProfile.name, "default", radarContext, state.radarcolState.assetView));
@@ -1986,7 +2123,7 @@ void applyPendingPersistence(WorkbenchState & state)
         assets::captureAssetState(
             state.activeProfile.name,
             "default",
-            metadataContext(DocumentKind::tiledata, state.providers.tiledata().status().sourceIdentity, "view.tiledata"),
+            metadataContext(DocumentKind::tiledata, state.providers.tiledata().status().sourceIdentity, "window.tiledata"),
             state.tiledataState.assetView));
 }
 
@@ -2039,9 +2176,10 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
         state.radarcolState.hoveredContext = updateHoveredPanelContext;
         state.texmapsState.hoveredContext = updateHoveredPanelContext;
         state.tiledataState.hoveredContext = updateHoveredPanelContext;
+        ensureConfiguredMetadataWindows(state);
         drawDockSpace(state, bottomPanelHeight);
         drawDocumentSurface(state);
-        drawPendingAssetCloseDialog(state);
+        drawPendingDocumentCloseDialog(state);
         drawMapPanels(state, state.blockInspectorState);
         notifyRadarcolFallback(state);
         drawRadarcolFallbackWorkflow(state);
@@ -2072,7 +2210,7 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
     applyPendingClipboard(window, state);
     state.session.syncDocument(state.mapDocuments);
     if (state.quitRequested && !state.mapDocuments.active().changes().reader &&
-        state.menuBarState.fileDialog.mode == MapFileDialogMode::none && !state.pendingAssetCloseDecision)
+        state.menuBarState.fileDialog.mode == MapFileDialogMode::none && !state.pendingDocumentCloseDecision)
     {
         continueQuit(state);
     }

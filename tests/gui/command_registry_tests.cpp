@@ -91,10 +91,10 @@ TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")
     REQUIRE(state.commands.execute(CommandId::viewCombined, state));
     REQUIRE(state.mapDocuments.active().viewState().displayMode == uo_mule::gui::MapDisplayMode::combined);
 
-    REQUIRE(state.commands.execute(CommandId::panelTexmaps, state));
-    REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
-    REQUIRE(state.commands.execute(CommandId::panelTexmaps, state));
-    REQUIRE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
+    REQUIRE(state.commands.execute(CommandId::windowTexmaps, state));
+    REQUIRE_FALSE(state.windowRegistry.find(uo_mule::gui::WindowId::texmaps)->visible);
+    REQUIRE(state.commands.execute(CommandId::windowTexmaps, state));
+    REQUIRE(state.windowRegistry.find(uo_mule::gui::WindowId::texmaps)->visible);
 
     REQUIRE(state.commands.execute(CommandId::panelToolPalette, state));
     REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::toolPalette)->visible);

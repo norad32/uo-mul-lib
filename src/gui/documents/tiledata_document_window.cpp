@@ -154,8 +154,8 @@ void configureTiledataDescriptor(assets::AssetAdapter & adapter,
                                  IdFormat idFormat,
                                  std::optional<DocumentId> documentId)
 {
-    const std::string viewId = documentId ? "document.tiledata." + std::to_string(*documentId) : "view.tiledata";
-    adapter.descriptor.viewId = viewId;
+    const std::string windowId = documentId ? "document.tiledata." + std::to_string(*documentId) : "window.tiledata";
+    adapter.descriptor.viewId = windowId;
     adapter.descriptor.title = "Tiledata";
     adapter.descriptor.sourceTooltip = "Source: " + (status.sourceIdentity.path(SourceRole::primary) == nullptr
                                                          ? std::string("Unavailable")
@@ -183,7 +183,7 @@ void configureTiledataDescriptor(assets::AssetAdapter & adapter,
         .contextKind = documentId ? assets::AssetSourceContext::Kind::document
                                    : assets::AssetSourceContext::Kind::metadataView,
         .source = status.sourceIdentity,
-        .contextId = viewId,
+        .contextId = windowId,
     };
     adapter.descriptor.capabilities = {
         .presentations = static_cast<std::uint8_t>(assets::AssetPresentationCapability::grid) |
@@ -464,25 +464,14 @@ void configureTiledataAssetAdapter(assets::AssetAdapter & adapter,
     configureTiledataRenderer(adapter, state, provider, textures, radarColors);
 }
 
-[[nodiscard]] assets::AssetAdapter makeProviderAdapter(TiledataDocumentWindowState & state,
-                                                       const TiledataProvider & provider,
-                                                       const TextureProvider & textures,
-                                                       const RadarColorProvider & radarColors,
-                                                       IdFormat idFormat)
-{
-    assets::AssetAdapter adapter;
-    configureTiledataAssetAdapter(adapter, state, provider, textures, radarColors, idFormat, {}, std::nullopt);
-    return adapter;
-}
-
 [[nodiscard]] assets::AssetAdapter makeDocumentAdapter(TiledataDocumentWindowState & state,
-                                                       TiledataDocument & document,
-                                                       const TextureProvider & textures,
-                                                       const RadarColorProvider & radarColors,
-                                                       IdFormat idFormat,
-                                                       std::string windowIdentity)
+                                                        TiledataDocument & document,
+                                                        const TiledataProvider & provider,
+                                                        const TextureProvider & textures,
+                                                        const RadarColorProvider & radarColors,
+                                                        IdFormat idFormat,
+                                                        std::string windowIdentity)
 {
-    const DocumentTiledataProvider provider(document);
     assets::AssetAdapter adapter;
     configureTiledataAssetAdapter(
         adapter, state, provider, textures, radarColors, idFormat, std::move(windowIdentity), document.id());
@@ -490,17 +479,6 @@ void configureTiledataAssetAdapter(assets::AssetAdapter & adapter,
 }
 
 } // namespace
-
-void drawTiledataPanel(TiledataDocumentWindowState & state,
-                       bool & visible,
-                       const TiledataProvider & provider,
-                       const TextureProvider & textures,
-                       const RadarColorProvider & radarColors,
-                       IdFormat idFormat)
-{
-    const auto adapter = makeProviderAdapter(state, provider, textures, radarColors, idFormat);
-    assets::drawAssetBrowser(adapter, state.assetView, visible);
-}
 
 void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
                                  TiledataDocument & document,
@@ -521,7 +499,9 @@ void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
         return;
     }
 
-    const auto adapter = makeDocumentAdapter(state, document, textures, radarColors, idFormat, std::move(windowIdentity));
+    const DocumentTiledataProvider provider(document);
+    const auto adapter =
+        makeDocumentAdapter(state, document, provider, textures, radarColors, idFormat, std::move(windowIdentity));
     assets::drawAssetBrowser(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
 }
 

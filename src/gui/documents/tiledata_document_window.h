@@ -31,13 +31,6 @@ struct TiledataDocumentWindowState
     std::function<void(std::string_view)> hoveredContext;
 };
 
-void drawTiledataPanel(TiledataDocumentWindowState & state,
-                       bool & visible,
-                       const TiledataProvider & provider,
-                       const TextureProvider & textures,
-                       const RadarColorProvider & radarColors,
-                       IdFormat idFormat);
-
 void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
                                  TiledataDocument & document,
                                  bool & visible,

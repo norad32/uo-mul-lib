@@ -44,7 +44,7 @@ uo_mule::gui::assets::AssetSourceContext metadataContext()
         .kind = uo_mule::gui::DocumentKind::radarcol,
         .contextKind = uo_mule::gui::assets::AssetSourceContext::Kind::metadataView,
         .source = uo_mule::gui::makeDocumentSourceIdentity({"radarcol.mul"}),
-        .contextId = "view.radarcol",
+        .contextId = "window.radarcol",
     };
 }
 

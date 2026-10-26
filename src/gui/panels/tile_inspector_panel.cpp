@@ -1,5 +1,6 @@
 #include "gui/panels/tile_inspector_panel.h"
 #include "gui/presentation/iconography.h"
+#include "gui/presentation/panel_view.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/texture_preview.h"
 #include "gui/presentation/theme.h"
@@ -36,17 +37,8 @@ void drawTileDetails(const MapContextSnapshot & context,
                      IdFormat idFormat,
                      bool iconFontAvailable)
 {
-    const auto & tileValue = context.activeTile;
-    const auto & dataValue = context.activeValue;
-
-    if (!tileValue || !dataValue)
-    {
-        ImGui::TextUnformatted(strings::tileInspectionUnavailable());
-        return;
-    }
-
-    const uomul::TileCoord tile = *tileValue;
-    const uomul::MapTile value = *dataValue;
+    const uomul::TileCoord tile = *context.activeTile;
+    const uomul::MapTile value = *context.activeValue;
     const uomul::BlockCoord block = tileToBlock(tile);
     const std::optional<MapColor> radarColor = providers.radarColors().mapColor(value.id);
     const auto texturePreview = providers.textures().texture(value.id);
@@ -89,25 +81,23 @@ void drawTileInspectorPanel(const MapDocumentState & mapDocument,
                             bool iconFontAvailable,
                             bool & visible)
 {
-    const bool contentsVisible = ImGui::Begin("Tile Inspector###view.tile-inspector", &visible);
-
-    if (contentsVisible)
-    {
-        if (!mapDocument.changes().reader.has_value())
-        {
-            ImGui::TextUnformatted(strings::noMapOpen());
-        }
-        else if (!context.activeTile || !context.activeValue)
-        {
-            ImGui::TextUnformatted(strings::noTileUnderPointerOrSelected());
-        }
-        else
-        {
-            drawTileDetails(context, providers, idFormat, iconFontAvailable);
-        }
-    }
-
-    ImGui::End();
+    drawPanelView("Tile Inspector###panel.tile-inspector",
+                   visible,
+                   [&mapDocument, &context, &providers, idFormat, iconFontAvailable]
+                   {
+                       if (!mapDocument.changes().reader.has_value())
+                       {
+                           ImGui::TextUnformatted(strings::noMapOpen());
+                       }
+                       else if (!context.activeTile || !context.activeValue)
+                       {
+                           ImGui::TextUnformatted(strings::noTileUnderPointerOrSelected());
+                       }
+                       else
+                       {
+                           drawTileDetails(context, providers, idFormat, iconFontAvailable);
+                       }
+                   });
 }
 
 } // namespace uo_mule::gui

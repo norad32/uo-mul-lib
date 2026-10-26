@@ -1,4 +1,5 @@
 #include "gui/documents/map_document_window.h"
+#include "gui/presentation/map_texture_cache.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui_model/documents/map_document_manager.h"
@@ -89,91 +90,6 @@ constexpr float blockSelectionLineSpacing = 8.0F;
     return IM_COL32(color.red, color.green, color.blue, std::numeric_limits<std::uint8_t>::max());
 }
 
-[[nodiscard]] ImU32 textureTint(MapDisplayMode mode, uomul::MapTile tile) noexcept
-{
-    if (mode != MapDisplayMode::combined)
-    {
-        return IM_COL32(255, 255, 255, 255);
-    }
-
-    constexpr double combinedBrightnessMinimum = 0.5;
-    constexpr double combinedBrightnessRange = 1.0;
-    const double brightness =
-        combinedBrightnessMinimum + ((static_cast<double>(zGrayscale(tile.z)) / 255.0) * combinedBrightnessRange);
-    const auto channel = static_cast<std::uint8_t>(std::clamp(static_cast<int>(brightness * 255.0), 0, 255));
-    return IM_COL32(channel, channel, channel, 255);
-}
-
-[[nodiscard]] MapCanvasCachedTexture &
-cachedTexture(MapCanvasViewState & state, const TextureProvider & textures, std::uint32_t id)
-{
-    const auto existing = state.textureCache.find(id);
-    if (existing != state.textureCache.end())
-    {
-        return existing->second;
-    }
-
-    MapCanvasCachedTexture entry;
-    if (const auto texture = textures.texture(id);
-        texture && texture->width != 0U && texture->height != 0U && !texture->pixels.empty())
-    {
-        entry.width = texture->width;
-        entry.height = texture->height;
-        entry.pixels = texture->pixels;
-        entry.rgbaPixels.reserve(entry.pixels.size() * 4U);
-        for (const MapColor pixel : entry.pixels)
-        {
-            entry.rgbaPixels.push_back(pixel.red);
-            entry.rgbaPixels.push_back(pixel.green);
-            entry.rgbaPixels.push_back(pixel.blue);
-            entry.rgbaPixels.push_back(std::numeric_limits<std::uint8_t>::max());
-        }
-    }
-
-    return state.textureCache.emplace(id, std::move(entry)).first->second;
-}
-
-void uploadTileTexture(MapCanvasCachedTexture & texture)
-{
-    if (texture.pixels.empty())
-    {
-        return;
-    }
-
-    if (texture.gpuTexture == 0U)
-    {
-        GLuint handle = 0;
-        glGenTextures(1, &handle);
-        texture.gpuTexture = handle;
-    }
-    if (texture.gpuTexture == 0U)
-    {
-        return;
-    }
-
-    GLint previousTexture = 0;
-    GLint previousUnpackAlignment = 0;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
-    glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
-    glBindTexture(GL_TEXTURE_2D, texture.gpuTexture);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D,
-                 0,
-                 GL_RGBA,
-                 static_cast<GLsizei>(texture.width),
-                 static_cast<GLsizei>(texture.height),
-                 0,
-                 GL_RGBA,
-                 GL_UNSIGNED_BYTE,
-                 texture.rgbaPixels.data());
-    glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
-    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
-}
-
 [[nodiscard]] std::optional<MapColor>
 texturePixelColor(const MapCanvasCachedTexture & texture, double localX, double localY) noexcept
 {
@@ -195,22 +111,6 @@ texturePixelColor(const MapCanvasCachedTexture & texture, double localX, double 
                                                            double localY) noexcept
 {
     return tileSource == MapViewTileSource::textures ? texturePixelColor(texture, localX, localY) : std::nullopt;
-}
-
-void clearTextureCache(MapCanvasViewState & state)
-{
-    if (state.releaseTexture)
-    {
-        for (auto & [id, texture] : state.textureCache)
-        {
-            static_cast<void>(id);
-            if (texture.gpuTexture != 0U)
-            {
-                state.releaseTexture(texture.gpuTexture);
-            }
-        }
-    }
-    state.textureCache.clear();
 }
 
 [[nodiscard]] ImU32 unavailableColor(std::uint32_t tileX, std::uint32_t tileY) noexcept
@@ -265,12 +165,12 @@ void drawCanvasTile(ImDrawList & drawList,
 {
     if (mode != MapDisplayMode::z && tileSource == MapViewTileSource::textures)
     {
-        MapCanvasCachedTexture & texture = cachedTexture(state, textures, tile.id);
+        MapCanvasCachedTexture & texture = cachedMapTexture(state.textureCache, textures, tile.id);
         if (!texture.pixels.empty())
         {
             if (texture.gpuTexture == 0U)
             {
-                uploadTileTexture(texture);
+                uploadMapTexture(texture);
             }
             if (texture.gpuTexture != 0U)
             {
@@ -279,7 +179,7 @@ void drawCanvasTile(ImDrawList & drawList,
                                   screenRect.maximum,
                                   ImVec2(0.0F, 0.0F),
                                   ImVec2(1.0F, 1.0F),
-                                  textureTint(mode, tile));
+                                   mapTextureTint(mode, tile));
                 return;
             }
         }
@@ -901,7 +801,7 @@ void rasterizeLodRow(const MapDocumentState & mapDocument,
             const uomul::MapTile tile = loadedBlock->block->at(static_cast<std::size_t>(localIndex));
             const double localX = mapX - static_cast<double>(tileX);
             const double localTileY = mapY - static_cast<double>(tileY);
-            const MapCanvasCachedTexture & texture = cachedTexture(state, textures, tile.id);
+            const MapCanvasCachedTexture & texture = cachedMapTexture(state.textureCache, textures, tile.id);
             const auto texturePixel =
                 mode == MapDisplayMode::z ? std::nullopt : selectedTexturePixel(texture, tileSource, localX, localTileY);
             const auto fallback = radarColors.mapColor(tile.id);
@@ -1784,7 +1684,7 @@ void prepareMapCanvasState(MapCanvasViewState & state, const TextureProvider & t
     }
     if (state.textureProviderRevision != textures.status().revision)
     {
-        clearTextureCache(state);
+        clearMapTextureCache(state.textureCache, state.releaseTexture);
         state.textureProviderRevision = textures.status().revision;
         state.lodCacheValid = false;
     }

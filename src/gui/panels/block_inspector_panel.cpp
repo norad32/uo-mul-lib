@@ -1,5 +1,7 @@
 #include "gui/panels/block_inspector_panel.h"
 #include "gui/documents/map_tile_labels.h"
+#include "gui/presentation/map_texture_cache.h"
+#include "gui/presentation/panel_view.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui_model/documents/map_document_state.h"
@@ -30,82 +32,6 @@ constexpr float tileCellSize = 40.0F;
 constexpr float coordinateColumnWidth = 38.0F;
 constexpr float selectedBorderThickness = 2.0F;
 constexpr float gridLineThickness = 1.0F;
-constexpr int colorChannelMaximum = 255;
-constexpr std::uint8_t alphaChannelMaximum = 255U;
-
-[[nodiscard]] MapCanvasCachedTexture makeTextureCacheEntry(const TextureProvider & textures, std::uint32_t id)
-{
-    MapCanvasCachedTexture entry;
-    const auto texture = textures.texture(id);
-    if (!texture || texture->width == 0U || texture->height == 0U || texture->pixels.empty())
-    {
-        return entry;
-    }
-
-    entry.width = texture->width;
-    entry.height = texture->height;
-    entry.pixels = texture->pixels;
-    entry.rgbaPixels.reserve(entry.pixels.size() * 4U);
-    for (const MapColor pixel : entry.pixels)
-    {
-        entry.rgbaPixels.push_back(pixel.red);
-        entry.rgbaPixels.push_back(pixel.green);
-        entry.rgbaPixels.push_back(pixel.blue);
-        entry.rgbaPixels.push_back(alphaChannelMaximum);
-    }
-    return entry;
-}
-
-void uploadTexture(MapCanvasCachedTexture & texture)
-{
-    if (texture.pixels.empty())
-    {
-        return;
-    }
-    if (texture.gpuTexture == 0U)
-    {
-        GLuint handle = 0;
-        glGenTextures(1, &handle);
-        texture.gpuTexture = handle;
-    }
-    if (texture.gpuTexture == 0U)
-    {
-        return;
-    }
-    GLint previousTexture = 0;
-    GLint previousUnpackAlignment = 0;
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
-    glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
-    glBindTexture(GL_TEXTURE_2D, texture.gpuTexture);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D,
-                 0,
-                 GL_RGBA,
-                 static_cast<GLsizei>(texture.width),
-                 static_cast<GLsizei>(texture.height),
-                 0,
-                 GL_RGBA,
-                 GL_UNSIGNED_BYTE,
-                 texture.rgbaPixels.data());
-    glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
-    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
-}
-
-[[nodiscard]] ImU32 textureTint(MapDisplayMode mode, uomul::MapTile tile) noexcept
-{
-    if (mode != MapDisplayMode::combined)
-    {
-        return IM_COL32(255, 255, 255, 255);
-    }
-    const double brightness = 0.5 + (static_cast<double>(zGrayscale(tile.z)) / 255.0);
-    const auto channel = static_cast<std::uint8_t>(std::clamp(static_cast<int>(brightness * 255.0), 0, colorChannelMaximum));
-    return IM_COL32(channel, channel, channel, 255);
-}
-
 void drawTileCell(const uomul::MapBlock & block,
                   uomul::BlockCoord blockCoordinate,
                   MapDocumentState & mapDocument,
@@ -128,7 +54,7 @@ void drawTileCell(const uomul::MapBlock & block,
     MapCanvasCachedTexture * texture = nullptr;
     if (tileSource == MapViewTileSource::textures && mapDocument.viewState().displayMode != MapDisplayMode::z)
     {
-        texture = &state.textureCache.try_emplace(tile.id, makeTextureCacheEntry(textures, tile.id)).first->second;
+        texture = &cachedMapTexture(state.textureCache, textures, tile.id);
     }
     const bool useTexture = texture != nullptr && !texture->pixels.empty();
     const MapColor mapColor = tileDisplayColor(mapDocument.viewState().displayMode, tile, radarColors.mapColor(tile.id));
@@ -146,7 +72,7 @@ void drawTileCell(const uomul::MapBlock & block,
     {
         if (texture->gpuTexture == 0U)
         {
-            uploadTexture(*texture);
+            uploadMapTexture(*texture);
         }
         if (texture->gpuTexture != 0U)
         {
@@ -155,7 +81,7 @@ void drawTileCell(const uomul::MapBlock & block,
                                cellMaximum,
                                ImVec2(0.0F, 0.0F),
                                ImVec2(1.0F, 1.0F),
-                               textureTint(mapDocument.viewState().displayMode, tile));
+                               mapTextureTint(mapDocument.viewState().displayMode, tile));
         }
         else
         {
@@ -271,15 +197,7 @@ void invalidateTexturePreviews(BlockInspectorPanelState & state, const TexturePr
     {
         return;
     }
-    for (auto & [id, texture] : state.textureCache)
-    {
-        static_cast<void>(id);
-        if (texture.gpuTexture != 0U && state.releaseTexture)
-        {
-            state.releaseTexture(texture.gpuTexture);
-        }
-    }
-    state.textureCache.clear();
+    clearMapTextureCache(state.textureCache, state.releaseTexture);
     state.textureProviderRevision = textures.status().revision;
     state.textureSource = tileSource;
 }
@@ -293,18 +211,7 @@ void drawBlockError(const uomul::Error & error)
 
 BlockInspectorPanelState::~BlockInspectorPanelState()
 {
-    if (!releaseTexture)
-    {
-        return;
-    }
-    for (auto & [id, texture] : textureCache)
-    {
-        static_cast<void>(id);
-        if (texture.gpuTexture != 0U)
-        {
-            releaseTexture(texture.gpuTexture);
-        }
-    }
+    clearMapTextureCache(textureCache, releaseTexture);
 }
 
 namespace
@@ -404,12 +311,10 @@ void drawBlockInspectorPanel(MapDocumentState & mapDocument,
         }
     }
 
-    if (ImGui::Begin("Block Inspector###view.block-inspector", &visible))
-    {
-        drawBlockInspectorContents(mapDocument, context, providers, tileSource, state, reader);
-    }
-
-    ImGui::End();
+    drawPanelView("Block Inspector###panel.block-inspector",
+                   visible,
+                   [&mapDocument, &context, &providers, tileSource, &state, reader]
+                   { drawBlockInspectorContents(mapDocument, context, providers, tileSource, state, reader); });
 }
 
 } // namespace uo_mule::gui

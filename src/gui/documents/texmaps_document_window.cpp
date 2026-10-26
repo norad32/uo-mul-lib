@@ -45,19 +45,6 @@ constexpr float borderThickness = 2.0F;
 constexpr std::size_t assetCellWidth = 72U;
 constexpr std::size_t assetCellHeight = 72U;
 
-[[nodiscard]] std::string sourceLabel(const ProviderStatus & status)
-{
-    for (const auto & [role, path] : status.sourceIdentity.roles)
-    {
-        static_cast<void>(role);
-        if (!path.empty())
-        {
-            return path.string();
-        }
-    }
-    return "Texmap Pair";
-}
-
 [[nodiscard]] const TexmapsTexturePreview & texturePreview(std::unordered_map<std::uint32_t, TexmapsTexturePreview> & previews,
                                                            const TextureProvider & provider,
                                                            std::uint32_t id)
@@ -609,91 +596,6 @@ void configureTextureAssetAdapter(assets::AssetAdapter & adapter,
     { drawTextureAsset(previews, provider, item.id, thumbnailSize); };
 }
 
-[[nodiscard]] assets::AssetAdapter makeProviderAdapter(TexmapsDocumentWindowState & state,
-                                                       const TextureProvider & provider,
-                                                       const Preferences & preferences,
-                                                       PendingPreferenceChanges & pendingChanges)
-{
-    const IdFormat idFormat = preferences.idFormat;
-    const ProviderStatus status = provider.status();
-    if (!pendingChanges.texmapsHideUnused)
-    {
-        state.hideUnused = preferences.texmapsHideUnused;
-    }
-    if (state.texturePreviewRevision != status.revision)
-    {
-        state.texturePreviews.clear();
-        state.texturePreviewRevision = status.revision;
-    }
-    assets::AssetAdapter adapter;
-    configureAssetAdapter(adapter.descriptor,
-                          {
-                              .viewId = "view.texmaps",
-                              .windowIdentity = {},
-                              .title = "Texmaps",
-                              .sourceTooltip = "Source: " + sourceLabel(status),
-                              .cacheContext = std::to_string(static_cast<int>(idFormat)) + "|" +
-                                              std::to_string(static_cast<int>(state.hideUnused)) +
-                                              "|revision=" + std::to_string(status.revision),
-                              .source =
-                                  {
-                                      .kind = DocumentKind::texmapPair,
-                                      .contextKind = assets::AssetSourceContext::Kind::metadataView,
-                                      .source = status.sourceIdentity,
-                                      .contextId = "view.texmaps",
-                                  },
-                              .itemPicked = state.itemPicked,
-                              .hoveredContext = state.hoveredContext,
-                          });
-    adapter.descriptor.defaultPresentation =
-        preferences.texmapsTablePresentation ? assets::AssetPresentation::table : assets::AssetPresentation::grid;
-    adapter.descriptor.presentationChanged = [&pendingChanges](assets::AssetPresentation presentation)
-    { pendingChanges.texmapsTablePresentation = presentation == assets::AssetPresentation::table; };
-    configureTextureAssetAdapter(adapter, state.texturePreviews, provider, state.hideUnused, idFormat);
-    adapter.descriptor.itemSourcePicked = [&state](const assets::AssetItemId & item)
-    {
-        const auto id = assets::itemIndex(item);
-        return id && state.itemSourcePicked ? state.itemSourcePicked(*id) : false;
-    };
-    adapter.descriptor.inlinePresentationControl = [&state, &pendingChanges]
-    { drawHideEmptyControl(state.hideUnused, pendingChanges); };
-    adapter.descriptor.itemContextMenu = [&state](const assets::AssetItemId & item)
-    {
-        const auto ids = exportSelection(state.assetView.selection, item);
-        if (ImGui::MenuItem("Export as BMP", nullptr, false, !ids.empty() && state.exportRequested))
-        {
-            state.exportRequested(std::nullopt, ids, assets::AssetExportFormat::bmp);
-        }
-        if (ImGui::MenuItem("Export as PNG", nullptr, false, !ids.empty() && state.exportRequested))
-        {
-            state.exportRequested(std::nullopt, ids, assets::AssetExportFormat::png);
-        }
-    };
-    if (!status.message.empty())
-    {
-        adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
-    }
-    adapter.makeDragPayload = [&provider](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
-    {
-        if (selection.selected.size() != 1U)
-        {
-            return std::nullopt;
-        }
-        const auto id = assets::itemIndex(selection.selected.front());
-        if (!id)
-        {
-            return std::nullopt;
-        }
-        const auto texture = provider.texture(*id);
-        if (!texture || !providerTextureToTextureImage(*texture))
-        {
-            return std::nullopt;
-        }
-        return makeTexmapDragPayload(selection, true, assets::AssetDragPayloadSource::provider);
-    };
-    return adapter;
-}
-
 class DocumentTextureProvider final : public TextureProvider
 {
 public:
@@ -986,20 +888,6 @@ void configureDocumentTextureDrop(assets::AssetAdapter & adapter,
 }
 
 } // namespace
-
-void drawTexmapsPanel(TexmapsDocumentWindowState & state,
-                      bool & visible,
-                      const TextureProvider & provider,
-                      const Preferences & preferences,
-                      PendingPreferenceChanges & pendingChanges)
-{
-    const auto adapter = makeProviderAdapter(state, provider, preferences, pendingChanges);
-    assets::drawAssetBrowser(adapter, state.assetView, visible);
-    if (!state.exportState.sourceIsDocument)
-    {
-        drawTexmapExportDialogs(state);
-    }
-}
 
 void drawTexmapsDocumentWindow(TexmapsDocumentWindowState & state,
                                TexmapsDocument & document,

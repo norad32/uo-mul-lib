@@ -357,7 +357,7 @@ int Application::run()
 #endif
     const std::string applicationName(core::applicationName());
     WorkbenchState state(loadPreferences());
-    loadLayout(state.panelRegistry, state.layout);
+    loadLayout(state.panelRegistry, state.windowRegistry, state.layout);
     state.assetStateRecords = assets::loadAssetState(assets::assetStatePath());
     const std::unique_ptr<GLFWwindow, WindowDeleter> window{
         glfwCreateWindow(defaultWindowWidth, defaultWindowHeight, applicationName.c_str(), nullptr, nullptr)};
@@ -439,7 +439,7 @@ int Application::run()
         captureWindowLayout(window.get(), state.layout, state.preferences.fullscreen);
         const char * dockingIni = ImGui::SaveIniSettingsToMemory();
         state.layout.dockingIni = dockingIni == nullptr ? std::string{} : std::string(dockingIni);
-        saveLayout(state.panelRegistry, state.layout);
+        saveLayout(state.panelRegistry, state.windowRegistry, state.layout);
         if (state.assetStateResetRequested)
         {
             assets::resetAssetState(state.assetStateRecords);

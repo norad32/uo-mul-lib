@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -27,12 +28,18 @@ struct AppLayout
     std::string dockingIni;
 };
 
-// The panel registry supplies model-owned semantic visibility and stable IDs.
+// The panel and window registries supply model-owned semantic visibility and stable IDs.
 // This GUI adapter persists ImGui docking data and native window geometry.
 [[nodiscard]] std::filesystem::path layoutPath();
-void loadLayout(PanelRegistry & registry, AppLayout & layout);
-void saveLayout(const PanelRegistry & registry, const AppLayout & layout);
-void loadLayout(const std::filesystem::path & path, PanelRegistry & registry, AppLayout & layout);
-void saveLayout(const std::filesystem::path & path, const PanelRegistry & registry, const AppLayout & layout);
+void loadLayout(PanelRegistry & panels, WindowRegistry & windows, AppLayout & layout);
+void saveLayout(const PanelRegistry & panels, const WindowRegistry & windows, const AppLayout & layout);
+void loadLayout(const std::filesystem::path & path,
+               PanelRegistry & panels,
+               WindowRegistry & windows,
+               AppLayout & layout);
+void saveLayout(const std::filesystem::path & path,
+                const PanelRegistry & panels,
+                const WindowRegistry & windows,
+                const AppLayout & layout);
 
 } // namespace uo_mule::gui

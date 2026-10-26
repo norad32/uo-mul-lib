@@ -524,6 +524,16 @@ const char * tools() noexcept
     return "Tools";
 }
 
+const char * toolOptions() noexcept
+{
+    return "Tool Options";
+}
+
+const char * activeTile() noexcept
+{
+    return "Active Tile";
+}
+
 const char * region() noexcept
 {
     return "Region";
@@ -677,11 +687,6 @@ const char * worldMenu() noexcept
 const char * noMapOpen() noexcept
 {
     return "No map open";
-}
-
-const char * tileInspectionUnavailable() noexcept
-{
-    return "Tile inspection data unavailable";
 }
 
 const char * noTileUnderPointerOrSelected() noexcept

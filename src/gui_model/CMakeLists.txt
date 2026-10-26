@@ -20,6 +20,7 @@ set(GUI_MODEL_SOURCES
     providers/embedded_radarcol.cpp
     providers/texture_conversion.cpp
     layout/panel_registry.cpp
+    layout/window_registry.cpp
     operations/operation_controller.cpp
     lifecycle/document_lifecycle.cpp
     source/source_identity.cpp

@@ -1,4 +1,5 @@
 #include "gui/commands/command_registry.h"
+#include "gui/workbench/tool_context.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
@@ -68,18 +69,6 @@ CommandAvailability requiresMapDocument(const WorkbenchState & state)
         return {.enabled = false, .disabledReason = "No map is open"};
     }
     return enabled(state);
-}
-
-ToolContext toolContext(const WorkbenchState & state)
-{
-    const DocumentRecord * active = state.session.activeDocumentRecord();
-    const bool mapOpen = active != nullptr && active->summary.identity.kind == DocumentKind::map &&
-                         state.mapDocuments.active().changes().reader.has_value();
-    return {
-        .mapDocumentOpen = mapOpen,
-        .mapEditable = mapOpen,
-        .selectionGranularity = state.toolState.selectionGranularity(),
-    };
 }
 
 CommandAvailability requiresTool(ToolId tool, const WorkbenchState & state)
@@ -236,7 +225,7 @@ template <typename State>
 {
     const std::string_view context =
         !state.activeAssetPanelContext.empty() ? state.activeAssetPanelContext : state.hoveredPanelContext;
-    if (context == "Radarcol" && state.panelRegistry.find(PanelId::radarcol)->visible)
+    if (context == "Radarcol" && state.windowRegistry.find(WindowId::radarcol)->visible)
     {
         if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
         {
@@ -245,7 +234,7 @@ template <typename State>
         }
         return &state.radarcolState.assetView;
     }
-    if (context == "Texmaps" && state.panelRegistry.find(PanelId::texmaps)->visible)
+    if (context == "Texmaps" && state.windowRegistry.find(WindowId::texmaps)->visible)
     {
         if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->texmaps)
         {
@@ -254,7 +243,7 @@ template <typename State>
         }
         return &state.texmapsState.assetView;
     }
-    if (context == "Tiledata" && state.panelRegistry.find(PanelId::tiledata)->visible)
+    if (context == "Tiledata" && state.windowRegistry.find(WindowId::tiledata)->visible)
     {
         if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->tiledata)
         {
@@ -401,6 +390,11 @@ void requestCoordinateDialog(WorkbenchState & state, CoordinateKind kind)
 bool & panelVisibility(WorkbenchState & state, PanelId id)
 {
     return state.panelRegistry.find(id)->visible;
+}
+
+bool & windowVisibility(WorkbenchState & state, WindowId id)
+{
+    return state.windowRegistry.find(id)->visible;
 }
 
 void add(CommandRegistry & registry,
@@ -882,32 +876,32 @@ void registerPanelCommands(CommandRegistry & registry)
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::blockInspector)); });
     add(registry,
-        CommandId::panelRadarcol,
-        "view.panel.radarcol",
+        CommandId::windowRadarcol,
+        "view.window.radarcol",
         "Radarcol",
         "Windows",
         "Show or hide the configured Radarcol document",
         "",
         enabled,
-        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
+        [](WorkbenchState & state) { togglePanel(windowVisibility(state, WindowId::radarcol)); });
     add(registry,
-        CommandId::panelTexmaps,
-        "view.panel.texmaps",
+        CommandId::windowTexmaps,
+        "view.window.texmaps",
         "Texmaps",
         "Windows",
         "Show or hide the configured Texmaps document",
         "",
         enabled,
-        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::texmaps)); });
+        [](WorkbenchState & state) { togglePanel(windowVisibility(state, WindowId::texmaps)); });
     add(registry,
-        CommandId::panelTiledata,
-        "view.panel.tiledata",
+        CommandId::windowTiledata,
+        "view.window.tiledata",
         "Tiledata",
         "Windows",
         "Show or hide the configured Tiledata document",
         "",
         enabled,
-        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tiledata)); });
+        [](WorkbenchState & state) { togglePanel(windowVisibility(state, WindowId::tiledata)); });
     add(registry,
         CommandId::panelIconGallery,
         "view.panel.icon-gallery",
@@ -1005,6 +999,7 @@ void registerSelectionCommands(CommandRegistry & registry)
         [](WorkbenchState & state)
         {
             state.panelRegistry.resetToDefaults();
+            state.windowRegistry.resetToDefaults();
             state.layout.dockingIni.clear();
             state.layout.window.geometryValid = false;
             state.preferences.fullscreen = false;

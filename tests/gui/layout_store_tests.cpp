@@ -1,6 +1,7 @@
 #include "core/app_info.h"
 #include "gui/application/layout_store.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <string>
@@ -9,7 +10,7 @@ namespace
 {
 } // namespace
 
-TEST_CASE("appLayout_Should_RoundTripWindowPanelsAndDockSettings")
+TEST_CASE("appLayout_Should_RoundTripPanelsWindowsAndDockSettings")
 {
     constexpr int expectedX = 37;
     constexpr int expectedY = 42;
@@ -19,8 +20,10 @@ TEST_CASE("appLayout_Should_RoundTripWindowPanelsAndDockSettings")
     std::filesystem::remove_all(configDirectory);
     const auto layoutFile = configDirectory / std::string(uo_mule::core::applicationName()) / "layout.ini";
 
-    uo_mule::gui::PanelRegistry expectedRegistry;
-    expectedRegistry.find(uo_mule::gui::PanelId::texmaps)->visible = false;
+    uo_mule::gui::PanelRegistry expectedPanels;
+    expectedPanels.find(uo_mule::gui::PanelId::toolPalette)->visible = false;
+    uo_mule::gui::WindowRegistry expectedWindows;
+    expectedWindows.find(uo_mule::gui::WindowId::texmaps)->visible = false;
     uo_mule::gui::AppLayout expectedLayout{
         .window =
             {
@@ -30,18 +33,20 @@ TEST_CASE("appLayout_Should_RoundTripWindowPanelsAndDockSettings")
                 .width = expectedWidth,
                 .height = expectedHeight,
             },
-        .dockingIni = "[Window][Radarcol###view.radarcol]\nPos=400,200\nDockId=0x1234,2\n",
+        .dockingIni = "[Window][Radarcol###window.radarcol]\nPos=400,200\nDockId=0x1234,2\n",
     };
 
-    uo_mule::gui::saveLayout(layoutFile, expectedRegistry, expectedLayout);
+    uo_mule::gui::saveLayout(layoutFile, expectedPanels, expectedWindows, expectedLayout);
 
-    uo_mule::gui::PanelRegistry actualRegistry;
+    uo_mule::gui::PanelRegistry actualPanels;
+    uo_mule::gui::WindowRegistry actualWindows;
     uo_mule::gui::AppLayout actualLayout;
-    uo_mule::gui::loadLayout(layoutFile, actualRegistry, actualLayout);
+    uo_mule::gui::loadLayout(layoutFile, actualPanels, actualWindows, actualLayout);
 
     REQUIRE(std::filesystem::is_regular_file(layoutFile));
-    REQUIRE_FALSE(actualRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
-    REQUIRE(actualRegistry.find(uo_mule::gui::PanelId::radarcol)->visible);
+    REQUIRE_FALSE(actualPanels.find(uo_mule::gui::PanelId::toolPalette)->visible);
+    REQUIRE(actualWindows.find(uo_mule::gui::WindowId::radarcol)->visible);
+    REQUIRE_FALSE(actualWindows.find(uo_mule::gui::WindowId::texmaps)->visible);
     REQUIRE(actualLayout.window.geometryValid);
     REQUIRE(actualLayout.window.x == expectedX);
     REQUIRE(actualLayout.window.y == expectedY);

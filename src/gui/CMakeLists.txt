@@ -28,6 +28,7 @@ add_library(
     application/layout_store.cpp
     presentation/strings.cpp
     workbench/workbench_state.cpp
+    workbench/tool_context.cpp
     documents/document_window_name.cpp
     workbench/workbench.cpp
     presentation/file_size.cpp
@@ -44,6 +45,7 @@ add_library(
     application/welcome_view.cpp
     presentation/asset_browser.cpp
     presentation/texture_preview.cpp
+    presentation/map_texture_cache.cpp
     documents/map_document_window.cpp
     documents/map_tile_labels.cpp
     workflows/file_workflow.cpp

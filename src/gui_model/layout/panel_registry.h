@@ -12,9 +12,6 @@ enum class PanelId : std::uint8_t
     toolPalette,
     tileInspector,
     blockInspector,
-    radarcol,
-    texmaps,
-    tiledata,
     iconGallery,
 };
 

@@ -15,16 +15,17 @@ namespace uo_mule::gui
 namespace
 {
 
-void loadPanel(std::ifstream & file, PanelRegistry & registry)
+template <typename Registry>
+void loadSurface(std::ifstream & file, Registry & registry, auto getSurfaces)
 {
     std::string stableId;
     bool visible = false;
     file >> std::quoted(stableId) >> visible;
-    for (auto & panel : registry.panels())
+    for (auto & surface : getSurfaces(registry))
     {
-        if (panel.stableId == stableId)
+        if (surface.stableId == stableId)
         {
-            panel.visible = visible;
+            surface.visible = visible;
         }
     }
 }
@@ -62,7 +63,7 @@ std::filesystem::path layoutPath()
     return config.empty() ? std::filesystem::path{} : config / std::string(core::applicationName()) / "layout.ini";
 }
 
-void loadLayout(PanelRegistry & registry, AppLayout & layout)
+void loadLayout(PanelRegistry & panels, WindowRegistry & windows, AppLayout & layout)
 {
     const auto path = layoutPath();
     if (path.empty())
@@ -70,10 +71,13 @@ void loadLayout(PanelRegistry & registry, AppLayout & layout)
         return;
     }
 
-    loadLayout(path, registry, layout);
+    loadLayout(path, panels, windows, layout);
 }
 
-void loadLayout(const std::filesystem::path & path, PanelRegistry & registry, AppLayout & layout)
+void loadLayout(const std::filesystem::path & path,
+                PanelRegistry & panels,
+                WindowRegistry & windows,
+                AppLayout & layout)
 {
     if (path.empty())
     {
@@ -87,7 +91,11 @@ void loadLayout(const std::filesystem::path & path, PanelRegistry & registry, Ap
     {
         if (key == "panel")
         {
-            loadPanel(file, registry);
+            loadSurface(file, panels, [](PanelRegistry & registry) -> auto & { return registry.panels(); });
+        }
+        else if (key == "window")
+        {
+            loadSurface(file, windows, [](WindowRegistry & registry) -> auto & { return registry.windows(); });
         }
         else if (key == "window_geometry")
         {
@@ -104,7 +112,7 @@ void loadLayout(const std::filesystem::path & path, PanelRegistry & registry, Ap
     }
 }
 
-void saveLayout(const PanelRegistry & registry, const AppLayout & layout)
+void saveLayout(const PanelRegistry & panels, const WindowRegistry & windows, const AppLayout & layout)
 {
     const auto path = layoutPath();
     if (path.empty())
@@ -112,10 +120,13 @@ void saveLayout(const PanelRegistry & registry, const AppLayout & layout)
         return;
     }
 
-    saveLayout(path, registry, layout);
+    saveLayout(path, panels, windows, layout);
 }
 
-void saveLayout(const std::filesystem::path & path, const PanelRegistry & registry, const AppLayout & layout)
+void saveLayout(const std::filesystem::path & path,
+                const PanelRegistry & panels,
+                const WindowRegistry & windows,
+                const AppLayout & layout)
 {
     if (path.empty())
     {
@@ -126,9 +137,13 @@ void saveLayout(const std::filesystem::path & path, const PanelRegistry & regist
     const auto temporary = path.string() + ".tmp";
     std::ofstream file(temporary, std::ios::trunc);
     file << "schema_version " << currentLayoutSchemaVersion << '\n';
-    for (const auto & panel : registry.panels())
+    for (const auto & panel : panels.panels())
     {
         file << "panel " << std::quoted(panel.stableId) << ' ' << panel.visible << '\n';
+    }
+    for (const auto & window : windows.windows())
+    {
+        file << "window " << std::quoted(window.stableId) << ' ' << window.visible << '\n';
     }
     if (layout.window.geometryValid)
     {

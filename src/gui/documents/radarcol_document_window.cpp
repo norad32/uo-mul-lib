@@ -337,109 +337,6 @@ void drawRadarcolColorPicker(RadarcolDocumentWindowState & state, RadarcolDocume
                        toByte(packed & channelMask));
 }
 
-void drawRadarcolItem(const RadarColorProvider & provider, RadarcolBrowserKind kind, const assets::AssetItem & item)
-{
-    const auto index = assets::itemIndex({.value = item.id.value});
-    if (!index)
-    {
-        return;
-    }
-    const auto color = provider.rawColor(radarcolRawIndex(kind, *index)).value_or(0);
-    ImGui::ColorButton("##RadarcolColor",
-                       colorToImVec4(color),
-                       ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoPicker,
-                       ImVec2(swatchSize, swatchSize));
-}
-
-[[nodiscard]] std::vector<assets::AssetItem> loadRadarcolRange(const RadarColorProvider & provider,
-                                                               RadarcolBrowserKind kind,
-                                                               const assets::AssetRangeRequest & request,
-                                                               IdFormat idFormat)
-{
-    std::vector<assets::AssetItem> items;
-    const std::size_t end = std::min(request.first + request.count, radarcolItemCount(kind, provider.colorCount()));
-    for (std::size_t index = request.first; index < end; index++)
-    {
-        const auto rawIndex = radarcolRawIndex(kind, static_cast<std::uint32_t>(index));
-        items.push_back({
-            .id = {.value = std::to_string(index)},
-            .label = strings::formatId(static_cast<std::uint32_t>(index), idFormat),
-            .state =
-                provider.rawColor(rawIndex).has_value() ? assets::AssetItemState::available : assets::AssetItemState::empty,
-            .stateMessage = {},
-        });
-    }
-    return items;
-}
-
-[[nodiscard]] std::vector<assets::AssetSearchItem>
-loadRadarcolSearchItems(const RadarColorProvider & provider, RadarcolBrowserKind kind, IdFormat idFormat)
-{
-    std::vector<assets::AssetSearchItem> items;
-    for (std::size_t index = 0; index < radarcolItemCount(kind, provider.colorCount()); index++)
-    {
-        const auto color = provider.rawColor(radarcolRawIndex(kind, static_cast<std::uint32_t>(index)));
-        const auto formattedId = strings::formatId(static_cast<std::uint32_t>(index), idFormat);
-        std::vector<std::string> values{"ID: " + formattedId};
-        if (color)
-        {
-            values.push_back(std::string(strings::raw()) + ": " +
-                             strings::formatId(static_cast<std::uint32_t>(*color), idFormat));
-            values.push_back(std::string(strings::hexadecimal()) + ": " + colorToHex(*color));
-        }
-        items.push_back({
-            .item =
-                {
-                    .id = {.value = std::to_string(index)},
-                    .label = formattedId,
-                    .state = color ? assets::AssetItemState::available : assets::AssetItemState::empty,
-                    .stateMessage = {},
-                },
-            .values = std::move(values),
-        });
-    }
-    return items;
-}
-
-[[nodiscard]] std::optional<assets::AssetDetails> loadRadarcolDetails(const RadarColorProvider & provider,
-                                                                      RadarcolBrowserKind kind,
-                                                                      const assets::AssetItemId & id,
-                                                                      IdFormat idFormat)
-{
-    const auto index = assets::itemIndex(id);
-    if (!index)
-    {
-        return std::nullopt;
-    }
-    const auto color = provider.rawColor(radarcolRawIndex(kind, *index));
-    if (!color)
-    {
-        return std::nullopt;
-    }
-    return assets::AssetDetails{
-        .item = id,
-        .title = "ID: " + strings::formatId(*index, idFormat),
-        .fields =
-            {
-                std::string(strings::raw()) + ": " + strings::formatId(static_cast<std::uint32_t>(*color), idFormat),
-                std::string(strings::hexadecimal()) + ": " + colorToHex(*color),
-            },
-        .fieldTooltips = {},
-    };
-}
-
-void drawRadarcolPreview(const RadarColorProvider & provider,
-                         RadarcolBrowserKind kind,
-                         const assets::AssetItemId & item,
-                         float size,
-                         const char * id)
-{
-    const auto index = assets::itemIndex(item);
-    const auto color = index ? provider.rawColor(radarcolRawIndex(kind, *index)).value_or(0) : uomul::RadarColor{};
-    ImGui::ColorButton(
-        id, colorToImVec4(color), ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoPicker, ImVec2(size, size));
-}
-
 void drawRadarcolPreview(const RadarcolDocument & document,
                          RadarcolBrowserKind kind,
                          const assets::AssetItemId & item,
@@ -564,10 +461,6 @@ void configureRadarcolAssetAdapter(assets::AssetAdapter & adapter,
     adapter.renderItem = std::move(renderItem);
 }
 
-void drawProviderContextMenu(const RadarcolDocumentWindowState & state,
-                             const RadarColorProvider & provider,
-                             const assets::AssetItemId & item);
-
 void drawRadarcolKindControl(RadarcolBrowserKind & browserKind)
 {
     const auto drawKindOption = [&browserKind](IconId icon, const char * tooltip, RadarcolBrowserKind kind, const char * id)
@@ -593,77 +486,6 @@ void drawRadarcolKindControl(RadarcolBrowserKind & browserKind)
     drawKindOption(IconId::elevation, "Map", RadarcolBrowserKind::map, "##RadarcolMap");
     ImGui::SameLine();
     drawKindOption(IconId::pineTreeVariant, "Static", RadarcolBrowserKind::statics, "##RadarcolStatic");
-}
-
-[[nodiscard]] assets::AssetAdapter makeProviderAdapter(RadarcolDocumentWindowState & state,
-                                                       const RadarColorProvider & provider,
-                                                       IdFormat idFormat,
-                                                       std::string_view viewId)
-{
-    const ProviderStatus status = provider.status();
-    const RadarcolBrowserKind kind = state.browserKind;
-    assets::AssetAdapter adapter;
-    configureAssetAdapter(adapter.descriptor,
-                          {
-                              .viewId = std::string(viewId),
-                              .windowIdentity = {},
-                              .title = "Radarcol",
-                              .sourceTooltip = "Source: " + std::string(providerSourceName(status.source)),
-                              .cacheContext = std::to_string(static_cast<int>(kind)) + "|" +
-                                              std::to_string(static_cast<int>(idFormat)) +
-                                              "|revision=" + std::to_string(status.revision),
-                              .source =
-                                  {
-                                      .kind = DocumentKind::radarcol,
-                                      .contextKind = assets::AssetSourceContext::Kind::metadataView,
-                                      .source = status.sourceIdentity,
-                                      .contextId = std::string(viewId),
-                                  },
-                              .itemPicked = state.itemPicked,
-                              .hoveredContext = state.hoveredContext,
-                          });
-    configureRadarcolAssetAdapter(adapter,
-                                  provider,
-                                  kind,
-                                  idFormat,
-                                  radarcolItemCount(kind, provider.colorCount()),
-                                  [&provider, kind](const assets::AssetItem & item, bool)
-                                  { drawRadarcolItem(provider, kind, item); });
-    adapter.descriptor.itemSourcePicked = [&state, &provider, kind](const assets::AssetItemId & item)
-    {
-        const auto index = assets::itemIndex(item);
-        return index ? acceptRadarcolColorSource(state, provider.rawColor(radarcolRawIndex(kind, *index)).value_or(0)) : false;
-    };
-    if (!status.message.empty())
-    {
-        adapter.descriptor.sourceTooltip += "\nStatus: " + status.message;
-    }
-    adapter.makeDragPayload =
-        [&provider, kind](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
-    {
-        if (selection.selected.size() != 1U)
-        {
-            return std::nullopt;
-        }
-        const auto index = assets::itemIndex(selection.selected.front());
-        const auto color = index ? provider.rawColor(radarcolRawIndex(kind, *index)) : std::nullopt;
-        if (!color)
-        {
-            return std::nullopt;
-        }
-        return assets::AssetDragPayload{
-            .type = std::string(assets::assetValueDragPayloadType),
-            .label = "Radarcol color",
-            .values = {{.item = *index, .value = static_cast<std::uint32_t>(*color)}},
-        };
-    };
-    adapter.descriptor.fixedCellWidth = assetCellWidth;
-    adapter.descriptor.fixedCellHeight = assetCellHeight;
-    adapter.descriptor.gridItemSpacing = ImGui::GetStyle().ItemSpacing.y;
-    adapter.descriptor.presentationTrailingControl = [&state] { drawRadarcolKindControl(state.browserKind); };
-    adapter.descriptor.itemContextMenu = [&state, &provider](const assets::AssetItemId & item)
-    { drawProviderContextMenu(state, provider, item); };
-    return adapter;
 }
 
 void copyRadarcolSelection(const RadarcolDocumentWindowState & state,
@@ -713,34 +535,6 @@ void drawRadarcolShowMenu(const RadarcolDocumentWindowState & state,
             state.showInTexmaps(*index);
         }
     }
-}
-
-void drawProviderContextMenu(const RadarcolDocumentWindowState & state,
-                             const RadarColorProvider & provider,
-                             const assets::AssetItemId & item)
-{
-    const auto & selection = state.assetView.selection;
-    if (ImGui::MenuItem("Copy (CSV)", "Ctrl+C", false, !selection.selected.empty()))
-    {
-        copyRadarcolSelection(state,
-                              selection,
-                              [&provider, &state](std::uint32_t index)
-                              { return provider.rawColor(radarcolRawIndex(state.browserKind, index)); });
-    }
-
-    const auto index = assets::itemIndex(item);
-    std::uint32_t activeTileId = 0;
-    const bool canUseAsActiveTile =
-        state.browserKind == RadarcolBrowserKind::map && index && *index < uomul::radarMapColorCount && state.useAsActiveTile;
-    if (index)
-    {
-        activeTileId = *index;
-    }
-    if (ImGui::MenuItem("Set Active Tile", nullptr, false, canUseAsActiveTile))
-    {
-        state.useAsActiveTile(activeTileId);
-    }
-    drawRadarcolShowMenu(state, index, state.browserKind);
 }
 
 void drawDocumentContextMenu(RadarcolDocumentWindowState & state,
@@ -904,15 +698,6 @@ void drawDocumentContextMenu(RadarcolDocumentWindowState & state,
 }
 
 } // namespace
-
-void drawRadarcolPanel(RadarcolDocumentWindowState & state,
-                       bool & visible,
-                       const RadarColorProvider & provider,
-                       IdFormat idFormat)
-{
-    const auto adapter = makeProviderAdapter(state, provider, idFormat, "view.radarcol");
-    assets::drawAssetBrowser(adapter, state.assetView, visible);
-}
 
 void drawRadarcolDocumentWindow(RadarcolDocumentWindowState & state,
                                 RadarcolDocument & document,

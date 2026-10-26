@@ -94,12 +94,6 @@ struct TexmapsDocumentWindowState
     std::function<void(std::string_view)> hoveredContext;
 };
 
-void drawTexmapsPanel(TexmapsDocumentWindowState & state,
-                      bool & visible,
-                      const TextureProvider & provider,
-                      const Preferences & preferences,
-                      PendingPreferenceChanges & pendingChanges);
-
 void drawTexmapsDocumentWindow(TexmapsDocumentWindowState & state,
                                TexmapsDocument & document,
                                bool & visible,

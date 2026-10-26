@@ -17,6 +17,7 @@
 #include "gui_model/documents/document_descriptors.h"
 #include "gui_model/documents/map_document_manager.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
 #include "gui_model/lifecycle/document_lifecycle.h"
 #include "gui_model/operations/operation_controller.h"
 #include "gui_model/persistence/asset_state_store.h"
@@ -80,13 +81,14 @@ struct WorkbenchState
     OperationController operationController;
     NotificationState notifications;
     PanelRegistry panelRegistry;
+    WindowRegistry windowRegistry;
     AppLayout layout;
     bool layoutResetRequested = false;
     bool fullscreenToggleRequested = false;
     bool workbenchLayoutApplied = false;
     DocumentLifecycleController documentLifecycle;
-    std::optional<DocumentId> pendingAssetCloseDecision;
-    std::optional<PendingChangesAction> pendingAssetCloseAction;
+    std::optional<DocumentId> pendingDocumentCloseDecision;
+    std::optional<PendingChangesAction> pendingDocumentCloseAction;
     PendingPreferenceChanges pendingPreferenceChanges;
     std::optional<PreferencesDialogResult> pendingPreferencesResult;
     std::optional<DataProfile> pendingProfileSave;

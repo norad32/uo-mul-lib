@@ -69,10 +69,6 @@ struct RadarcolDocumentWindowState
     RadarcolColorPickerState colorPicker;
 };
 
-void drawRadarcolPanel(RadarcolDocumentWindowState & state,
-                       bool & visible,
-                       const RadarColorProvider & provider,
-                       IdFormat idFormat);
 void drawRadarcolDocumentWindow(RadarcolDocumentWindowState & state,
                                 RadarcolDocument & document,
                                 bool & visible,

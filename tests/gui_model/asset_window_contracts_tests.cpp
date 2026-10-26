@@ -60,7 +60,7 @@ TEST_CASE("assetSourceContext_Should_KeepMetadataAndDocumentContextsSeparate")
         .kind = uo_mule::gui::DocumentKind::radarcol,
         .contextKind = uo_mule::gui::assets::AssetSourceContext::Kind::metadataView,
         .source = source,
-        .contextId = "view.radarcol",
+        .contextId = "window.radarcol",
     };
     const uo_mule::gui::assets::AssetSourceContext document{
         .kind = uo_mule::gui::DocumentKind::radarcol,
