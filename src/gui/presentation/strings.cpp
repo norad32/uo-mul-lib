@@ -27,6 +27,10 @@ const char * open() noexcept
 {
     return "Open";
 }
+const char * ok() noexcept
+{
+    return "OK";
+}
 const char * cancel() noexcept
 {
     return "Cancel";
@@ -106,6 +110,34 @@ const char * hideEmpty() noexcept
 const char * dimensions() noexcept
 {
     return "Dimensions";
+}
+const char * facet() noexcept
+{
+    return "Facet";
+}
+const char * width() noexcept
+{
+    return "Width";
+}
+const char * height() noexcept
+{
+    return "Height";
+}
+const char * customDimensions() noexcept
+{
+    return "Custom dimensions";
+}
+const char * invalidDimensions() noexcept
+{
+    return "Dimensions must be positive multiples of 8 tiles.";
+}
+const char * unsupportedFacetSelection() noexcept
+{
+    return "Select a supported facet preset or custom dimensions";
+}
+const char * noExactFacetMatch() noexcept
+{
+    return "No exact known size match, custom dimensions is selected.";
 }
 const char * raw() noexcept
 {

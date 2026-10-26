@@ -120,7 +120,7 @@ resolveDimensions(int preset, std::uint32_t width, std::uint32_t height)
         if (width < minimumDimension || height < minimumDimension || width % dimensionMultiple != 0U ||
             height % dimensionMultiple != 0U)
         {
-            return std::unexpected("Dimensions must be positive multiples of 8 tiles");
+            return std::unexpected(strings::invalidDimensions());
         }
         return uomul::Dimensions{.widthTiles = width, .heightTiles = height};
     }
@@ -131,12 +131,12 @@ resolveDimensions(int preset, std::uint32_t width, std::uint32_t height)
         const auto * facet = facetAt(facetIndex);
         if (facet == nullptr)
         {
-            return std::unexpected("Select a supported facet preset or custom dimensions");
+            return std::unexpected(strings::unsupportedFacetSelection());
         }
         return uomul::Dimensions{.widthTiles = facet->widthTiles, .heightTiles = facet->heightTiles};
     }
 
-    return std::unexpected("Select a supported facet preset or custom dimensions");
+    return std::unexpected(strings::unsupportedFacetSelection());
 }
 
 [[nodiscard]] bool outputExists(const std::filesystem::path & path, NewFileDialogState & state)
@@ -348,14 +348,14 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
     {
         if (index == 0U)
         {
-            return "Custom dimensions";
+            return strings::customDimensions();
         }
         return facetAt(index - 1U)->label;
     };
     const std::size_t facetCount = uomul::knownFacetSizes().size() + 1U;
     const std::size_t requestedIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
     const std::size_t selectedIndex = requestedIndex < facetCount ? requestedIndex : 0U;
-    dialogFieldLabel("Facet");
+    dialogFieldLabel(strings::facet());
     dialogFieldWidth(dimensionFieldWidth);
     if (!ImGui::BeginCombo("##Facet", facetLabel(selectedIndex)))
     {
@@ -402,10 +402,10 @@ void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
 
 [[nodiscard]] bool drawCustomDimensions(std::uint32_t & width, std::uint32_t & height)
 {
-    dialogFieldLabel("Width");
+    dialogFieldLabel(strings::width());
     dialogFieldWidth(dimensionFieldWidth);
     ImGui::InputScalar("##Width", ImGuiDataType_U32, &width, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
-    dialogFieldLabel("Height");
+    dialogFieldLabel(strings::height());
     dialogFieldWidth(dimensionFieldWidth);
     ImGui::InputScalar("##Height", ImGuiDataType_U32, &height, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
     return validDimensions(width, height);
@@ -470,7 +470,7 @@ void drawOpenDialog(MapDocumentManager & mapDocument, NewFileDialogState & state
     const bool validDimensions = drawDimensionsFields("OpenDimensions", state.openFacet, state.openWidth, state.openHeight);
     if (!validDimensions)
     {
-        ImGui::TextColored(theme::imguiColor(theme::warning), "Dimensions must be positive multiples of 8 tiles.");
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", strings::invalidDimensions());
     }
     beginDialogFooter({"Open", "Cancel"});
     if (dialogButton(iconLabel(IconId::folder, "Open").c_str(), state.openPath.front() != '\0' && validDimensions))
@@ -566,7 +566,7 @@ void drawNewMapForm(MapDocumentManager & mapDocument, NewFileDialogState & state
 
     if (!validDimensions)
     {
-        ImGui::TextColored(theme::imguiColor(theme::warning), "Dimensions must be positive multiples of 8 tiles.");
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", strings::invalidDimensions());
     }
 
     dialogFieldLabel("Tile ID");
@@ -1058,7 +1058,14 @@ void drawMapFacetWorkflow(MapDocumentManager & mapDocument, NewFileDialogState &
     }
     else if (result == MapFacetDialogResult::cancel)
     {
-        closeDialog(state);
+        if (state.browser != nullptr)
+        {
+            returnToFileBrowser(state, *state.browser);
+        }
+        else
+        {
+            closeDialog(state);
+        }
     }
 }
 
@@ -1131,6 +1138,21 @@ void cancelFileDialog(NewFileDialogState & state)
     state.openWithoutReview = false;
     state.openCandidates.clear();
     state.error.clear();
+}
+
+void returnToFileBrowser(NewFileDialogState & state, FileBrowserState & browser)
+{
+    const std::filesystem::path selectedPath(state.openPath.data());
+    const std::filesystem::path initialPath = selectedPath.empty() ? std::filesystem::path{} : selectedPath.parent_path();
+    cancelFileDialog(state);
+    requestFileBrowser(browser,
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::genericOpen,
+                           .initialPath = initialPath,
+                           .extension = ".mul",
+                           .title = "Open MUL File",
+                       });
 }
 
 void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult & result)
@@ -1215,13 +1237,15 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
 
     const MapFileDialogMode currentMode = state.mode;
 
-    const DialogWindowSpec dialogSpec =
-        currentMode == MapFileDialogMode::selectMapFacet ? mapFacetDialogSpec() : mapDialogSpec();
     if (currentMode == MapFileDialogMode::dirtyChanges)
     {
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(dialogCenterPivot, dialogCenterPivot));
     }
-    if (!beginDialog(popupName(currentMode), nullptr, dialogSpec, ImGuiWindowFlags_AlwaysAutoResize))
+    const bool dialogVisible =
+        currentMode == MapFileDialogMode::selectMapFacet
+            ? beginAutoSizeDialog(popupName(currentMode), nullptr)
+            : beginDialog(popupName(currentMode), nullptr, mapDialogSpec(), ImGuiWindowFlags_AlwaysAutoResize);
+    if (!dialogVisible)
     {
         state.mode = MapFileDialogMode::none;
         state.activePopup = MapFileDialogMode::none;

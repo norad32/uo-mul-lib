@@ -77,6 +77,18 @@ TEST_CASE("dialogHost_Should_RejectResultFromReplacedWorkflow")
     REQUIRE(host.owns(DialogId::fileBrowser));
 }
 
+TEST_CASE("dialogHost_Should_RejectStaleResultForTheActiveDialog")
+{
+    DialogHostState host;
+    REQUIRE(host.request(makeDialogRequest(DialogId::fileBrowser)));
+    const auto generation = host.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+
+    REQUIRE_FALSE(host.complete(
+        {.id = DialogId::fileBrowser, .action = DialogAction::accept, .payload = {}, .generation = generation - 1U}));
+    REQUIRE_FALSE(host.consumeResult().has_value());
+    REQUIRE(host.owns(DialogId::fileBrowser));
+}
+
 TEST_CASE("dialogHost_Should_PublishTypedFileBrowserAcceptance")
 {
     DialogHostState host;

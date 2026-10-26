@@ -20,14 +20,3 @@ TEST_CASE("dialogPresentation_Should_ProvideLargerBrowserAndPreferencesSizes")
     REQUIRE(browser.initialSize.x > standard.initialSize.x);
     REQUIRE(browser.initialSize.y > standard.initialSize.y);
 }
-
-TEST_CASE("dialogPresentation_Should_ProvideCompactMapFacetSize")
-{
-    const auto map = uo_mule::gui::mapDialogSpec();
-    const auto facet = uo_mule::gui::mapFacetDialogSpec();
-
-    REQUIRE(facet.initialSize.x < map.initialSize.x);
-    REQUIRE(facet.initialSize.y < map.initialSize.y);
-    REQUIRE(facet.initialSize.x >= facet.minimumSize.x);
-    REQUIRE(facet.initialSize.y >= facet.minimumSize.y);
-}

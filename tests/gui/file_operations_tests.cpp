@@ -1,5 +1,7 @@
+#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/presentation/bounded_buffer.h"
 #include "gui/workbench/notification_state.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui/workflows/file_workflow.h"
@@ -75,6 +77,46 @@ TEST_CASE("fileBrowserResult_Should_TransitionMapOpenToFacetSelection")
     uo_mule::gui::applyFileBrowserResult(state, result);
     REQUIRE(state.mode == uo_mule::gui::MapFileDialogMode::selectMapFacet);
     REQUIRE(std::filesystem::path(state.openPath.data()) == mapPath);
+}
+
+TEST_CASE("mapFacetCancel_Should_ReturnToTheGenericFileBrowser")
+{
+    uo_mule::gui::NewFileDialogState state;
+    uo_mule::gui::FileBrowserState browser;
+    const auto mapPath = std::filesystem::temp_directory_path() / "map0.mul";
+    uo_mule::gui::copyToBuffer(state.openPath, mapPath);
+    state.mode = uo_mule::gui::MapFileDialogMode::selectMapFacet;
+
+    uo_mule::gui::returnToFileBrowser(state, browser);
+
+    REQUIRE(browser.visible);
+    REQUIRE(browser.request.target == uo_mule::gui::FileBrowserTarget::genericOpen);
+    REQUIRE(browser.directory == mapPath.parent_path());
+    REQUIRE(state.mode == uo_mule::gui::MapFileDialogMode::none);
+}
+
+TEST_CASE("fileSelectorEscape_Should_ReturnToTheOriginatingFileBrowser")
+{
+    uo_mule::gui::WorkbenchState state;
+    const auto selectedPath = std::filesystem::temp_directory_path() / "asset.mul";
+    state.fileSelector.visible = true;
+    state.fileSelector.browserResult = {
+        .target = uo_mule::gui::FileBrowserTarget::genericOpen,
+        .role = uo_mule::gui::DataFileRole::radarcol,
+        .path = selectedPath,
+        .mapCandidates = {},
+        .assetCandidates = {},
+        .assetCandidate = std::nullopt,
+    };
+    state.menuBarState.fileDialog.mode = uo_mule::gui::MapFileDialogMode::openMap;
+
+    REQUIRE(uo_mule::gui::handleFileWorkflowEscape(state));
+
+    REQUIRE(state.fileBrowser.visible);
+    REQUIRE(state.fileBrowser.request.target == uo_mule::gui::FileBrowserTarget::genericOpen);
+    REQUIRE(state.fileBrowser.directory == selectedPath.parent_path());
+    REQUIRE_FALSE(state.fileSelector.visible);
+    REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::none);
 }
 
 TEST_CASE("defaultRadarcolWorkflow_Should_CreateAndBindProfile")

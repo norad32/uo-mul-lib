@@ -48,6 +48,6 @@ void sortFileBrowserCandidates(std::vector<FileBrowserAssetCandidate> & candidat
 
 void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request);
 void cancelFileBrowser(FileBrowserState & state);
-[[nodiscard]] std::optional<DialogResult> drawFileBrowser(FileBrowserState & state);
+[[nodiscard]] std::optional<DialogResult> drawFileBrowser(FileBrowserState & state, std::uint64_t generation);
 
 } // namespace uo_mule::gui

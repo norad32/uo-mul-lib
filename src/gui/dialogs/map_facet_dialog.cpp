@@ -2,6 +2,7 @@
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/presentation/dialog_presentation.h"
 #include "gui/presentation/iconography.h"
+#include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
@@ -18,6 +19,7 @@ namespace
 constexpr int customFacetIndex = 0;
 constexpr std::uint32_t minimumDimension = uomul::mapBlockDimension;
 constexpr float fieldWidth = 200.0F;
+constexpr float fieldLabelWidth = 52.0F;
 
 [[nodiscard]] const uomul::FacetSize * facetAt(std::size_t index) noexcept
 {
@@ -37,9 +39,16 @@ constexpr float fieldWidth = 200.0F;
 {
     if (index == 0U)
     {
-        return "Custom dimensions";
+        return strings::customDimensions();
     }
     return facetAt(index - 1U)->mapLabel;
+}
+
+void facetFieldLabel(const char * text)
+{
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(text);
+    ImGui::SameLine(fieldLabelWidth);
 }
 
 [[nodiscard]] bool drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
@@ -47,7 +56,7 @@ constexpr float fieldWidth = 200.0F;
     const std::size_t facetCount = uomul::knownFacetSizes().size() + 1U;
     const std::size_t requestedIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
     const std::size_t selectedIndex = requestedIndex < facetCount ? requestedIndex : 0U;
-    dialogFieldLabel("Facet");
+    facetFieldLabel(strings::facet());
     dialogFieldWidth(fieldWidth);
     if (ImGui::BeginCombo("##Facet", facetLabel(selectedIndex)))
     {
@@ -78,10 +87,10 @@ constexpr float fieldWidth = 200.0F;
     {
         return true;
     }
-    dialogFieldLabel("Width");
+    facetFieldLabel(strings::width());
     dialogFieldWidth(fieldWidth);
     ImGui::InputScalar("##Width", ImGuiDataType_U32, &width, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
-    dialogFieldLabel("Height");
+    facetFieldLabel(strings::height());
     dialogFieldWidth(fieldWidth);
     ImGui::InputScalar("##Height", ImGuiDataType_U32, &height, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
     return width >= minimumDimension && height >= minimumDimension && width % minimumDimension == 0U &&
@@ -94,24 +103,24 @@ MapFacetDialogResult drawMapFacetDialog(NewFileDialogState & state)
 {
     if (state.openCandidates.empty())
     {
-        ImGui::TextColored(theme::imguiColor(theme::warning), "No exact known size match, custom dimensions is selected.");
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", strings::noExactFacetMatch());
     }
 
     const bool validDimensions = drawFacetCombo(state.openFacet, state.openWidth, state.openHeight);
     if (!validDimensions)
     {
-        ImGui::TextColored(theme::imguiColor(theme::warning), "Dimensions must be positive multiples of 8 tiles.");
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", strings::invalidDimensions());
     }
 
-    beginDialogFooter({"Select", "Cancel"});
-    if ((dialogButton(iconLabel(IconId::ok, "Select").c_str(), validDimensions) || ImGui::IsKeyPressed(ImGuiKey_Enter)) &&
+    beginDialogFooter({strings::ok(), strings::cancel()}, false);
+    if ((dialogButton(iconLabel(IconId::ok, strings::ok()).c_str(), validDimensions) || ImGui::IsKeyPressed(ImGuiKey_Enter)) &&
         validDimensions)
     {
         endDialogFooter();
         return MapFacetDialogResult::accept;
     }
     ImGui::SameLine();
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
+    if (dialogButton(iconLabel(IconId::cancel, strings::cancel()).c_str()))
     {
         endDialogFooter();
         return MapFacetDialogResult::cancel;

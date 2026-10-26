@@ -18,8 +18,6 @@ constexpr float standardWidth = 520.0F;
 constexpr float standardHeight = 320.0F;
 constexpr float standardMinimumWidth = 360.0F;
 constexpr float standardMinimumHeight = 220.0F;
-constexpr float selectorWidth = 420.0F;
-constexpr float selectorHeight = 220.0F;
 constexpr float largeWidth = 860.0F;
 constexpr float largeHeight = 720.0F;
 constexpr float largeMinimumWidth = 640.0F;
@@ -32,10 +30,6 @@ constexpr float mapWidth = 620.0F;
 constexpr float mapHeight = 420.0F;
 constexpr float mapMinimumWidth = 440.0F;
 constexpr float mapMinimumHeight = 260.0F;
-constexpr float mapFacetWidth = 520.0F;
-constexpr float mapFacetHeight = 220.0F;
-constexpr float mapFacetMinimumWidth = 420.0F;
-constexpr float mapFacetMinimumHeight = 180.0F;
 constexpr float dialogFieldLabelWidth = 240.0F;
 
 [[nodiscard]] ImGuiWindowFlags modalFlags(ImGuiWindowFlags extraFlags) noexcept
@@ -56,11 +50,6 @@ DialogWindowSpec standardDialogSpec() noexcept
     };
 }
 
-DialogWindowSpec selectorDialogSpec() noexcept
-{
-    return {.initialSize = ImVec2(selectorWidth, selectorHeight), .minimumSize = ImVec2(selectorWidth, selectorHeight)};
-}
-
 DialogWindowSpec largeDialogSpec() noexcept
 {
     return {.initialSize = ImVec2(largeWidth, largeHeight), .minimumSize = ImVec2(largeMinimumWidth, largeMinimumHeight)};
@@ -77,14 +66,6 @@ DialogWindowSpec browserDialogSpec() noexcept
 DialogWindowSpec mapDialogSpec() noexcept
 {
     return {.initialSize = ImVec2(mapWidth, mapHeight), .minimumSize = ImVec2(mapMinimumWidth, mapMinimumHeight)};
-}
-
-DialogWindowSpec mapFacetDialogSpec() noexcept
-{
-    return {
-        .initialSize = ImVec2(mapFacetWidth, mapFacetHeight),
-        .minimumSize = ImVec2(mapFacetMinimumWidth, mapFacetMinimumHeight),
-    };
 }
 
 bool beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, ImGuiWindowFlags extraFlags)
@@ -139,8 +120,14 @@ void dialogFieldWidth(float width)
     ImGui::SetNextItemWidth(width);
 }
 
-void beginDialogFooter(std::initializer_list<const char *> labels)
+void beginDialogFooter(std::initializer_list<const char *> labels, bool alignRight)
 {
+    if (!alignRight)
+    {
+        ImGui::BeginGroup();
+        return;
+    }
+
     float buttonWidth = 0.0F;
     for (const char * label : labels)
     {

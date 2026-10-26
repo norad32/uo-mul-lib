@@ -26,6 +26,22 @@ namespace uo_mule::gui
 namespace
 {
 
+void returnToFileBrowser(WorkbenchState & state, const FileBrowserResult & result)
+{
+    const std::filesystem::path initialPath = result.path.empty() ? std::filesystem::path{} : result.path.parent_path();
+    cancelFileSelector(state.fileSelector);
+    cancelFileDialog(state.menuBarState.fileDialog);
+    requestFileBrowser(state.fileBrowser,
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = result.target,
+                           .role = result.role,
+                           .initialPath = initialPath,
+                           .extension = ".mul",
+                           .title = "Open MUL File",
+                       });
+}
+
 void syncDialogHost(WorkbenchState & state)
 {
     const auto mapWorkflow = [](MapFileDialogMode mode) noexcept
@@ -449,7 +465,8 @@ bool handleDialogResult(WorkbenchState & state, DialogResult result)
     {
         if (result.id == DialogId::fileSelector)
         {
-            cancelFileSelector(state.fileSelector);
+            const FileBrowserResult origin = state.fileSelector.browserResult;
+            returnToFileBrowser(state, origin);
         }
         else if (result.id == DialogId::fileBrowser && state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
         {
@@ -491,11 +508,11 @@ bool handleDialogResult(WorkbenchState & state, DialogResult result)
 
 bool completeDialogResult(WorkbenchState & state, DialogResult result)
 {
-    if (!state.dialogHost.active || result.id != state.dialogHost.active->id)
+    if (!state.dialogHost.active || result.id != state.dialogHost.active->id ||
+        result.generation != state.dialogHost.active->generation)
     {
         return false;
     }
-    result.generation = state.dialogHost.active->generation;
     if (!state.dialogHost.complete(std::move(result)))
     {
         return false;
@@ -539,9 +556,9 @@ bool drawFileDialogs(WorkbenchState & state)
             state.pendingPreferencesResult = *result;
         }
     }
-    if (state.dialogHost.owns(DialogId::fileBrowser))
+    if (const auto activeDialog = state.dialogHost.active; activeDialog && activeDialog->id == DialogId::fileBrowser)
     {
-        dialogResult = drawFileBrowser(state.fileBrowser);
+        dialogResult = drawFileBrowser(state.fileBrowser, activeDialog->generation);
     }
     if (dialogResult)
     {
@@ -552,9 +569,10 @@ bool drawFileDialogs(WorkbenchState & state)
     {
         cancelFileDialog(state.menuBarState.fileDialog);
     }
-    if (state.dialogHost.owns(DialogId::fileSelector) && !state.fileBrowser.visible && state.fileSelector.visible)
+    if (const auto activeDialog = state.dialogHost.active;
+        activeDialog && activeDialog->id == DialogId::fileSelector && !state.fileBrowser.visible && state.fileSelector.visible)
     {
-        if (const auto selectorResult = drawFileSelector(state.fileSelector))
+        if (const auto selectorResult = drawFileSelector(state.fileSelector, activeDialog->generation))
         {
             profileChanged = completeDialogResult(state, *selectorResult) || profileChanged;
         }
@@ -582,11 +600,19 @@ bool handleFileWorkflowEscape(WorkbenchState & state)
     }
     else if (state.fileSelector.visible)
     {
-        cancelFileSelector(state.fileSelector);
+        const FileBrowserResult origin = state.fileSelector.browserResult;
+        returnToFileBrowser(state, origin);
     }
     else if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
     {
-        cancelFileDialog(state.menuBarState.fileDialog);
+        if (state.menuBarState.fileDialog.mode == MapFileDialogMode::selectMapFacet)
+        {
+            returnToFileBrowser(state.menuBarState.fileDialog, state.fileBrowser);
+        }
+        else
+        {
+            cancelFileDialog(state.menuBarState.fileDialog);
+        }
     }
     else if (state.menuBarState.preferencesDialog.visible)
     {

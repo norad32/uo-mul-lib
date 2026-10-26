@@ -104,6 +104,7 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
 
 void cancelFileDialog(NewFileDialogState & state);
 void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult & result);
+void returnToFileBrowser(NewFileDialogState & state, FileBrowserState & browser);
 
 void requestCloseOperation(MapDocumentManager & mapDocument,
                            NewFileDialogState & state,

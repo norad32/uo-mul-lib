@@ -275,7 +275,7 @@ void selectPath(FileBrowserState & state, const std::filesystem::path & path)
     updateSummary(state);
 }
 
-std::optional<DialogResult> complete(FileBrowserState & state)
+std::optional<DialogResult> complete(FileBrowserState & state, std::uint64_t generation)
 {
     std::filesystem::path path;
     if (!validSelection(state, path))
@@ -299,6 +299,7 @@ std::optional<DialogResult> complete(FileBrowserState & state)
         .id = DialogId::fileBrowser,
         .action = DialogAction::accept,
         .payload = std::move(result),
+        .generation = generation,
     };
 }
 
@@ -886,7 +887,8 @@ void drawBrowserToolbar(FileBrowserState & state)
     return entries;
 }
 
-std::optional<DialogResult> drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory_entry & entry)
+std::optional<DialogResult>
+drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory_entry & entry, std::uint64_t generation)
 {
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
@@ -903,7 +905,7 @@ std::optional<DialogResult> drawBrowserEntry(FileBrowserState & state, const std
         }
         else if (state.request.mode == FileBrowserMode::openFile)
         {
-            const auto result = complete(state);
+            const auto result = complete(state, generation);
             if (result)
             {
                 return result;
@@ -921,7 +923,7 @@ std::optional<DialogResult> drawBrowserEntry(FileBrowserState & state, const std
     return std::nullopt;
 }
 
-std::optional<DialogResult> drawBrowserEntries(FileBrowserState & state)
+std::optional<DialogResult> drawBrowserEntries(FileBrowserState & state, std::uint64_t generation)
 {
     if (!ImGui::BeginTable("Entries", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH))
     {
@@ -934,7 +936,7 @@ std::optional<DialogResult> drawBrowserEntries(FileBrowserState & state)
     ImGui::TableHeadersRow();
     for (const auto & entry : browserEntries(state))
     {
-        if (const auto result = drawBrowserEntry(state, entry))
+        if (const auto result = drawBrowserEntry(state, entry, generation))
         {
             ImGui::EndTable();
             return result;
@@ -944,7 +946,7 @@ std::optional<DialogResult> drawBrowserEntries(FileBrowserState & state)
     return std::nullopt;
 }
 
-std::optional<DialogResult> drawBrowserListing(FileBrowserState & state)
+std::optional<DialogResult> drawBrowserListing(FileBrowserState & state, std::uint64_t generation)
 {
     if (ImGui::BeginTable("BrowserBody", 3, ImGuiTableFlags_SizingStretchProp, ImVec2(0.0F, listingHeight)))
     {
@@ -956,7 +958,7 @@ std::optional<DialogResult> drawBrowserListing(FileBrowserState & state)
         drawPlaces(state);
         ImGui::TableNextColumn();
         ImGui::BeginChild("FileList", ImVec2(0.0F, listingHeight), ImGuiChildFlags_Borders, ImGuiWindowFlags_None);
-        const auto result = drawBrowserEntries(state);
+        const auto result = drawBrowserEntries(state, generation);
         ImGui::EndChild();
         ImGui::TableNextColumn();
         drawSummary(state);
@@ -966,7 +968,7 @@ std::optional<DialogResult> drawBrowserListing(FileBrowserState & state)
     return std::nullopt;
 }
 
-std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
+std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state, std::uint64_t generation)
 {
     if (!state.error.empty())
     {
@@ -1003,13 +1005,18 @@ std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
         ImGui::SameLine();
         if (dialogButton(confirmButtonLabel.c_str()))
         {
-            return complete(state);
+            return complete(state, generation);
         }
         ImGui::SameLine();
         if (dialogButton(cancelButtonLabel.c_str()))
         {
             cancelFileBrowser(state);
-            return DialogResult{.id = DialogId::fileBrowser, .action = DialogAction::cancel, .payload = {}};
+            return DialogResult{
+                .id = DialogId::fileBrowser,
+                .action = DialogAction::cancel,
+                .payload = {},
+                .generation = generation,
+            };
         }
     }
     else
@@ -1020,7 +1027,7 @@ std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
         std::optional<DialogResult> result;
         if (dialogButton(confirmButtonLabel.c_str()))
         {
-            result = complete(state);
+            result = complete(state, generation);
         }
         else
         {
@@ -1028,7 +1035,12 @@ std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
             if (dialogButton(cancelButtonLabel.c_str()))
             {
                 cancelFileBrowser(state);
-                result = DialogResult{.id = DialogId::fileBrowser, .action = DialogAction::cancel, .payload = {}};
+                result = DialogResult{
+                    .id = DialogId::fileBrowser,
+                    .action = DialogAction::cancel,
+                    .payload = {},
+                    .generation = generation,
+                };
             }
         }
         endDialogFooter();
@@ -1046,7 +1058,7 @@ std::optional<DialogResult> drawBrowserFooter(FileBrowserState & state)
 
 } // namespace
 
-std::optional<DialogResult> drawFileBrowser(FileBrowserState & state)
+std::optional<DialogResult> drawFileBrowser(FileBrowserState & state, std::uint64_t generation)
 {
     if (!state.visible)
     {
@@ -1066,15 +1078,20 @@ std::optional<DialogResult> drawFileBrowser(FileBrowserState & state)
     }
 
     drawBrowserToolbar(state);
-    auto result = drawBrowserListing(state);
+    auto result = drawBrowserListing(state, generation);
     if (!result)
     {
-        result = drawBrowserFooter(state);
+        result = drawBrowserFooter(state, generation);
     }
     endDialog();
     if (!result && !state.visible)
     {
-        return DialogResult{.id = DialogId::fileBrowser, .action = DialogAction::cancel, .payload = {}};
+        return DialogResult{
+            .id = DialogId::fileBrowser,
+            .action = DialogAction::cancel,
+            .payload = {},
+            .generation = generation,
+        };
     }
     return result;
 }

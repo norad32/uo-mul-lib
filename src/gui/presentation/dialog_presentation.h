@@ -13,11 +13,9 @@ struct DialogWindowSpec
 };
 
 [[nodiscard]] DialogWindowSpec standardDialogSpec() noexcept;
-[[nodiscard]] DialogWindowSpec selectorDialogSpec() noexcept;
 [[nodiscard]] DialogWindowSpec largeDialogSpec() noexcept;
 [[nodiscard]] DialogWindowSpec browserDialogSpec() noexcept;
 [[nodiscard]] DialogWindowSpec mapDialogSpec() noexcept;
-[[nodiscard]] DialogWindowSpec mapFacetDialogSpec() noexcept;
 
 [[nodiscard]] bool
 beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None);
@@ -29,7 +27,7 @@ void dialogSubheading(const char * text);
 void dialogSeparatorText(const char * text);
 void dialogFieldLabel(const char * text);
 void dialogFieldWidth(float width);
-void beginDialogFooter(std::initializer_list<const char *> labels);
+void beginDialogFooter(std::initializer_list<const char *> labels, bool alignRight = true);
 void endDialogFooter();
 [[nodiscard]] bool dialogButton(const char * label, bool enabled = true);
 

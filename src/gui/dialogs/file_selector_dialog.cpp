@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
+#include <cstdint>
 #include <imgui.h>
 #include <iterator>
 #include <optional>
@@ -123,18 +124,23 @@ bool applyFileSelectorCompanion(FileSelectorState & state, const std::filesystem
     return true;
 }
 
-std::optional<DialogResult> drawFileSelector(FileSelectorState & state)
+std::optional<DialogResult> drawFileSelector(FileSelectorState & state, std::uint64_t generation)
 {
     if (!state.visible)
     {
         return std::nullopt;
     }
 
-    if (!beginDialog("Choose File Type###dialog.file-selector", &state.visible, selectorDialogSpec()))
+    if (!beginAutoSizeDialog("Choose File Type###dialog.file-selector", &state.visible))
     {
         if (!state.visible)
         {
-            return DialogResult{.id = DialogId::fileSelector, .action = DialogAction::cancel, .payload = {}};
+            return DialogResult{
+                .id = DialogId::fileSelector,
+                .action = DialogAction::cancel,
+                .payload = {},
+                .generation = generation,
+            };
         }
         return std::nullopt;
     }
@@ -152,6 +158,7 @@ std::optional<DialogResult> drawFileSelector(FileSelectorState & state)
                 .id = DialogId::fileSelector,
                 .action = DialogAction::chooseCompanion,
                 .payload = state.browserResult,
+                .generation = generation,
             };
         }
     }
@@ -162,8 +169,8 @@ std::optional<DialogResult> drawFileSelector(FileSelectorState & state)
     }
     const bool canAccept =
         state.selectedCandidate < state.candidates.size() && state.candidates.at(state.selectedCandidate).openable;
-    beginDialogFooter({"Open", "Cancel"});
-    if (dialogButton(iconLabel(IconId::folder, "Open").c_str(), canAccept) ||
+    beginDialogFooter({strings::ok(), strings::cancel()}, false);
+    if (dialogButton(iconLabel(IconId::ok, strings::ok()).c_str(), canAccept) ||
         (canAccept && ImGui::IsKeyPressed(ImGuiKey_Enter)))
     {
         endDialogFooter();
@@ -172,20 +179,31 @@ std::optional<DialogResult> drawFileSelector(FileSelectorState & state)
             .id = DialogId::fileSelector,
             .action = DialogAction::accept,
             .payload = selectedFileSelectorResult(state),
+            .generation = generation,
         };
     }
     ImGui::SameLine();
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
+    if (dialogButton(iconLabel(IconId::cancel, strings::cancel()).c_str()))
     {
         endDialogFooter();
         ImGui::EndPopup();
-        return DialogResult{.id = DialogId::fileSelector, .action = DialogAction::cancel, .payload = {}};
+        return DialogResult{
+            .id = DialogId::fileSelector,
+            .action = DialogAction::cancel,
+            .payload = {},
+            .generation = generation,
+        };
     }
     endDialogFooter();
     endDialog();
     if (!state.visible)
     {
-        return DialogResult{.id = DialogId::fileSelector, .action = DialogAction::cancel, .payload = {}};
+        return DialogResult{
+            .id = DialogId::fileSelector,
+            .action = DialogAction::cancel,
+            .payload = {},
+            .generation = generation,
+        };
     }
     return std::nullopt;
 }

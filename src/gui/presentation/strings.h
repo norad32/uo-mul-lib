@@ -14,6 +14,7 @@ namespace uo_mule::gui::strings
 {
 
 [[nodiscard]] const char * open() noexcept;
+[[nodiscard]] const char * ok() noexcept;
 [[nodiscard]] const char * cancel() noexcept;
 [[nodiscard]] const char * save() noexcept;
 [[nodiscard]] const char * discard() noexcept;
@@ -34,6 +35,13 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * hideUnused() noexcept;
 [[nodiscard]] const char * hideEmpty() noexcept;
 [[nodiscard]] const char * dimensions() noexcept;
+[[nodiscard]] const char * facet() noexcept;
+[[nodiscard]] const char * width() noexcept;
+[[nodiscard]] const char * height() noexcept;
+[[nodiscard]] const char * customDimensions() noexcept;
+[[nodiscard]] const char * invalidDimensions() noexcept;
+[[nodiscard]] const char * unsupportedFacetSelection() noexcept;
+[[nodiscard]] const char * noExactFacetMatch() noexcept;
 [[nodiscard]] const char * raw() noexcept;
 [[nodiscard]] const char * hexadecimal() noexcept;
 [[nodiscard]] const char * hexadecimalName() noexcept;
