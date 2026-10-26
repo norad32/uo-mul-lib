@@ -6,6 +6,7 @@
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/dialogs/dialog_host.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/profile/data_discovery.h"
 #include "gui_model/profile/data_profile.h"
@@ -349,6 +350,18 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
     initializeDialogFields(state);
     syncWorkingProfile(state);
     state.validation = validateDataProfile(state.workingProfile);
+    activatePreferencesDialog(state);
+}
+
+void activatePreferencesDialog(const PreferencesDialogState & state)
+{
+    if (state.dialogHost == nullptr)
+    {
+        return;
+    }
+    auto request = makeDialogRequest(DialogId::preferences, PreferencesDialogRequest{.focusProfile = false});
+    request.replaceActive = true;
+    static_cast<void>(state.dialogHost->request(std::move(request)));
 }
 
 void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserResult & result)
@@ -378,6 +391,10 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
 {
     if (!state.visible && state.closeRequested)
     {
+        if (state.dialogHost != nullptr)
+        {
+            state.dialogHost->cancel();
+        }
         const std::string title = iconLabel(IconId::preferences, strings::preferencesDialogTitle());
         ImGui::OpenPopup(title.c_str());
         if (ImGui::BeginPopupModal(title.c_str()))
@@ -461,6 +478,10 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
     if (!state.visible)
     {
         ImGui::CloseCurrentPopup();
+        if (state.dialogHost != nullptr)
+        {
+            state.dialogHost->cancel();
+        }
     }
     endDialog();
     return result;

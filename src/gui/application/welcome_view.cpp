@@ -138,6 +138,7 @@ void applyRecentMapToOpenDialog(NewFileDialogState & dialog, const RecentFile & 
             index++;
         }
     }
+    requestMapDialog(dialog, MapFileDialogMode::openMap);
 }
 
 [[nodiscard]] bool metadataFileConfigured(DataFileStatus status) noexcept

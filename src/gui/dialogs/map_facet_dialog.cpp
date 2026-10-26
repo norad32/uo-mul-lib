@@ -1,13 +1,10 @@
 #include "gui/dialogs/map_facet_dialog.h"
+#include "gui/dialogs/map_dimension_fields.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/presentation/dialog_presentation.h"
 #include "gui/presentation/iconography.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
-#include "uomul/facet_sizes.h"
-#include "uomul/map/map.h"
-#include <cstddef>
-#include <cstdint>
 #include <imgui.h>
 
 namespace uo_mule::gui
@@ -16,86 +13,8 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr int customFacetIndex = 0;
-constexpr std::uint32_t minimumDimension = uomul::mapBlockDimension;
 constexpr float fieldWidth = 200.0F;
 constexpr float fieldLabelWidth = 52.0F;
-
-[[nodiscard]] const uomul::FacetSize * facetAt(std::size_t index) noexcept
-{
-    std::size_t current = 0;
-    for (const auto & facet : uomul::knownFacetSizes())
-    {
-        if (current == index)
-        {
-            return &facet;
-        }
-        current++;
-    }
-    return nullptr;
-}
-
-[[nodiscard]] const char * facetLabel(std::size_t index) noexcept
-{
-    if (index == 0U)
-    {
-        return strings::customDimensions();
-    }
-    return facetAt(index - 1U)->mapLabel;
-}
-
-void facetFieldLabel(const char * text)
-{
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(text);
-    ImGui::SameLine(fieldLabelWidth);
-}
-
-[[nodiscard]] bool drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
-{
-    const std::size_t facetCount = uomul::knownFacetSizes().size() + 1U;
-    const std::size_t requestedIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
-    const std::size_t selectedIndex = requestedIndex < facetCount ? requestedIndex : 0U;
-    facetFieldLabel(strings::facet());
-    dialogFieldWidth(fieldWidth);
-    if (ImGui::BeginCombo("##Facet", facetLabel(selectedIndex)))
-    {
-        for (std::size_t index = 0; index < facetCount; index++)
-        {
-            const std::size_t activeIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
-            const bool selected = activeIndex == index;
-            if (ImGui::Selectable(facetLabel(index), selected))
-            {
-                preset = static_cast<int>(index);
-                if (index != 0U)
-                {
-                    const auto * facet = facetAt(index - 1U);
-                    width = facet->widthTiles;
-                    height = facet->heightTiles;
-                }
-            }
-
-            if (selected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-        ImGui::EndCombo();
-    }
-
-    if (preset != customFacetIndex)
-    {
-        return true;
-    }
-    facetFieldLabel(strings::width());
-    dialogFieldWidth(fieldWidth);
-    ImGui::InputScalar("##Width", ImGuiDataType_U32, &width, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
-    facetFieldLabel(strings::height());
-    dialogFieldWidth(fieldWidth);
-    ImGui::InputScalar("##Height", ImGuiDataType_U32, &height, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
-    return width >= minimumDimension && height >= minimumDimension && width % minimumDimension == 0U &&
-           height % minimumDimension == 0U;
-}
 
 } // namespace
 
@@ -106,7 +25,8 @@ MapFacetDialogResult drawMapFacetDialog(NewFileDialogState & state)
         ImGui::TextColored(theme::imguiColor(theme::warning), "%s", strings::noExactFacetMatch());
     }
 
-    const bool validDimensions = drawFacetCombo(state.openFacet, state.openWidth, state.openHeight);
+    const bool validDimensions = drawMapDimensionFields(
+        state.openFacet, state.openWidth, state.openHeight, true, {.fieldWidth = fieldWidth, .labelWidth = fieldLabelWidth});
     if (!validDimensions)
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "%s", strings::invalidDimensions());

@@ -23,6 +23,7 @@ add_library(
     dialogs/file_browser_dialog.cpp
     dialogs/document_close_dialog.cpp
     dialogs/file_selector_dialog.cpp
+    dialogs/map_dimension_fields.cpp
     dialogs/map_facet_dialog.cpp
     dialogs/map_workflow_dialog.cpp
     dialogs/preferences_dialog.cpp

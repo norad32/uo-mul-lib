@@ -17,6 +17,8 @@
 namespace uo_mule::gui
 {
 
+struct DialogHostState;
+
 inline constexpr std::size_t mapDialogPathBufferSize = 1024;
 inline const auto defaultMapDialogSize = uomul::knownFacetSizes().front();
 
@@ -66,6 +68,7 @@ struct PendingMapOperation
 
 struct NewFileDialogState
 {
+    DialogHostState * dialogHost = nullptr;
     OperationController * controller = nullptr;
     NotificationState * notifications = nullptr;
     OutputCollisionPolicy collisionPolicy = OutputCollisionPolicy::confirm;
@@ -93,6 +96,8 @@ struct NewFileDialogState
     bool shouldClose = false;
     std::string error;
 };
+
+void requestMapDialog(NewFileDialogState & state, MapFileDialogMode mode);
 
 void drawNewFileDialog(MapDocumentManager & mapDocument,
                        NewFileDialogState & state,

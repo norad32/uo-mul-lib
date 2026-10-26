@@ -340,8 +340,7 @@ void copyActiveRadarcolSelection(WorkbenchState & state)
 
 void openDialog(WorkbenchState & state, MapFileDialogMode mode)
 {
-    state.menuBarState.fileDialog.mode = mode;
-    state.menuBarState.fileDialog.activePopup = MapFileDialogMode::none;
+    requestMapDialog(state.menuBarState.fileDialog, mode);
     state.menuBarState.fileDialog.openWithoutReview = false;
     state.menuBarState.fileDialog.error.clear();
     if (mode == MapFileDialogMode::openMap)
@@ -704,6 +703,7 @@ void registerFileSaveCommands(CommandRegistry & registry)
                     std::copy_n(value.data(), length, state.menuBarState.fileDialog.savePath.data());
                     state.menuBarState.fileDialog.savePath.at(length) = '\0';
                 }
+                openDialog(state, MapFileDialogMode::saveAs);
                 requestFileBrowser(state.fileBrowser,
                                    {
                                        .mode = FileBrowserMode::saveFile,
@@ -712,7 +712,6 @@ void registerFileSaveCommands(CommandRegistry & registry)
                                        .extension = ".mul",
                                        .title = "Save Map As",
                                    });
-                openDialog(state, MapFileDialogMode::saveAs);
             }
             else
             {

@@ -5,6 +5,7 @@
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/dialogs/dialog_host.h"
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
@@ -61,7 +62,9 @@ bool drawCandidate(FileSelectorState & state, std::size_t index)
 
 void openFileSelector(FileSelectorState & state, FileBrowserResult result)
 {
+    auto * const dialogHost = state.dialogHost;
     state = {};
+    state.dialogHost = dialogHost;
     state.visible = true;
     state.browserResult = std::move(result);
     state.candidates = state.browserResult.assetCandidates;
@@ -81,6 +84,18 @@ void openFileSelector(FileSelectorState & state, FileBrowserResult result)
     {
         state.selectedCandidate = static_cast<std::size_t>(std::distance(state.candidates.begin(), firstOpenable));
     }
+    activateFileSelector(state);
+}
+
+void activateFileSelector(const FileSelectorState & state)
+{
+    if (state.dialogHost == nullptr)
+    {
+        return;
+    }
+    auto request = makeDialogRequest(DialogId::fileSelector, FileSelectorDialogRequest{.sourcePath = state.browserResult.path});
+    request.replaceActive = true;
+    static_cast<void>(state.dialogHost->request(std::move(request)));
 }
 
 FileBrowserResult selectedFileSelectorResult(const FileSelectorState & state)
@@ -210,7 +225,9 @@ std::optional<DialogResult> drawFileSelector(FileSelectorState & state, std::uin
 
 void cancelFileSelector(FileSelectorState & state)
 {
+    auto * const dialogHost = state.dialogHost;
     state = {};
+    state.dialogHost = dialogHost;
 }
 
 } // namespace uo_mule::gui

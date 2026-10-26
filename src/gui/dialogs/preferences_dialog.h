@@ -16,10 +16,13 @@
 namespace uo_mule::gui
 {
 
+struct DialogHostState;
+
 inline constexpr std::size_t preferencesDialogBufferSize = 1024;
 
 struct PreferencesDialogState
 {
+    DialogHostState * dialogHost = nullptr;
     bool visible = false;
     bool initialized = false;
     bool closeRequested = false;
@@ -51,6 +54,7 @@ struct PreferencesDialogResult
 };
 
 void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile & profile, const Preferences & preferences);
+void activatePreferencesDialog(const PreferencesDialogState & state);
 [[nodiscard]] std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogState & state,
                                                                            FileBrowserState & browser);
 void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserResult & result);

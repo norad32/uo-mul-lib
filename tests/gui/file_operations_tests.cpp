@@ -62,6 +62,31 @@ TEST_CASE("fileBrowserResult_Should_ApplyMetadataSearchFolder")
     REQUIRE(state.workingProfile.sourceRoot == root);
 }
 
+TEST_CASE("dialogRequests_Should_ActivateAndReplaceTheAuthoritativeHost")
+{
+    uo_mule::gui::WorkbenchState state;
+    uo_mule::gui::requestFileBrowser(state.fileBrowser,
+                                     {
+                                         .mode = uo_mule::gui::FileBrowserMode::openFile,
+                                         .target = uo_mule::gui::FileBrowserTarget::genericOpen,
+                                         .initialPath = std::filesystem::current_path(),
+                                         .extension = ".mul",
+                                         .title = "Open MUL File",
+                                     });
+
+    REQUIRE(state.dialogHost.owns(uo_mule::gui::DialogId::fileBrowser));
+    if (!state.dialogHost.active)
+    {
+        FAIL("The file-browser request must activate the dialog host");
+    }
+    REQUIRE(std::get<uo_mule::gui::FileBrowserDialogRequest>(state.dialogHost.active->payload).request.target ==
+            uo_mule::gui::FileBrowserTarget::genericOpen);
+
+    uo_mule::gui::requestMapDialog(state.menuBarState.fileDialog, uo_mule::gui::MapFileDialogMode::newType);
+    REQUIRE(state.dialogHost.owns(uo_mule::gui::DialogId::mapWorkflow));
+    REQUIRE_FALSE(state.dialogHost.owns(uo_mule::gui::DialogId::fileBrowser));
+}
+
 TEST_CASE("fileBrowserResult_Should_TransitionMapOpenToFacetSelection")
 {
     uo_mule::gui::NewFileDialogState state;

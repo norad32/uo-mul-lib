@@ -11,6 +11,8 @@
 namespace uo_mule::gui
 {
 
+struct DialogHostState;
+
 struct FileBrowserSummary
 {
     std::filesystem::path path;
@@ -26,6 +28,7 @@ struct FileBrowserSummary
 
 struct FileBrowserState
 {
+    DialogHostState * dialogHost = nullptr;
     bool visible = false;
     bool showHidden = false;
     FileBrowserRequest request{};

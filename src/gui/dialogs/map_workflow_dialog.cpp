@@ -1,5 +1,6 @@
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/map_dimension_fields.h"
 #include "gui/dialogs/map_facet_dialog.h"
 #include "gui/presentation/bounded_buffer.h"
 #include "gui/presentation/dialog_presentation.h"
@@ -8,6 +9,7 @@
 #include "gui/presentation/theme.h"
 #include "gui/workbench/notification_state.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/dialogs/dialog_host.h"
 #include "gui_model/documents/map_document_manager.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/operations/operation_controller.h"
@@ -33,9 +35,6 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr int customFacetIndex = 0;
-constexpr std::uint32_t minimumDimension = uomul::mapBlockDimension;
-constexpr std::uint32_t dimensionMultiple = uomul::mapBlockDimension;
 constexpr int maximumTileId = std::numeric_limits<std::uint16_t>::max();
 constexpr int minimumTileZ = -std::numeric_limits<std::int8_t>::max() - 1;
 constexpr int maximumTileZ = std::numeric_limits<std::int8_t>::max();
@@ -74,22 +73,12 @@ constexpr float dialogCenterPivot = 0.5F;
     return "###dialog.map-none";
 }
 
-[[nodiscard]] const uomul::FacetSize * facetAt(std::size_t index) noexcept
-{
-    std::size_t current = 0;
-    for (const auto & facet : uomul::knownFacetSizes())
-    {
-        if (current == index)
-        {
-            return &facet;
-        }
-        current++;
-    }
-    return nullptr;
-}
-
 void closeDialog(NewFileDialogState & state)
 {
+    if (state.dialogHost != nullptr && state.dialogHost->owns(DialogId::mapWorkflow))
+    {
+        state.dialogHost->cancel();
+    }
     ImGui::CloseCurrentPopup();
     state.operation = {};
     state.overwriteKind = MapOverwriteKind::none;
@@ -110,33 +99,6 @@ void showError(NewFileDialogState & state, const uomul::Error & error)
     }
     ImGui::CloseCurrentPopup();
     state.mode = MapFileDialogMode::error;
-}
-
-[[nodiscard]] std::expected<uomul::Dimensions, std::string>
-resolveDimensions(int preset, std::uint32_t width, std::uint32_t height)
-{
-    if (preset == customFacetIndex)
-    {
-        if (width < minimumDimension || height < minimumDimension || width % dimensionMultiple != 0U ||
-            height % dimensionMultiple != 0U)
-        {
-            return std::unexpected(strings::invalidDimensions());
-        }
-        return uomul::Dimensions{.widthTiles = width, .heightTiles = height};
-    }
-
-    const auto facetIndex = static_cast<std::size_t>(preset - 1);
-    if (facetIndex < uomul::knownFacetSizes().size())
-    {
-        const auto * facet = facetAt(facetIndex);
-        if (facet == nullptr)
-        {
-            return std::unexpected(strings::unsupportedFacetSelection());
-        }
-        return uomul::Dimensions{.widthTiles = facet->widthTiles, .heightTiles = facet->heightTiles};
-    }
-
-    return std::unexpected(strings::unsupportedFacetSelection());
 }
 
 [[nodiscard]] bool outputExists(const std::filesystem::path & path, NewFileDialogState & state)
@@ -342,80 +304,16 @@ void requestOperation(MapDocumentManager & mapDocument, NewFileDialogState & sta
     continueOperation(mapDocument, state, false);
 }
 
-void drawFacetCombo(int & preset, std::uint32_t & width, std::uint32_t & height)
-{
-    const auto facetLabel = [](std::size_t index) -> const char *
-    {
-        if (index == 0U)
-        {
-            return strings::customDimensions();
-        }
-        return facetAt(index - 1U)->label;
-    };
-    const std::size_t facetCount = uomul::knownFacetSizes().size() + 1U;
-    const std::size_t requestedIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
-    const std::size_t selectedIndex = requestedIndex < facetCount ? requestedIndex : 0U;
-    dialogFieldLabel(strings::facet());
-    dialogFieldWidth(dimensionFieldWidth);
-    if (!ImGui::BeginCombo("##Facet", facetLabel(selectedIndex)))
-    {
-        return;
-    }
-
-    for (std::size_t index = 0; index < facetCount; index++)
-    {
-        const std::size_t activeIndex = preset < 0 ? 0U : static_cast<std::size_t>(preset);
-        const bool selected = activeIndex == index;
-        if (ImGui::Selectable(facetLabel(index), selected))
-        {
-            preset = static_cast<int>(index);
-            if (index != 0U)
-            {
-                const auto dimensions = resolveDimensions(preset, width, height);
-                if (dimensions)
-                {
-                    width = dimensions->widthTiles;
-                    height = dimensions->heightTiles;
-                }
-            }
-        }
-
-        if (selected)
-        {
-            ImGui::SetItemDefaultFocus();
-        }
-    }
-
-    ImGui::EndCombo();
-}
-
-[[nodiscard]] bool validDimensions(std::uint32_t width, std::uint32_t height) noexcept
-{
-    return width >= minimumDimension && height >= minimumDimension && width % dimensionMultiple == 0U &&
-           height % dimensionMultiple == 0U;
-}
-
 [[nodiscard]] bool validInitialTile(int tileId, int tileZ) noexcept
 {
     return tileId >= 0 && tileId <= maximumTileId && tileZ >= minimumTileZ && tileZ <= maximumTileZ;
 }
 
-[[nodiscard]] bool drawCustomDimensions(std::uint32_t & width, std::uint32_t & height)
-{
-    dialogFieldLabel(strings::width());
-    dialogFieldWidth(dimensionFieldWidth);
-    ImGui::InputScalar("##Width", ImGuiDataType_U32, &width, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
-    dialogFieldLabel(strings::height());
-    dialogFieldWidth(dimensionFieldWidth);
-    ImGui::InputScalar("##Height", ImGuiDataType_U32, &height, nullptr, nullptr, "%u", ImGuiInputTextFlags_CharsDecimal);
-    return validDimensions(width, height);
-}
-
 [[nodiscard]] bool drawDimensionsFields(const char * id, int & preset, std::uint32_t & width, std::uint32_t & height)
 {
     ImGui::PushID(id);
-    drawFacetCombo(preset, width, height);
-    const bool valid = preset != customFacetIndex || drawCustomDimensions(width, height);
+    const bool valid =
+        drawMapDimensionFields(preset, width, height, false, {.fieldWidth = dimensionFieldWidth, .labelWidth = std::nullopt});
     ImGui::PopID();
     return valid;
 }
@@ -475,7 +373,7 @@ void drawOpenDialog(MapDocumentManager & mapDocument, NewFileDialogState & state
     beginDialogFooter({"Open", "Cancel"});
     if (dialogButton(iconLabel(IconId::folder, "Open").c_str(), state.openPath.front() != '\0' && validDimensions))
     {
-        const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
+        const auto dimensions = resolveMapDimensions(state.openFacet, state.openWidth, state.openHeight);
         if (dimensions)
         {
             state.operation = {
@@ -585,7 +483,7 @@ void drawNewMapForm(MapDocumentManager & mapDocument, NewFileDialogState & state
     beginDialogFooter({"Create", "Cancel"});
     if (dialogButton(iconLabel(IconId::ok, "Create").c_str(), state.newMapPath.front() != '\0' && validDimensions && validTile))
     {
-        const auto dimensions = resolveDimensions(state.newMapFacet, state.newMapWidth, state.newMapHeight);
+        const auto dimensions = resolveMapDimensions(state.newMapFacet, state.newMapWidth, state.newMapHeight);
         if (dimensions)
         {
             state.operation = {
@@ -1045,7 +943,7 @@ void drawMapFacetWorkflow(MapDocumentManager & mapDocument, NewFileDialogState &
     const auto result = drawMapFacetDialog(state);
     if (result == MapFacetDialogResult::accept)
     {
-        const auto dimensions = resolveDimensions(state.openFacet, state.openWidth, state.openHeight);
+        const auto dimensions = resolveMapDimensions(state.openFacet, state.openWidth, state.openHeight);
         if (dimensions)
         {
             state.operation = {
@@ -1130,6 +1028,10 @@ void drawDialogContent(MapDocumentManager & mapDocument, NewFileDialogState & st
 
 void cancelFileDialog(NewFileDialogState & state)
 {
+    if (state.dialogHost != nullptr && state.dialogHost->owns(DialogId::mapWorkflow))
+    {
+        state.dialogHost->cancel();
+    }
     state.operation = {};
     state.overwriteKind = MapOverwriteKind::none;
     state.saveForPendingOperation = false;
@@ -1138,6 +1040,47 @@ void cancelFileDialog(NewFileDialogState & state)
     state.openWithoutReview = false;
     state.openCandidates.clear();
     state.error.clear();
+}
+
+void requestMapDialog(NewFileDialogState & state, MapFileDialogMode mode)
+{
+    state.mode = mode;
+    state.activePopup = MapFileDialogMode::none;
+    if (state.dialogHost == nullptr)
+    {
+        return;
+    }
+
+    MapDialogWorkflow workflow = MapDialogWorkflow::error;
+    switch (mode)
+    {
+        case MapFileDialogMode::openMap :
+            workflow = MapDialogWorkflow::open;
+            break;
+        case MapFileDialogMode::newMap :
+        case MapFileDialogMode::newType :
+        case MapFileDialogMode::selectMapFacet :
+            workflow = MapDialogWorkflow::create;
+            break;
+        case MapFileDialogMode::saveAs :
+            workflow = MapDialogWorkflow::saveAs;
+            break;
+        case MapFileDialogMode::dirtyChanges :
+            workflow = MapDialogWorkflow::dirtyChanges;
+            break;
+        case MapFileDialogMode::overwrite :
+            workflow = MapDialogWorkflow::overwrite;
+            break;
+        case MapFileDialogMode::error :
+            workflow = MapDialogWorkflow::error;
+            break;
+        case MapFileDialogMode::none :
+            return;
+    }
+
+    auto request = makeDialogRequest(DialogId::mapWorkflow, MapDialogRequest{.workflow = workflow});
+    request.replaceActive = true;
+    static_cast<void>(state.dialogHost->request(std::move(request)));
 }
 
 void returnToFileBrowser(NewFileDialogState & state, FileBrowserState & browser)
@@ -1190,14 +1133,21 @@ void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult 
                     break;
                 }
             }
-            state.mode = MapFileDialogMode::selectMapFacet;
-            state.activePopup = MapFileDialogMode::none;
+            requestMapDialog(state, MapFileDialogMode::selectMapFacet);
             break;
         case FileBrowserTarget::newMapOutput :
             copyToBuffer(state.newMapPath, result.path);
+            if (state.mode != MapFileDialogMode::none)
+            {
+                requestMapDialog(state, state.mode);
+            }
             break;
         case FileBrowserTarget::mapSaveAs :
             copyToBuffer(state.savePath, result.path);
+            if (state.mode != MapFileDialogMode::none)
+            {
+                requestMapDialog(state, state.mode);
+            }
             break;
         default :
             return;
@@ -1219,6 +1169,10 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
     state.browser = &browser;
     if (state.mode == MapFileDialogMode::none)
     {
+        if (state.dialogHost != nullptr && state.dialogHost->owns(DialogId::mapWorkflow))
+        {
+            state.dialogHost->cancel();
+        }
         return;
     }
 
@@ -1247,6 +1201,10 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
             : beginDialog(popupName(currentMode), nullptr, mapDialogSpec(), ImGuiWindowFlags_AlwaysAutoResize);
     if (!dialogVisible)
     {
+        if (state.dialogHost != nullptr && state.dialogHost->owns(DialogId::mapWorkflow))
+        {
+            state.dialogHost->cancel();
+        }
         state.mode = MapFileDialogMode::none;
         state.activePopup = MapFileDialogMode::none;
         ImGui::PopID();

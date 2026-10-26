@@ -7,6 +7,7 @@
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/dialogs/dialog_host.h"
 #include "gui_model/persistence/config_paths.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
@@ -750,8 +751,10 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
 
 void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
 {
+    auto * const dialogHost = state.dialogHost;
     auto recentFolders = std::move(state.recentFolders);
     state = {};
+    state.dialogHost = dialogHost;
     state.recentFolders = std::move(recentFolders);
     if (state.recentFolders.empty())
     {
@@ -784,12 +787,20 @@ void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
     {
         selectPath(state, initial);
     }
+    if (state.dialogHost != nullptr)
+    {
+        auto dialogRequest = makeDialogRequest(DialogId::fileBrowser, FileBrowserDialogRequest{.request = state.request});
+        dialogRequest.replaceActive = true;
+        static_cast<void>(state.dialogHost->request(std::move(dialogRequest)));
+    }
 }
 
 void cancelFileBrowser(FileBrowserState & state)
 {
+    auto * const dialogHost = state.dialogHost;
     auto recentFolders = std::move(state.recentFolders);
     state = {};
+    state.dialogHost = dialogHost;
     state.recentFolders = std::move(recentFolders);
 }
 

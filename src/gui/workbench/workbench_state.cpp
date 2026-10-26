@@ -11,6 +11,10 @@ namespace uo_mule::gui
 WorkbenchState::WorkbenchState(Preferences initialPreferences) :
     preferences(std::move(initialPreferences)), persistedPreferences(preferences)
 {
+    menuBarState.fileDialog.dialogHost = &dialogHost;
+    menuBarState.preferencesDialog.dialogHost = &dialogHost;
+    fileBrowser.dialogHost = &dialogHost;
+    fileSelector.dialogHost = &dialogHost;
     toolState.loadPreferences(preferences.tools);
     mapDocuments.canvasState().zoom = defaultMapCanvasZoom;
     registerDefaultCommands(commands);

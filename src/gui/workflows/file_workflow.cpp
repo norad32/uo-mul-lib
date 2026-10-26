@@ -42,77 +42,6 @@ void returnToFileBrowser(WorkbenchState & state, const FileBrowserResult & resul
                        });
 }
 
-void syncDialogHost(WorkbenchState & state)
-{
-    const auto mapWorkflow = [](MapFileDialogMode mode) noexcept
-    {
-        switch (mode)
-        {
-            case MapFileDialogMode::openMap :
-                return MapDialogWorkflow::open;
-            case MapFileDialogMode::newMap :
-                return MapDialogWorkflow::create;
-            case MapFileDialogMode::saveAs :
-                return MapDialogWorkflow::saveAs;
-            case MapFileDialogMode::dirtyChanges :
-                return MapDialogWorkflow::dirtyChanges;
-            case MapFileDialogMode::overwrite :
-                return MapDialogWorkflow::overwrite;
-            case MapFileDialogMode::error :
-                return MapDialogWorkflow::error;
-            case MapFileDialogMode::newType :
-            case MapFileDialogMode::selectMapFacet :
-                return MapDialogWorkflow::create;
-            case MapFileDialogMode::none :
-                break;
-        }
-        return MapDialogWorkflow::error;
-    };
-    const bool browserVisible = state.fileBrowser.visible;
-    const bool selectorVisible = state.fileSelector.visible;
-    const bool mapDialogVisible = state.menuBarState.fileDialog.mode != MapFileDialogMode::none;
-    const bool preferencesVisible = state.menuBarState.preferencesDialog.visible;
-    if (browserVisible)
-    {
-        auto request = makeDialogRequest(DialogId::fileBrowser, FileBrowserDialogRequest{.request = state.fileBrowser.request});
-        request.replaceActive = true;
-        static_cast<void>(state.dialogHost.request(std::move(request)));
-    }
-    else if (selectorVisible)
-    {
-        auto request = makeDialogRequest(DialogId::fileSelector,
-                                         FileSelectorDialogRequest{.sourcePath = state.fileSelector.browserResult.path});
-        request.replaceActive = true;
-        static_cast<void>(state.dialogHost.request(std::move(request)));
-    }
-    else if (mapDialogVisible)
-    {
-        auto request = makeDialogRequest(DialogId::mapWorkflow,
-                                         MapDialogRequest{.workflow = mapWorkflow(state.menuBarState.fileDialog.mode)});
-        request.replaceActive = true;
-        static_cast<void>(state.dialogHost.request(std::move(request)));
-    }
-    else if (preferencesVisible)
-    {
-        auto request = makeDialogRequest(DialogId::preferences);
-        request.replaceActive = true;
-        static_cast<void>(state.dialogHost.request(std::move(request)));
-    }
-    else if (state.dialogHost.active)
-    {
-        state.dialogHost.cancel();
-    }
-}
-
-void cancelFileBrowserAndMapDialog(WorkbenchState & state)
-{
-    cancelFileBrowser(state.fileBrowser);
-    if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
-    {
-        cancelFileDialog(state.menuBarState.fileDialog);
-    }
-}
-
 void openCreatedAsset(WorkbenchState & state,
                       DocumentKind kind,
                       const std::filesystem::path & primaryPath,
@@ -288,6 +217,10 @@ bool routePairResult(WorkbenchState & state, const FileBrowserResult & result, c
     dataResult.path = pair.companionPath;
     applyFileBrowserResult(state.menuBarState.preferencesDialog, indexResult);
     applyFileBrowserResult(state.menuBarState.preferencesDialog, dataResult);
+    if (state.menuBarState.preferencesDialog.visible)
+    {
+        activatePreferencesDialog(state.menuBarState.preferencesDialog);
+    }
     return false;
 }
 
@@ -295,6 +228,14 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 {
     applyFileBrowserResult(state.menuBarState.fileDialog, result);
     applyFileBrowserResult(state.menuBarState.preferencesDialog, result);
+    if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+    {
+        requestMapDialog(state.menuBarState.fileDialog, state.menuBarState.fileDialog.mode);
+    }
+    else if (state.menuBarState.preferencesDialog.visible)
+    {
+        activatePreferencesDialog(state.menuBarState.preferencesDialog);
+    }
     if (result.target == FileBrowserTarget::radarcolOutput)
     {
         if (auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
@@ -380,7 +321,10 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     {
         return false;
     }
-    static_cast<void>(applyFileSelectorCompanion(state.fileSelector, result.path));
+    if (applyFileSelectorCompanion(state.fileSelector, result.path))
+    {
+        activateFileSelector(state.fileSelector);
+    }
     return true;
 }
 
@@ -405,6 +349,10 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     }
     state.notifications.add(NotificationSeverity::error,
                             result.path.filename().string() + ": no supported MUL format was detected");
+    if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+    {
+        requestMapDialog(state.menuBarState.fileDialog, state.menuBarState.fileDialog.mode);
+    }
     return true;
 }
 
@@ -468,9 +416,27 @@ bool handleDialogResult(WorkbenchState & state, DialogResult result)
             const FileBrowserResult origin = state.fileSelector.browserResult;
             returnToFileBrowser(state, origin);
         }
-        else if (result.id == DialogId::fileBrowser && state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+        else if (result.id == DialogId::fileBrowser)
+        {
+            const bool preferencesVisible = state.menuBarState.preferencesDialog.visible;
+            cancelFileBrowser(state.fileBrowser);
+            if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+            {
+                cancelFileDialog(state.menuBarState.fileDialog);
+            }
+            else if (preferencesVisible)
+            {
+                activatePreferencesDialog(state.menuBarState.preferencesDialog);
+            }
+        }
+        else if (result.id == DialogId::mapWorkflow)
         {
             cancelFileDialog(state.menuBarState.fileDialog);
+        }
+        else if (result.id == DialogId::preferences)
+        {
+            state.menuBarState.preferencesDialog.visible = false;
+            state.menuBarState.preferencesDialog.closeRequested = true;
         }
         return false;
     }
@@ -508,11 +474,6 @@ bool handleDialogResult(WorkbenchState & state, DialogResult result)
 
 bool completeDialogResult(WorkbenchState & state, DialogResult result)
 {
-    if (!state.dialogHost.active || result.id != state.dialogHost.active->id ||
-        result.generation != state.dialogHost.active->generation)
-    {
-        return false;
-    }
     if (!state.dialogHost.complete(std::move(result)))
     {
         return false;
@@ -524,7 +485,6 @@ bool completeDialogResult(WorkbenchState & state, DialogResult result)
 bool drawFileDialogs(WorkbenchState & state)
 {
     bool profileChanged = false;
-    syncDialogHost(state);
     if (state.menuBarState.fileDialog.shouldClose)
     {
         state.shouldClose = true;
@@ -536,9 +496,8 @@ bool drawFileDialogs(WorkbenchState & state)
         profileChanged = handleDialogResult(state, *pendingResult) || profileChanged;
     }
 
-    const bool browserWasVisible = state.fileBrowser.visible;
     std::optional<DialogResult> dialogResult;
-    if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::mapWorkflow))
+    if (state.dialogHost.owns(DialogId::mapWorkflow))
     {
         drawNewFileDialog(state.mapDocuments,
                           state.menuBarState.fileDialog,
@@ -548,7 +507,7 @@ bool drawFileDialogs(WorkbenchState & state)
                           state.fileBrowser,
                           state.shouldClose);
     }
-    if (!browserWasVisible && !state.fileSelector.visible && state.dialogHost.owns(DialogId::preferences))
+    if (state.dialogHost.owns(DialogId::preferences))
     {
         if (const auto result = drawPreferencesDialog(state.menuBarState.preferencesDialog, state.fileBrowser))
         {
@@ -556,23 +515,17 @@ bool drawFileDialogs(WorkbenchState & state)
             state.pendingPreferencesResult = *result;
         }
     }
-    if (const auto activeDialog = state.dialogHost.active; activeDialog && activeDialog->id == DialogId::fileBrowser)
+    if (state.dialogHost.owns(DialogId::fileBrowser) && state.dialogHost.active)
     {
-        dialogResult = drawFileBrowser(state.fileBrowser, activeDialog->generation);
+        dialogResult = drawFileBrowser(state.fileBrowser, state.dialogHost.active->generation);
     }
     if (dialogResult)
     {
         profileChanged = completeDialogResult(state, *dialogResult) || profileChanged;
     }
-    if (!state.fileBrowser.visible && browserWasVisible && !dialogResult &&
-        state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+    if (state.dialogHost.owns(DialogId::fileSelector) && state.dialogHost.active)
     {
-        cancelFileDialog(state.menuBarState.fileDialog);
-    }
-    if (const auto activeDialog = state.dialogHost.active;
-        activeDialog && activeDialog->id == DialogId::fileSelector && !state.fileBrowser.visible && state.fileSelector.visible)
-    {
-        if (const auto selectorResult = drawFileSelector(state.fileSelector, activeDialog->generation))
+        if (const auto selectorResult = drawFileSelector(state.fileSelector, state.dialogHost.active->generation))
         {
             profileChanged = completeDialogResult(state, *selectorResult) || profileChanged;
         }
@@ -594,34 +547,67 @@ bool drawFileWorkflow(WorkbenchState & state)
 
 bool handleFileWorkflowEscape(WorkbenchState & state)
 {
-    if (state.fileBrowser.visible)
+    if (!state.dialogHost.active)
     {
-        cancelFileBrowserAndMapDialog(state);
-    }
-    else if (state.fileSelector.visible)
-    {
-        const FileBrowserResult origin = state.fileSelector.browserResult;
-        returnToFileBrowser(state, origin);
-    }
-    else if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
-    {
-        if (state.menuBarState.fileDialog.mode == MapFileDialogMode::selectMapFacet)
+        if (state.fileBrowser.visible)
         {
-            returnToFileBrowser(state.menuBarState.fileDialog, state.fileBrowser);
+            cancelFileBrowser(state.fileBrowser);
+            if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+            {
+                cancelFileDialog(state.menuBarState.fileDialog);
+            }
+            return true;
         }
-        else
+        if (state.fileSelector.visible)
         {
-            cancelFileDialog(state.menuBarState.fileDialog);
+            const FileBrowserResult origin = state.fileSelector.browserResult;
+            returnToFileBrowser(state, origin);
+            return true;
         }
-    }
-    else if (state.menuBarState.preferencesDialog.visible)
-    {
-        state.menuBarState.preferencesDialog.visible = false;
-        state.menuBarState.preferencesDialog.closeRequested = true;
-    }
-    else
-    {
+        if (state.menuBarState.fileDialog.mode != MapFileDialogMode::none)
+        {
+            if (state.menuBarState.fileDialog.mode == MapFileDialogMode::selectMapFacet)
+            {
+                returnToFileBrowser(state.menuBarState.fileDialog, state.fileBrowser);
+            }
+            else
+            {
+                cancelFileDialog(state.menuBarState.fileDialog);
+            }
+            return true;
+        }
+        if (state.menuBarState.preferencesDialog.visible)
+        {
+            state.menuBarState.preferencesDialog.visible = false;
+            state.menuBarState.preferencesDialog.closeRequested = true;
+            return true;
+        }
         return false;
+    }
+
+    switch (state.dialogHost.active->id)
+    {
+        case DialogId::mapWorkflow :
+            if (state.menuBarState.fileDialog.mode == MapFileDialogMode::selectMapFacet)
+            {
+                returnToFileBrowser(state.menuBarState.fileDialog, state.fileBrowser);
+            }
+            else
+            {
+                state.dialogHost.cancel();
+            }
+            break;
+        case DialogId::fileSelector :
+        case DialogId::fileBrowser :
+            state.dialogHost.cancel();
+            break;
+        case DialogId::preferences :
+            state.menuBarState.preferencesDialog.visible = false;
+            state.menuBarState.preferencesDialog.closeRequested = true;
+            state.dialogHost.cancel();
+            break;
+        case DialogId::none :
+            return false;
     }
     return true;
 }

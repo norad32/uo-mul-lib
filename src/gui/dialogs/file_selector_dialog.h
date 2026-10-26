@@ -10,8 +10,11 @@
 namespace uo_mule::gui
 {
 
+struct DialogHostState;
+
 struct FileSelectorState
 {
+    DialogHostState * dialogHost = nullptr;
     bool visible = false;
     FileBrowserResult browserResult{};
     std::vector<FileBrowserAssetCandidate> candidates;
@@ -20,6 +23,7 @@ struct FileSelectorState
 };
 
 void openFileSelector(FileSelectorState & state, FileBrowserResult result);
+void activateFileSelector(const FileSelectorState & state);
 [[nodiscard]] FileBrowserResult selectedFileSelectorResult(const FileSelectorState & state);
 [[nodiscard]] std::optional<DialogResult> drawFileSelector(FileSelectorState & state, std::uint64_t generation);
 [[nodiscard]] bool applyFileSelectorCompanion(FileSelectorState & state, const std::filesystem::path & path);
