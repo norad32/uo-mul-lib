@@ -20,8 +20,9 @@ add_library(
     presentation/dialog_presentation.cpp
     presentation/imgui_fonts.cpp
     presentation/iconography.cpp
-    dialogs/file_browser_dialog.cpp
-    dialogs/file_selector_dialog.cpp
+     dialogs/file_browser_dialog.cpp
+     dialogs/document_close_dialog.cpp
+     dialogs/file_selector_dialog.cpp
     dialogs/map_facet_dialog.cpp
     dialogs/map_workflow_dialog.cpp
     dialogs/preferences_dialog.cpp
