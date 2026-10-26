@@ -48,8 +48,6 @@ enum class PendingMapOperationKind : std::uint8_t
     none,
     openMap,
     newMap,
-    close,
-    quit,
 };
 
 enum class MapOverwriteKind : std::uint8_t
@@ -96,7 +94,6 @@ struct NewFileDialogState
     MapOverwriteKind overwriteKind = MapOverwriteKind::none;
     bool saveForPendingOperation = false;
     bool operationOverwriteOutput = false;
-    bool shouldClose = false;
     std::string error;
 };
 
@@ -107,17 +104,10 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
                        OperationController & controller,
                        OutputCollisionPolicy collisionPolicy,
                        NotificationState & notifications,
-                       FileBrowserState & browser,
-                       bool & shouldClose);
+                       FileBrowserState & browser);
 
 void cancelFileDialog(NewFileDialogState & state);
 void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult & result);
 void returnToFileBrowser(NewFileDialogState & state, FileBrowserState & browser);
-
-void requestCloseOperation(MapDocumentManager & mapDocument,
-                           NewFileDialogState & state,
-                           OperationController & controller,
-                           PendingMapOperationKind kind,
-                           NotificationState & notifications);
 
 } // namespace uo_mule::gui

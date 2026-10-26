@@ -495,12 +495,6 @@ bool completeDialogResult(WorkbenchState & state, DialogResult result)
 bool drawFileDialogs(WorkbenchState & state)
 {
     bool profileChanged = false;
-    if (state.menuBarState.fileDialog.shouldClose)
-    {
-        state.shouldClose = true;
-        state.menuBarState.fileDialog.shouldClose = false;
-    }
-
     if (const auto pendingResult = state.dialogHost.consumeResult())
     {
         profileChanged = handleDialogResult(state, *pendingResult) || profileChanged;
@@ -516,8 +510,7 @@ bool drawFileDialogs(WorkbenchState & state)
                           state.operationController,
                           state.activeProfile.outputCollisionPolicy,
                           state.notifications,
-                          state.fileBrowser,
-                          state.shouldClose);
+                          state.fileBrowser);
     }
     if (state.dialogHost.owns(DialogId::preferences))
     {

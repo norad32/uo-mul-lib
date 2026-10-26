@@ -167,13 +167,6 @@ void executeOperation(MapDocumentManager & mapDocument,
             result = mapDocument.createEmptyMap(
                 state.operation.path, state.operation.dimensions, action, savePath, overwrite, state.operation.initialTile);
             break;
-        case PendingMapOperationKind::close :
-        case PendingMapOperationKind::quit :
-            if (action == PendingChangesAction::discard)
-            {
-                result = mapDocument.discard();
-            }
-            break;
         case PendingMapOperationKind::none :
             break;
     }
@@ -182,18 +175,6 @@ void executeOperation(MapDocumentManager & mapDocument,
     {
         showError(state, result.error());
         return;
-    }
-
-    if (state.operation.kind == PendingMapOperationKind::close || state.operation.kind == PendingMapOperationKind::quit)
-    {
-        const bool quit = state.operation.kind == PendingMapOperationKind::quit;
-        const auto closed = mapDocument.closeMap();
-        if (!closed)
-        {
-            showError(state, closed.error());
-            return;
-        }
-        state.shouldClose = quit;
     }
 
     state.operation = {};
@@ -235,7 +216,7 @@ void discardMapChanges(MapDocumentManager & mapDocument, NewFileDialogState & st
     executeOperation(mapDocument, state, PendingChangesAction::discard, std::nullopt, state.operationOverwriteOutput);
 }
 
-void saveDirtyMap(MapDocumentManager & mapDocument, NewFileDialogState & state, bool closeAfterSave)
+void saveDirtyMap(MapDocumentManager & mapDocument, NewFileDialogState & state)
 {
     if (state.controller != nullptr)
     {
@@ -256,14 +237,7 @@ void saveDirtyMap(MapDocumentManager & mapDocument, NewFileDialogState & state, 
                                 : state.controller->completeSave(true);
     if (transition.kind == OperationTransitionKind::execute)
     {
-        if (closeAfterSave)
-        {
-            executeOperation(mapDocument, state, PendingChangesAction::cancel, std::nullopt, state.operationOverwriteOutput);
-        }
-        else
-        {
-            continueOperation(mapDocument, state, state.operationOverwriteOutput);
-        }
+        continueOperation(mapDocument, state, state.operationOverwriteOutput);
     }
     else
     {
@@ -608,23 +582,6 @@ finishPendingSave(MapDocumentManager & mapDocument, NewFileDialogState & state, 
         }
     }
 
-    const PendingMapOperationKind operation = state.operation.kind;
-    if (operation == PendingMapOperationKind::close || operation == PendingMapOperationKind::quit)
-    {
-        const bool quit = operation == PendingMapOperationKind::quit;
-        const auto closed = mapDocument.closeMap();
-        if (!closed)
-        {
-            showError(state, closed.error());
-            return false;
-        }
-        state.shouldClose = quit;
-        state.operation = {};
-        state.saveForPendingOperation = false;
-        closeDialog(state);
-        return true;
-    }
-
     const bool overwriteOperation = state.operationOverwriteOutput;
     state.overwriteKind = MapOverwriteKind::none;
     continueOperation(mapDocument, state, overwriteOperation);
@@ -744,53 +701,14 @@ void drawSaveAsDialog(MapDocumentManager & mapDocument, NewFileDialogState & sta
     endDialogFooter();
 }
 
-void drawCloseDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & state)
-{
-    std::string filename = mapDocument.active().changes().originalPath.filename().string();
-    if (filename.empty())
-    {
-        filename = "map";
-    }
-    const std::string savePrompt = strings::formatSaveChangesPrompt(filename);
-    ImGui::TextUnformatted(savePrompt.c_str());
-    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", strings::discardChangesWarning());
-
-    beginDialogFooter({strings::closeWithoutSaving(), strings::cancel(), strings::save()});
-    if (dialogButton(iconLabel(IconId::close, strings::closeWithoutSaving()).c_str()))
-    {
-        deferWorkflow(state, [&mapDocument, &state] { discardMapChanges(mapDocument, state); });
-        closeDialogPopup(state);
-    }
-
-    ImGui::SameLine();
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
-    {
-        deferWorkflow(state, [&state] { cancelControlledOperation(state); });
-        closeDialog(state);
-    }
-
-    ImGui::SameLine();
-    if (dialogButton(iconLabel(IconId::save, "Save").c_str()))
-    {
-        deferWorkflow(state, [&mapDocument, &state] { saveDirtyMap(mapDocument, state, true); });
-        closeDialogPopup(state);
-    }
-    endDialogFooter();
-}
-
 void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & state)
 {
-    if (state.operation.kind == PendingMapOperationKind::close || state.operation.kind == PendingMapOperationKind::quit)
-    {
-        drawCloseDirtyDialog(mapDocument, state);
-        return;
-    }
     ImGui::TextWrapped("The current map has staged changes. Save, save as, discard, or cancel this operation?");
 
     beginDialogFooter({"Save", "Save As...", "Discard", "Cancel"});
     if (dialogButton(iconLabel(IconId::save, "Save").c_str()))
     {
-        deferWorkflow(state, [&mapDocument, &state] { saveDirtyMap(mapDocument, state, false); });
+        deferWorkflow(state, [&mapDocument, &state] { saveDirtyMap(mapDocument, state); });
         closeDialogPopup(state);
     }
 
@@ -840,22 +758,6 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
     endDialogFooter();
 }
 
-void finishPendingCloseAfterSave(MapDocumentManager & mapDocument, NewFileDialogState & state)
-{
-    const bool quit = state.operation.kind == PendingMapOperationKind::quit;
-    const auto closed = mapDocument.closeMap();
-    if (!closed)
-    {
-        showError(state, closed.error());
-        return;
-    }
-    state.shouldClose = quit;
-    state.operation = {};
-    state.saveForPendingOperation = false;
-    state.mode = MapFileDialogMode::none;
-    state.activePopup = MapFileDialogMode::none;
-}
-
 void handleOverwriteSave(MapDocumentManager & mapDocument, NewFileDialogState & state, const std::filesystem::path & path)
 {
     if (state.controller != nullptr && state.controller->phase() == OperationPhase::awaitingOverwrite)
@@ -883,11 +785,6 @@ void handleOverwriteSave(MapDocumentManager & mapDocument, NewFileDialogState & 
     if (!state.saveForPendingOperation)
     {
         state.mode = MapFileDialogMode::none;
-        return;
-    }
-    if (state.operation.kind == PendingMapOperationKind::close || state.operation.kind == PendingMapOperationKind::quit)
-    {
-        finishPendingCloseAfterSave(mapDocument, state);
         return;
     }
     const bool overwriteOperation = state.operationOverwriteOutput;
@@ -1175,11 +1072,9 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
                        OperationController & controller,
                        OutputCollisionPolicy collisionPolicy,
                        NotificationState & notifications,
-                       FileBrowserState & browser,
-                       bool & shouldClose)
+                       FileBrowserState & browser)
 {
     state.rendering = false;
-    state.shouldClose = false;
     state.controller = &controller;
     state.collisionPolicy = collisionPolicy;
     state.notifications = &notifications;
@@ -1236,53 +1131,6 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
     endDialog();
     ImGui::PopID();
     ImGui::End();
-
-    if (state.shouldClose)
-    {
-        shouldClose = true;
-        state.shouldClose = false;
-    }
-}
-
-void requestCloseOperation(MapDocumentManager & mapDocument,
-                           NewFileDialogState & state,
-                           OperationController & controller,
-                           PendingMapOperationKind kind,
-                           NotificationState & notifications)
-{
-    const OperationKind operationKind = kind == PendingMapOperationKind::quit ? OperationKind::quit : OperationKind::close;
-    OperationRequest request{};
-    request.kind = operationKind;
-    const auto transition =
-        controller.begin(request, mapDocument.active().changes().dirty(), false, OutputCollisionPolicy::confirm);
-    state.operation = {};
-    state.operation.kind = kind;
-    if (transition.kind == OperationTransitionKind::showDirtyDecision)
-    {
-        state.mode = MapFileDialogMode::dirtyChanges;
-        state.activePopup = MapFileDialogMode::none;
-        return;
-    }
-    if (transition.kind == OperationTransitionKind::rejected)
-    {
-        state.error = transition.error;
-        state.mode = MapFileDialogMode::error;
-        notifications.add(NotificationSeverity::error, transition.error);
-        return;
-    }
-    if (transition.kind == OperationTransitionKind::execute)
-    {
-        const auto closed = mapDocument.closeMap();
-        if (!closed)
-        {
-            state.error = closed.error().message;
-            state.mode = MapFileDialogMode::error;
-            notifications.add(NotificationSeverity::error, state.error);
-            return;
-        }
-        state.shouldClose = kind == PendingMapOperationKind::quit;
-        state.operation = {};
-    }
 }
 
 } // namespace uo_mule::gui
