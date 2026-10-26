@@ -2189,6 +2189,17 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
 
     glfwSetWindowAttrib(window, GLFW_DECORATED, welcome ? GLFW_FALSE : GLFW_TRUE);
     glfwSetWindowAttrib(window, GLFW_RESIZABLE, welcome ? GLFW_FALSE : GLFW_TRUE);
+    if (welcome && !state.preferences.fullscreen)
+    {
+        int width = 0;
+        int height = 0;
+        glfwGetWindowSize(window, &width, &height);
+        glfwSetWindowSize(window, width, welcomeWindowHeight);
+    }
+    else if (!welcome && !state.preferences.fullscreen && state.layout.window.geometryValid)
+    {
+        glfwSetWindowSize(window, state.layout.window.width, state.layout.window.height);
+    }
     state.nativeWelcomeWindowMode = welcome;
 }
 

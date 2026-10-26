@@ -436,7 +436,7 @@ void drawWelcomeView(WorkbenchState & state)
 
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(viewport->WorkSize, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, welcomeWindowHeight), ImGuiCond_Always);
     constexpr auto welcomeWindowFlags = static_cast<ImGuiWindowFlags>(
         static_cast<unsigned int>(ImGuiWindowFlags_NoTitleBar) | static_cast<unsigned>(ImGuiWindowFlags_NoResize) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoDecoration) | static_cast<unsigned int>(ImGuiWindowFlags_NoBackground) |
@@ -533,12 +533,6 @@ void drawWelcomeView(WorkbenchState & state)
     const float actionButtonTextWidth =
         std::max(ImGui::CalcTextSize(openLabel.c_str()).x, ImGui::CalcTextSize(newLabel.c_str()).x);
     const float actionButtonWidth = actionButtonTextWidth + (ImGui::GetStyle().FramePadding.x * 2.0F);
-    const float footerHeight = actionButtonHeight + ImGui::GetStyle().ItemSpacing.y + welcomeFooterBottomPadding;
-    const float availableHeight = ImGui::GetContentRegionAvail().y;
-    if (availableHeight > footerHeight)
-    {
-        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + availableHeight - footerHeight);
-    }
     ImGui::Separator();
     ImGui::Spacing();
     const float actionRowWidth = (actionButtonWidth * 2.0F) + actionButtonSpacing;
