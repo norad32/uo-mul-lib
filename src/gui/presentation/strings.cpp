@@ -598,7 +598,7 @@ const char * noProfile() noexcept
 
 const char * configured() noexcept
 {
-    return "Configured";
+    return "Complete";
 }
 
 const char * incomplete() noexcept
@@ -608,7 +608,7 @@ const char * incomplete() noexcept
 
 const char * notConfigured() noexcept
 {
-    return "Not configured";
+    return "Missing";
 }
 
 const char * semanticIconVocabulary() noexcept

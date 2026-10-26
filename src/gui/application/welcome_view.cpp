@@ -254,26 +254,23 @@ void drawMetadataTooltip(const DataProfileValidation & validation)
     }
 
     ImGui::BeginTooltip();
-    for (const auto role : {DataFileRole::radarcol, DataFileRole::texidx, DataFileRole::texmaps})
+    for (const auto role : knownDataFileRoles())
     {
         const auto * file = validation.find(role);
         const DataFileStatus fileStatus = file == nullptr ? DataFileStatus::missing : file->status;
         const bool configured = metadataFileConfigured(fileStatus);
         const bool missing = metadataFileMissing(fileStatus);
-        theme::Color color = theme::warning;
-        const char * label = strings::incomplete();
+        theme::Color color = theme::info;
         if (configured)
         {
             color = theme::success;
-            label = strings::configured();
         }
         else if (missing)
         {
             color = theme::error;
-            label = strings::notConfigured();
         }
         const std::string_view fileName = strings::dataFileName(role);
-        ImGui::TextColored(theme::imguiColor(color), "%.*s: %s", static_cast<int>(fileName.size()), fileName.data(), label);
+        ImGui::TextColored(theme::imguiColor(color), "%.*s", static_cast<int>(fileName.size()), fileName.data());
     }
     ImGui::EndTooltip();
 }
@@ -307,11 +304,8 @@ void drawProfileSummary(const DataProfile & profile)
     else if (anyConfigured)
     {
         metadataLabel = strings::incomplete();
-        metadataColor = theme::warning;
+        metadataColor = theme::info;
     }
-    const std::string metadataPrefix = std::string(strings::metadata()) + ": ";
-    ImGui::TextUnformatted(metadataPrefix.c_str());
-    ImGui::SameLine(0.0F, 0.0F);
     ImGui::TextColored(theme::imguiColor(metadataColor), "%s", metadataLabel);
     drawMetadataTooltip(validation);
 }
