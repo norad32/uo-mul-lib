@@ -52,7 +52,7 @@ struct PreferencesDialogResult
 
 void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile & profile, const Preferences & preferences);
 [[nodiscard]] std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogState & state,
-                                                                             FileBrowserState & browser);
+                                                                           FileBrowserState & browser);
 void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserResult & result);
 
 } // namespace uo_mule::gui

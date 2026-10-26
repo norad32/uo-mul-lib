@@ -7,7 +7,6 @@
 namespace uo_mule::gui
 {
 
-[[nodiscard]] std::expected<uomul::TextureImage, uomul::Error>
-providerTextureToTextureImage(const ProviderTexture & provider);
+[[nodiscard]] std::expected<uomul::TextureImage, uomul::Error> providerTextureToTextureImage(const ProviderTexture & provider);
 
 } // namespace uo_mule::gui

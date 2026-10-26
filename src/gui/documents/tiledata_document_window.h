@@ -32,12 +32,12 @@ struct TiledataDocumentWindowState
 };
 
 void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
-                                 TiledataDocument & document,
-                                 bool & visible,
-                                 IdFormat idFormat,
-                                 const TextureProvider & textures,
-                                 const RadarColorProvider & radarColors,
-                                 std::string windowIdentity,
-                                 const std::function<void()> & becameVisible = {});
+                                TiledataDocument & document,
+                                bool & visible,
+                                IdFormat idFormat,
+                                const TextureProvider & textures,
+                                const RadarColorProvider & radarColors,
+                                std::string windowIdentity,
+                                const std::function<void()> & becameVisible = {});
 
 } // namespace uo_mule::gui

@@ -106,9 +106,8 @@ float drawLogPanel(logger::GuiLogSink & logSink,
     bool autoScroll = preferences.autoScroll;
     if (panelHeightPreference <= 0.0F)
     {
-        panelHeightPreference = std::clamp(viewport->WorkSize.y * logPanelHeightRatio,
-                                           minimumLogPanelHeight,
-                                           maximumPanelHeight);
+        panelHeightPreference =
+            std::clamp(viewport->WorkSize.y * logPanelHeightRatio, minimumLogPanelHeight, maximumPanelHeight);
     }
 
     panelHeightPreference = std::clamp(panelHeightPreference, minimumLogPanelHeight, maximumPanelHeight);

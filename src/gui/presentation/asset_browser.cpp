@@ -58,7 +58,7 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
         }
         if (ImGui::IsItemHovered())
         {
-        ImGui::SetTooltip("%s", strings::filterSyntaxTooltip());
+            ImGui::SetTooltip("%s", strings::filterSyntaxTooltip());
         }
     }
 }

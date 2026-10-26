@@ -123,10 +123,7 @@ namespace uo_mule::gui::strings
 [[nodiscard]] std::string formatFontScale(bool iconFontAvailable, double scaleX, double scaleY);
 [[nodiscard]] std::string formatTile(std::uint32_t x, std::uint32_t y);
 [[nodiscard]] std::string formatBlock(std::uint32_t x, std::uint32_t y);
-[[nodiscard]] std::string formatTileCoordinates(std::uint32_t minX,
-                                                std::uint32_t maxX,
-                                                std::uint32_t minY,
-                                                std::uint32_t maxY);
+[[nodiscard]] std::string formatTileCoordinates(std::uint32_t minX, std::uint32_t maxX, std::uint32_t minY, std::uint32_t maxY);
 [[nodiscard]] std::string formatSelectedTile(std::uint32_t x, std::uint32_t y, std::uint16_t id, std::int32_t z);
 [[nodiscard]] std::string formatTileTooltip(std::uint32_t x, std::uint32_t y, std::uint16_t id, std::int32_t z);
 [[nodiscard]] const char * id() noexcept;
