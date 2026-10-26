@@ -1,10 +1,12 @@
-# uo-mule
+![UO Mule](assets/uomule.png)
+
+# UO Mule
 
 [![Build and test](https://github.com/norad32/uo-mul-lib/actions/workflows/build.yml/badge.svg)](https://github.com/norad32/uo-mul-lib/actions/workflows/build.yml)
 [![Release](https://github.com/norad32/uo-mul-lib/actions/workflows/release.yml/badge.svg)](https://github.com/norad32/uo-mul-lib/actions/workflows/release.yml)
 [![License](https://img.shields.io/github/license/norad32/uo-mul-lib)](LICENSE)
 
-`uo-mule` is a Linux C++23 toolkit for Ultima Online MUL data. It includes:
+UO Mule is a Linux C++23 toolkit for Ultima Online MUL data. It includes:
 
 - `uomul`, a standalone format library for map, radarcol, texmap, and tiledata files;
 - a CLI for map inspection, editing, and diff operations; and

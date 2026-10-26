@@ -90,8 +90,13 @@ TEST_CASE("guiResourceLookup_Should_PreferEnvironmentOverride")
     std::ofstream(installed).put('i');
     std::ofstream(overridePath).put('o');
 
-    const uo_mule::gui::GuiResourceLookup lookup(
-        directory.path() / "bin/application", installed.filename(), source, installed.filename(), source);
+    const uo_mule::gui::GuiResourceLookup lookup(directory.path() / "bin/application",
+                                                 installed.filename(),
+                                                 source,
+                                                 installed.filename(),
+                                                 source,
+                                                 installed.filename(),
+                                                 source);
     const EnvironmentOverride override("IM_CPP_FONT_PATH", overridePath);
 
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == overridePath);
@@ -108,7 +113,8 @@ TEST_CASE("guiResourceLookup_Should_PreferInstalledPathBeforeBuildTreePath")
     std::ofstream(installed).put('i');
     std::ofstream(source).put('s');
 
-    const uo_mule::gui::GuiResourceLookup lookup(executable, "../installed.ttf", source, "../installed.ttf", source);
+    const uo_mule::gui::GuiResourceLookup lookup(
+        executable, "../installed.ttf", source, "../installed.ttf", source, "../installed.ttf", source);
 
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == installed);
 }
@@ -121,7 +127,7 @@ TEST_CASE("guiResourceLookup_Should_FindBuildTreePath_If_InstalledPathIsMissing"
     std::ofstream(source).put('s');
 
     const uo_mule::gui::GuiResourceLookup lookup(
-        directory.path() / "bin/application", "../missing.ttf", source, "../missing.ttf", source);
+        directory.path() / "bin/application", "../missing.ttf", source, "../missing.ttf", source, "../missing.ttf", source);
 
     REQUIRE(lookup.find(uo_mule::gui::GuiResourceId::materialDesignIconsFont) == source);
 }
@@ -133,6 +139,8 @@ TEST_CASE("guiResourceLookup_Should_ReportMissingResource")
     const uo_mule::gui::GuiResourceLookup lookup(directory.path() / "bin/application",
                                                  "../missing-icon.xpm",
                                                  directory.path() / "missing-icon.xpm",
+                                                 "../missing-banner.png",
+                                                 directory.path() / "missing-banner.png",
                                                  "../missing.ttf",
                                                  directory.path() / "missing.ttf");
 

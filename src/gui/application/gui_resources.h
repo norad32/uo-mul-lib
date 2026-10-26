@@ -10,6 +10,7 @@ namespace uo_mule::gui
 enum class GuiResourceId : std::uint8_t
 {
     applicationIcon,
+    welcomeBanner,
     materialDesignIconsFont,
 };
 
@@ -19,6 +20,8 @@ public:
     GuiResourceLookup(std::filesystem::path executablePath,
                       std::filesystem::path applicationIconInstallPath,
                       std::filesystem::path applicationIconSourcePath,
+                      std::filesystem::path welcomeBannerInstallPath,
+                      std::filesystem::path welcomeBannerSourcePath,
                       std::filesystem::path materialDesignIconsInstallPath,
                       std::filesystem::path materialDesignIconsSourcePath);
 
@@ -32,6 +35,8 @@ private:
     std::filesystem::path executablePath_;
     std::filesystem::path applicationIconInstallPath_;
     std::filesystem::path applicationIconSourcePath_;
+    std::filesystem::path welcomeBannerInstallPath_;
+    std::filesystem::path welcomeBannerSourcePath_;
     std::filesystem::path materialDesignIconsInstallPath_;
     std::filesystem::path materialDesignIconsSourcePath_;
 };

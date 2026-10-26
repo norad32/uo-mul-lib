@@ -1,4 +1,6 @@
 #include "gui/application/welcome_view.h"
+#include "core/app_info.h"
+#include "gui/application/gui_resources.h"
 #include "gui/application/welcome_greetings.h"
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/map_workflow_dialog.h"
@@ -16,7 +18,9 @@
 #include "gui_model/profile/data_validation.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/source/source_identity.h"
+#include "image_codec/image_codec.h"
 #include "uomul/facet_sizes.h"
+#include <GL/gl.h>
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -36,14 +40,104 @@ namespace
 
 constexpr float welcomeContentWidth = 980.0F;
 constexpr float actionButtonSpacing = 8.0F;
-constexpr float bannerHeight = 180.0F;
-constexpr float bannerCenterFactor = 0.5F;
+constexpr float fallbackBannerHeight = 180.0F;
 constexpr float verticalCenterFactor = 0.5F;
 constexpr float recentRowHeight = 52.0F;
 constexpr float unavailableRecentRowHeight = 68.0F;
 constexpr float recentRowTextPadding = 8.0F;
 constexpr float welcomeFooterBottomPadding = 16.0F;
 constexpr std::size_t timestampBufferSize = 32;
+
+struct WelcomeBannerTexture
+{
+    GLuint handle = 0;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    bool attempted = false;
+};
+
+[[nodiscard]] WelcomeBannerTexture & welcomeBannerTexture()
+{
+    static WelcomeBannerTexture texture;
+    return texture;
+}
+
+void loadWelcomeBannerTexture()
+{
+    auto & texture = welcomeBannerTexture();
+    if (texture.attempted)
+    {
+        return;
+    }
+    texture.attempted = true;
+
+    const auto path = defaultGuiResourceLookup().find(GuiResourceId::welcomeBanner);
+    if (!path)
+    {
+        return;
+    }
+    const auto image = image::decode(*path);
+    if (!image || image->pixels.empty())
+    {
+        return;
+    }
+
+    glGenTextures(1, &texture.handle);
+    if (texture.handle == 0U)
+    {
+        return;
+    }
+    GLint previousTexture = 0;
+    GLint previousUnpackAlignment = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &previousTexture);
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &previousUnpackAlignment);
+    glBindTexture(GL_TEXTURE_2D, texture.handle);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,
+                 GL_RGB,
+                 static_cast<GLsizei>(image->width),
+                 static_cast<GLsizei>(image->height),
+                 0,
+                 GL_RGB,
+                 GL_UNSIGNED_BYTE,
+                 image->pixels.data());
+    glPixelStorei(GL_UNPACK_ALIGNMENT, previousUnpackAlignment);
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(previousTexture));
+    texture.width = image->width;
+    texture.height = image->height;
+}
+
+[[nodiscard]] float welcomeBannerHeight(float width)
+{
+    loadWelcomeBannerTexture();
+    const auto & texture = welcomeBannerTexture();
+    if (texture.width == 0U || texture.height == 0U || width <= 0.0F)
+    {
+        return fallbackBannerHeight;
+    }
+
+    return width * static_cast<float>(texture.height) / static_cast<float>(texture.width);
+}
+
+void drawWelcomeBanner()
+{
+    loadWelcomeBannerTexture();
+    const auto & texture = welcomeBannerTexture();
+    const ImVec2 targetSize = ImGui::GetContentRegionAvail();
+    if (texture.handle == 0U || texture.width == 0U || texture.height == 0U || targetSize.x <= 0.0F || targetSize.y <= 0.0F)
+    {
+        ImGui::Dummy(targetSize);
+        return;
+    }
+
+    const float imageHeight = targetSize.x * static_cast<float>(texture.height) / static_cast<float>(texture.width);
+    ImGui::Image(static_cast<ImTextureID>(texture.handle), ImVec2(targetSize.x, imageHeight));
+}
 
 [[nodiscard]] std::string timestampLabel(std::string_view prefix, std::int64_t timestamp)
 {
@@ -366,19 +460,15 @@ void drawWelcomeView(WorkbenchState & state)
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     ImGui::BeginChild("###welcome.banner",
-                      ImVec2(0.0F, bannerHeight),
+                      ImVec2(0.0F, welcomeBannerHeight(contentWidth)),
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    const char * bannerText = strings::artworkBanner();
-    const ImVec2 bannerTextSize = ImGui::CalcTextSize(bannerText);
-    ImGui::SetCursorPos(ImVec2((ImGui::GetWindowSize().x - bannerTextSize.x) * bannerCenterFactor,
-                               (ImGui::GetWindowSize().y - bannerTextSize.y) * bannerCenterFactor));
-    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", bannerText);
+    drawWelcomeBanner();
     ImGui::EndChild();
     ImGui::Separator();
 
     ImGui::Spacing();
-    ImGui::TextColored(theme::imguiColor(theme::greeting), "%s", state.welcomeGreeting.c_str());
+    ImGui::TextColored(theme::imguiColor(theme::peach), "%s", state.welcomeGreeting.c_str());
     ImGui::Spacing();
     ImGui::Separator();
 
@@ -413,6 +503,17 @@ void drawWelcomeView(WorkbenchState & state)
         ImGui::TableNextColumn();
         drawProfileSummary(state.activeProfile);
         ImGui::TableNextColumn();
+        const ImVec2 separatorStart = ImGui::GetCursorScreenPos();
+        const float separatorHeight = ImGui::GetTextLineHeightWithSpacing();
+        ImGui::Dummy(ImVec2(1.0F, separatorHeight));
+        ImGui::GetWindowDrawList()->AddLine(separatorStart,
+                                            ImVec2(separatorStart.x, separatorStart.y + separatorHeight),
+                                            theme::packedOpaqueColor(theme::border));
+        ImGui::SameLine();
+        ImGui::TextColored(theme::imguiColor(theme::mauve),
+                           "Version %.*s",
+                           static_cast<int>(core::applicationVersion().size()),
+                           core::applicationVersion().data());
         ImGui::EndTable();
     }
 
@@ -427,8 +528,8 @@ void drawWelcomeView(WorkbenchState & state)
     }
 
     const float actionButtonHeight = ImGui::GetFrameHeight();
-    const std::string openLabel = iconLabel(IconId::folder, strings::open());
-    const std::string newLabel = iconLabel(IconId::fileDocumentPlus, strings::newProfile());
+    const std::string openLabel = iconLabel(IconId::folderOpen, strings::openEllipsis());
+    const std::string newLabel = iconLabel(IconId::fileDocumentPlus, strings::createNewEllipsis());
     const float actionButtonTextWidth =
         std::max(ImGui::CalcTextSize(openLabel.c_str()).x, ImGui::CalcTextSize(newLabel.c_str()).x);
     const float actionButtonWidth = actionButtonTextWidth + (ImGui::GetStyle().FramePadding.x * 2.0F);

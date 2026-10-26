@@ -387,7 +387,7 @@ const char * openEllipsis() noexcept
 }
 const char * createNewEllipsis() noexcept
 {
-    return "Create New...";
+    return "New...";
 }
 const char * home() noexcept
 {

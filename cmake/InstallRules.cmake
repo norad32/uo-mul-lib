@@ -101,7 +101,9 @@ if(BUILD_GUI_RUNTIME)
 endif()
 if(BUILD_GUI)
     install(
-        FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/app_icon.xpm"
+        FILES
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/app_icon.xpm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/uomule.png"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}"
         COMPONENT Runtime)
     install(
@@ -135,7 +137,9 @@ if(BUILD_GUI)
 endif()
 if(BUILD_GUI_RUNTIME)
     install(
-        FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/app_icon.xpm"
+        FILES
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/app_icon.xpm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/assets/uomule.png"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/${DISTRIBUTION_NAME}"
         COMPONENT Gui)
     install(
