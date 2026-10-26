@@ -12,7 +12,6 @@
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/profile/data_profile_store.h"
 #include "gui_model/profile/data_validation.h"
-#include "gui_model/session/workbench_session.h"
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -30,7 +29,6 @@ namespace
 {
 
 constexpr float pathInputWidth = 480.0F;
-constexpr float contentHeight = 560.0F;
 
 [[nodiscard]] std::filesystem::path bufferPath(const std::array<char, preferencesDialogBufferSize> & buffer)
 {
@@ -105,7 +103,12 @@ void validateWorkingProfile(PreferencesDialogState & state)
 {
     syncWorkingProfile(state);
     state.validation = validateDataProfile(state.workingProfile);
-    state.validationRequested = true;
+}
+
+void requestProfileSave(PreferencesDialogState & state)
+{
+    state.workingProfile.name = state.profileName.data();
+    state.profileSaveRequested = true;
 }
 
 void searchMetadataFolder(PreferencesDialogState & state, const std::filesystem::path & root)
@@ -116,7 +119,6 @@ void searchMetadataFolder(PreferencesDialogState & state, const std::filesystem:
     applyDiscovery(state.workingProfile, state.discovery);
     initializeDialogFields(state);
     validateWorkingProfile(state);
-    state.message = "Metadata search completed";
 }
 
 void drawProfileSection(PreferencesDialogState & state)
@@ -126,14 +128,16 @@ void drawProfileSection(PreferencesDialogState & state)
         return;
     }
 
+    const std::string profilesPath = strings::formatProfilesStoredIn(dataProfilesDirectory());
+    ImGui::TextDisabled("%s", profilesPath.c_str());
+
     dialogFieldLabel(strings::name());
     dialogFieldWidth(pathInputWidth);
     ImGui::InputText("##Name", state.profileName.data(), state.profileName.size());
-    const std::string profilesPath = strings::formatProfilesStoredIn(dataProfilesDirectory());
-    ImGui::TextUnformatted(profilesPath.c_str());
 
     refreshProfiles(state);
     dialogFieldLabel(strings::openProfile());
+    dialogFieldWidth(pathInputWidth);
     if (ImGui::BeginCombo("##OpenProfile",
                           state.workingProfile.name.empty() ? strings::none() : state.workingProfile.name.c_str()))
     {
@@ -155,22 +159,10 @@ void drawProfileSection(PreferencesDialogState & state)
         ImGui::EndCombo();
     }
 
-    if (ImGui::Button(strings::newProfile()))
-    {
-        state.workingProfile = DataProfile{};
-        state.workingProfile.name = "New profile";
-        initializeDialogFields(state);
-        validateWorkingProfile(state);
-    }
-
-    ImGui::SameLine();
-
     if (ImGui::Button(iconLabel(IconId::save, strings::saveProfile()).c_str()))
     {
-        state.workingProfile.name = state.profileName.data();
-        state.profileSaveRequested = true;
+        requestProfileSave(state);
         refreshProfiles(state);
-        state.message = "Profile saved";
     }
 
     ImGui::SameLine();
@@ -181,7 +173,6 @@ void drawProfileSection(PreferencesDialogState & state)
         if (ImGui::Button(strings::deleteProfile()))
         {
             state.profileDeleteRequested = state.workingProfile.name;
-            state.visible = false;
         }
     }
     else
@@ -204,10 +195,13 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
     ImGui::PushID(label.c_str());
     dialogFieldLabel(label.c_str());
     dialogFieldWidth(pathInputWidth);
-    ImGui::InputText(
-        "##Path", path->second.data(), path->second.size(), ImGuiInputTextFlags_ElideLeft | ImGuiInputTextFlags_ReadOnly);
+    if (ImGui::InputText("##Path", path->second.data(), path->second.size()))
+    {
+        state.metadataOverrides[role] = true;
+        validateWorkingProfile(state);
+    }
     ImGui::SameLine();
-    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, "Browse...##MetadataPath").c_str()) && state.browser != nullptr)
+    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, "Open##MetadataPath").c_str()) && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
                            {
@@ -219,13 +213,10 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
                                .title = strings::chooseMetadataFile(),
                            });
     }
-    const auto * validation = state.validation.find(role);
-    ImGui::TextDisabled(strings::statusFormat(),
-                        validation == nullptr ? strings::missing()
-                                              : std::string(strings::dataFileStatusLabel(validation->status)).c_str());
     if (role == DataFileRole::tiledata)
     {
-        ImGui::SameLine();
+        dialogFieldLabel("Tiledata format");
+        dialogFieldWidth(pathInputWidth);
         const std::string selected(tiledataLayoutSelectionName(state.workingProfile.tiledataLayout));
         if (ImGui::BeginCombo("##TiledataLayout", selected.c_str()))
         {
@@ -243,6 +234,33 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
             ImGui::EndCombo();
         }
     }
+
+    const auto * validation = state.validation.find(role);
+    const DataFileStatus status = validation == nullptr ? DataFileStatus::missing : validation->status;
+    const DataFileStatus displayStatus = status == DataFileStatus::overridden ? DataFileStatus::found : status;
+    const theme::Color statusColor = [displayStatus]
+    {
+        switch (displayStatus)
+        {
+            case DataFileStatus::foundAndValidated :
+                return theme::success;
+            case DataFileStatus::found :
+                return theme::info;
+            case DataFileStatus::invalid :
+                return theme::error;
+            case DataFileStatus::missing :
+            case DataFileStatus::ambiguous :
+            case DataFileStatus::unsupported :
+                return theme::warning;
+            case DataFileStatus::optional :
+                return theme::mutedText;
+            case DataFileStatus::overridden :
+                return theme::info;
+        }
+        return theme::mutedText;
+    }();
+    const std::string statusLabel(strings::dataFileStatusLabel(displayStatus));
+    ImGui::TextColored(theme::imguiColor(statusColor), "%s", statusLabel.c_str());
     ImGui::PopID();
 }
 
@@ -266,27 +284,11 @@ void drawMetadataSection(PreferencesDialogState & state)
                                .title = strings::searchMetadataFolder(),
                            });
     }
-    ImGui::SameLine();
-    ImGui::TextDisabled("%s", strings::searchMetadataHint());
+    ImGui::NewLine();
 
     for (const auto role : knownDataFileRoles())
     {
         drawMetadataPath(state, role);
-    }
-
-    if (ImGui::Button(iconLabel(IconId::warning, strings::validateMetadata()).c_str()))
-    {
-        validateWorkingProfile(state);
-        state.message =
-            state.validation.hasErrors() ? strings::metadataValidationErrors() : strings::metadataValidationPassed();
-    }
-    if (!state.validationRequested)
-    {
-        return;
-    }
-    for (const auto & diagnostic : state.validation.diagnostics)
-    {
-        ImGui::BulletText("%s", diagnostic.message.c_str());
     }
 }
 
@@ -300,6 +302,7 @@ void drawSettingsSection(PreferencesDialogState & state)
     dialogFieldLabel(strings::showWelcomeScreen());
     ImGui::Checkbox("##ShowWelcomeScreen", &state.showWelcomeOnStartup);
     dialogFieldLabel("ID Format");
+    dialogFieldWidth(pathInputWidth);
     const char * idFormatLabel = state.idFormat == IdFormat::decimal ? strings::decimal() : strings::hexadecimalName();
     if (ImGui::BeginCombo("##IdFormat", idFormatLabel))
     {
@@ -314,6 +317,7 @@ void drawSettingsSection(PreferencesDialogState & state)
         ImGui::EndCombo();
     }
     dialogFieldLabel(strings::mapViewTiles());
+    dialogFieldWidth(pathInputWidth);
     const char * mapViewTileSourceLabel =
         state.mapViewTileSource == MapViewTileSource::textures ? strings::texturesRadarcolFallback() : strings::radarcol();
     if (ImGui::BeginCombo("##MapViewTileSource", mapViewTileSourceLabel))
@@ -336,14 +340,12 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
 {
     state.workingProfile = profile;
     state.visible = true;
-    state.message.clear();
     state.browser = nullptr;
     state.showWelcomeOnStartup = preferences.showWelcomeOnStartup;
     state.idFormat = preferences.idFormat;
     state.mapViewTileSource = preferences.mapViewTileSource;
     state.originalPreferences = preferences;
     state.closeRequested = false;
-    state.validationRequested = false;
     state.profileSaveRequested = false;
     state.profileDeleteRequested.reset();
     initializeDialogFields(state);
@@ -392,7 +394,7 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
             state.dialogHost->cancel();
         }
         const std::string title = iconLabel(IconId::preferences, strings::preferencesDialogTitle());
-        if (beginDialog(title.c_str(), nullptr, largeDialogSpec(), ImGuiWindowFlags_NoResize))
+        if (beginDialog(title.c_str(), nullptr, largeDialogSpec(), ImGuiWindowFlags_NoResize, ImGuiCond_Always))
         {
             ImGui::CloseCurrentPopup();
             endDialog();
@@ -408,46 +410,21 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
 
     state.browser = &browser;
     const std::string title = iconLabel(IconId::preferences, strings::preferencesDialogTitle());
-    if (!beginDialog(title.c_str(), &state.visible, largeDialogSpec(), ImGuiWindowFlags_NoResize))
+    if (!beginDialog(title.c_str(), &state.visible, largeDialogSpec(), ImGuiWindowFlags_NoResize, ImGuiCond_Always))
     {
         return std::nullopt;
     }
 
     dialogSubheading(strings::preferencesDialogSubheading());
-    ImGui::Separator();
-    ImGui::BeginChild(
-        "PreferencesContent", ImVec2(0.0F, contentHeight), ImGuiChildFlags_None, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     drawProfileSection(state);
     drawSettingsSection(state);
     drawMetadataSection(state);
-    ImGui::EndChild();
 
-    if (!state.message.empty())
-    {
-        ImGui::TextColored(theme::imguiColor(theme::success), "%s", state.message.c_str());
-    }
-
-    beginDialogFooter({strings::apply(), strings::applyAndUse(), strings::cancel()});
+    const std::string okLabel = iconLabel(IconId::ok, strings::ok());
+    const std::string cancelLabel = iconLabel(IconId::cancel, strings::cancel());
+    beginDialogFooter({okLabel.c_str(), cancelLabel.c_str()}, false);
     std::optional<PreferencesDialogResult> result;
-    if (dialogButton(strings::apply()))
-    {
-        validateWorkingProfile(state);
-        Preferences updatedPreferences = state.originalPreferences;
-        updatedPreferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
-        updatedPreferences.idFormat = state.idFormat;
-        updatedPreferences.mapViewTileSource = state.mapViewTileSource;
-        result = PreferencesDialogResult{
-            .profile = state.workingProfile,
-            .preferences = std::move(updatedPreferences),
-            .applyProfile = false,
-        };
-        state.message = strings::changesApplied();
-    }
-
-    ImGui::SameLine();
-
-    const bool profileIsMapReady = mapReady(state.workingProfile);
-    if (dialogButton(strings::applyAndUse(), profileIsMapReady))
+    if (dialogButton(okLabel.c_str()))
     {
         validateWorkingProfile(state);
         Preferences updatedPreferences = state.originalPreferences;
@@ -459,12 +436,12 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
             .preferences = std::move(updatedPreferences),
             .applyProfile = true,
         };
-        state.profileSaveRequested = true;
+        requestProfileSave(state);
         state.visible = false;
     }
     ImGui::SameLine();
 
-    if (dialogButton(iconLabel(IconId::cancel, strings::cancel()).c_str()))
+    if (dialogButton(cancelLabel.c_str()))
     {
         state.visible = false;
     }

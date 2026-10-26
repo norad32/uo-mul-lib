@@ -174,11 +174,11 @@ const char * newProfile() noexcept
 }
 const char * saveProfile() noexcept
 {
-    return "Save Profile";
+    return "Save";
 }
 const char * deleteProfile() noexcept
 {
-    return "Delete Profile";
+    return "Delete";
 }
 const char * status() noexcept
 {
@@ -194,31 +194,15 @@ const char * searchFolder() noexcept
 }
 const char * chooseFolder() noexcept
 {
-    return "Choose folder...##MetadataSearch";
+    return "Open##MetadataSearch";
 }
 const char * searchMetadataFolder() noexcept
 {
     return "Search Metadata Folder";
 }
-const char * searchMetadataHint() noexcept
-{
-    return "Search the selected folder for known metadata files.";
-}
-const char * validateMetadata() noexcept
-{
-    return "Validate metadata";
-}
-const char * metadataValidationErrors() noexcept
-{
-    return "Metadata validation found errors";
-}
-const char * metadataValidationPassed() noexcept
-{
-    return "Metadata validation passed";
-}
 const char * showWelcomeScreen() noexcept
 {
-    return "Show Welcome screen at startup";
+    return "Show welcome at startup";
 }
 const char * decimal() noexcept
 {
@@ -226,11 +210,11 @@ const char * decimal() noexcept
 }
 const char * mapViewTiles() noexcept
 {
-    return "Map view tiles";
+    return "Map tiles";
 }
 const char * texturesRadarcolFallback() noexcept
 {
-    return "Textures (Radarcol fallback)";
+    return "Textures";
 }
 const char * preferencesDialogTitle() noexcept
 {
@@ -238,11 +222,7 @@ const char * preferencesDialogTitle() noexcept
 }
 const char * preferencesDialogSubheading() noexcept
 {
-    return "Configure your UO data profile and application startup behavior.";
-}
-const char * changesApplied() noexcept
-{
-    return "Changes applied for this dialog session";
+    return "Configure your data profile and application settings";
 }
 const char * artworkBanner() noexcept
 {
@@ -283,10 +263,6 @@ const char * pick() noexcept
 const char * fromActiveTile() noexcept
 {
     return "From Active Tile";
-}
-const char * statusFormat() noexcept
-{
-    return "Status: %s";
 }
 std::string formatProfilesStoredIn(const std::filesystem::path & path)
 {
@@ -951,7 +927,7 @@ std::string_view dataFileStatusLabel(DataFileStatus status) noexcept
         case DataFileStatus::found :
             return "Found";
         case DataFileStatus::foundAndValidated :
-            return "Ready";
+            return "Valid";
         case DataFileStatus::missing :
             return "Missing";
         case DataFileStatus::ambiguous :

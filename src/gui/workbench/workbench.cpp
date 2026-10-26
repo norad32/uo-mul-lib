@@ -2119,6 +2119,7 @@ void applyPendingPersistence(WorkbenchState & state)
                 state.preferences.activeDataProfile.clear();
                 applyProfileChange(state);
             }
+            requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
         }
         catch (const std::exception & error)
         {

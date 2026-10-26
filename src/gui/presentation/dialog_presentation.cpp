@@ -15,7 +15,7 @@ constexpr float framePaddingMultiplier = 2.0F;
 constexpr float dialogCenterPivot = 0.5F;
 
 constexpr float largeWidth = 860.0F;
-constexpr float largeHeight = 720.0F;
+constexpr float largeHeight = 620.0F;
 constexpr float largeMinimumWidth = 640.0F;
 constexpr float largeMinimumHeight = 480.0F;
 constexpr float browserWidth = 980.0F;
@@ -56,10 +56,14 @@ DialogWindowSpec mapDialogSpec() noexcept
     return {.initialSize = ImVec2(mapWidth, mapHeight), .minimumSize = ImVec2(mapMinimumWidth, mapMinimumHeight)};
 }
 
-bool beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, ImGuiWindowFlags extraFlags)
+bool beginDialog(const char * popupId,
+                 bool * visible,
+                 DialogWindowSpec spec,
+                 ImGuiWindowFlags extraFlags,
+                 ImGuiCond sizeCondition)
 {
     ImGui::OpenPopup(popupId);
-    ImGui::SetNextWindowSize(spec.initialSize, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(spec.initialSize, sizeCondition);
     ImGui::SetNextWindowSizeConstraints(spec.minimumSize, ImVec2(FLT_MAX, FLT_MAX));
     return ImGui::BeginPopupModal(popupId, visible, modalFlags(extraFlags));
 }

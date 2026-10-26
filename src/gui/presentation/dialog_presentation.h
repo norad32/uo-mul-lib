@@ -16,8 +16,11 @@ struct DialogWindowSpec
 [[nodiscard]] DialogWindowSpec browserDialogSpec() noexcept;
 [[nodiscard]] DialogWindowSpec mapDialogSpec() noexcept;
 
-[[nodiscard]] bool
-beginDialog(const char * popupId, bool * visible, DialogWindowSpec spec, ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None);
+[[nodiscard]] bool beginDialog(const char * popupId,
+                               bool * visible,
+                               DialogWindowSpec spec,
+                               ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None,
+                               ImGuiCond sizeCondition = ImGuiCond_FirstUseEver);
 [[nodiscard]] bool
 beginAutoSizeDialog(const char * popupId, bool * visible, ImGuiWindowFlags extraFlags = ImGuiWindowFlags_None);
 [[nodiscard]] bool beginTransientDialog(const char * windowId, bool * visible, ImGuiWindowFlags flags = ImGuiWindowFlags_None);
