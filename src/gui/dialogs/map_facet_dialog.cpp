@@ -14,7 +14,7 @@ namespace
 {
 
 constexpr float fieldWidth = 200.0F;
-constexpr float fieldLabelWidth = 52.0F;
+constexpr float fieldLabelWidth = 80.0F;
 
 } // namespace
 
