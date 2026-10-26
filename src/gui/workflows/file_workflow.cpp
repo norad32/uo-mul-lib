@@ -482,7 +482,7 @@ bool handleDialogResult(WorkbenchState & state, DialogResult result)
     return false;
 }
 
-bool completeDialogResult(WorkbenchState & state, DialogResult result)
+bool completeDialogResultImpl(WorkbenchState & state, DialogResult result)
 {
     if (!state.dialogHost.complete(std::move(result)))
     {
@@ -526,13 +526,13 @@ bool drawFileDialogs(WorkbenchState & state)
     }
     if (dialogResult)
     {
-        profileChanged = completeDialogResult(state, *dialogResult) || profileChanged;
+        profileChanged = completeDialogResultImpl(state, *dialogResult) || profileChanged;
     }
     if (state.dialogHost.owns(DialogId::fileSelector) && state.dialogHost.active)
     {
         if (const auto selectorResult = drawFileSelector(state.fileSelector, state.dialogHost.active->generation))
         {
-            profileChanged = completeDialogResult(state, *selectorResult) || profileChanged;
+            profileChanged = completeDialogResultImpl(state, *selectorResult) || profileChanged;
         }
     }
     queueFileBrowserPersistence(state);
@@ -540,6 +540,11 @@ bool drawFileDialogs(WorkbenchState & state)
 }
 
 } // namespace
+
+bool completeDialogResult(WorkbenchState & state, DialogResult result)
+{
+    return completeDialogResultImpl(state, std::move(result));
+}
 
 bool createDefaultRadarcol(WorkbenchState & state, const std::filesystem::path & path)
 {

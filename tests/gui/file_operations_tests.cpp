@@ -1,4 +1,5 @@
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/file_selector_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/presentation/bounded_buffer.h"
@@ -13,6 +14,7 @@
 #include <filesystem>
 #include <optional>
 #include <system_error>
+#include <utility>
 
 namespace
 {
@@ -43,6 +45,15 @@ public:
 private:
     std::filesystem::path path_;
 };
+
+void applyDeferredActions(uo_mule::gui::WorkbenchState & state)
+{
+    const auto actions = std::move(state.deferredWorkflowActions);
+    for (const auto & action : actions)
+    {
+        action();
+    }
+}
 
 } // namespace
 
@@ -84,6 +95,138 @@ TEST_CASE("dialogRequests_Should_ActivateAndReplaceTheAuthoritativeHost")
     uo_mule::gui::requestMapDialog(state.menuBarState.fileDialog, uo_mule::gui::MapFileDialogMode::newType);
     REQUIRE(state.dialogHost.owns(uo_mule::gui::DialogId::mapWorkflow));
     REQUIRE_FALSE(state.dialogHost.owns(uo_mule::gui::DialogId::fileBrowser));
+}
+
+TEST_CASE("dialogWorkflow_Should_RouteMapBrowserResultThroughHost")
+{
+    uo_mule::gui::WorkbenchState state;
+    uo_mule::gui::requestFileBrowser(state.fileBrowser,
+                                     {
+                                         .mode = uo_mule::gui::FileBrowserMode::openFile,
+                                         .target = uo_mule::gui::FileBrowserTarget::mapOpen,
+                                         .initialPath = std::filesystem::current_path(),
+                                         .extension = ".mul",
+                                         .title = "Open Map",
+                                     });
+    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const uo_mule::gui::FileBrowserResult result{
+        .target = uo_mule::gui::FileBrowserTarget::mapOpen,
+        .path = "map0.mul",
+        .mapCandidates = {},
+        .assetCandidates = {},
+        .assetCandidate = std::nullopt,
+    };
+
+    REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
+                                                     {.id = uo_mule::gui::DialogId::fileBrowser,
+                                                      .action = uo_mule::gui::DialogAction::accept,
+                                                      .payload = result,
+                                                      .generation = generation}));
+    applyDeferredActions(state);
+
+    REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::selectMapFacet);
+    REQUIRE(state.dialogHost.owns(uo_mule::gui::DialogId::mapWorkflow));
+}
+
+TEST_CASE("dialogWorkflow_Should_RouteCompanionSelectionBackToFileBrowser")
+{
+    uo_mule::gui::WorkbenchState state;
+    const uo_mule::gui::FileBrowserResult origin{
+        .target = uo_mule::gui::FileBrowserTarget::genericOpen,
+        .path = "texidx.mul",
+        .mapCandidates = {},
+        .assetCandidates = {},
+        .assetCandidate = std::nullopt,
+    };
+    uo_mule::gui::openFileSelector(state.fileSelector, origin);
+    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+
+    REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
+                                                     {.id = uo_mule::gui::DialogId::fileSelector,
+                                                      .action = uo_mule::gui::DialogAction::chooseCompanion,
+                                                      .payload = origin,
+                                                      .generation = generation}));
+
+    REQUIRE(state.dialogHost.owns(uo_mule::gui::DialogId::fileBrowser));
+    REQUIRE(state.fileBrowser.request.target == uo_mule::gui::FileBrowserTarget::texmapsCompanion);
+}
+
+TEST_CASE("dialogWorkflow_Should_ApplyPreferenceFileBrowserResultAndReactivatePreferences")
+{
+    uo_mule::gui::WorkbenchState state;
+    uo_mule::gui::requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
+    uo_mule::gui::requestFileBrowser(state.fileBrowser,
+                                     {
+                                         .mode = uo_mule::gui::FileBrowserMode::chooseDirectory,
+                                         .target = uo_mule::gui::FileBrowserTarget::dataSearchRoot,
+                                         .initialPath = {},
+                                         .extension = {},
+                                         .title = "Search Metadata",
+                                     });
+    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto root = std::filesystem::temp_directory_path() / "metadata-root";
+    const uo_mule::gui::FileBrowserResult result{
+        .target = uo_mule::gui::FileBrowserTarget::dataSearchRoot,
+        .path = root,
+        .mapCandidates = {},
+        .assetCandidates = {},
+        .assetCandidate = std::nullopt,
+    };
+
+    REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
+                                                     {.id = uo_mule::gui::DialogId::fileBrowser,
+                                                      .action = uo_mule::gui::DialogAction::accept,
+                                                      .payload = result,
+                                                      .generation = generation}));
+    applyDeferredActions(state);
+
+    REQUIRE(state.menuBarState.preferencesDialog.workingProfile.sourceRoot == root);
+    REQUIRE(state.dialogHost.owns(uo_mule::gui::DialogId::preferences));
+}
+
+TEST_CASE("dialogWorkflow_Should_CancelFileBrowserThroughHost")
+{
+    uo_mule::gui::WorkbenchState state;
+    uo_mule::gui::requestFileBrowser(state.fileBrowser,
+                                     {
+                                         .mode = uo_mule::gui::FileBrowserMode::openFile,
+                                         .target = uo_mule::gui::FileBrowserTarget::genericOpen,
+                                         .initialPath = {},
+                                         .extension = ".mul",
+                                         .title = "Open MUL File",
+                                     });
+    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+
+    REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
+                                                     {.id = uo_mule::gui::DialogId::fileBrowser,
+                                                      .action = uo_mule::gui::DialogAction::cancel,
+                                                      .payload = {},
+                                                      .generation = generation}));
+
+    REQUIRE_FALSE(state.dialogHost.active.has_value());
+    REQUIRE_FALSE(state.fileBrowser.visible);
+}
+
+TEST_CASE("dialogWorkflow_Should_RejectStaleResultAfterDialogReplacement")
+{
+    uo_mule::gui::WorkbenchState state;
+    uo_mule::gui::requestFileBrowser(state.fileBrowser,
+                                     {
+                                         .mode = uo_mule::gui::FileBrowserMode::openFile,
+                                         .target = uo_mule::gui::FileBrowserTarget::genericOpen,
+                                         .initialPath = {},
+                                         .extension = ".mul",
+                                         .title = "Open MUL File",
+                                     });
+    const auto staleGeneration = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    uo_mule::gui::requestMapDialog(state.menuBarState.fileDialog, uo_mule::gui::MapFileDialogMode::newType);
+
+    REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
+                                                     {.id = uo_mule::gui::DialogId::fileBrowser,
+                                                      .action = uo_mule::gui::DialogAction::cancel,
+                                                      .payload = {},
+                                                      .generation = staleGeneration}));
+    REQUIRE(state.dialogHost.owns(uo_mule::gui::DialogId::mapWorkflow));
 }
 
 TEST_CASE("fileBrowserResult_Should_TransitionMapOpenToFacetSelection")
