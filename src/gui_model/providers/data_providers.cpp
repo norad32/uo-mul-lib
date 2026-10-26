@@ -1,5 +1,10 @@
 #include "gui_model/providers/data_providers.h"
+#include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document.h"
+#include "gui_model/documents/radarcol_document.h"
+#include "gui_model/documents/texmaps_document.h"
+#include "gui_model/documents/tiledata_document.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/embedded_radarcol.h"
@@ -15,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace uo_mule::gui
 {
@@ -46,6 +52,17 @@ ProviderStatus unavailableStatus(std::uint64_t revision, std::string message)
         .sourceIdentity = emptyProviderSourceIdentity(),
         .revision = revision,
     };
+}
+
+[[nodiscard]] ProviderTexture makeProviderTexture(const uomul::TextureImage & image)
+{
+    ProviderTexture texture{.width = image.dimension, .height = image.dimension, .pixels = {}};
+    texture.pixels.reserve(image.pixels.size());
+    for (const std::uint16_t pixel : image.pixels)
+    {
+        texture.pixels.push_back(texturePixelToMapColor(pixel));
+    }
+    return texture;
 }
 
 class ProfileRadarColorProvider final : public RadarColorProvider
@@ -99,9 +116,51 @@ public:
         status_ = embeddedStatus(ProviderSourceKind::embeddedDefault, "Embedded Radarcol");
     }
 
+    void syncDocument(const RadarcolDocument * document)
+    {
+        if (document == document_ && document != nullptr && documentRevision_ == document->displayRevision())
+        {
+            return;
+        }
+        if (document == nullptr || !document->reader())
+        {
+            if (document_ == nullptr)
+            {
+                return;
+            }
+            document_ = nullptr;
+            documentRevision_ = 0;
+            revision_++;
+            status_.revision = revision_;
+            return;
+        }
+
+        document_ = document;
+        documentRevision_ = document->displayRevision();
+        revision_++;
+        status_ = {
+            .state = ProviderAssetState::available,
+            .source = ProviderSourceKind::externalConfigured,
+            .message = {},
+            .sourceIdentity = makeDocumentSourceIdentity({document->sourcePath()}),
+            .revision = revision_,
+        };
+    }
+
     [[nodiscard]] ProviderStatus status() const override { return status_; }
     [[nodiscard]] ProviderStatus status(std::uint16_t id) const override
     {
+        if (document_ != nullptr)
+        {
+            return document_->rawColor(id).has_value() ? status_
+                                                       : ProviderStatus{
+                                                             .state = ProviderAssetState::empty,
+                                                             .source = status_.source,
+                                                             .message = "No radar color entry",
+                                                             .sourceIdentity = status_.sourceIdentity,
+                                                             .revision = revision_,
+                                                         };
+        }
         if (!reader_)
         {
             ProviderStatus result = embedded_->status(id);
@@ -125,6 +184,11 @@ public:
     }
     [[nodiscard]] std::optional<MapColor> mapColor(std::uint16_t id) const override
     {
+        if (document_ != nullptr)
+        {
+            const auto color = document_->rawColor(id);
+            return color ? std::optional<MapColor>(radarColorToMapColor(*color)) : std::nullopt;
+        }
         if (!reader_)
         {
             return embedded_->mapColor(id);
@@ -132,9 +196,24 @@ public:
         const auto color = reader_->readMapColor(id);
         return color ? std::optional<MapColor>(radarColorToMapColor(*color)) : std::nullopt;
     }
-    [[nodiscard]] std::uint32_t colorCount() const override { return reader_ ? reader_->colorCount() : uomul::radarColorCount; }
+    [[nodiscard]] std::uint32_t colorCount() const override
+    {
+        if (document_ != nullptr && document_->reader())
+        {
+            return document_->reader()->colorCount();
+        }
+        if (reader_)
+        {
+            return reader_->colorCount();
+        }
+        return uomul::radarColorCount;
+    }
     [[nodiscard]] std::optional<uomul::RadarColor> rawColor(std::uint32_t index) const override
     {
+        if (document_ != nullptr)
+        {
+            return document_->rawColor(index);
+        }
         if (!reader_)
         {
             return embeddedRadarcolColor(index);
@@ -157,6 +236,8 @@ private:
 
     std::filesystem::path path_;
     std::optional<uomul::RadarColReader> reader_;
+    const RadarcolDocument * document_ = nullptr;
+    std::uint64_t documentRevision_ = 0;
     std::unique_ptr<RadarColorProvider> embedded_;
     ProviderStatus status_;
     std::uint64_t revision_ = 0;
@@ -225,9 +306,62 @@ public:
             {{.role = SourceRole::index, .path = indexPath_}, {.role = SourceRole::data, .path = dataPath_}});
     }
 
+    void syncDocument(const TexmapsDocument * document)
+    {
+        if (document == document_ && document != nullptr && documentRevision_ == document->displayRevision())
+        {
+            return;
+        }
+        if (document == nullptr || !document->reader())
+        {
+            if (document_ == nullptr)
+            {
+                return;
+            }
+            document_ = nullptr;
+            documentRevision_ = 0;
+            revision_++;
+            status_.revision = revision_;
+            return;
+        }
+
+        document_ = document;
+        documentRevision_ = document->displayRevision();
+        revision_++;
+        status_ = {
+            .state = ProviderAssetState::available,
+            .source = ProviderSourceKind::externalConfigured,
+            .message = {},
+            .sourceIdentity = document->sourceIdentity(),
+            .revision = revision_,
+        };
+    }
+
     [[nodiscard]] ProviderStatus status() const override { return status_; }
     [[nodiscard]] ProviderStatus status(std::uint32_t id) const override
     {
+        if (document_ != nullptr)
+        {
+            const auto hasTexture = document_->hasTexture(id);
+            if (!hasTexture)
+            {
+                return {
+                    .state = ProviderAssetState::invalid,
+                    .source = status_.source,
+                    .message = hasTexture.error().message,
+                    .sourceIdentity = status_.sourceIdentity,
+                    .revision = revision_,
+                };
+            }
+            return *hasTexture ? status_
+                               : ProviderStatus{
+                                     .state = ProviderAssetState::empty,
+                                     .source = status_.source,
+                                     .message = "No texture entry",
+                                     .sourceIdentity = status_.sourceIdentity,
+                                     .revision = revision_,
+                                 };
+        }
         if (!reader_)
         {
             return status_;
@@ -257,6 +391,15 @@ public:
     }
     [[nodiscard]] std::optional<ProviderTexture> texture(std::uint32_t id) const override
     {
+        if (document_ != nullptr)
+        {
+            const auto result = document_->effectiveTexture(id);
+            if (!result || !result->has_value())
+            {
+                return std::nullopt;
+            }
+            return makeProviderTexture(result->value());
+        }
         if (!reader_)
         {
             return std::nullopt;
@@ -266,17 +409,23 @@ public:
         {
             return std::nullopt;
         }
-        ProviderTexture texture{.width = result->dimension, .height = result->dimension, .pixels = {}};
-        texture.pixels.reserve(result->pixels.size());
-        for (const std::uint16_t pixel : result->pixels)
-        {
-            texture.pixels.push_back(texturePixelToMapColor(pixel));
-        }
-        return texture;
+        return makeProviderTexture(*result);
     }
-    [[nodiscard]] std::uint32_t textureCount() const override { return reader_ ? reader_->textureCount() : 0U; }
+    [[nodiscard]] std::uint32_t textureCount() const override
+    {
+        if (document_ != nullptr && document_->reader())
+        {
+            return document_->reader()->textureCount();
+        }
+        return reader_ ? reader_->textureCount() : 0U;
+    }
     [[nodiscard]] std::optional<bool> hasTexture(std::uint32_t id) const override
     {
+        if (document_ != nullptr)
+        {
+            const auto result = document_->hasTexture(id);
+            return result ? std::optional<bool>(*result) : std::nullopt;
+        }
         if (!reader_)
         {
             return std::nullopt;
@@ -289,6 +438,8 @@ private:
     std::filesystem::path indexPath_;
     std::filesystem::path dataPath_;
     std::optional<uomul::TexMapsReader> reader_;
+    const TexmapsDocument * document_ = nullptr;
+    std::uint64_t documentRevision_ = 0;
     ProviderStatus status_;
     std::uint64_t revision_ = 0;
     bool synchronized_ = false;
@@ -316,6 +467,7 @@ public:
         if (path_.empty())
         {
             status_ = unavailableStatus(revision_, "Tiledata is not configured");
+            profileStatus_ = status_;
             return;
         }
 
@@ -330,6 +482,7 @@ public:
                 .sourceIdentity = makeDocumentSourceIdentity({path_}),
                 .revision = revision_,
             };
+            profileStatus_ = status_;
             return;
         }
 
@@ -343,6 +496,7 @@ public:
                 .sourceIdentity = makeDocumentSourceIdentity({path_}),
                 .revision = revision_,
             };
+            profileStatus_ = status_;
             return;
         }
         layout_ = resolved;
@@ -354,6 +508,7 @@ public:
             .sourceIdentity = makeDocumentSourceIdentity({path_}),
             .revision = revision_,
         };
+        profileStatus_ = status_;
     }
 
     void invalidate() noexcept
@@ -364,6 +519,48 @@ public:
         revision_++;
         status_ = unavailableStatus(revision_, "Tile data is not loaded");
         status_.sourceIdentity = makeDocumentSourceIdentity({path_});
+        profileStatus_ = status_;
+    }
+
+    void syncDocument(const TiledataDocument * document)
+    {
+        if (document == document_)
+        {
+            return;
+        }
+
+        document_ = document;
+        revision_++;
+        if (document_ == nullptr)
+        {
+            status_ = profileStatus_;
+            status_.revision = revision_;
+            return;
+        }
+
+        layout_.reset();
+        reader_.reset();
+        const auto source = makeDocumentSourceIdentity({document_->sourcePath()});
+        if (!document_->reader())
+        {
+            status_ = {
+                .state = ProviderAssetState::invalid,
+                .source = ProviderSourceKind::externalConfigured,
+                .message = document_->error(),
+                .sourceIdentity = source,
+                .revision = revision_,
+            };
+            return;
+        }
+
+        layout_ = document_->layout();
+        status_ = {
+            .state = ProviderAssetState::available,
+            .source = ProviderSourceKind::externalConfigured,
+            .message = {},
+            .sourceIdentity = source,
+            .revision = revision_,
+        };
     }
 
     [[nodiscard]] ProviderStatus status() const override { return status_; }
@@ -405,9 +602,29 @@ public:
         }
         return status_;
     }
-    [[nodiscard]] std::optional<uomul::TiledataLayout> layout() const override { return layout_; }
+    [[nodiscard]] std::optional<uomul::TiledataLayout> layout() const override
+    {
+        if (document_ == nullptr)
+        {
+            return layout_;
+        }
+        if (!document_->reader())
+        {
+            return std::nullopt;
+        }
+        return document_->layout();
+    }
     [[nodiscard]] std::optional<ProviderMapTile> mapTile(std::uint16_t id) const override
     {
+        if (document_ != nullptr)
+        {
+            if (!document_->reader())
+            {
+                return std::nullopt;
+            }
+            const auto record = document_->reader()->readMapTile(id);
+            return record ? std::optional<ProviderMapTile>(ProviderMapTile{.id = id, .record = *record}) : std::nullopt;
+        }
         if (!reader_)
         {
             return std::nullopt;
@@ -417,6 +634,15 @@ public:
     }
     [[nodiscard]] std::optional<ProviderStaticTile> staticTile(std::uint32_t id) const override
     {
+        if (document_ != nullptr)
+        {
+            if (!document_->reader())
+            {
+                return std::nullopt;
+            }
+            const auto record = document_->reader()->readStaticTile(id);
+            return record ? std::optional<ProviderStaticTile>(ProviderStaticTile{.id = id, .record = *record}) : std::nullopt;
+        }
         if (!reader_)
         {
             return std::nullopt;
@@ -430,7 +656,9 @@ private:
     TiledataLayoutSelection layoutSelection_ = TiledataLayoutSelection::autoDetect;
     std::optional<uomul::TiledataLayout> layout_;
     std::optional<uomul::TiledataReader> reader_;
+    const TiledataDocument * document_ = nullptr;
     ProviderStatus status_;
+    ProviderStatus profileStatus_;
     std::uint64_t revision_ = 0;
     bool synchronized_ = false;
 };
@@ -443,6 +671,35 @@ public:
     ProfileRadarColorProvider radar;
     ProfileTextureProvider textures;
     ProfileTiledataProvider tiledata;
+
+    void syncDocuments(const std::vector<DocumentRecord> & documents)
+    {
+        const RadarcolDocument * radarDocument = nullptr;
+        const TexmapsDocument * texmapsDocument = nullptr;
+        const TiledataDocument * tiledataDocument = nullptr;
+        for (const auto & document : documents)
+        {
+            if (document.summary.sourceKind != DocumentSourceKind::configuredMetadata)
+            {
+                continue;
+            }
+            if (document.radarcol)
+            {
+                radarDocument = &*document.radarcol;
+            }
+            if (document.texmaps)
+            {
+                texmapsDocument = &*document.texmaps;
+            }
+            if (document.tiledata)
+            {
+                tiledataDocument = &*document.tiledata;
+            }
+        }
+        radar.syncDocument(radarDocument);
+        textures.syncDocument(texmapsDocument);
+        tiledata.syncDocument(tiledataDocument);
+    }
 };
 
 DataProviders::DataProviders() : impl_(std::make_unique<Impl>())
@@ -457,6 +714,11 @@ void DataProviders::sync(const DataProfile & profile)
     impl_->radar.sync(profile);
     impl_->textures.sync(profile);
     impl_->tiledata.sync(profile);
+}
+
+void DataProviders::syncDocuments(const std::vector<DocumentRecord> & documents)
+{
+    impl_->syncDocuments(documents);
 }
 
 bool DataProviders::refresh(const DataProfile & profile)

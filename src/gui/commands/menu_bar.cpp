@@ -1,14 +1,17 @@
 #include "gui/commands/menu_bar.h"
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/map_workflow_dialog.h"
-#include "gui/panels/radarcol_panel.h"
-#include "gui/presentation/icons/iconography.h"
-#include "gui/state/workbench_state.h"
-#include "gui/workflows/file_operations.h"
+#include "gui/documents/radarcol_document_window.h"
+#include "gui/presentation/iconography.h"
+#include "gui/presentation/strings.h"
+#include "gui/workbench/workbench_state.h"
+#include "gui/workflows/file_workflow.h"
+#include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/tools/tool_contracts.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include <imgui.h>
 #include <optional>
 #include <string>
@@ -90,13 +93,13 @@ void drawCommandItem(WorkbenchState & state, CommandId id, bool selected = false
         ImGui::MenuItem(label.c_str(), shortcut.empty() ? nullptr : shortcut.c_str(), selected, commandState.enabled);
     if (activated)
     {
-        static_cast<void>(state.commands.execute(id, state));
+        state.deferWorkflowAction([&state, id] { static_cast<void>(state.commands.execute(id, state)); });
     }
 }
 
 void drawFileMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("File"))
+    if (!ImGui::BeginMenu(strings::fileMenu()))
     {
         return;
     }
@@ -117,23 +120,23 @@ void drawFileMenu(WorkbenchState & state)
 
 void drawViewMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("View"))
+    if (!ImGui::BeginMenu(strings::viewMenu()))
     {
         return;
     }
 
-    const MapDisplayMode displayMode = state.workspace.displayMode();
+    const MapDisplayMode displayMode = state.mapDocuments.active().viewState().displayMode;
     drawCommandItem(state, CommandId::viewTileIds, displayMode == MapDisplayMode::tileIds);
     drawCommandItem(state, CommandId::viewZ, displayMode == MapDisplayMode::z);
     drawCommandItem(state, CommandId::viewCombined, displayMode == MapDisplayMode::combined);
-    drawCommandItem(state, CommandId::viewToggleFullscreen, state.preferences.workspaceFullscreen);
+    drawCommandItem(state, CommandId::viewToggleFullscreen, state.preferences.fullscreen);
 
     ImGui::EndMenu();
 }
 
 void drawWindowsMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Windows"))
+    if (!ImGui::BeginMenu(strings::windowsMenu()))
     {
         return;
     }
@@ -141,9 +144,9 @@ void drawWindowsMenu(WorkbenchState & state)
     drawCommandItem(state, CommandId::panelToolPalette, state.panelRegistry.find(PanelId::toolPalette)->visible);
     drawCommandItem(state, CommandId::panelTileInspector, state.panelRegistry.find(PanelId::tileInspector)->visible);
     drawCommandItem(state, CommandId::panelBlockInspector, state.panelRegistry.find(PanelId::blockInspector)->visible);
-    drawCommandItem(state, CommandId::panelRadarcol, state.panelRegistry.find(PanelId::radarcol)->visible);
-    drawCommandItem(state, CommandId::panelTexmaps, state.panelRegistry.find(PanelId::texmaps)->visible);
-    drawCommandItem(state, CommandId::panelTiledata, state.panelRegistry.find(PanelId::tiledata)->visible);
+    drawCommandItem(state, CommandId::windowRadarcol, state.windowRegistry.find(WindowId::radarcol)->visible);
+    drawCommandItem(state, CommandId::windowTexmaps, state.windowRegistry.find(WindowId::texmaps)->visible);
+    drawCommandItem(state, CommandId::windowTiledata, state.windowRegistry.find(WindowId::tiledata)->visible);
     drawCommandItem(state, CommandId::panelIconGallery, state.panelRegistry.find(PanelId::iconGallery)->visible);
     drawCommandItem(state, CommandId::viewToggleLogPanel, state.preferences.showLogPanel);
     drawCommandItem(state, CommandId::resetLayout);
@@ -153,16 +156,16 @@ void drawWindowsMenu(WorkbenchState & state)
 
 void drawEditMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Edit"))
+    if (!ImGui::BeginMenu(strings::editMenu()))
     {
         return;
     }
     ImGui::BeginDisabled();
-    ImGui::MenuItem("Undo");
-    ImGui::MenuItem("Redo");
+    ImGui::MenuItem(strings::undo());
+    ImGui::MenuItem(strings::redo());
     ImGui::Separator();
-    ImGui::MenuItem("Cut");
-    ImGui::MenuItem("Paste");
+    ImGui::MenuItem(strings::cut());
+    ImGui::MenuItem(strings::paste());
     ImGui::EndDisabled();
     drawCommandItem(state, CommandId::assetCopy);
     ImGui::Separator();
@@ -174,12 +177,12 @@ void drawEditMenu(WorkbenchState & state)
 
 void drawSelectMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Select"))
+    if (!ImGui::BeginMenu(strings::selectMenu()))
     {
         return;
     }
 
-    const MapSelectionMode selectionMode = state.workspace.selectionMode();
+    const MapSelectionMode selectionMode = state.mapDocuments.active().viewState().selectionMode;
     drawCommandItem(state, CommandId::toolRectangleSelect, state.toolState.activeTool() == ToolId::rectangleSelect);
     drawCommandItem(state, CommandId::toolLassoSelect, state.toolState.activeTool() == ToolId::lassoSelect);
     drawCommandItem(state, CommandId::toolFuzzySelect, state.toolState.activeTool() == ToolId::fuzzySelect);
@@ -196,7 +199,7 @@ void drawSelectMenu(WorkbenchState & state)
 
 void drawToolsMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("Tools"))
+    if (!ImGui::BeginMenu(strings::toolsMenu()))
     {
         return;
     }
@@ -215,7 +218,7 @@ void drawToolsMenu(WorkbenchState & state)
 
 void drawWorldMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu("World"))
+    if (!ImGui::BeginMenu(strings::worldMenu()))
     {
         return;
     }
@@ -245,7 +248,7 @@ void handleEscape(WorkbenchState & state, bool showMainMenu)
         state.radarcolState.colorPicker.open = false;
         return;
     }
-    const bool fileOperationHandled = handleFileOperationsEscape(state);
+    const bool fileOperationHandled = handleFileWorkflowEscape(state);
     if (!fileOperationHandled && !showMainMenu && state.session.startupState() == StartupState::mapWelcome)
     {
         state.session.setStartupState(StartupState::workbench);
@@ -259,7 +262,7 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
     if (state.menuBarState.windowCloseRequested && state.menuBarState.fileDialog.mode == MapFileDialogMode::none)
     {
         state.menuBarState.windowCloseRequested = false;
-        static_cast<void>(state.commands.execute(CommandId::fileQuit, state));
+        state.deferWorkflowAction([&state] { static_cast<void>(state.commands.execute(CommandId::fileQuit, state)); });
     }
 
     if (showMainMenu && ImGui::BeginMainMenuBar())
@@ -271,7 +274,7 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
         drawToolsMenu(state);
         drawViewMenu(state);
         drawWindowsMenu(state);
-        if (ImGui::BeginMenu("Help"))
+        if (ImGui::BeginMenu(strings::helpMenu()))
         {
             ImGui::EndMenu();
         }
@@ -286,7 +289,7 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
         return false;
     }
 
-    return drawFileOperations(state);
+    return drawFileWorkflow(state);
 }
 
 void requestWindowClose(WorkbenchState & state)

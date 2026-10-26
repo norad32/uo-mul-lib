@@ -1,8 +1,8 @@
 #pragma once
 
 #include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/profile/data_profile.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_color.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/tiledata/tiledata.h"
@@ -16,6 +16,8 @@
 
 namespace uo_mule::gui
 {
+
+struct DocumentRecord;
 
 enum class ProviderAssetState : std::uint8_t
 {
@@ -79,12 +81,6 @@ struct ProviderStaticTile
     uomul::StaticTileRecord record;
 };
 
-struct ProviderTileData
-{
-    std::uint16_t id = 0;
-    std::string description;
-};
-
 class RadarColorProvider
 {
 public:
@@ -130,6 +126,7 @@ public:
     DataProviders & operator=(const DataProviders &) = delete;
 
     void sync(const DataProfile & profile);
+    void syncDocuments(const std::vector<DocumentRecord> & documents);
     // Same-path external replacements require an explicit refresh until file watching exists.
     [[nodiscard]] bool refresh(const DataProfile & profile);
     void invalidate() noexcept;

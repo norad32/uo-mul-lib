@@ -2,25 +2,28 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
-#include "gui/panels/radarcol_panel.h"
-#include "gui/presentation/strings/ui_strings.h"
-#include "gui/state/workbench_state.h"
-#include "gui/views/world/map_canvas_view.h"
+#include "gui/documents/map_document_window.h"
+#include "gui/documents/radarcol_document_window.h"
+#include "gui/presentation/strings.h"
+#include "gui/workbench/tool_context.h"
+#include "gui/workbench/workbench_state.h"
 #include "gui_model/dialogs/dialog_contracts.h"
-#include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/map_document.h"
+#include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/input/coordinate_parser.h"
 #include "gui_model/input/radarcol_color_input.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
+#include "gui_model/lifecycle/document_lifecycle.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/tools/tool_contracts.h"
 #include "gui_model/tools/tool_state.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_canvas_state.h"
 #include "gui_model/world/map_context.h"
 #include <algorithm>
@@ -30,6 +33,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <uomul/radarcol/radarcol.h>
 #include <utility>
 #include <vector>
@@ -60,23 +64,11 @@ CommandAvailability requiresMapReadyProfile(const WorkbenchState & state)
 
 CommandAvailability requiresMapDocument(const WorkbenchState & state)
 {
-    if (state.workspace.reader() == nullptr)
+    if (!state.mapDocuments.active().changes().reader.has_value())
     {
         return {.enabled = false, .disabledReason = "No map is open"};
     }
     return enabled(state);
-}
-
-ToolContext toolContext(const WorkbenchState & state)
-{
-    const DocumentRecord * active = state.session.activeDocumentRecord();
-    const bool mapOpen =
-        active != nullptr && active->summary.identity.kind == DocumentKind::map && state.workspace.reader() != nullptr;
-    return {
-        .mapDocumentOpen = mapOpen,
-        .mapEditable = mapOpen && active->summary.access == DocumentAccess::editable,
-        .selectionGranularity = state.toolState.selectionGranularity(),
-    };
 }
 
 CommandAvailability requiresTool(ToolId tool, const WorkbenchState & state)
@@ -92,7 +84,7 @@ void activateTool(WorkbenchState & state, ToolId tool)
 
 CommandAvailability requiresActiveLocation(const WorkbenchState & state)
 {
-    const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
+    const MapContextSnapshot context = state.session.contextSnapshot(state.mapDocuments);
     if (!context.activeTile || !context.activeValue)
     {
         return {.enabled = false, .disabledReason = "No map location is active"};
@@ -102,11 +94,12 @@ CommandAvailability requiresActiveLocation(const WorkbenchState & state)
 
 CommandAvailability requiresMapForSave(const WorkbenchState & state)
 {
-    if (state.workspace.reader() == nullptr || !state.workspace.dirty())
+    if (!state.mapDocuments.active().changes().reader.has_value() || !state.mapDocuments.active().changes().dirty())
     {
         return {
             .enabled = false,
-            .disabledReason = state.workspace.reader() == nullptr ? "No map is open" : "There are no staged changes",
+            .disabledReason =
+                !state.mapDocuments.active().changes().reader.has_value() ? "No map is open" : "There are no staged changes",
         };
     }
     return enabled(state);
@@ -125,10 +118,6 @@ CommandAvailability requiresSaveableDocument(const WorkbenchState & state)
     }
     if (active->radarcol)
     {
-        if (active->radarcol->readOnly())
-        {
-            return {.enabled = false, .disabledReason = "Configured Radarcol sources are read-only"};
-        }
         if (!active->radarcol->editing() || !active->radarcol->dirty())
         {
             return {.enabled = false, .disabledReason = "There are no staged changes"};
@@ -137,10 +126,6 @@ CommandAvailability requiresSaveableDocument(const WorkbenchState & state)
     }
     if (active->texmaps)
     {
-        if (active->texmaps->readOnly())
-        {
-            return {.enabled = false, .disabledReason = "Configured Texmap sources are read-only"};
-        }
         if (!active->texmaps->editing() || !active->texmaps->dirty())
         {
             return {.enabled = false, .disabledReason = "There are no staged changes"};
@@ -156,10 +141,6 @@ CommandAvailability requiresRadarcolColorEditor(const WorkbenchState & state)
     if (active == nullptr || !active->radarcol)
     {
         return {.enabled = false, .disabledReason = "No standalone Radarcol document is active"};
-    }
-    if (active->radarcol->readOnly())
-    {
-        return {.enabled = false, .disabledReason = "Configured Radarcol sources are read-only"};
     }
     const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
     if (view == state.radarcolState.documentAssetViews.end() || view->second.selection.selected.empty())
@@ -238,11 +219,13 @@ void requestTexmapFormatExport(const WorkbenchState & state)
     state.texmapsState.exportFormatRequested(selection->first, std::move(textureIds));
 }
 
-[[nodiscard]] assets::AssetWindowState * hoveredAssetWindow(WorkbenchState & state)
+template <typename State>
+[[nodiscard]] auto hoveredAssetWindow(State & state)
+    -> std::conditional_t<std::is_const_v<State>, const assets::AssetWindowState *, assets::AssetWindowState *>
 {
     const std::string_view context =
         !state.activeAssetPanelContext.empty() ? state.activeAssetPanelContext : state.hoveredPanelContext;
-    if (context == "Radarcol" && state.panelRegistry.find(PanelId::radarcol)->visible)
+    if (context == "Radarcol" && state.windowRegistry.find(WindowId::radarcol)->visible)
     {
         if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
         {
@@ -251,7 +234,7 @@ void requestTexmapFormatExport(const WorkbenchState & state)
         }
         return &state.radarcolState.assetView;
     }
-    if (context == "Texmaps" && state.panelRegistry.find(PanelId::texmaps)->visible)
+    if (context == "Texmaps" && state.windowRegistry.find(WindowId::texmaps)->visible)
     {
         if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->texmaps)
         {
@@ -260,37 +243,13 @@ void requestTexmapFormatExport(const WorkbenchState & state)
         }
         return &state.texmapsState.assetView;
     }
-    if (context == "Tiledata" && state.panelRegistry.find(PanelId::tiledata)->visible)
+    if (context == "Tiledata" && state.windowRegistry.find(WindowId::tiledata)->visible)
     {
-        return &state.tiledataState.assetView;
-    }
-    return nullptr;
-}
-
-[[nodiscard]] const assets::AssetWindowState * hoveredAssetWindow(const WorkbenchState & state)
-{
-    const std::string_view context =
-        !state.activeAssetPanelContext.empty() ? state.activeAssetPanelContext : state.hoveredPanelContext;
-    if (context == "Radarcol" && state.panelRegistry.find(PanelId::radarcol)->visible)
-    {
-        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
+        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->tiledata)
         {
-            const auto view = state.radarcolState.documentAssetViews.find(active->radarcol->id());
-            return view == state.radarcolState.documentAssetViews.end() ? nullptr : &view->second;
+            const auto view = state.tiledataState.documentAssetViews.find(active->tiledata->id());
+            return view == state.tiledataState.documentAssetViews.end() ? nullptr : &view->second;
         }
-        return &state.radarcolState.assetView;
-    }
-    if (context == "Texmaps" && state.panelRegistry.find(PanelId::texmaps)->visible)
-    {
-        if (const auto * active = state.session.activeDocumentRecord(); active != nullptr && active->texmaps)
-        {
-            const auto view = state.texmapsState.documentAssetViews.find(active->texmaps->id());
-            return view == state.texmapsState.documentAssetViews.end() ? nullptr : &view->second;
-        }
-        return &state.texmapsState.assetView;
-    }
-    if (context == "Tiledata" && state.panelRegistry.find(PanelId::tiledata)->visible)
-    {
         return &state.tiledataState.assetView;
     }
     return nullptr;
@@ -309,7 +268,7 @@ void executeSelectionAll(WorkbenchState & state)
         asset->selectAll();
         return;
     }
-    state.workspace.selectAll();
+    state.mapDocuments.active().viewState().selectAll(state.mapDocuments.active().changes().dimensions);
 }
 
 void executeSelectionNone(WorkbenchState & state)
@@ -319,7 +278,7 @@ void executeSelectionNone(WorkbenchState & state)
         asset->selectNone();
         return;
     }
-    state.workspace.clearSelection();
+    state.mapDocuments.active().viewState().clearSelection();
 }
 
 void executeSelectionInvert(WorkbenchState & state)
@@ -329,7 +288,7 @@ void executeSelectionInvert(WorkbenchState & state)
         asset->invertSelection();
         return;
     }
-    state.workspace.invertSelection();
+    state.mapDocuments.active().viewState().invertSelection(state.mapDocuments.active().changes().dimensions);
 }
 
 void copyActiveRadarcolSelection(WorkbenchState & state)
@@ -399,9 +358,20 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
     }
 }
 
-void requestClose(WorkbenchState & state, PendingMapOperationKind kind)
+void requestClose(WorkbenchState & state, bool quit)
 {
-    requestCloseOperation(state.workspace, state.menuBarState.fileDialog, state.operationController, kind, state.notifications);
+    state.quitRequested = quit;
+    const auto activeId = state.session.activeDocumentId();
+    if (!activeId)
+    {
+        if (quit)
+        {
+            state.quitRequested = false;
+            state.shouldClose = true;
+        }
+        return;
+    }
+    state.documentLifecycle.requestClose({.id = *activeId, .dirtyPolicy = DocumentCloseDirtyPolicy::prompt});
 }
 
 void togglePanel(bool & visibility)
@@ -411,15 +381,20 @@ void togglePanel(bool & visibility)
 
 void requestCoordinateDialog(WorkbenchState & state, CoordinateKind kind)
 {
-    state.workspace.canvasState().coordinateInputKind = kind;
-    state.workspace.canvasState().coordinateInputFocusRequested = true;
-    state.workspace.canvasState().coordinateInput.fill('\0');
-    state.workspace.canvasState().coordinatePopupRequested = true;
+    state.mapDocuments.canvasState().coordinateInputKind = kind;
+    state.mapDocuments.canvasState().coordinateInputFocusRequested = true;
+    state.mapDocuments.canvasState().coordinateInput.fill('\0');
+    state.mapDocuments.canvasState().coordinatePopupRequested = true;
 }
 
 bool & panelVisibility(WorkbenchState & state, PanelId id)
 {
     return state.panelRegistry.find(id)->visible;
+}
+
+bool & windowVisibility(WorkbenchState & state, WindowId id)
+{
+    return state.windowRegistry.find(id)->visible;
 }
 
 void add(CommandRegistry & registry,
@@ -636,7 +611,7 @@ void registerFileOpenCommands(CommandRegistry & registry)
             }
             if (active->map)
             {
-                const auto saved = state.workspace.save(state.workspace.originalPath(), false);
+                const auto saved = state.mapDocuments.save(state.mapDocuments.active().changes().originalPath, false);
                 if (!saved)
                 {
                     state.menuBarState.fileDialog.error = strings::formatError(saved.error());
@@ -719,10 +694,10 @@ void registerFileSaveCommands(CommandRegistry & registry)
                                    });
                 return;
             }
-            if (state.workspace.dirty())
+            if (state.mapDocuments.active().changes().dirty())
             {
                 state.menuBarState.fileDialog.savePath.fill('\0');
-                if (const auto path = state.workspace.originalPath(); !path.empty())
+                if (const auto path = state.mapDocuments.active().changes().originalPath; !path.empty())
                 {
                     const std::string value = path.string();
                     const std::size_t length = std::min(value.size(), state.menuBarState.fileDialog.savePath.size() - 1U);
@@ -733,7 +708,7 @@ void registerFileSaveCommands(CommandRegistry & registry)
                                    {
                                        .mode = FileBrowserMode::saveFile,
                                        .target = FileBrowserTarget::mapSaveAs,
-                                       .initialPath = state.workspace.originalPath(),
+                                       .initialPath = state.mapDocuments.active().changes().originalPath,
                                        .extension = ".mul",
                                        .title = "Save Map As",
                                    });
@@ -779,7 +754,7 @@ void registerFileSaveCommands(CommandRegistry & registry)
                 active->texmaps->requestIntent(texmapsLifecycleIntent(TexmapsDocumentIntentKind::discard));
                 return;
             }
-            const auto discarded = state.workspace.discard();
+            const auto discarded = state.mapDocuments.discard();
             if (!discarded)
             {
                 openDialog(state, MapFileDialogMode::error);
@@ -795,10 +770,10 @@ void registerFileSaveCommands(CommandRegistry & registry)
         "file.close",
         "Close",
         "File",
-        "Close the current map",
+        "Close the current document",
         "",
         enabled,
-        [](WorkbenchState & state) { requestClose(state, PendingMapOperationKind::close); });
+        [](WorkbenchState & state) { requestClose(state, false); });
 }
 
 void registerFileCloseCommands(CommandRegistry & registry)
@@ -808,10 +783,10 @@ void registerFileCloseCommands(CommandRegistry & registry)
         "file.quit",
         "Quit",
         "File",
-        "Close the map and quit",
+        "Close documents and quit",
         "Ctrl+Q",
         enabled,
-        [](WorkbenchState & state) { requestClose(state, PendingMapOperationKind::quit); });
+        [](WorkbenchState & state) { requestClose(state, true); });
 }
 
 void registerFileCommands(CommandRegistry & registry)
@@ -832,7 +807,7 @@ void registerViewCommands(CommandRegistry & registry)
         "Display tile IDs",
         "",
         enabled,
-        [](WorkbenchState & state) { state.workspace.setDisplayMode(MapDisplayMode::tileIds); });
+        [](WorkbenchState & state) { state.mapDocuments.active().viewState().displayMode = MapDisplayMode::tileIds; });
     add(registry,
         CommandId::viewZ,
         "view.display.z",
@@ -841,7 +816,7 @@ void registerViewCommands(CommandRegistry & registry)
         "Display elevation",
         "",
         enabled,
-        [](WorkbenchState & state) { state.workspace.setDisplayMode(MapDisplayMode::z); });
+        [](WorkbenchState & state) { state.mapDocuments.active().viewState().displayMode = MapDisplayMode::z; });
     add(registry,
         CommandId::viewCombined,
         "view.display.combined",
@@ -850,7 +825,7 @@ void registerViewCommands(CommandRegistry & registry)
         "Display tile IDs and elevation",
         "",
         enabled,
-        [](WorkbenchState & state) { state.workspace.setDisplayMode(MapDisplayMode::combined); });
+        [](WorkbenchState & state) { state.mapDocuments.active().viewState().displayMode = MapDisplayMode::combined; });
     add(registry,
         CommandId::viewToggleLogPanel,
         "view.logs.toggle",
@@ -901,32 +876,32 @@ void registerPanelCommands(CommandRegistry & registry)
         enabled,
         [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::blockInspector)); });
     add(registry,
-        CommandId::panelRadarcol,
-        "view.panel.radarcol",
+        CommandId::windowRadarcol,
+        "view.window.radarcol",
         "Radarcol",
         "Windows",
-        "Show or hide radar colors",
+        "Show or hide the configured Radarcol document",
         "",
         enabled,
-        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::radarcol)); });
+        [](WorkbenchState & state) { togglePanel(windowVisibility(state, WindowId::radarcol)); });
     add(registry,
-        CommandId::panelTexmaps,
-        "view.panel.texmaps",
+        CommandId::windowTexmaps,
+        "view.window.texmaps",
         "Texmaps",
         "Windows",
-        "Show or hide textures",
+        "Show or hide the configured Texmaps document",
         "",
         enabled,
-        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::texmaps)); });
+        [](WorkbenchState & state) { togglePanel(windowVisibility(state, WindowId::texmaps)); });
     add(registry,
-        CommandId::panelTiledata,
-        "view.panel.tiledata",
+        CommandId::windowTiledata,
+        "view.window.tiledata",
         "Tiledata",
         "Windows",
-        "Show or hide Tiledata records",
+        "Show or hide the configured Tiledata document",
         "",
         enabled,
-        [](WorkbenchState & state) { togglePanel(panelVisibility(state, PanelId::tiledata)); });
+        [](WorkbenchState & state) { togglePanel(windowVisibility(state, WindowId::tiledata)); });
     add(registry,
         CommandId::panelIconGallery,
         "view.panel.icon-gallery",
@@ -954,7 +929,8 @@ void registerSelectionCommands(CommandRegistry & registry)
                 ToolSelectionGranularity::tiles, toolContext(state), state.toolRegistry);
             if (result.accepted)
             {
-                state.workspace.setSelectionMode(MapSelectionMode::tiles);
+                state.mapDocuments.active().viewState().setSelectionMode(MapSelectionMode::tiles,
+                                                                         state.mapDocuments.active().changes().dimensions);
             }
         });
     add(registry,
@@ -971,7 +947,8 @@ void registerSelectionCommands(CommandRegistry & registry)
                 ToolSelectionGranularity::blocks, toolContext(state), state.toolRegistry);
             if (result.accepted)
             {
-                state.workspace.setSelectionMode(MapSelectionMode::blocks);
+                state.mapDocuments.active().viewState().setSelectionMode(MapSelectionMode::blocks,
+                                                                         state.mapDocuments.active().changes().dimensions);
             }
         });
     add(registry,
@@ -1022,9 +999,10 @@ void registerSelectionCommands(CommandRegistry & registry)
         [](WorkbenchState & state)
         {
             state.panelRegistry.resetToDefaults();
+            state.windowRegistry.resetToDefaults();
             state.layout.dockingIni.clear();
             state.layout.window.geometryValid = false;
-            state.preferences.workspaceFullscreen = false;
+            state.preferences.fullscreen = false;
             state.layoutResetRequested = true;
         });
 }
@@ -1048,7 +1026,8 @@ void registerWorldCommands(CommandRegistry & registry)
         "Fit the complete map in the canvas",
         "",
         requiresMapDocument,
-        [](WorkbenchState & state) { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::fitMap; });
+        [](WorkbenchState & state)
+        { state.mapDocuments.canvasState().navigationRequest.request = MapCanvasViewRequest::fitMap; });
     add(registry,
         CommandId::mapFitSelection,
         "map.fit-selection",
@@ -1058,7 +1037,7 @@ void registerWorldCommands(CommandRegistry & registry)
         "",
         requiresMapDocument,
         [](WorkbenchState & state)
-        { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::fitSelection; });
+        { state.mapDocuments.canvasState().navigationRequest.request = MapCanvasViewRequest::fitSelection; });
     add(registry,
         CommandId::mapCenterSelection,
         "map.center-selection",
@@ -1068,7 +1047,7 @@ void registerWorldCommands(CommandRegistry & registry)
         "",
         requiresMapDocument,
         [](WorkbenchState & state)
-        { state.workspace.canvasState().navigationRequest.request = MapCanvasViewRequest::centerSelection; });
+        { state.mapDocuments.canvasState().navigationRequest.request = MapCanvasViewRequest::centerSelection; });
     add(registry,
         CommandId::mapGoToCoordinate,
         "map.go-to-coordinate",
@@ -1097,7 +1076,7 @@ void registerWorldCommands(CommandRegistry & registry)
         requiresActiveLocation,
         [](WorkbenchState & state)
         {
-            const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
+            const MapContextSnapshot context = state.session.contextSnapshot(state.mapDocuments);
             state.pendingClipboardText = std::to_string(context.activeTile->x) + " " + std::to_string(context.activeTile->y);
         });
     add(registry,
@@ -1110,7 +1089,7 @@ void registerWorldCommands(CommandRegistry & registry)
         requiresActiveLocation,
         [](WorkbenchState & state)
         {
-            const MapContextSnapshot context = state.session.contextSnapshot(state.workspace);
+            const MapContextSnapshot context = state.session.contextSnapshot(state.mapDocuments);
             state.pendingClipboardText = "Tile ID: " + strings::formatId(context.activeValue->id, state.preferences.idFormat) +
                                          "\nElevation: " + std::to_string(static_cast<int>(context.activeValue->z));
         });

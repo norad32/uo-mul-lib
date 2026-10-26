@@ -1,8 +1,9 @@
-#include "gui/state/workbench_state.h"
-#include "gui/views/world/map_canvas_view.h"
+#include "gui/documents/map_document_window.h"
+#include "gui/workbench/workbench_state.h"
+#include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/data_providers.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "gui_model/world/map_context.h"
 #include "uomul/map/map.h"
 #include <catch2/catch_test_macros.hpp>
@@ -10,7 +11,7 @@
 TEST_CASE("mapContextSnapshot_Should_ExposeNoActiveLocationWithoutMap")
 {
     const uo_mule::gui::WorkbenchState state;
-    const auto context = state.session.contextSnapshot(state.workspace);
+    const auto context = state.session.contextSnapshot(state.mapDocuments);
 
     REQUIRE_FALSE(context.hasDocument);
     REQUIRE_FALSE(context.activeTile.has_value());

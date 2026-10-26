@@ -8,13 +8,9 @@ TEST_CASE("DocumentContracts_Should_ExposeInitialDocumentKinds")
     REQUIRE(uo_mule::gui::documentKindName(uo_mule::gui::DocumentKind::texmapPair) == "Texmap Pair");
 }
 
-TEST_CASE("DocumentContracts_Should_DistinguishMetadataOwnershipAndAccess")
+TEST_CASE("DocumentContracts_Should_DistinguishMetadataOwnership")
 {
     REQUIRE(uo_mule::gui::DocumentSourceKind::standalone != uo_mule::gui::DocumentSourceKind::configuredMetadata);
-    REQUIRE(uo_mule::gui::DocumentAccess::editable != uo_mule::gui::DocumentAccess::readOnly);
-    REQUIRE(uo_mule::gui::document_contract::configuredMetadataIsReadOnly);
-    REQUIRE(uo_mule::gui::document_contract::standaloneRadarcolIsEditable);
-    REQUIRE(uo_mule::gui::document_contract::standaloneTexmapPairIsEditable);
 }
 
 TEST_CASE("DocumentContracts_Should_RecordProfileFallbackAndOpenPolicies")

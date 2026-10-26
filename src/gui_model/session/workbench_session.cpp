@@ -2,11 +2,11 @@
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/map_document.h"
+#include "gui_model/documents/map_document_manager.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/persistence/recent_files.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/profile/data_validation.h"
-#include "gui_model/workspaces/map_workspace.h"
-#include "gui_model/workspaces/map_workspace_manager.h"
 #include "gui_model/world/map_context.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -169,26 +169,35 @@ void WorkbenchSession::refreshRecentFiles()
     recentFiles_.refreshValidity();
 }
 
-void WorkbenchSession::syncDocument(MapWorkspaceManager & workspace)
+void WorkbenchSession::syncDocument(MapDocumentManager & mapDocument)
 {
-    documents_.sync(workspace.active());
+    const auto previousActiveId = documents_.activeId();
+    documents_.sync(mapDocument.active());
+    const auto mapDocumentId = documents_.activeId();
     sourceLocks_.clear();
     for (const auto & document : documents_.documents())
     {
         static_cast<void>(sourceLocks_.acquire(document.summary.identity.id, document.summary.identity.source));
     }
-    if (workspace.reader() != nullptr)
+    if (mapDocument.active().changes().reader)
     {
-        if (const auto id = documents_.activeId())
+        if (mapDocumentId)
         {
-            workspace.bindActiveDocument(*id);
+            mapDocument.bindActiveDocument(*mapDocumentId);
+        }
+    }
+    if (previousActiveId && previousActiveId != mapDocumentId)
+    {
+        if (const auto * previous = documents_.find(*previousActiveId); previous != nullptr && !previous->map)
+        {
+            static_cast<void>(documents_.activate(*previousActiveId));
         }
     }
 }
 
-void WorkbenchSession::syncDocument(const MapWorkspace & workspace)
+void WorkbenchSession::syncDocument(const MapDocumentState & mapDocument)
 {
-    documents_.sync(workspace);
+    documents_.sync(mapDocument);
     sourceLocks_.clear();
     for (const auto & document : documents_.documents())
     {
@@ -196,7 +205,7 @@ void WorkbenchSession::syncDocument(const MapWorkspace & workspace)
     }
 }
 
-std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId id, MapWorkspaceManager & workspace)
+std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId id, MapDocumentManager & mapDocument)
 {
     const DocumentRecord * record = documents_.find(id);
     if (record == nullptr)
@@ -206,24 +215,20 @@ std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId 
 
     if (record->map)
     {
-        if (auto activated = workspace.activateMap(id, record->map->sourcePath, record->map->dimensions); !activated)
+        if (auto activated = mapDocument.activateMap(id, record->map->sourcePath, record->map->dimensions); !activated)
         {
             return std::unexpected(activated.error());
         }
         static_cast<void>(documents_.activate(id));
-        documents_.sync(workspace.active());
+        documents_.sync(mapDocument.active());
         return {};
     }
 
-    if (workspace.reader() != nullptr)
-    {
-        workspace.deactivateMap();
-    }
     static_cast<void>(documents_.activate(id));
     return {};
 }
 
-std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId id, MapWorkspace & workspace)
+std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId id, MapDocumentState & mapDocument)
 {
     const DocumentRecord * record = documents_.find(id);
     if (record == nullptr)
@@ -232,16 +237,16 @@ std::expected<void, uomul::Error> WorkbenchSession::activateDocument(DocumentId 
     }
     if (record->map && documents_.activeId() != id)
     {
-        if (auto opened = workspace.openMap(record->map->sourcePath, record->map->dimensions); !opened)
+        if (auto opened = mapDocument.openMap(record->map->sourcePath, record->map->dimensions); !opened)
         {
             return std::unexpected(opened.error());
         }
     }
-    documents_.sync(workspace);
+    documents_.sync(mapDocument);
     return {};
 }
 
-std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id, MapWorkspaceManager & workspace)
+std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id, MapDocumentManager & mapDocument)
 {
     const DocumentRecord * record = documents_.find(id);
     if (record == nullptr)
@@ -249,9 +254,9 @@ std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id,
         return std::unexpected(makeDocumentSessionError({}, "document is not open"));
     }
 
-    if (record->map && workspace.activeDocumentId() == id && workspace.reader() != nullptr)
+    if (record->map && mapDocument.activeDocumentId() == id && mapDocument.active().changes().reader)
     {
-        if (auto closed = workspace.closeMap(); !closed)
+        if (auto closed = mapDocument.closeMap(); !closed)
         {
             return std::unexpected(closed.error());
         }
@@ -264,16 +269,16 @@ std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id,
     return {};
 }
 
-std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id, MapWorkspace & workspace)
+std::expected<void, uomul::Error> WorkbenchSession::closeDocument(DocumentId id, MapDocumentState & mapDocument)
 {
     const DocumentRecord * record = documents_.find(id);
     if (record == nullptr)
     {
         return std::unexpected(makeDocumentSessionError({}, "document is not open"));
     }
-    if (record->map && documents_.activeId() == id && workspace.reader() != nullptr)
+    if (record->map && documents_.activeId() == id && mapDocument.changes().reader)
     {
-        if (auto closed = workspace.closeMap(); !closed)
+        if (auto closed = mapDocument.closeMap(); !closed)
         {
             return std::unexpected(closed.error());
         }
@@ -333,14 +338,14 @@ const std::optional<MapDocument> & WorkbenchSession::activeDocument() const noex
     return documents_.active();
 }
 
-MapContextSnapshot WorkbenchSession::contextSnapshot(const MapWorkspaceManager & workspace) const
+MapContextSnapshot WorkbenchSession::contextSnapshot(const MapDocumentManager & mapDocument) const
 {
-    return makeMapContextSnapshot(workspace.active(), documents_.active());
+    return makeMapContextSnapshot(mapDocument.active(), documents_.active());
 }
 
-MapContextSnapshot WorkbenchSession::contextSnapshot(const MapWorkspace & workspace) const
+MapContextSnapshot WorkbenchSession::contextSnapshot(const MapDocumentState & mapDocument) const
 {
-    return makeMapContextSnapshot(workspace, documents_.active());
+    return makeMapContextSnapshot(mapDocument, documents_.active());
 }
 
 } // namespace uo_mule::gui

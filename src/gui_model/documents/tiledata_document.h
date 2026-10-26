@@ -23,7 +23,6 @@ struct TiledataDocument
     [[nodiscard]] uomul::TiledataLayout layout() const noexcept { return layout_; }
     [[nodiscard]] const std::optional<uomul::TiledataReader> & reader() const noexcept { return reader_; }
     [[nodiscard]] const std::string & error() const noexcept { return error_; }
-    [[nodiscard]] static constexpr bool readOnly() noexcept { return true; }
     [[nodiscard]] static constexpr bool dirty() noexcept { return false; }
 
 private:

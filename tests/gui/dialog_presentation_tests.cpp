@@ -1,4 +1,4 @@
-#include "gui/presentation/dialog/dialog_presentation.h"
+#include "gui/presentation/dialog_presentation.h"
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("dialogPresentation_Should_ProvideBoundedStandardDialogSize")

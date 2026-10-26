@@ -18,7 +18,9 @@ set(GUI_MODEL_SOURCES
     providers/color_conversion.cpp
     providers/data_providers.cpp
     providers/embedded_radarcol.cpp
+    providers/texture_conversion.cpp
     layout/panel_registry.cpp
+    layout/window_registry.cpp
     operations/operation_controller.cpp
     lifecycle/document_lifecycle.cpp
     source/source_identity.cpp
@@ -33,8 +35,9 @@ set(GUI_MODEL_SOURCES
     world/map_context.cpp
     world/map_selection.cpp
     world/combine_contracts.cpp
-    workspaces/map_workspace.cpp
-    workspaces/map_workspace_manager.cpp
+    documents/map_view_state.cpp
+    documents/map_document_state.cpp
+    documents/map_document_manager.cpp
     tools/tool_contracts.cpp
     tools/tool_state.cpp)
 

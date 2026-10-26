@@ -47,7 +47,7 @@ struct Preferences
     IdFormat idFormat = IdFormat::hexadecimal;
     bool texmapsHideUnused = true;
     bool texmapsTablePresentation = false;
-    bool workspaceFullscreen = false;
+    bool fullscreen = false;
     MapViewTileSource mapViewTileSource = MapViewTileSource::textures;
     ToolPreferences tools{};
 
@@ -58,7 +58,7 @@ struct Preferences
                std::bit_cast<std::uint32_t>(logPanelHeight) == std::bit_cast<std::uint32_t>(other.logPanelHeight) &&
                activeDataProfile == other.activeDataProfile && showWelcomeOnStartup == other.showWelcomeOnStartup &&
                idFormat == other.idFormat && texmapsHideUnused == other.texmapsHideUnused &&
-               texmapsTablePresentation == other.texmapsTablePresentation && workspaceFullscreen == other.workspaceFullscreen &&
+               texmapsTablePresentation == other.texmapsTablePresentation && fullscreen == other.fullscreen &&
                mapViewTileSource == other.mapViewTileSource && tools.activeTool == other.tools.activeTool &&
                tools.selectionGranularity == other.tools.selectionGranularity &&
                tools.activeTileSet == other.tools.activeTileSet && tools.activeTile == other.tools.activeTile &&

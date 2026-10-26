@@ -164,6 +164,18 @@ bool AssetCapabilitySet::supports(AssetQueryCapability capability) const noexcep
     return (queries & static_cast<std::uint8_t>(capability)) != 0U;
 }
 
+std::string presentationContextKey(const AssetSourceContext & source)
+{
+    std::string key = std::to_string(static_cast<int>(source.contextKind));
+    key += "|" + std::to_string(static_cast<int>(source.kind));
+    key += "|" + source.contextId;
+    for (const auto & [role, path] : source.source.roles)
+    {
+        key += "|" + std::to_string(static_cast<int>(role)) + ":" + path.generic_string();
+    }
+    return key;
+}
+
 bool filterMatches(const AssetQuery & query, std::span<const std::string> values)
 {
     static thread_local std::string compiledFilterText;
@@ -263,7 +275,6 @@ void resetContext(AssetWindowState & state) noexcept
     state.selectionDragStartedOnItem = false;
     state.scrollPosition = 0.0F;
     state.scrollPositionRestorePending = true;
-    state.detailsCollapsed = false;
     state.requestedItem.reset();
     state.requestedItemIndex.reset();
     state.highlightedItem.reset();

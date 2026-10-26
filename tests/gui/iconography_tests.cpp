@@ -1,4 +1,4 @@
-#include "gui/presentation/icons/iconography.h"
+#include "gui/presentation/iconography.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -54,7 +54,7 @@ void requireMappingRange(std::span<const std::uint32_t> ranges, const uo_mule::g
 TEST_CASE("iconography_Should_HaveOneValidMappingPerSemanticId")
 {
     const auto mappings = uo_mule::gui::iconMappings();
-    REQUIRE(mappings.size() == 81);
+    REQUIRE(mappings.size() == 80);
 
     std::set<uo_mule::gui::IconId> ids;
     for (const auto & mapping : mappings)

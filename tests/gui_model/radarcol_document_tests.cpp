@@ -1,4 +1,3 @@
-#include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
@@ -106,6 +105,47 @@ TEST_CASE("radarcolDocument_Should_LazilyStageBatchAndRefreshReaderOnSave")
     REQUIRE(readColor(*document, 3U) == 0x1234U); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 }
 
+TEST_CASE("radarcolDocument_Should_RetainChanges_If_SaveCannotReopenOutput")
+{
+    const TestDirectory directory;
+    const auto sourcePath = directory.path() / "source.mul";
+    const auto missingOutput = directory.path() / "missing" / "output.mul";
+    REQUIRE(createRadarcol(sourcePath));
+
+    auto document = uo_mule::gui::RadarcolDocument::open(
+        13U, sourcePath); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    REQUIRE(document);
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::editColors,
+        .colorEdits = {{.colorIndex = 3U,
+                        .color = 0x1234U}}, // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
+
+    document->setOutputPath(missingOutput);
+    REQUIRE_FALSE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::save,
+        .colorEdits = {},
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
+    REQUIRE(document->dirty());
+    REQUIRE(document->editing() == false);
+    REQUIRE(document->hasStagedColor(3U)); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+
+    document->setOutputPath(sourcePath);
+    REQUIRE(document->handleIntent({
+        .kind = uo_mule::gui::RadarcolDocumentIntentKind::save,
+        .colorEdits = {},
+        .outputPath = {},
+        .overwriteOutput = false,
+    }));
+    REQUIRE_FALSE(document->dirty());
+    REQUIRE_FALSE(document->hasStagedColor(3U));  // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+    REQUIRE(readColor(*document, 3U) == 0x1234U); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
+}
+
 TEST_CASE("radarcolDocument_Should_StageMultipleColorsAndDiscardThem")
 {
     const TestDirectory directory;
@@ -160,25 +200,11 @@ TEST_CASE("radarcolDocument_Should_KeepNoOpEditsClean")
     REQUIRE_FALSE(document->dirty());
 }
 
-TEST_CASE("radarcolDocument_Should_RejectReadOnlyInvalidAndOutOfRangeEdits")
+TEST_CASE("radarcolDocument_Should_RejectInvalidAndOutOfRangeEdits")
 {
     const TestDirectory directory;
     const auto sourcePath = directory.path() / "source.mul";
     REQUIRE(createRadarcol(sourcePath));
-
-    auto configured = uo_mule::gui::RadarcolDocument::open(
-        10U, // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-        sourcePath,
-        uo_mule::gui::DocumentAccess::readOnly); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-    REQUIRE(configured);
-    REQUIRE_FALSE(configured->handleIntent({
-        .kind = uo_mule::gui::RadarcolDocumentIntentKind::editColors,
-        .colorEdits = {{.colorIndex = 0U,
-                        .color = 0x2345U}}, // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
-        .outputPath = {},
-        .overwriteOutput = false,
-    }));
-    REQUIRE_FALSE(configured->editing());
 
     auto document = uo_mule::gui::RadarcolDocument::open(
         11U, sourcePath); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)

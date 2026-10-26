@@ -1,8 +1,8 @@
 #pragma once
 
 #include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/profile/data_profile.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include <cstdint>
 #include <filesystem>
 #include <string>

@@ -1,6 +1,6 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
-#include "gui/presentation/formatting/file_size.h"
+#include "gui/presentation/file_size.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/profile/data_profile.h"
 #include "uomul/facet_sizes.h"

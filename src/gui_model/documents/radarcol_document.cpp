@@ -1,5 +1,4 @@
 #include "gui_model/documents/radarcol_document.h"
-#include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
@@ -27,16 +26,13 @@ namespace
 RadarcolDocument::RadarcolDocument(DocumentId id,
                                    std::filesystem::path sourcePath,
                                    std::optional<uomul::RadarColReader> reader,
-                                   DocumentAccess access,
                                    std::string error) :
     id_(id), sourcePath_(std::move(sourcePath)), outputPath_(sourcePath_), reader_(std::move(reader))
 {
-    state_.setAccess(access);
     state_.setError(std::move(error));
 }
 
-std::expected<RadarcolDocument, uomul::Error>
-RadarcolDocument::open(DocumentId id, const std::filesystem::path & sourcePath, DocumentAccess access)
+std::expected<RadarcolDocument, uomul::Error> RadarcolDocument::open(DocumentId id, const std::filesystem::path & sourcePath)
 {
     auto reader = uomul::RadarColReader::open(sourcePath);
     if (!reader)
@@ -44,13 +40,12 @@ RadarcolDocument::open(DocumentId id, const std::filesystem::path & sourcePath, 
         return std::unexpected(reader.error());
     }
 
-    return RadarcolDocument{id, sourcePath, std::move(*reader), access, {}};
+    return RadarcolDocument{id, sourcePath, std::move(*reader), {}};
 }
 
-RadarcolDocument
-RadarcolDocument::invalid(DocumentId id, std::filesystem::path sourcePath, DocumentAccess access, std::string error)
+RadarcolDocument RadarcolDocument::invalid(DocumentId id, std::filesystem::path sourcePath, std::string error)
 {
-    return RadarcolDocument{id, std::move(sourcePath), std::nullopt, access, std::move(error)};
+    return RadarcolDocument{id, std::move(sourcePath), std::nullopt, std::move(error)};
 }
 
 std::expected<void, uomul::Error> RadarcolDocument::handleIntent(const RadarcolDocumentIntent & intent)
@@ -94,18 +89,6 @@ std::expected<void, uomul::Error> RadarcolDocument::handleIntent(const RadarcolD
     return result;
 }
 
-void RadarcolDocument::setAccess(DocumentAccess value) noexcept
-{
-    state_.setAccess(value);
-    if (readOnly() && editor_)
-    {
-        editor_->abort();
-        editor_.reset();
-        stagedColors_.clear();
-        state_.resetChanges();
-    }
-}
-
 std::expected<void, uomul::Error> RadarcolDocument::processPendingIntent()
 {
     const auto intent = pendingIntent_.take();
@@ -118,13 +101,9 @@ std::expected<void, uomul::Error> RadarcolDocument::processPendingIntent()
 
 std::expected<void, uomul::Error> RadarcolDocument::beginEditing(const std::filesystem::path & output, bool outputOverwrite)
 {
-    if (readOnly())
-    {
-        return fail(makeDocumentError(sourcePath_, "configured Radarcol source is read-only"));
-    }
     if (reader_ == std::nullopt)
     {
-        return fail(makeDocumentError(sourcePath_, "Radarcol source is not available"));
+        return fail(makeDocumentError(sourcePath_, "Radarcol file is not available"));
     }
     if (output.empty())
     {
@@ -166,13 +145,9 @@ bool RadarcolDocument::hasStagedColor(std::uint32_t index) const noexcept
 
 std::expected<void, uomul::Error> RadarcolDocument::editColors(const std::vector<RadarcolColorEdit> & edits)
 {
-    if (readOnly())
-    {
-        return fail(makeDocumentError(sourcePath_, "configured Radarcol source is read-only"));
-    }
     if (!reader_)
     {
-        return fail(makeDocumentError(sourcePath_, "Radarcol source is not available"));
+        return fail(makeDocumentError(sourcePath_, "Radarcol file is not available"));
     }
     if (edits.empty())
     {
@@ -237,13 +212,9 @@ std::expected<void, uomul::Error> RadarcolDocument::editColors(const std::vector
 
 std::expected<void, uomul::Error> RadarcolDocument::revertColors(const std::vector<std::uint32_t> & indices)
 {
-    if (readOnly())
-    {
-        return fail(makeDocumentError(sourcePath_, "configured Radarcol source is read-only"));
-    }
     if (!reader_)
     {
-        return fail(makeDocumentError(sourcePath_, "Radarcol source is not available"));
+        return fail(makeDocumentError(sourcePath_, "Radarcol file is not available"));
     }
 
     for (const auto index : indices)
@@ -288,6 +259,25 @@ std::expected<void, uomul::Error> RadarcolDocument::revertColors(const std::vect
 
 std::expected<void, uomul::Error> RadarcolDocument::save()
 {
+    if (!editor_ && !stagedColors_.empty())
+    {
+        auto staged = uomul::RadarColEditor::create(sourcePath_, outputPath_, {.overwriteOutput = overwriteOutput_});
+        if (!staged)
+        {
+            return fail(staged.error());
+        }
+        editor_.emplace(std::move(*staged));
+        for (const auto & [index, color] : stagedColors_)
+        {
+            if (auto edited = editor_->editRawColor(index, color); !edited)
+            {
+                editor_->abort();
+                editor_.reset();
+                return fail(edited.error());
+            }
+        }
+    }
+
     if (!editor_)
     {
         return fail(makeDocumentError(outputPath_, "Radarcol has no staged changes"));
@@ -305,10 +295,10 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
 
     if (auto committed = editor_->commit(); !committed)
     {
-        editor_->abort();
+        // The underlying editor has already closed or aborted its transaction
+        // on commit failure. Keep the logical changes so the user can retry or
+        // discard them explicitly.
         editor_.reset();
-        stagedColors_.clear();
-        state_.resetChanges();
         if (*inPlace)
         {
             auto restored = uomul::RadarColReader::open(sourcePath_);
@@ -324,8 +314,6 @@ std::expected<void, uomul::Error> RadarcolDocument::save()
     if (!opened)
     {
         editor_.reset();
-        stagedColors_.clear();
-        state_.resetChanges();
         return fail(opened.error());
     }
 

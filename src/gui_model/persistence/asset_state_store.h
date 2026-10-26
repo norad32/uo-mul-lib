@@ -14,7 +14,7 @@ inline constexpr std::uint32_t currentAssetStateSchemaVersion = 0;
 struct AssetStateRecord
 {
     std::string profileIdentity;
-    std::string workspaceIdentity;
+    std::string assetWindowIdentity;
     AssetSourceContext context;
     AssetWindowState state;
 };
@@ -25,11 +25,11 @@ void saveAssetState(const std::filesystem::path & path, const std::vector<AssetS
 void resetAssetState(std::vector<AssetStateRecord> & records) noexcept;
 [[nodiscard]] const AssetStateRecord * findAssetState(const std::vector<AssetStateRecord> & records,
                                                       const std::string & profileIdentity,
-                                                      const std::string & workspaceIdentity,
+                                                      const std::string & assetWindowIdentity,
                                                       const AssetSourceContext & context) noexcept;
 void restoreAssetState(const AssetStateRecord & record, AssetWindowState & state) noexcept;
 [[nodiscard]] AssetStateRecord captureAssetState(const std::string & profileIdentity,
-                                                 const std::string & workspaceIdentity,
+                                                 const std::string & assetWindowIdentity,
                                                  const AssetSourceContext & context,
                                                  const AssetWindowState & state);
 

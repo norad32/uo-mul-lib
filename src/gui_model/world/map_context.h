@@ -1,7 +1,7 @@
 #pragma once
 
 #include "gui_model/documents/map_document.h"
-#include "gui_model/workspaces/map_workspace.h"
+#include "gui_model/documents/map_document_state.h"
 #include <optional>
 
 namespace uo_mule::gui
@@ -29,7 +29,7 @@ struct MapContextSnapshot
     std::optional<uomul::TileRegion> selectionBounds;
 };
 
-[[nodiscard]] MapContextSnapshot makeMapContextSnapshot(const MapWorkspace & workspace,
+[[nodiscard]] MapContextSnapshot makeMapContextSnapshot(const MapDocumentState & mapDocument,
                                                         const std::optional<MapDocument> & document);
 
 } // namespace uo_mule::gui

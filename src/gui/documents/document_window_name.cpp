@@ -1,0 +1,23 @@
+#include "gui/documents/document_window_name.h"
+#include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/document_identity.h"
+#include <string>
+
+namespace uo_mule::gui
+{
+
+std::string documentWindowName(const DocumentSummary & summary)
+{
+    std::string name(documentKindName(summary.identity.kind));
+    name += ": ";
+    name += summary.displayName.empty() ? "Untitled" : summary.displayName;
+    if (summary.dirty)
+    {
+        name += " *";
+    }
+    name += "###document.";
+    name += std::to_string(summary.identity.id);
+    return name;
+}
+
+} // namespace uo_mule::gui

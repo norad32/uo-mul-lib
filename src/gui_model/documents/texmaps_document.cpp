@@ -1,5 +1,4 @@
 #include "gui_model/documents/texmaps_document.h"
-#include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/texmaps/texmaps.h"
@@ -29,7 +28,6 @@ TexmapsDocument::TexmapsDocument(DocumentId id,
                                  std::filesystem::path indexPath,
                                  std::filesystem::path dataPath,
                                  std::optional<uomul::TexMapsReader> reader,
-                                 DocumentAccess access,
                                  std::string error) :
     id_(id),
     sourceIndexPath_(std::move(indexPath)),
@@ -38,30 +36,24 @@ TexmapsDocument::TexmapsDocument(DocumentId id,
     outputDataPath_(sourceDataPath_),
     reader_(std::move(reader))
 {
-    state_.setAccess(access);
     state_.setError(std::move(error));
 }
 
-std::expected<TexmapsDocument, uomul::Error> TexmapsDocument::open(DocumentId id,
-                                                                   const std::filesystem::path & indexPath,
-                                                                   const std::filesystem::path & dataPath,
-                                                                   DocumentAccess access)
+std::expected<TexmapsDocument, uomul::Error>
+TexmapsDocument::open(DocumentId id, const std::filesystem::path & indexPath, const std::filesystem::path & dataPath)
 {
     auto reader = uomul::TexMapsReader::open(indexPath, dataPath);
     if (!reader)
     {
         return std::unexpected(reader.error());
     }
-    return TexmapsDocument{id, indexPath, dataPath, std::move(*reader), access, {}};
+    return TexmapsDocument{id, indexPath, dataPath, std::move(*reader), {}};
 }
 
-TexmapsDocument TexmapsDocument::invalid(DocumentId id,
-                                         std::filesystem::path indexPath,
-                                         std::filesystem::path dataPath,
-                                         DocumentAccess access,
-                                         std::string error)
+TexmapsDocument
+TexmapsDocument::invalid(DocumentId id, std::filesystem::path indexPath, std::filesystem::path dataPath, std::string error)
 {
-    return TexmapsDocument{id, std::move(indexPath), std::move(dataPath), std::nullopt, access, std::move(error)};
+    return TexmapsDocument{id, std::move(indexPath), std::move(dataPath), std::nullopt, std::move(error)};
 }
 
 std::expected<void, uomul::Error> TexmapsDocument::handleIntent(const TexmapsDocumentIntent & intent)
@@ -114,24 +106,6 @@ std::expected<void, uomul::Error> TexmapsDocument::handleIntent(const TexmapsDoc
     return result;
 }
 
-void TexmapsDocument::setAccess(DocumentAccess value) noexcept
-{
-    state_.setAccess(value);
-    if (readOnly())
-    {
-        if (editor_)
-        {
-            editor_->abort();
-            editor_.reset();
-        }
-        stagedTextures_.clear();
-        stagedEmptySlots_.clear();
-        outputIndexPath_ = sourceIndexPath_;
-        outputDataPath_ = sourceDataPath_;
-        state_.resetChanges();
-    }
-}
-
 std::expected<void, uomul::Error> TexmapsDocument::processPendingIntent()
 {
     const auto intent = pendingIntent_.take();
@@ -146,7 +120,7 @@ std::expected<std::optional<uomul::TextureImage>, uomul::Error> TexmapsDocument:
 {
     if (!reader_)
     {
-        return std::unexpected(makeDocumentError(sourceIndexPath_, "Texmap Pair source is not available"));
+        return std::unexpected(makeDocumentError(sourceIndexPath_, "Texmaps file set is not available"));
     }
     if (textureId >= reader_->textureCount())
     {
@@ -207,7 +181,7 @@ std::expected<void, uomul::Error> TexmapsDocument::validateTextureId(std::uint32
 {
     if (textureId >= uomul::textureCount)
     {
-        return std::unexpected(makeDocumentError(sourceIndexPath_, "texture ID is outside the supported Texmap Pair range"));
+        return std::unexpected(makeDocumentError(sourceIndexPath_, "texture ID is outside the supported Texmaps range"));
     }
     return {};
 }
@@ -333,13 +307,9 @@ std::expected<void, uomul::Error> TexmapsDocument::replaceTexture(const TexmapsT
 
 std::expected<void, uomul::Error> TexmapsDocument::replaceTextures(const std::vector<TexmapsTextureEdit> & edits)
 {
-    if (readOnly())
-    {
-        return fail(makeDocumentError(sourceIndexPath_, "configured Texmap Pair source is read-only"));
-    }
     if (!reader_)
     {
-        return fail(makeDocumentError(sourceIndexPath_, "Texmap Pair source is not available"));
+        return fail(makeDocumentError(sourceIndexPath_, "Texmaps file set is not available"));
     }
     if (edits.empty())
     {
@@ -366,13 +336,9 @@ std::expected<void, uomul::Error> TexmapsDocument::replaceTextures(const std::ve
 
 std::expected<void, uomul::Error> TexmapsDocument::clearTextures(const std::vector<std::uint32_t> & textureIds)
 {
-    if (readOnly())
-    {
-        return fail(makeDocumentError(sourceIndexPath_, "configured Texmap Pair source is read-only"));
-    }
     if (!reader_)
     {
-        return fail(makeDocumentError(sourceIndexPath_, "Texmap Pair source is not available"));
+        return fail(makeDocumentError(sourceIndexPath_, "Texmaps file set is not available"));
     }
     for (const auto textureId : textureIds)
     {
@@ -433,13 +399,9 @@ std::expected<void, uomul::Error> TexmapsDocument::clearTextures(const std::vect
 
 std::expected<void, uomul::Error> TexmapsDocument::revertTextures(const std::vector<std::uint32_t> & textureIds)
 {
-    if (readOnly())
-    {
-        return fail(makeDocumentError(sourceIndexPath_, "configured Texmap Pair source is read-only"));
-    }
     if (!reader_)
     {
-        return fail(makeDocumentError(sourceIndexPath_, "Texmap Pair source is not available"));
+        return fail(makeDocumentError(sourceIndexPath_, "Texmaps file set is not available"));
     }
     for (const auto textureId : textureIds)
     {
@@ -498,18 +460,14 @@ std::expected<void, uomul::Error> TexmapsDocument::beginEditing(const std::files
                                                                 const std::filesystem::path & outputDataPath,
                                                                 bool outputOverwrite)
 {
-    if (readOnly())
-    {
-        return fail(makeDocumentError(sourceIndexPath_, "configured Texmap Pair source is read-only"));
-    }
     if (!reader_)
     {
-        return fail(makeDocumentError(sourceIndexPath_, "Texmap Pair source is not available"));
+        return fail(makeDocumentError(sourceIndexPath_, "Texmaps file set is not available"));
     }
     if (outputIndexPath.empty() || outputDataPath.empty())
     {
         return fail(makeDocumentError(outputIndexPath.empty() ? outputIndexPath : outputDataPath,
-                                      "Texmap Pair output paths cannot be empty"));
+                                      "Texmaps output file paths cannot be empty"));
     }
 
     auto staged = uomul::TexMapsEditor::create(

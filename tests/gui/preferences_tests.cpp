@@ -50,7 +50,7 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
         .idFormat = uo_mule::gui::IdFormat::decimal,
         .texmapsHideUnused = true,
         .texmapsTablePresentation = true,
-        .workspaceFullscreen = true,
+        .fullscreen = true,
     };
 
     uo_mule::gui::savePreferences(expected, preferencesFile);
@@ -66,7 +66,7 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
     REQUIRE(actual.idFormat == uo_mule::gui::IdFormat::decimal);
     REQUIRE(actual.texmapsHideUnused);
     REQUIRE(actual.texmapsTablePresentation);
-    REQUIRE(actual.workspaceFullscreen);
+    REQUIRE(actual.fullscreen);
     REQUIRE(actual.activeDataProfile == "Classic UO Felucca");
     std::filesystem::remove_all(configDirectory);
 }

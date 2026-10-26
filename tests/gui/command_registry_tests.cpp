@@ -1,12 +1,22 @@
 #include "gui/commands/command_registry.h"
 #include "gui/dialogs/map_workflow_dialog.h"
-#include "gui/state/workbench_state.h"
+#include "gui/workbench/workbench_state.h"
+#include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
+#include "gui_model/lifecycle/document_lifecycle.h"
+#include "gui_model/source/source_identity.h"
 #include "gui_model/tools/tool_contracts.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "uomul/map/map.h"
+#include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
+#include <fstream>
+#include <ios>
+#include <optional>
 #include <string>
 
 using uo_mule::gui::CommandId;
@@ -23,6 +33,13 @@ void requireAssetCommandEnabled(const WorkbenchState & state, CommandId command)
 void requireAssetCommandExecuted(WorkbenchState & state, CommandId command)
 {
     REQUIRE(state.commands.execute(command, state));
+}
+
+void createRadarcol(const std::filesystem::path & path)
+{
+    std::ofstream radarcol(path, std::ios::binary);
+    radarcol.seekp(static_cast<std::streamoff>(uomul::radarColorCount * sizeof(uomul::RadarColor)) - 1);
+    radarcol.put('\0');
 }
 
 } // namespace
@@ -73,12 +90,12 @@ TEST_CASE("commandRegistry_Should_CentralizeEnablementAndDispatch")
     REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::openMap);
 
     REQUIRE(state.commands.execute(CommandId::viewCombined, state));
-    REQUIRE(state.workspace.displayMode() == uo_mule::gui::MapDisplayMode::combined);
+    REQUIRE(state.mapDocuments.active().viewState().displayMode == uo_mule::gui::MapDisplayMode::combined);
 
-    REQUIRE(state.commands.execute(CommandId::panelTexmaps, state));
-    REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
-    REQUIRE(state.commands.execute(CommandId::panelTexmaps, state));
-    REQUIRE(state.panelRegistry.find(uo_mule::gui::PanelId::texmaps)->visible);
+    REQUIRE(state.commands.execute(CommandId::windowTexmaps, state));
+    REQUIRE_FALSE(state.windowRegistry.find(uo_mule::gui::WindowId::texmaps)->visible);
+    REQUIRE(state.commands.execute(CommandId::windowTexmaps, state));
+    REQUIRE(state.windowRegistry.find(uo_mule::gui::WindowId::texmaps)->visible);
 
     REQUIRE(state.commands.execute(CommandId::panelToolPalette, state));
     REQUIRE_FALSE(state.panelRegistry.find(uo_mule::gui::PanelId::toolPalette)->visible);
@@ -101,6 +118,89 @@ TEST_CASE("commandRegistry_Should_DispatchRegisteredShortcuts")
     REQUIRE_FALSE(state.commands.executeShortcut("Ctrl+P", state));
 }
 
+TEST_CASE("fileCloseCommand_Should_RequestTheActiveMetadataDocument")
+{
+    WorkbenchState state;
+    const auto path = std::filesystem::temp_directory_path() / "uo-mule-command-close-radarcol.mul";
+    std::filesystem::remove(path);
+    createRadarcol(path);
+    const auto id = state.session.openDocument({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::radarcol,
+                .source = uo_mule::gui::makeDocumentSourceIdentity({path}),
+            },
+        .displayName = path.filename().string(),
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+    });
+    REQUIRE(id != 0U);
+
+    REQUIRE(state.commands.execute(CommandId::fileClose, state));
+    const auto request = state.documentLifecycle.takeClose();
+    REQUIRE(request.has_value());
+    REQUIRE(request.value_or(uo_mule::gui::DocumentCloseRequest{}).id == id);
+    REQUIRE_FALSE(state.shouldClose);
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("fileCloseCommand_Should_RequestTheActiveMapDocument")
+{
+    WorkbenchState state;
+    const auto path = std::filesystem::temp_directory_path() / "uo-mule-command-close-map.mul";
+    std::filesystem::remove(path);
+    const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};
+    REQUIRE(state.mapDocuments.createEmptyMap(path, dimensions));
+    state.session.syncDocument(state.mapDocuments);
+    const auto id = state.session.activeDocumentId();
+    REQUIRE(id.has_value());
+
+    REQUIRE(state.commands.execute(CommandId::fileClose, state));
+    const auto request = state.documentLifecycle.takeClose();
+    REQUIRE(request.has_value());
+    REQUIRE(request.value_or(uo_mule::gui::DocumentCloseRequest{}).id == id.value_or(0U));
+
+    REQUIRE(state.mapDocuments.closeMap());
+    state.session.syncDocument(state.mapDocuments);
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("fileCloseCommand_Should_RequestTheActiveTexmapPlaceholder")
+{
+    WorkbenchState state;
+    const auto indexPath = std::filesystem::temp_directory_path() / "uo-mule-command-close-texidx.mul";
+    const auto dataPath = std::filesystem::temp_directory_path() / "uo-mule-command-close-texmaps.mul";
+    const auto id = state.session.openDocument({
+        .identity =
+            {
+                .kind = uo_mule::gui::DocumentKind::texmapPair,
+                .source = uo_mule::gui::makeRoleAwareDocumentSourceIdentity({
+                    {.role = uo_mule::gui::SourceRole::index, .path = indexPath},
+                    {.role = uo_mule::gui::SourceRole::data, .path = dataPath},
+                }),
+            },
+        .displayName = "Texmap Pair",
+        .facetKey = std::nullopt,
+        .dimensions = std::nullopt,
+    });
+    REQUIRE(id != 0U);
+
+    REQUIRE(state.commands.execute(CommandId::fileClose, state));
+    const auto request = state.documentLifecycle.takeClose();
+    REQUIRE(request.has_value());
+    REQUIRE(request.value_or(uo_mule::gui::DocumentCloseRequest{}).id == id);
+}
+
+TEST_CASE("fileQuitCommand_Should_RequestApplicationCloseWithoutDocuments")
+{
+    WorkbenchState state;
+
+    REQUIRE(state.commands.execute(CommandId::fileQuit, state));
+    REQUIRE(state.shouldClose);
+    REQUIRE_FALSE(state.quitRequested);
+}
+
 TEST_CASE("toolCommands_Should_ExposeSharedActivationMetadata")
 {
     const WorkbenchState state;
@@ -118,15 +218,15 @@ TEST_CASE("toolCommands_Should_ActivateThroughRegistry_If_MapIsOpen")
     const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};
     const auto mapPath = std::filesystem::temp_directory_path() / "uo-mule-tool-command-map.mul";
     std::filesystem::remove(mapPath);
-    REQUIRE(state.workspace.createEmptyMap(mapPath, dimensions));
-    state.session.syncDocument(state.workspace);
+    REQUIRE(state.mapDocuments.createEmptyMap(mapPath, dimensions));
+    state.session.syncDocument(state.mapDocuments);
 
     REQUIRE(state.commands.execute(CommandId::toolRectangleSelect, state));
     REQUIRE(state.toolState.activeTool() == uo_mule::gui::ToolId::rectangleSelect);
     REQUIRE(state.commands.executeShortcut("P", state));
     REQUIRE(state.toolState.activeTool() == uo_mule::gui::ToolId::move);
 
-    REQUIRE(state.workspace.closeMap());
+    REQUIRE(state.mapDocuments.closeMap());
     std::filesystem::remove(mapPath);
 }
 
@@ -174,40 +274,40 @@ TEST_CASE("selectionCommands_Should_OperateOnTheActiveMapMask")
     const uomul::Dimensions dimensions{.widthTiles = 8, .heightTiles = 8};
     const auto mapPath = std::filesystem::temp_directory_path() / "uo-mule-selection-command-map.mul";
     std::filesystem::remove(mapPath);
-    REQUIRE(state.workspace.createEmptyMap(mapPath, dimensions));
-    state.session.syncDocument(state.workspace);
+    REQUIRE(state.mapDocuments.createEmptyMap(mapPath, dimensions));
+    state.session.syncDocument(state.mapDocuments);
 
     REQUIRE(state.commands.execute(CommandId::selectionAll, state));
-    REQUIRE(state.workspace.selectionMask().size() == 64);
+    REQUIRE(state.mapDocuments.active().viewState().selectionMask.size() == 64);
     REQUIRE(state.commands.execute(CommandId::selectionInvert, state));
-    REQUIRE(state.workspace.selectionMask().empty());
+    REQUIRE(state.mapDocuments.active().viewState().selectionMask.empty());
     REQUIRE(state.commands.execute(CommandId::selectionAll, state));
     REQUIRE(state.commands.execute(CommandId::selectionNone, state));
-    REQUIRE(state.workspace.selectionMask().empty());
+    REQUIRE(state.mapDocuments.active().viewState().selectionMask.empty());
 
-    REQUIRE(state.workspace.closeMap());
+    REQUIRE(state.mapDocuments.closeMap());
     std::filesystem::remove(mapPath);
 }
 
-TEST_CASE("selectionCommands_Should_SynchronizeToolRegionWithWorkspace")
+TEST_CASE("selectionCommands_Should_SynchronizeToolRegionWithMapState")
 {
     WorkbenchState state;
     const uomul::Dimensions dimensions{.widthTiles = 16, .heightTiles = 16};
     const auto mapPath = std::filesystem::temp_directory_path() / "uo-mule-selection-region-command-map.mul";
     std::filesystem::remove(mapPath);
-    REQUIRE(state.workspace.createEmptyMap(mapPath, dimensions));
-    state.session.syncDocument(state.workspace);
+    REQUIRE(state.mapDocuments.createEmptyMap(mapPath, dimensions));
+    state.session.syncDocument(state.mapDocuments);
     REQUIRE(state.commands.execute(CommandId::toolRectangleSelect, state));
 
     REQUIRE(state.commands.execute(CommandId::selectionBlocks, state));
     REQUIRE(state.toolState.selectionGranularity() == uo_mule::gui::ToolSelectionGranularity::blocks);
-    REQUIRE(state.workspace.selectionMode() == uo_mule::gui::MapSelectionMode::blocks);
+    REQUIRE(state.mapDocuments.active().viewState().selectionMode == uo_mule::gui::MapSelectionMode::blocks);
 
     REQUIRE(state.commands.execute(CommandId::selectionTiles, state));
     REQUIRE(state.toolState.selectionGranularity() == uo_mule::gui::ToolSelectionGranularity::tiles);
-    REQUIRE(state.workspace.selectionMode() == uo_mule::gui::MapSelectionMode::tiles);
+    REQUIRE(state.mapDocuments.active().viewState().selectionMode == uo_mule::gui::MapSelectionMode::tiles);
 
-    REQUIRE(state.workspace.closeMap());
+    REQUIRE(state.mapDocuments.closeMap());
     std::filesystem::remove(mapPath);
 }
 

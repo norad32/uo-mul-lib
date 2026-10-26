@@ -5,6 +5,7 @@
 #include "gui_model/persistence/config_paths.h"
 #include "gui_model/source/source_identity.h"
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -30,9 +31,9 @@ void writeSource(std::ostream & output, const AssetSourceContext & context)
     }
 }
 
-bool readRecord(std::istream & file, AssetStateRecord & record)
+bool readRecord(std::istream & file, AssetStateRecord & record, std::uint32_t schemaVersion)
 {
-    file >> std::quoted(record.profileIdentity) >> std::quoted(record.workspaceIdentity);
+    file >> std::quoted(record.profileIdentity) >> std::quoted(record.assetWindowIdentity);
     std::string marker;
     file >> marker;
     if (marker != "context")
@@ -66,15 +67,29 @@ bool readRecord(std::istream & file, AssetStateRecord & record)
     file >> marker;
     if (marker == "query")
     {
-        file >> std::quoted(record.state.query.filter) >> std::quoted(record.state.query.sortKey) >>
-            record.state.query.sortAscending;
+        file >> std::quoted(record.state.query.filter);
+        if (schemaVersion == 0U)
+        {
+            std::string unusedSortKey;
+            bool unusedSortAscending = true;
+            file >> std::quoted(unusedSortKey) >> unusedSortAscending;
+        }
     }
-    file >> marker;
-    if (marker == "details")
+    if (schemaVersion == 0U)
     {
-        file >> record.state.detailsCollapsed;
+        file >> marker;
+        if (marker == "details")
+        {
+            bool unusedDetailsCollapsed = false;
+            file >> unusedDetailsCollapsed;
+        }
     }
     file >> marker;
+    if (marker == "view_mode")
+    {
+        file >> std::quoted(record.state.viewMode);
+        file >> marker;
+    }
     if (marker == "scroll")
     {
         file >> record.state.scrollPosition;
@@ -130,16 +145,17 @@ std::vector<AssetStateRecord> loadAssetState(const std::filesystem::path & path)
 
     std::ifstream file(path);
     std::string key;
+    std::uint32_t schemaVersion = 0;
     while (file >> key)
     {
         if (key == "schema_version")
         {
-            std::getline(file, key);
+            file >> schemaVersion;
         }
         else if (key == "record")
         {
             AssetStateRecord record;
-            if (readRecord(file, record))
+            if (readRecord(file, record, schemaVersion))
             {
                 records.push_back(std::move(record));
             }
@@ -165,12 +181,11 @@ void saveAssetState(const std::filesystem::path & path, const std::vector<AssetS
     file << "schema_version " << currentAssetStateSchemaVersion << '\n';
     for (const auto & record : records)
     {
-        file << "record " << std::quoted(record.profileIdentity) << ' ' << std::quoted(record.workspaceIdentity) << ' ';
+        file << "record " << std::quoted(record.profileIdentity) << ' ' << std::quoted(record.assetWindowIdentity) << ' ';
         writeSource(file, record.context);
         file << "presentation " << static_cast<int>(record.state.presentation) << "\nquery "
-             << std::quoted(record.state.query.filter) << ' ' << std::quoted(record.state.query.sortKey) << ' '
-             << record.state.query.sortAscending << "\ndetails " << record.state.detailsCollapsed << "\nscroll "
-             << record.state.scrollPosition << "\nselection " << record.state.selection.selected.size();
+             << std::quoted(record.state.query.filter) << " \"\" 1\ndetails 0\nview_mode " << std::quoted(record.state.viewMode)
+             << "\nscroll " << record.state.scrollPosition << "\nselection " << record.state.selection.selected.size();
         for (const auto & selected : record.state.selection.selected)
         {
             file << ' ' << std::quoted(selected.value);
@@ -198,12 +213,12 @@ void resetAssetState(std::vector<AssetStateRecord> & records) noexcept
 
 const AssetStateRecord * findAssetState(const std::vector<AssetStateRecord> & records,
                                         const std::string & profileIdentity,
-                                        const std::string & workspaceIdentity,
+                                        const std::string & assetWindowIdentity,
                                         const AssetSourceContext & context) noexcept
 {
     for (const auto & record : records)
     {
-        if (record.profileIdentity == profileIdentity && record.workspaceIdentity == workspaceIdentity &&
+        if (record.profileIdentity == profileIdentity && record.assetWindowIdentity == assetWindowIdentity &&
             record.context == context)
         {
             return &record;
@@ -216,21 +231,24 @@ void restoreAssetState(const AssetStateRecord & record, AssetWindowState & state
 {
     resetContext(state);
     state.presentation = record.state.presentation;
+    state.presentationContext = presentationContextKey(record.context);
+    state.presentations.clear();
+    state.presentations[state.presentationContext] = state.presentation;
+    state.viewMode = record.state.viewMode;
     state.query = record.state.query;
-    state.detailsCollapsed = record.state.detailsCollapsed;
     state.scrollPosition = record.state.scrollPosition;
     state.scrollPositionRestorePending = true;
     state.selection = record.state.selection;
 }
 
 AssetStateRecord captureAssetState(const std::string & profileIdentity,
-                                   const std::string & workspaceIdentity,
+                                   const std::string & assetWindowIdentity,
                                    const AssetSourceContext & context,
                                    const AssetWindowState & state)
 {
     return {
         .profileIdentity = profileIdentity,
-        .workspaceIdentity = workspaceIdentity,
+        .assetWindowIdentity = assetWindowIdentity,
         .context = context,
         .state = state,
     };

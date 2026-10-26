@@ -1,4 +1,3 @@
-#include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/staged_document_state.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
@@ -14,20 +13,16 @@ struct TestIntent
 
 } // namespace
 
-TEST_CASE("stagedDocumentState_Should_TrackAccessChangesAndRevision")
+TEST_CASE("stagedDocumentState_Should_TrackDirtyChangesAndRevision")
 {
     uo_mule::gui::StagedDocumentState state;
 
-    REQUIRE(state.access() == uo_mule::gui::DocumentAccess::editable);
-    REQUIRE_FALSE(state.readOnly());
     REQUIRE_FALSE(state.dirty());
     REQUIRE(state.revision() == 0U);
 
-    state.setAccess(uo_mule::gui::DocumentAccess::readOnly);
     state.setDirty(true);
     state.touch();
 
-    REQUIRE(state.readOnly());
     REQUIRE(state.dirty());
     REQUIRE(state.revision() == 1U);
 }

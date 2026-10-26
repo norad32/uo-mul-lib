@@ -40,11 +40,11 @@ namespace
     switch (validation.status)
     {
         case DataFileStatus::missing :
-            return "source is missing";
+            return "file is not available";
         case DataFileStatus::invalid :
-            return "source is invalid";
+            return "file is invalid";
         case DataFileStatus::unsupported :
-            return "source is unsupported";
+            return "file is unsupported";
         default :
             return {};
     }
@@ -92,8 +92,7 @@ std::vector<SourceValidationResult> validateDataProfileSources(const DataProfile
         {
             auto & incomplete = indexAvailable ? *data : *index;
             incomplete.status = SourceValidationStatus::incompletePair;
-            incomplete.diagnostic = std::string(dataFileRoleName(incomplete.role)) +
-                                    " role: texture index and texture data must be configured as a pair";
+            incomplete.diagnostic = std::string(dataFileRoleName(incomplete.role)) + " role: Texmaps file set is not available";
         }
         else if (indexAvailable && dataAvailable)
         {

@@ -44,7 +44,7 @@ uo_mule::gui::assets::AssetSourceContext metadataContext()
         .kind = uo_mule::gui::DocumentKind::radarcol,
         .contextKind = uo_mule::gui::assets::AssetSourceContext::Kind::metadataView,
         .source = uo_mule::gui::makeDocumentSourceIdentity({"radarcol.mul"}),
-        .contextId = "view.radarcol",
+        .contextId = "window.radarcol",
     };
 }
 
@@ -56,50 +56,54 @@ TEST_CASE("assetStateStore_Should_RoundTripSemanticContextAndPresentationState")
     const auto path = directory.path() / "asset_state.ini";
     uo_mule::gui::assets::AssetWindowState state;
     state.presentation = uo_mule::gui::assets::AssetPresentation::table;
+    state.viewMode = "statics";
     state.query.filter = "stone";
-    state.query.sortKey = "id";
-    state.query.sortAscending = false;
-    state.detailsCollapsed = true;
     state.scrollPosition = 42.0F; // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     state.selection.selected = {{.value = "7"}, {.value = "9"}};
     state.selection.anchor = {.value = "9"};
     state.selection.anchorIndex = 3U;
     const auto context = metadataContext();
-    const auto record = uo_mule::gui::assets::captureAssetState("profile-a", "workspace-a", context, state);
+    const auto record = uo_mule::gui::assets::captureAssetState("profile-a", "asset-window-a", context, state);
 
     uo_mule::gui::assets::saveAssetState(path, {record});
     const auto loaded = uo_mule::gui::assets::loadAssetState(path);
-    const auto * found = uo_mule::gui::assets::findAssetState(loaded, "profile-a", "workspace-a", context);
+    const auto * found = uo_mule::gui::assets::findAssetState(loaded, "profile-a", "asset-window-a", context);
 
     REQUIRE(found != nullptr);
     REQUIRE(found->context == context);
     REQUIRE(found->state.presentation == uo_mule::gui::assets::AssetPresentation::table);
+    REQUIRE(found->state.viewMode == "statics");
     REQUIRE(found->state.query == state.query);
-    REQUIRE(found->state.detailsCollapsed);
     REQUIRE(std::abs(found->state.scrollPosition - state.scrollPosition) <
             0.001F); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     REQUIRE(found->state.selection.selected == state.selection.selected);
     REQUIRE(found->state.selection.anchor == state.selection.anchor);
     REQUIRE(found->state.selection.anchorIndex == state.selection.anchorIndex);
+
+    uo_mule::gui::assets::AssetWindowState restored;
+    uo_mule::gui::assets::restoreAssetState(*found, restored);
+    REQUIRE(restored.presentation == uo_mule::gui::assets::AssetPresentation::table);
+    REQUIRE(restored.presentationContext == uo_mule::gui::assets::presentationContextKey(context));
+    REQUIRE(restored.viewMode == "statics");
 }
 
 TEST_CASE("assetStateStore_Should_IgnoreUnknownContexts_If_LookingUpState")
 {
     const auto context = metadataContext();
     const std::vector<uo_mule::gui::assets::AssetStateRecord> records{
-        {.profileIdentity = "profile-a", .workspaceIdentity = "workspace-a", .context = context, .state = {}},
+        {.profileIdentity = "profile-a", .assetWindowIdentity = "asset-window-a", .context = context, .state = {}},
     };
     auto unknown = context;
     unknown.contextId = "view.unknown";
 
-    REQUIRE(uo_mule::gui::assets::findAssetState(records, "profile-a", "workspace-a", unknown) == nullptr);
-    REQUIRE(uo_mule::gui::assets::findAssetState(records, "profile-b", "workspace-a", context) == nullptr);
+    REQUIRE(uo_mule::gui::assets::findAssetState(records, "profile-a", "asset-window-a", unknown) == nullptr);
+    REQUIRE(uo_mule::gui::assets::findAssetState(records, "profile-b", "asset-window-a", context) == nullptr);
 }
 
 TEST_CASE("assetStateStore_Should_ResetAssetStateWithoutChangingDocuments")
 {
     std::vector<uo_mule::gui::assets::AssetStateRecord> records{
-        {.profileIdentity = "profile-a", .workspaceIdentity = "workspace-a", .context = metadataContext(), .state = {}},
+        {.profileIdentity = "profile-a", .assetWindowIdentity = "asset-window-a", .context = metadataContext(), .state = {}},
     };
 
     uo_mule::gui::assets::resetAssetState(records);

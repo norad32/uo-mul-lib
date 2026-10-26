@@ -26,6 +26,7 @@ struct PreferencesDialogState
     bool showWelcomeOnStartup = true;
     IdFormat idFormat = IdFormat::hexadecimal;
     MapViewTileSource mapViewTileSource = MapViewTileSource::textures;
+    Preferences originalPreferences;
     std::array<char, preferencesDialogBufferSize> profileName{};
     std::array<char, preferencesDialogBufferSize> sourceRoot{};
     std::map<DataFileRole, std::array<char, preferencesDialogBufferSize>> overrides;
@@ -42,11 +43,16 @@ struct PreferencesDialogState
     std::string message;
 };
 
+struct PreferencesDialogResult
+{
+    DataProfile profile;
+    Preferences preferences;
+    bool applyProfile = false;
+};
+
 void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile & profile, const Preferences & preferences);
-[[nodiscard]] bool drawPreferencesDialog(PreferencesDialogState & state,
-                                         DataProfile & activeProfile,
-                                         Preferences & preferences,
-                                         FileBrowserState & browser);
+[[nodiscard]] std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogState & state,
+                                                                           FileBrowserState & browser);
 void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserResult & result);
 
 } // namespace uo_mule::gui

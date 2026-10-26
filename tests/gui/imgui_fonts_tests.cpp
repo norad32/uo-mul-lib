@@ -1,4 +1,4 @@
-#include "gui/presentation/fonts/imgui_fonts.h"
+#include "gui/presentation/imgui_fonts.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <imgui.h>

@@ -5,7 +5,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
 
-using uo_mule::gui::DocumentAccess;
 using uo_mule::gui::DocumentCreationError;
 using uo_mule::gui::DocumentDescriptorRegistry;
 using uo_mule::gui::DocumentKind;
@@ -20,7 +19,6 @@ TEST_CASE("documentDescriptors_Should_CreateValidRadarcolSummary")
         .kind = DocumentKind::radarcol,
         .source = makeDocumentSourceIdentity({"radarcol.mul"}),
         .displayName = "radarcol.mul",
-        .access = DocumentAccess::editable,
         .validation = DocumentValidationState::valid,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
@@ -53,7 +51,6 @@ TEST_CASE("documentDescriptors_Should_RejectUnavailableKind")
         .kind = DocumentKind::statics,
         .source = {},
         .displayName = {},
-        .access = DocumentAccess::readOnly,
         .validation = DocumentValidationState::unknown,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,

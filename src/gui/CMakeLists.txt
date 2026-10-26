@@ -17,38 +17,41 @@ add_library(
     application/gui_resources.cpp
     commands/command_registry.cpp
     commands/menu_bar.cpp
-    presentation/dialog/dialog_presentation.cpp
-    presentation/fonts/imgui_fonts.cpp
-    presentation/icons/iconography.cpp
+    presentation/dialog_presentation.cpp
+    presentation/imgui_fonts.cpp
+    presentation/iconography.cpp
     dialogs/file_browser_dialog.cpp
+    dialogs/document_close_dialog.cpp
     dialogs/file_selector_dialog.cpp
     dialogs/map_facet_dialog.cpp
     dialogs/map_workflow_dialog.cpp
     dialogs/preferences_dialog.cpp
-    persistence/layout_store.cpp
-    presentation/strings/ui_strings.cpp
-    state/workbench_state.cpp
-    documents/document_window.cpp
-    frame/workbench_frame.cpp
-    presentation/formatting/file_size.cpp
+    application/layout_store.cpp
+    presentation/strings.cpp
+    workbench/workbench_state.cpp
+    workbench/tool_context.cpp
+    documents/document_window_name.cpp
+    workbench/workbench.cpp
+    presentation/file_size.cpp
     panels/block_inspector_panel.cpp
-    panels/asset_panel_helpers.cpp
+    presentation/asset_browser_helpers.cpp
     panels/icon_gallery_panel.cpp
     panels/tile_inspector_panel.cpp
     panels/log_panel.cpp
-    panels/radarcol_panel.cpp
-    panels/texmap_panel.cpp
-    panels/tiledata_panel.cpp
+    documents/radarcol_document_window.cpp
+    documents/texmaps_document_window.cpp
+    documents/tiledata_document_window.cpp
     panels/tool_palette_panel.cpp
-    shell/welcome_greetings.cpp
-    shell/welcome_screen.cpp
-    widgets/asset_window.cpp
-    widgets/texture_preview.cpp
-    views/world/map_canvas_view.cpp
-    views/world/tile_labels.cpp
-    workflows/file_operations.cpp
-    workflows/texmap_export.cpp
-    workflows/texmap_replacement.cpp)
+    application/welcome_greetings.cpp
+    application/welcome_view.cpp
+    presentation/asset_browser.cpp
+    presentation/texture_preview.cpp
+    presentation/map_texture_cache.cpp
+    documents/map_document_window.cpp
+    documents/map_tile_labels.cpp
+    workflows/file_workflow.cpp
+    workflows/texmap_export_workflow.cpp
+    workflows/texmap_replacement_workflow.cpp)
 set_target_properties(gui PROPERTIES EXPORT_NAME gui)
 set_target_properties(imgui PROPERTIES EXPORT_NAME imgui)
 target_include_directories(

@@ -24,7 +24,6 @@ std::atomic<std::uint64_t> testDirectoryCounter = 0;
 constexpr uo_mule::gui::DocumentId firstDocumentId = 7;
 constexpr uo_mule::gui::DocumentId invalidDocumentId = 8;
 constexpr uo_mule::gui::DocumentId saveAsDocumentId = 9;
-constexpr uo_mule::gui::DocumentId readOnlyDocumentId = 10;
 constexpr uo_mule::gui::DocumentId aliasDocumentId = 11;
 constexpr std::uint32_t firstTextureId = 2;
 constexpr std::uint32_t secondTextureId = 7;
@@ -153,7 +152,6 @@ createPairWithTextures(const std::filesystem::path & indexPath,
             },
         .displayName = indexPath.filename().string(),
         .sourceKind = uo_mule::gui::DocumentSourceKind::standalone,
-        .access = uo_mule::gui::DocumentAccess::editable,
         .validation = uo_mule::gui::DocumentValidationState::unknown,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
@@ -187,11 +185,9 @@ void requireStandaloneTexmaps(const uo_mule::gui::DocumentRecord * record)
     {
         return;
     }
-    REQUIRE(record->summary.access == uo_mule::gui::DocumentAccess::editable);
     REQUIRE(record->texmaps.has_value());
     if (record->texmaps)
     {
-        REQUIRE_FALSE(record->texmaps->readOnly());
     }
 }
 
@@ -203,11 +199,9 @@ void requireConfiguredTexmaps(const uo_mule::gui::DocumentRecord * record)
         return;
     }
     REQUIRE(record->summary.sourceKind == uo_mule::gui::DocumentSourceKind::configuredMetadata);
-    REQUIRE(record->summary.access == uo_mule::gui::DocumentAccess::readOnly);
     REQUIRE(record->texmaps.has_value());
     if (record->texmaps)
     {
-        REQUIRE(record->texmaps->readOnly());
     }
 }
 
@@ -293,8 +287,8 @@ TEST_CASE("texmapsDocument_Should_PreserveInvalidPairErrors")
     const TestDirectory directory;
     const auto indexPath = directory.path() / "texidx.mul";
     const auto dataPath = directory.path() / "missing.mul";
-    const auto document = uo_mule::gui::TexmapsDocument::invalid(
-        invalidDocumentId, indexPath, dataPath, uo_mule::gui::DocumentAccess::editable, "texture data is missing");
+    const auto document =
+        uo_mule::gui::TexmapsDocument::invalid(invalidDocumentId, indexPath, dataPath, "texture data is missing");
 
     REQUIRE_FALSE(document.reader());
     REQUIRE(document.error() == "texture data is missing");
@@ -336,30 +330,12 @@ TEST_CASE("texmapsDocument_Should_SaveAsBothPairFilesAndUpdateIdentity")
     REQUIRE_FALSE(document->dirty());
 }
 
-TEST_CASE("texmapsDocument_Should_RejectReadOnlySaveAsAndPairAliases")
+TEST_CASE("texmapsDocument_Should_RejectPairAliases")
 {
     const TestDirectory directory;
     const auto sourceIndex = directory.path() / "source.idx";
     const auto sourceData = directory.path() / "source.mul";
-    const auto outputIndex = directory.path() / "output.idx";
-    const auto outputData = directory.path() / "output.mul";
     REQUIRE(createPair(sourceIndex, sourceData));
-
-    auto readOnly = uo_mule::gui::TexmapsDocument::open(
-        readOnlyDocumentId, sourceIndex, sourceData, uo_mule::gui::DocumentAccess::readOnly);
-    REQUIRE(readOnly);
-    REQUIRE_FALSE(readOnly->handleIntent({
-        .kind = uo_mule::gui::TexmapsDocumentIntentKind::saveAs,
-        .outputIndexPath = outputIndex,
-        .outputDataPath = outputData,
-        .overwriteOutput = false,
-        .textureId = 0,
-        .texture = {},
-        .textureEdits = {},
-        .textureIds = {},
-    }));
-    REQUIRE_FALSE(std::filesystem::exists(outputIndex));
-    REQUIRE_FALSE(std::filesystem::exists(outputData));
 
     auto editable = uo_mule::gui::TexmapsDocument::open(aliasDocumentId, sourceIndex, sourceData);
     REQUIRE(editable);

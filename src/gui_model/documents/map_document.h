@@ -1,10 +1,10 @@
 #pragma once
 
 #include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/documents/tiledata_document.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include <filesystem>
 #include <optional>
 #include <vector>
@@ -41,7 +41,7 @@ struct DocumentRecord
 class DocumentManager
 {
 public:
-    void sync(const MapWorkspace & workspace);
+    void sync(const MapDocumentState & mapDocument);
     void close() noexcept;
     void updateMetadataSources(const DataProfile & profile);
 

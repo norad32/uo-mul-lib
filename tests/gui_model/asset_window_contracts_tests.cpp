@@ -13,7 +13,6 @@ namespace
 constexpr auto grid = uo_mule::gui::assets::AssetPresentationCapability::grid;
 constexpr auto table = uo_mule::gui::assets::AssetPresentationCapability::table;
 constexpr auto filter = uo_mule::gui::assets::AssetQueryCapability::filter;
-constexpr auto sort = uo_mule::gui::assets::AssetQueryCapability::sort;
 constexpr std::size_t indexedSelection = 7U;
 
 } // namespace
@@ -22,14 +21,13 @@ TEST_CASE("assetCapabilities_Should_ReportDeclaredPresentationAndQuerySupport")
 {
     const uo_mule::gui::assets::AssetCapabilitySet capabilities{
         .presentations = static_cast<std::uint8_t>(grid) | static_cast<std::uint8_t>(table),
-        .queries = static_cast<std::uint8_t>(filter) | static_cast<std::uint8_t>(sort),
+        .queries = static_cast<std::uint8_t>(filter),
         .selection = uo_mule::gui::assets::AssetSelectionMode::multiple,
     };
 
     REQUIRE(capabilities.supports(grid));
     REQUIRE(capabilities.supports(table));
     REQUIRE(capabilities.supports(filter));
-    REQUIRE(capabilities.supports(sort));
 }
 
 TEST_CASE("assetRangeRequest_Should_DeclareTablePresentation")
@@ -62,7 +60,7 @@ TEST_CASE("assetSourceContext_Should_KeepMetadataAndDocumentContextsSeparate")
         .kind = uo_mule::gui::DocumentKind::radarcol,
         .contextKind = uo_mule::gui::assets::AssetSourceContext::Kind::metadataView,
         .source = source,
-        .contextId = "view.radarcol",
+        .contextId = "window.radarcol",
     };
     const uo_mule::gui::assets::AssetSourceContext document{
         .kind = uo_mule::gui::DocumentKind::radarcol,

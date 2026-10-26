@@ -1,13 +1,13 @@
 #include "gui_model/documents/map_document.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/documents/tiledata_document.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/source/source_identity.h"
 #include "gui_model/source/tiledata_source.h"
-#include "gui_model/workspaces/map_workspace.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
@@ -46,7 +46,7 @@ namespace
     return false;
 }
 
-void updateMetadataAccess(DocumentRecord & document, bool configured)
+void updateMetadataSource(DocumentRecord & document, bool configured)
 {
     const auto kind = document.summary.identity.kind;
     if (kind != DocumentKind::radarcol && kind != DocumentKind::texmapPair && kind != DocumentKind::tiledata)
@@ -55,16 +55,6 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
     }
 
     document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-    document.summary.access =
-        kind == DocumentKind::tiledata || configured ? DocumentAccess::readOnly : DocumentAccess::editable;
-    if (kind == DocumentKind::radarcol && document.radarcol)
-    {
-        document.radarcol->setAccess(document.summary.access);
-    }
-    if (kind == DocumentKind::texmapPair && document.texmaps)
-    {
-        document.texmaps->setAccess(document.summary.access);
-    }
 }
 
 [[nodiscard]] std::optional<RadarcolDocument> openRadarcolDocument(DocumentSummary & summary)
@@ -79,7 +69,7 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
         return std::nullopt;
     }
 
-    auto opened = RadarcolDocument::open(summary.identity.id, *sourcePath, summary.access);
+    auto opened = RadarcolDocument::open(summary.identity.id, *sourcePath);
     if (opened)
     {
         summary.validation = DocumentValidationState::valid;
@@ -87,7 +77,7 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
     }
 
     summary.validation = DocumentValidationState::invalid;
-    return RadarcolDocument::invalid(summary.identity.id, *sourcePath, summary.access, opened.error().message);
+    return RadarcolDocument::invalid(summary.identity.id, *sourcePath, opened.error().message);
 }
 
 [[nodiscard]] std::optional<TexmapsDocument> openTexmapsDocument(DocumentSummary & summary)
@@ -104,11 +94,10 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
         return TexmapsDocument::invalid(summary.identity.id,
                                         indexPath == nullptr ? std::filesystem::path{} : *indexPath,
                                         dataPath == nullptr ? std::filesystem::path{} : *dataPath,
-                                        summary.access,
-                                        "Texmap Pair source requires index and data roles");
+                                        "Texmaps file set is not available");
     }
 
-    auto opened = TexmapsDocument::open(summary.identity.id, *indexPath, *dataPath, summary.access);
+    auto opened = TexmapsDocument::open(summary.identity.id, *indexPath, *dataPath);
     if (opened)
     {
         summary.validation = DocumentValidationState::valid;
@@ -116,7 +105,7 @@ void updateMetadataAccess(DocumentRecord & document, bool configured)
     }
 
     summary.validation = DocumentValidationState::invalid;
-    return TexmapsDocument::invalid(summary.identity.id, *indexPath, *dataPath, summary.access, opened.error().message);
+    return TexmapsDocument::invalid(summary.identity.id, *indexPath, *dataPath, opened.error().message);
 }
 
 [[nodiscard]] std::optional<TiledataDocument> openTiledataDocument(DocumentSummary & summary)
@@ -158,24 +147,24 @@ std::string mapFacetKey(uomul::Dimensions dimensions)
     return "custom-" + std::to_string(dimensions.widthTiles) + "x" + std::to_string(dimensions.heightTiles);
 }
 
-void DocumentManager::sync(const MapWorkspace & workspace)
+void DocumentManager::sync(const MapDocumentState & mapDocument)
 {
-    if (workspace.reader() == nullptr)
+    if (!mapDocument.changes().reader)
     {
-        const std::optional<DocumentId> activeId = activeId_;
-        const DocumentRecord * record = activeId ? find(*activeId) : nullptr;
-        if (activeId && record != nullptr && record->map)
+        const auto record =
+            std::ranges::find_if(documents_, [](const DocumentRecord & candidate) { return candidate.map.has_value(); });
+        if (record != documents_.end())
         {
-            static_cast<void>(close(*activeId));
+            static_cast<void>(close(record->summary.identity.id));
         }
         return;
     }
 
-    const auto & workingPath = workspace.workingPath();
+    const auto & workingPath = mapDocument.changes().workingPath;
     const DocumentIdentity identity{
         .id = 0,
         .kind = DocumentKind::map,
-        .source = makeDocumentSourceIdentity({workspace.originalPath()}),
+        .source = makeDocumentSourceIdentity({mapDocument.changes().originalPath}),
     };
     DocumentRecord * record = findByIdentity(identity);
     if (record == nullptr)
@@ -184,11 +173,11 @@ void DocumentManager::sync(const MapWorkspace & workspace)
         MapDocument map{
             .id = id,
             .identity = {.id = id, .kind = identity.kind, .source = identity.source},
-            .sourcePath = workspace.originalPath(),
+            .sourcePath = mapDocument.changes().originalPath,
             .workingPath = workingPath.value_or(std::filesystem::path{}),
-            .facetKey = mapFacetKey(workspace.dimensions()),
-            .dimensions = workspace.dimensions(),
-            .dirty = workspace.dirty(),
+            .facetKey = mapFacetKey(mapDocument.changes().dimensions),
+            .dimensions = mapDocument.changes().dimensions,
+            .dirty = mapDocument.changes().dirty(),
         };
         record = &documents_.emplace_back(DocumentRecord{
             .summary = map.summary(),
@@ -205,9 +194,9 @@ void DocumentManager::sync(const MapWorkspace & workspace)
     }
 
     record->map->workingPath = workingPath.value_or(std::filesystem::path{});
-    record->map->facetKey = mapFacetKey(workspace.dimensions());
-    record->map->dimensions = workspace.dimensions();
-    record->map->dirty = workspace.dirty();
+    record->map->facetKey = mapFacetKey(mapDocument.changes().dimensions);
+    record->map->dimensions = mapDocument.changes().dimensions;
+    record->map->dirty = mapDocument.changes().dirty();
     record->summary = record->map->summary();
     activeId_ = record->summary.identity.id;
 }
@@ -230,7 +219,7 @@ void DocumentManager::updateMetadataSources(const DataProfile & profile)
     {
         const bool configured = configuredMetadataSource(
             document.summary.identity, configuredRadarcolSource_, configuredTexmapPairSource_, configuredTiledataSource_);
-        updateMetadataAccess(document, configured);
+        updateMetadataSource(document, configured);
     }
 }
 
@@ -251,10 +240,6 @@ DocumentId DocumentManager::open(DocumentSummary summary)
     const bool configured = configuredMetadataSource(
         summary.identity, configuredRadarcolSource_, configuredTexmapPairSource_, configuredTiledataSource_);
     summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-    summary.access =
-        (summary.identity.kind == DocumentKind::radarcol || summary.identity.kind == DocumentKind::texmapPair) && !configured
-            ? DocumentAccess::editable
-            : DocumentAccess::readOnly;
 
     auto radarcol = openRadarcolDocument(summary);
     auto texmaps = openTexmapsDocument(summary);
@@ -286,6 +271,14 @@ bool DocumentManager::close(DocumentId id) noexcept
     const auto record = std::ranges::find_if(
         documents_, [id](const DocumentRecord & candidate) { return candidate.summary.identity.id == id; });
     if (record == documents_.end())
+    {
+        return false;
+    }
+
+    // Staged metadata documents must be resolved explicitly before their
+    // identity and changes can be released. MapDocumentManager owns the
+    // corresponding map-state transition, so map records are checked there.
+    if ((record->radarcol && record->radarcol->dirty()) || (record->texmaps && record->texmaps->dirty()))
     {
         return false;
     }
@@ -326,8 +319,6 @@ void DocumentManager::syncAssetDocuments() noexcept
             document.summary.identity.source = source;
             document.summary.displayName = document.radarcol->sourcePath().filename().string();
             document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-            document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
-            document.radarcol->setAccess(document.summary.access);
             document.summary.dirty = document.radarcol->dirty();
             document.summary.validation =
                 document.radarcol->reader().has_value() ? DocumentValidationState::valid : DocumentValidationState::invalid;
@@ -339,8 +330,6 @@ void DocumentManager::syncAssetDocuments() noexcept
             document.summary.identity.source = source;
             document.summary.displayName = document.texmaps->sourceIndexPath().filename().string();
             document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
-            document.summary.access = configured ? DocumentAccess::readOnly : DocumentAccess::editable;
-            document.texmaps->setAccess(document.summary.access);
             document.summary.dirty = document.texmaps->dirty();
             document.summary.validation =
                 document.texmaps->reader().has_value() ? DocumentValidationState::valid : DocumentValidationState::invalid;
@@ -404,7 +393,6 @@ DocumentSummary MapDocument::summary() const
         result.displayName = std::string(documentKindName(DocumentKind::map));
     }
     result.sourceKind = DocumentSourceKind::standalone;
-    result.access = DocumentAccess::editable;
     result.validation = DocumentValidationState::valid;
     result.facetKey = facetKey;
     result.dimensions = dimensions;

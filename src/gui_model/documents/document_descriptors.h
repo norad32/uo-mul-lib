@@ -12,7 +12,6 @@ struct DocumentCreationRequest
     DocumentKind kind = DocumentKind::unavailable;
     DocumentSourceIdentity source;
     std::string displayName;
-    DocumentAccess access = DocumentAccess::readOnly;
     DocumentValidationState validation = DocumentValidationState::unknown;
     std::optional<std::string> facetKey;
     std::optional<uomul::Dimensions> dimensions;

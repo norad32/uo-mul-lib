@@ -36,11 +36,11 @@ CombineResult evaluateCombine(const CombineRequest & request)
     }
     if (request.map.source.path(SourceRole::primary) == nullptr)
     {
-        return rejected(CombineRejectionReason::missingMapSource, "Map source path is missing");
+        return rejected(CombineRejectionReason::missingMapSource, "Map file is not available");
     }
     if (request.statics.source.path(SourceRole::primary) == nullptr)
     {
-        return rejected(CombineRejectionReason::missingStaticsSource, "Statics source path is missing");
+        return rejected(CombineRejectionReason::missingStaticsSource, "Statics file is not available");
     }
     if (request.mapFacetKey != request.staticsFacetKey)
     {

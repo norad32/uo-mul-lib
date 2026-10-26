@@ -1,8 +1,8 @@
 #include "gui/dialogs/map_facet_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
-#include "gui/presentation/dialog/dialog_presentation.h"
-#include "gui/presentation/icons/iconography.h"
-#include "gui/presentation/theme/theme.h"
+#include "gui/presentation/dialog_presentation.h"
+#include "gui/presentation/iconography.h"
+#include "gui/presentation/theme.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
 #include <cstddef>

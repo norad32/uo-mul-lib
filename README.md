@@ -33,6 +33,10 @@ include `debug-headless`, `debug-cli`, `debug-gui`, and `debug-uomul`.
 ./build/release-headless/uo-mule map --help
 ```
 
+Project documentation is available in [`doc/README.md`](doc/README.md),
+including the [architecture](doc/architecture/overview.md),
+[extension guide](doc/development/extension-guide.md).
+
 Install the library and CMake package with `cmake --install`. Consumers can use
 the exported `uo-mule::uomul` target and, when enabled, `uo-mule::app`; CPack
 and the release workflow produce Debian, Linux archive, and Arch package
@@ -48,6 +52,7 @@ artifacts.
 | [spdlog](https://github.com/gabime/spdlog) | Logging | MIT |
 | [Catch2](https://github.com/catchorg/Catch2) | Testing | Boost Software License 1.0 |
 | [Material Design Icons](https://github.com/Templarian/MaterialDesign-Webfont) | GUI icon font | Apache-2.0 |
+| [stb](https://github.com/nothings/stb) | Lightweight BMP/PNG codec backend | Public domain or MIT |
 
 ## License
 
