@@ -1,12 +1,15 @@
 #include "gui_model/providers/texture_conversion.h"
+#include "gui_model/providers/data_providers.h"
+#include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
+#include "uomul/texmaps/texmaps.h"
 #include <cstddef>
+#include <expected>
 
 namespace uo_mule::gui
 {
 
-std::expected<uomul::TextureImage, uomul::Error>
-providerTextureToTextureImage(const ProviderTexture & provider)
+std::expected<uomul::TextureImage, uomul::Error> providerTextureToTextureImage(const ProviderTexture & provider)
 {
     if (provider.width != provider.height ||
         (provider.width != uomul::textureSmallDimension && provider.width != uomul::textureLargeDimension))

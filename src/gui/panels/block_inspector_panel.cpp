@@ -14,7 +14,6 @@
 #include "uomul/map/map.h"
 #include "uomul/mul_common/mul_common.h"
 #include <GL/gl.h>
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -115,10 +114,8 @@ void drawTileCell(const uomul::MapBlock & block,
 
     if (ImGui::IsItemHovered())
     {
-        const std::string tooltip = strings::formatTileTooltip(tileCoordinate.x,
-                                                               tileCoordinate.y,
-                                                               tile.id,
-                                                               static_cast<std::int32_t>(tile.z));
+        const std::string tooltip =
+            strings::formatTileTooltip(tileCoordinate.x, tileCoordinate.y, tile.id, static_cast<std::int32_t>(tile.z));
         ImGui::SetTooltip("%s", tooltip.c_str());
     }
 }
@@ -236,11 +233,11 @@ void drawBlockInspectorContents(MapDocumentState & mapDocument,
     {
         const uomul::BlockCoord blockCoordinate = *state.blockCoordinate;
         const std::string blockLabel = strings::formatBlock(blockCoordinate.x, blockCoordinate.y);
-        const std::string coordinates = strings::formatTileCoordinates(
-            blockCoordinate.x * uomul::mapBlockDimension,
-            (blockCoordinate.x * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U,
-            blockCoordinate.y * uomul::mapBlockDimension,
-            (blockCoordinate.y * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U);
+        const std::string coordinates =
+            strings::formatTileCoordinates(blockCoordinate.x * uomul::mapBlockDimension,
+                                           (blockCoordinate.x * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U,
+                                           blockCoordinate.y * uomul::mapBlockDimension,
+                                           (blockCoordinate.y * uomul::mapBlockDimension) + uomul::mapBlockDimension - 1U);
         ImGui::TextUnformatted(blockLabel.c_str());
         ImGui::TextUnformatted(coordinates.c_str());
         if (state.block)
@@ -251,10 +248,8 @@ void drawBlockInspectorContents(MapDocumentState & mapDocument,
             {
                 const uomul::TileCoord tileCoordinate = *context.selectedTile;
                 const uomul::MapTile tile = *context.selectedValue;
-                const std::string selected = strings::formatSelectedTile(tileCoordinate.x,
-                                                                          tileCoordinate.y,
-                                                                          tile.id,
-                                                                          static_cast<std::int32_t>(tile.z));
+                const std::string selected =
+                    strings::formatSelectedTile(tileCoordinate.x, tileCoordinate.y, tile.id, static_cast<std::int32_t>(tile.z));
                 ImGui::TextUnformatted(selected.c_str());
             }
         }
@@ -312,9 +307,9 @@ void drawBlockInspectorPanel(MapDocumentState & mapDocument,
     }
 
     drawPanelView("Block Inspector###panel.block-inspector",
-                   visible,
-                   [&mapDocument, &context, &providers, tileSource, &state, reader]
-                   { drawBlockInspectorContents(mapDocument, context, providers, tileSource, state, reader); });
+                  visible,
+                  [&mapDocument, &context, &providers, tileSource, &state, reader]
+                  { drawBlockInspectorContents(mapDocument, context, providers, tileSource, state, reader); });
 }
 
 } // namespace uo_mule::gui

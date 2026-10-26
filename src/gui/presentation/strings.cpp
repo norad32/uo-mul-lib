@@ -6,6 +6,7 @@
 #include "uomul/mul_common/mul_common.h"
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <format>
 #include <string>
 #include <string_view>
@@ -445,10 +446,8 @@ std::string formatUnavailable(std::string_view detail)
 
 std::string formatFontScale(bool iconFontAvailable, double scaleX, double scaleY)
 {
-    return std::format("Font: {} | Display scale: {:.2g}x, {:.2g}x",
-                       iconFontAvailable ? "available" : "text fallback",
-                       scaleX,
-                       scaleY);
+    return std::format(
+        "Font: {} | Display scale: {:.2g}x, {:.2g}x", iconFontAvailable ? "available" : "text fallback", scaleX, scaleY);
 }
 
 std::string formatTile(std::uint32_t x, std::uint32_t y)
@@ -461,10 +460,7 @@ std::string formatBlock(std::uint32_t x, std::uint32_t y)
     return std::format("Block: ({}, {})", x, y);
 }
 
-std::string formatTileCoordinates(std::uint32_t minX,
-                                  std::uint32_t maxX,
-                                  std::uint32_t minY,
-                                  std::uint32_t maxY)
+std::string formatTileCoordinates(std::uint32_t minX, std::uint32_t maxX, std::uint32_t minY, std::uint32_t maxY)
 {
     return std::format("Tile coordinates: X {}-{}, Y {}-{}", minX, maxX, minY, maxY);
 }

@@ -16,6 +16,7 @@
 #include <array>
 #include <filesystem>
 #include <imgui.h>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -214,7 +215,7 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
                                .role = role,
                                .initialPath = bufferPath(path->second),
                                .extension = ".mul",
-                                .title = strings::chooseMetadataFile(),
+                               .title = strings::chooseMetadataFile(),
                            });
     }
     const auto * validation = state.validation.find(role);
@@ -253,8 +254,7 @@ void drawMetadataSection(PreferencesDialogState & state)
     }
 
     dialogFieldLabel(strings::searchFolder());
-    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, strings::chooseFolder()).c_str()) &&
-        state.browser != nullptr)
+    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, strings::chooseFolder()).c_str()) && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
                            {
@@ -262,7 +262,7 @@ void drawMetadataSection(PreferencesDialogState & state)
                                .target = FileBrowserTarget::dataSearchRoot,
                                .initialPath = bufferPath(state.sourceRoot),
                                .extension = {},
-                                .title = strings::searchMetadataFolder(),
+                               .title = strings::searchMetadataFolder(),
                            });
     }
     ImGui::SameLine();
@@ -276,7 +276,8 @@ void drawMetadataSection(PreferencesDialogState & state)
     if (ImGui::Button(iconLabel(IconId::warning, strings::validateMetadata()).c_str()))
     {
         validateWorkingProfile(state);
-        state.message = state.validation.hasErrors() ? strings::metadataValidationErrors() : strings::metadataValidationPassed();
+        state.message =
+            state.validation.hasErrors() ? strings::metadataValidationErrors() : strings::metadataValidationPassed();
     }
     if (!state.validationRequested)
     {
@@ -423,9 +424,11 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
         updatedPreferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
         updatedPreferences.idFormat = state.idFormat;
         updatedPreferences.mapViewTileSource = state.mapViewTileSource;
-        result = PreferencesDialogResult{.profile = state.workingProfile,
-                                         .preferences = std::move(updatedPreferences),
-                                         .applyProfile = false};
+        result = PreferencesDialogResult{
+            .profile = state.workingProfile,
+            .preferences = std::move(updatedPreferences),
+            .applyProfile = false,
+        };
         state.message = strings::changesApplied();
     }
 
@@ -439,9 +442,11 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
         updatedPreferences.showWelcomeOnStartup = state.showWelcomeOnStartup;
         updatedPreferences.idFormat = state.idFormat;
         updatedPreferences.mapViewTileSource = state.mapViewTileSource;
-        result = PreferencesDialogResult{.profile = state.workingProfile,
-                                         .preferences = std::move(updatedPreferences),
-                                         .applyProfile = true};
+        result = PreferencesDialogResult{
+            .profile = state.workingProfile,
+            .preferences = std::move(updatedPreferences),
+            .applyProfile = true,
+        };
         state.profileSaveRequested = true;
         state.visible = false;
     }

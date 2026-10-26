@@ -1,6 +1,7 @@
 #include "gui/application/layout_store.h"
 #include "core/app_info.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
 #include "gui_model/persistence/config_paths.h"
 #include <cstddef>
 #include <filesystem>
@@ -74,10 +75,7 @@ void loadLayout(PanelRegistry & panels, WindowRegistry & windows, AppLayout & la
     loadLayout(path, panels, windows, layout);
 }
 
-void loadLayout(const std::filesystem::path & path,
-                PanelRegistry & panels,
-                WindowRegistry & windows,
-                AppLayout & layout)
+void loadLayout(const std::filesystem::path & path, PanelRegistry & panels, WindowRegistry & windows, AppLayout & layout)
 {
     if (path.empty())
     {

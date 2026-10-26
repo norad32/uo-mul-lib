@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <functional>
 #include <imgui.h>
 #include <optional>
 #include <string>
@@ -180,8 +181,7 @@ void configureTiledataDescriptor(assets::AssetAdapter & adapter,
     };
     adapter.descriptor.source = {
         .kind = DocumentKind::tiledata,
-        .contextKind = documentId ? assets::AssetSourceContext::Kind::document
-                                   : assets::AssetSourceContext::Kind::metadataView,
+        .contextKind = documentId ? assets::AssetSourceContext::Kind::document : assets::AssetSourceContext::Kind::metadataView,
         .source = status.sourceIdentity,
         .contextId = windowId,
     };
@@ -465,12 +465,12 @@ void configureTiledataAssetAdapter(assets::AssetAdapter & adapter,
 }
 
 [[nodiscard]] assets::AssetAdapter makeDocumentAdapter(TiledataDocumentWindowState & state,
-                                                        TiledataDocument & document,
-                                                        const TiledataProvider & provider,
-                                                        const TextureProvider & textures,
-                                                        const RadarColorProvider & radarColors,
-                                                        IdFormat idFormat,
-                                                        std::string windowIdentity)
+                                                       const TiledataDocument & document,
+                                                       const TiledataProvider & provider,
+                                                       const TextureProvider & textures,
+                                                       const RadarColorProvider & radarColors,
+                                                       IdFormat idFormat,
+                                                       std::string windowIdentity)
 {
     assets::AssetAdapter adapter;
     configureTiledataAssetAdapter(
@@ -481,13 +481,13 @@ void configureTiledataAssetAdapter(assets::AssetAdapter & adapter,
 } // namespace
 
 void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
-                                 TiledataDocument & document,
-                                 bool & visible,
-                                 IdFormat idFormat,
-                                 const TextureProvider & textures,
-                                 const RadarColorProvider & radarColors,
-                                 std::string windowIdentity,
-                                 const std::function<void()> & becameVisible)
+                                TiledataDocument & document,
+                                bool & visible,
+                                IdFormat idFormat,
+                                const TextureProvider & textures,
+                                const RadarColorProvider & radarColors,
+                                std::string windowIdentity,
+                                const std::function<void()> & becameVisible)
 {
     if (!document.reader())
     {

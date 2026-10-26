@@ -1,4 +1,5 @@
 #include "gui_model/layout/window_registry.h"
+#include <vector>
 
 namespace uo_mule::gui
 {

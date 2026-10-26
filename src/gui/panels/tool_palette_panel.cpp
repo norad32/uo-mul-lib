@@ -8,14 +8,11 @@
 #include "gui/workbench/notification_state.h"
 #include "gui/workbench/tool_context.h"
 #include "gui/workbench/workbench_state.h"
-#include "gui_model/documents/document_contracts.h"
-#include "gui_model/documents/map_document.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/map_view_state.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/data_providers.h"
-#include "gui_model/session/workbench_session.h"
 #include "gui_model/tools/tool_contracts.h"
 #include "imgui.h"
 #include "uomul/map/map.h"
@@ -180,23 +177,25 @@ void drawIdAndElevationModeOptions(const char * idPrefix,
 
 void drawFillOptions(WorkbenchState & state)
 {
-    drawIdAndElevationModeOptions("fill.mode.id",
-                                  "fill.mode.z",
-                                  state.toolState.fillIdEnabled(),
-                                  state.toolState.fillZEnabled(),
-                                  [&state](bool enabled) { return state.toolState.setFillIdEnabled(enabled); },
-                                  [&state](bool enabled) { return state.toolState.setFillZEnabled(enabled); });
+    drawIdAndElevationModeOptions(
+        "fill.mode.id",
+        "fill.mode.z",
+        state.toolState.fillIdEnabled(),
+        state.toolState.fillZEnabled(),
+        [&state](bool enabled) { return state.toolState.setFillIdEnabled(enabled); },
+        [&state](bool enabled) { return state.toolState.setFillZEnabled(enabled); });
     drawPlaceholder(strings::targetUsesActiveTile());
 }
 
 void drawReplaceOptions(WorkbenchState & state)
 {
-    drawIdAndElevationModeOptions("replace.mode.id",
-                                  "replace.mode.z",
-                                  state.toolState.replaceIdEnabled(),
-                                  state.toolState.replaceZEnabled(),
-                                  [&state](bool enabled) { return state.toolState.setReplaceIdEnabled(enabled); },
-                                  [&state](bool enabled) { return state.toolState.setReplaceZEnabled(enabled); });
+    drawIdAndElevationModeOptions(
+        "replace.mode.id",
+        "replace.mode.z",
+        state.toolState.replaceIdEnabled(),
+        state.toolState.replaceZEnabled(),
+        [&state](bool enabled) { return state.toolState.setReplaceIdEnabled(enabled); },
+        [&state](bool enabled) { return state.toolState.setReplaceZEnabled(enabled); });
     drawTileInput(
         state,
         strings::source(),
@@ -511,15 +510,15 @@ void drawActiveTile(WorkbenchState & state)
 void drawToolPalettePanel(WorkbenchState & state, bool & visible)
 {
     drawPanelView("Tool Palette###panel.tool-palette",
-                   visible,
-                   [&state]
-                   {
-                       const ToolContext context = toolContext(state);
-                       drawToolGrid(state, context);
-                       ImGui::NewLine();
-                       drawActiveToolOptions(state, context);
-                       drawActiveTile(state);
-                   });
+                  visible,
+                  [&state]
+                  {
+                      const ToolContext context = toolContext(state);
+                      drawToolGrid(state, context);
+                      ImGui::NewLine();
+                      drawActiveToolOptions(state, context);
+                      drawActiveTile(state);
+                  });
 }
 
 } // namespace uo_mule::gui

@@ -26,7 +26,6 @@
 #include <iterator>
 #include <limits>
 #include <optional>
-#include <ranges>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -179,7 +178,7 @@ void drawCanvasTile(ImDrawList & drawList,
                                   screenRect.maximum,
                                   ImVec2(0.0F, 0.0F),
                                   ImVec2(1.0F, 1.0F),
-                                   mapTextureTint(mode, tile));
+                                  mapTextureTint(mode, tile));
                 return;
             }
         }

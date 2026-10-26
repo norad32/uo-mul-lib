@@ -315,8 +315,7 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
         }
         else
         {
-            const RecentFile recentCopy = recent;
-            state.deferWorkflowAction([&state, recentCopy] { openRecentAsset(state, recentCopy); });
+            state.deferWorkflowAction([&state, recent] { openRecentAsset(state, recent); });
         }
     }
     ImGui::PopID();
@@ -419,8 +418,7 @@ void drawWelcomeView(WorkbenchState & state)
     const std::string preferencesLabel = iconLabel(IconId::preferences, strings::preferences());
     if (ImGui::Button(preferencesLabel.c_str()))
     {
-        state.deferWorkflowAction(
-            [&state] { static_cast<void>(state.commands.execute(CommandId::dataPaths, state)); });
+        state.deferWorkflowAction([&state] { static_cast<void>(state.commands.execute(CommandId::dataPaths, state)); });
     }
     if (ImGui::IsItemHovered())
     {
@@ -453,8 +451,8 @@ void drawWelcomeView(WorkbenchState & state)
         ImGui::SetTooltip("%s", strings::showOnStartupTooltip());
     }
 
-    const float startupOptionWidth = ImGui::CalcTextSize(strings::showOnStartup()).x +
-                                     (ImGui::GetStyle().FramePadding.x * 2.0F);
+    const float startupOptionWidth =
+        ImGui::CalcTextSize(strings::showOnStartup()).x + (ImGui::GetStyle().FramePadding.x * 2.0F);
     const bool stackActions = ImGui::GetContentRegionAvail().x < actionRowWidth + startupOptionWidth;
     const float actionWidth = stackActions ? ImGui::GetContentRegionAvail().x : actionButtonWidth;
     if (!stackActions)
@@ -463,8 +461,7 @@ void drawWelcomeView(WorkbenchState & state)
     }
     if (ImGui::Button(openLabel.c_str(), ImVec2(actionWidth, actionButtonHeight)))
     {
-        state.deferWorkflowAction(
-            [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); });
+        state.deferWorkflowAction([&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); });
     }
     if (!stackActions)
     {
@@ -472,8 +469,7 @@ void drawWelcomeView(WorkbenchState & state)
     }
     if (ImGui::Button(newLabel.c_str(), ImVec2(actionWidth, actionButtonHeight)))
     {
-        state.deferWorkflowAction(
-            [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); });
+        state.deferWorkflowAction([&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); });
     }
     ImGui::Dummy(ImVec2(0.0F, welcomeFooterBottomPadding));
 

@@ -11,7 +11,6 @@
 #include "gui_model/input/radarcol_color_input.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
 #include "gui_model/persistence/preferences.h"
-#include "gui_model/providers/data_providers.h"
 #include "uomul/radarcol/radarcol.h"
 #include <algorithm>
 #include <array>
@@ -238,8 +237,8 @@ void showPickerButtonTooltip()
 
 void drawPickerSourceControls(const RadarcolDocumentWindowState & state, RadarcolColorPickerState & picker)
 {
-    const std::string pickSourceLabel = iconFontAvailable() ? iconGlyph(IconId::eyedropper) + "##RadarcolPickSource"
-                                                             : strings::pickSource();
+    const std::string pickSourceLabel =
+        iconFontAvailable() ? iconGlyph(IconId::eyedropper) + "##RadarcolPickSource" : strings::pickSource();
     if (ImGui::Button(pickSourceLabel.c_str()))
     {
         picker.sourceMode = true;
@@ -454,8 +453,7 @@ void configureRadarcolAssetAdapter(assets::AssetAdapter & adapter,
     adapter.descriptor.fixedCellHeight = assetCellHeight;
     adapter.loadRange = [&source, kind, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
     { return loadRadarcolRange(source, kind, request, idFormat); };
-    adapter.loadSearchItems = [&source, kind, idFormat]
-    { return loadRadarcolSearchItems(source, kind, idFormat); };
+    adapter.loadSearchItems = [&source, kind, idFormat] { return loadRadarcolSearchItems(source, kind, idFormat); };
     adapter.loadDetails = [&source, kind, idFormat](const assets::AssetItemId & id)
     { return loadRadarcolDetails(source, kind, id, idFormat); };
     adapter.renderItem = std::move(renderItem);
@@ -572,9 +570,9 @@ void drawDocumentContextMenu(RadarcolDocumentWindowState & state,
 }
 
 [[nodiscard]] assets::AssetAdapter makeDocumentAdapter(RadarcolDocumentWindowState & state,
-                                                        RadarcolDocument & document,
-                                                        IdFormat idFormat,
-                                                        std::string windowIdentity)
+                                                       RadarcolDocument & document,
+                                                       IdFormat idFormat,
+                                                       std::string windowIdentity)
 {
     const RadarcolBrowserKind kind = state.documentBrowserKinds[document.id()];
     assets::AssetAdapter adapter;
@@ -610,8 +608,8 @@ void drawDocumentContextMenu(RadarcolDocumentWindowState & state,
         const auto index = assets::itemIndex(item);
         return index ? acceptRadarcolColorSource(state, document.rawColor(radarcolRawIndex(kind, *index)).value_or(0)) : false;
     };
-    adapter.makeDragPayload =
-        [&document, kind](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
+    adapter.makeDragPayload = [&document,
+                               kind](const assets::AssetSelection & selection) -> std::optional<assets::AssetDragPayload>
     {
         if (selection.selected.size() != 1U)
         {

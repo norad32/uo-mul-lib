@@ -16,7 +16,6 @@
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/data_providers.h"
-#include "gui_model/providers/texture_conversion.h"
 #include "image_codec/image_codec.h"
 #include "uomul/mul_common/mul_common.h"
 #include "uomul/texmaps/texmaps.h"
@@ -588,8 +587,7 @@ void configureTextureAssetAdapter(assets::AssetAdapter & adapter,
     adapter.descriptor.fixedCellHeight = assetCellHeight;
     adapter.loadRange = [&provider, idFormat](const assets::AssetRangeRequest & request, const assets::AssetQuery &)
     { return loadTextureRange(provider, request, idFormat); };
-    adapter.loadSearchItems = [&provider, &hideUnused, idFormat]
-    { return loadTextureSearch(hideUnused, provider, idFormat); };
+    adapter.loadSearchItems = [&provider, &hideUnused, idFormat] { return loadTextureSearch(hideUnused, provider, idFormat); };
     adapter.loadDetails = [&provider, idFormat](const assets::AssetItemId & item)
     { return loadTextureDetails(provider, item, idFormat); };
     adapter.renderItem = [&previews, &provider](const assets::AssetItem & item, bool)

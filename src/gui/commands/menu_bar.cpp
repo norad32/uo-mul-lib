@@ -9,6 +9,7 @@
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/map_view_state.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/tools/tool_contracts.h"
 #include <imgui.h>
@@ -261,8 +262,7 @@ bool drawMenuBar(WorkbenchState & state, bool showMainMenu, bool drawDialogs)
     if (state.menuBarState.windowCloseRequested && state.menuBarState.fileDialog.mode == MapFileDialogMode::none)
     {
         state.menuBarState.windowCloseRequested = false;
-        state.deferWorkflowAction(
-            [&state] { static_cast<void>(state.commands.execute(CommandId::fileQuit, state)); });
+        state.deferWorkflowAction([&state] { static_cast<void>(state.commands.execute(CommandId::fileQuit, state)); });
     }
 
     if (showMainMenu && ImGui::BeginMainMenuBar())

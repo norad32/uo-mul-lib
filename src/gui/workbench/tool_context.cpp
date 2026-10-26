@@ -1,6 +1,8 @@
 #include "gui/workbench/tool_context.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
+#include "gui_model/documents/map_document.h"
+#include "gui_model/tools/tool_contracts.h"
 
 namespace uo_mule::gui
 {

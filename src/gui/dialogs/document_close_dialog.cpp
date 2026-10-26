@@ -3,7 +3,9 @@
 #include "gui/presentation/iconography.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
+#include "gui_model/documents/map_document_state.h"
 #include <imgui.h>
+#include <string>
 
 namespace uo_mule::gui
 {

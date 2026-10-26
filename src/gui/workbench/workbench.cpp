@@ -3,8 +3,8 @@
 #include "gui/application/welcome_view.h"
 #include "gui/commands/command_registry.h"
 #include "gui/commands/menu_bar.h"
-#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/document_close_dialog.h"
+#include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/document_window_name.h"
@@ -33,6 +33,7 @@
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/documents/texmaps_document.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
 #include "gui_model/lifecycle/document_lifecycle.h"
 #include "gui_model/model/assets/asset_export_contracts.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
@@ -40,7 +41,6 @@
 #include "gui_model/persistence/asset_state_store.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/profile/data_profile.h"
-#include "gui_model/providers/color_conversion.h"
 #include "gui_model/providers/data_providers.h"
 #include "gui_model/providers/texture_conversion.h"
 #include "gui_model/session/workbench_session.h"
@@ -65,6 +65,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <uomul/map/map.h>
 #include <uomul/mul_common/mul_common.h>
 #include <uomul/radarcol/radarcol.h>
@@ -97,9 +98,9 @@ void ensureConfiguredMetadataViewDocument(WorkbenchState & state, DocumentKind k
 void ensureConfiguredMetadataWindows(WorkbenchState & state);
 void focusConfiguredMetadataWindow(WorkbenchState & state, DocumentKind kind);
 [[nodiscard]] bool metadataViewVisible(const WorkbenchState & state, DocumentKind kind) noexcept;
-void restoreConfiguredMetadataDocumentAssetState(WorkbenchState & state,
-                                                const DocumentRecord & document,
-                                                assets::AssetWindowState & assetView);
+void restoreConfiguredMetadataDocumentAssetState(const WorkbenchState & state,
+                                                 const DocumentRecord & document,
+                                                 assets::AssetWindowState & assetView);
 constexpr std::size_t fullscreenShortcutIndex = 7;
 constexpr std::size_t assetEditShortcutIndex = 8;
 constexpr std::size_t assetCopyShortcutIndex = 9;
@@ -768,7 +769,7 @@ void applyPendingPreferenceChanges(WorkbenchState & state)
 
 void applyLogPanelRequest(WorkbenchState & state, logger::GuiLogSink & logSink)
 {
-    const LogPanelRequest request = std::move(state.logPanelRequest);
+    const LogPanelRequest request = state.logPanelRequest;
     state.logPanelRequest = {};
     if (request.visible)
     {
@@ -936,12 +937,8 @@ void drawStatusBar(const WorkbenchState & state, float bottomPanelHeight)
         else
         {
             const uomul::BlockCoord block = tileToBlock(*canvasStatus.tile);
-            const std::string status = strings::formatCanvasTile(canvasStatus.canvasId,
-                                                                 canvasStatus.tile->x,
-                                                                 canvasStatus.tile->y,
-                                                                 block.x,
-                                                                 block.y,
-                                                                 canvasStatus.zoom);
+            const std::string status = strings::formatCanvasTile(
+                canvasStatus.canvasId, canvasStatus.tile->x, canvasStatus.tile->y, block.x, block.y, canvasStatus.zoom);
             ImGui::TextUnformatted(status.c_str());
         }
     }
@@ -979,9 +976,8 @@ void drawStartupScreen(WorkbenchState & state)
     const ImGuiViewport * viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos, ImGuiCond_Always);
     ImGui::SetNextWindowSize(viewport->WorkSize, ImGuiCond_Always);
-    if (!ImGui::Begin(strings::configurePreferencesWindow(),
-                      nullptr,
-                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
+    if (!ImGui::Begin(
+            strings::configurePreferencesWindow(), nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings))
     {
         ImGui::End();
         return;
@@ -989,8 +985,7 @@ void drawStartupScreen(WorkbenchState & state)
     const std::string configureLabel = iconLabel(IconId::preferences, strings::configurePreferencesLabel());
     ImGui::TextUnformatted(configureLabel.c_str());
     ImGui::Separator();
-    ImGui::TextUnformatted(
-        strings::mapsWithoutProfile());
+    ImGui::TextUnformatted(strings::mapsWithoutProfile());
     const std::string profileReadiness(strings::profileReadinessName(state.session.profileState()));
     const std::string profileStatus = strings::formatProfileReadiness(profileReadiness);
     ImGui::TextUnformatted(profileStatus.c_str());
@@ -1133,8 +1128,7 @@ void focusConfiguredMetadataWindow(WorkbenchState & state, DocumentKind kind)
     ensureConfiguredMetadataViewDocument(state, kind);
     for (const auto & document : state.session.documents())
     {
-        if (document.summary.identity.kind == kind &&
-            document.summary.sourceKind == DocumentSourceKind::configuredMetadata)
+        if (document.summary.identity.kind == kind && document.summary.sourceKind == DocumentSourceKind::configuredMetadata)
         {
             ImGui::SetWindowFocus(documentWindowName(document.summary).c_str());
             return;
@@ -1153,6 +1147,25 @@ void focusConfiguredMetadataWindow(WorkbenchState & state, DocumentKind kind)
         return WindowId::tiledata;
     }
     return WindowId::radarcol;
+}
+
+[[nodiscard]] std::string_view metadataContextId(DocumentKind kind) noexcept
+{
+    switch (kind)
+    {
+        case DocumentKind::radarcol :
+            return "window.radarcol";
+        case DocumentKind::texmapPair :
+            return "window.texmaps";
+        case DocumentKind::tiledata :
+            return "window.tiledata";
+        case DocumentKind::map :
+        case DocumentKind::statics :
+        case DocumentKind::combined :
+        case DocumentKind::unavailable :
+            return {};
+    }
+    return {};
 }
 
 [[nodiscard]] bool metadataViewVisible(const WorkbenchState & state, DocumentKind kind) noexcept
@@ -1216,7 +1229,7 @@ void forwardMetadataAssetRequest(WorkbenchState & state,
             };
         }
         targetState.requestedItem = std::move(sourceState.requestedItem);
-        targetState.requestedItemIndex = std::move(sourceState.requestedItemIndex);
+        targetState.requestedItemIndex = sourceState.requestedItemIndex;
         return;
     }
 }
@@ -1240,16 +1253,10 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             state.preferences.mapViewTileSource,
             windowName,
             [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); },
-             [&state]
-             {
-                 state.deferWorkflowAction(
-                     [&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); });
-             },
-             [&state]
-             {
-                 state.deferWorkflowAction(
-                     [&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); });
-             },
+            [&state]
+            { state.deferWorkflowAction([&state] { static_cast<void>(state.commands.execute(CommandId::fileOpen, state)); }); },
+            [&state]
+            { state.deferWorkflowAction([&state] { static_cast<void>(state.commands.execute(CommandId::fileNew, state)); }); },
             mapEditCallback(state),
             tiledataNameCallback(state),
             [&state](uomul::MapTile tile)
@@ -1516,15 +1523,102 @@ void rearmPendingDocumentClose(WorkbenchState & state, DocumentId id)
 {
     state.pendingDocumentCloseAction.reset();
     static_cast<void>(state.operationController.cancel());
-    const auto transition = state.operationController.begin(
-        {.kind = OperationKind::close, .documentId = id, .path = {}, .dimensions = {}, .initialTile = {}},
-        true,
-        false,
-        OutputCollisionPolicy::confirm);
+    OperationRequest request;
+    request.kind = OperationKind::close;
+    request.documentId = id;
+    const auto transition = state.operationController.begin(request, true, false, OutputCollisionPolicy::confirm);
     if (transition.kind != OperationTransitionKind::showDirtyDecision)
     {
         state.pendingDocumentCloseDecision.reset();
     }
+}
+
+[[nodiscard]] bool resolvePendingDocumentOperation(WorkbenchState & state, PendingChangesAction action)
+{
+    const auto transition = state.operationController.resolveDirty(action);
+    if (transition.kind == OperationTransitionKind::rejected)
+    {
+        state.notifications.add(NotificationSeverity::error, transition.error);
+        return false;
+    }
+    return true;
+}
+
+void requestMapDocumentResolution(WorkbenchState & state, const DocumentRecord & record, PendingChangesAction action)
+{
+    if (!resolvePendingDocumentOperation(state, action))
+    {
+        return;
+    }
+
+    if (action == PendingChangesAction::save)
+    {
+        const auto saved = state.mapDocuments.save(state.mapDocuments.active().changes().originalPath, false);
+        if (!saved)
+        {
+            static_cast<void>(state.operationController.completeSave(false));
+            state.notifications.add(NotificationSeverity::error, saved.error().message);
+            rearmPendingDocumentClose(state, record.summary.identity.id);
+            return;
+        }
+        const auto completed = state.operationController.completeSave(true);
+        if (completed.kind != OperationTransitionKind::execute)
+        {
+            state.notifications.add(NotificationSeverity::error, completed.error);
+            rearmPendingDocumentClose(state, record.summary.identity.id);
+            return;
+        }
+    }
+    else
+    {
+        const auto discarded = state.mapDocuments.discard();
+        if (!discarded)
+        {
+            state.notifications.add(NotificationSeverity::error, discarded.error().message);
+            rearmPendingDocumentClose(state, record.summary.identity.id);
+            return;
+        }
+    }
+
+    const DocumentId id = record.summary.identity.id;
+    state.pendingDocumentCloseDecision.reset();
+    state.pendingDocumentCloseAction.reset();
+    closePendingDocument(state, id);
+}
+
+void requestRadarcolDocumentResolution(WorkbenchState & state, RadarcolDocument & document, PendingChangesAction action)
+{
+    if (!resolvePendingDocumentOperation(state, action))
+    {
+        return;
+    }
+    document.requestIntent({
+        .kind =
+            action == PendingChangesAction::discard ? RadarcolDocumentIntentKind::discard : RadarcolDocumentIntentKind::save,
+        .colorEdits = {},
+        .outputPath = {},
+        .overwriteOutput = false,
+    });
+    state.pendingDocumentCloseAction = action;
+}
+
+void requestTexmapsDocumentResolution(WorkbenchState & state, TexmapsDocument & document, PendingChangesAction action)
+{
+    if (!resolvePendingDocumentOperation(state, action))
+    {
+        return;
+    }
+    document.requestIntent({
+        .kind = action == PendingChangesAction::discard ? TexmapsDocumentIntentKind::discard : TexmapsDocumentIntentKind::save,
+        .outputIndexPath = {},
+        .outputDataPath = {},
+        .overwriteOutput = false,
+        .textureId = 0,
+        .texture = uomul::TextureImage(),
+        .textureEdits = {},
+        .textureIds = {},
+    });
+    state.pendingDocumentCloseAction = action;
 }
 
 void requestPendingDocumentResolution(WorkbenchState & state, DocumentRecord * record, PendingChangesAction action)
@@ -1533,89 +1627,19 @@ void requestPendingDocumentResolution(WorkbenchState & state, DocumentRecord * r
     {
         return;
     }
-
     if (record->map)
     {
-        const auto transition = state.operationController.resolveDirty(action);
-        if (transition.kind == OperationTransitionKind::rejected)
-        {
-            state.notifications.add(NotificationSeverity::error, transition.error);
-            return;
-        }
-
-        if (action == PendingChangesAction::save)
-        {
-            const auto saved = state.mapDocuments.save(state.mapDocuments.active().changes().originalPath, false);
-            if (!saved)
-            {
-                static_cast<void>(state.operationController.completeSave(false));
-                state.notifications.add(NotificationSeverity::error, saved.error().message);
-                rearmPendingDocumentClose(state, record->summary.identity.id);
-                return;
-            }
-            const auto completed = state.operationController.completeSave(true);
-            if (completed.kind != OperationTransitionKind::execute)
-            {
-                state.notifications.add(NotificationSeverity::error, completed.error);
-                rearmPendingDocumentClose(state, record->summary.identity.id);
-                return;
-            }
-        }
-        else
-        {
-            const auto discarded = state.mapDocuments.discard();
-            if (!discarded)
-            {
-                state.notifications.add(NotificationSeverity::error, discarded.error().message);
-                rearmPendingDocumentClose(state, record->summary.identity.id);
-                return;
-            }
-        }
-
-        const DocumentId id = record->summary.identity.id;
-        state.pendingDocumentCloseDecision.reset();
-        state.pendingDocumentCloseAction.reset();
-        closePendingDocument(state, id);
+        requestMapDocumentResolution(state, *record, action);
         return;
     }
-
     if (record->radarcol)
     {
-        const auto transition = state.operationController.resolveDirty(action);
-        if (transition.kind == OperationTransitionKind::rejected)
-        {
-            state.notifications.add(NotificationSeverity::error, transition.error);
-            return;
-        }
-        record->radarcol->requestIntent({
-            .kind = action == PendingChangesAction::discard ? RadarcolDocumentIntentKind::discard
-                                                            : RadarcolDocumentIntentKind::save,
-            .colorEdits = {},
-            .outputPath = {},
-            .overwriteOutput = false,
-        });
-        state.pendingDocumentCloseAction = action;
+        requestRadarcolDocumentResolution(state, record->radarcol.value(), action);
+        return;
     }
-    else if (record != nullptr && record->texmaps)
+    if (record->texmaps)
     {
-        const auto transition = state.operationController.resolveDirty(action);
-        if (transition.kind == OperationTransitionKind::rejected)
-        {
-            state.notifications.add(NotificationSeverity::error, transition.error);
-            return;
-        }
-        record->texmaps->requestIntent({
-            .kind =
-                action == PendingChangesAction::discard ? TexmapsDocumentIntentKind::discard : TexmapsDocumentIntentKind::save,
-            .outputIndexPath = {},
-            .outputDataPath = {},
-            .overwriteOutput = false,
-            .textureId = 0,
-            .texture = uomul::TextureImage(),
-            .textureEdits = {},
-            .textureIds = {},
-        });
-        state.pendingDocumentCloseAction = action;
+        requestTexmapsDocumentResolution(state, record->texmaps.value(), action);
     }
 }
 
@@ -1626,13 +1650,14 @@ void drawPendingDocumentCloseDialog(WorkbenchState & state)
         return;
     }
     const auto id = *state.pendingDocumentCloseDecision;
-    DocumentRecord * record = findMutableDocument(state, id);
+    const DocumentRecord * record = findMutableDocument(state, id);
     DocumentCloseDialogState dialog{
         .visible = true,
         .filename = pendingDocumentFilename(record),
         .actionRequested = [&state, id](PendingChangesAction action)
         { requestPendingDocumentResolution(state, findMutableDocument(state, id), action); },
-        .cancelRequested = [&state]
+        .cancelRequested =
+            [&state]
         {
             state.pendingDocumentCloseDecision.reset();
             state.pendingDocumentCloseAction.reset();
@@ -1697,11 +1722,10 @@ void applyPendingDocumentAction(WorkbenchState & state)
             state.notifications.add(NotificationSeverity::error, activated.error().message);
             return;
         }
-        const auto transition = state.operationController.begin(
-            {.kind = OperationKind::close, .documentId = id, .path = {}, .dimensions = {}, .initialTile = {}},
-            true,
-            false,
-            OutputCollisionPolicy::confirm);
+        OperationRequest operationRequest;
+        operationRequest.kind = OperationKind::close;
+        operationRequest.documentId = id;
+        const auto transition = state.operationController.begin(operationRequest, true, false, OutputCollisionPolicy::confirm);
         if (transition.kind == OperationTransitionKind::showDirtyDecision)
         {
             state.pendingDocumentCloseDecision = id;
@@ -2002,9 +2026,9 @@ void restoreMetadataAssetState(WorkbenchState & state)
     state.assetStateRestored = true;
 }
 
-void restoreConfiguredMetadataDocumentAssetState(WorkbenchState & state,
-                                                const DocumentRecord & document,
-                                                assets::AssetWindowState & assetView)
+void restoreConfiguredMetadataDocumentAssetState(const WorkbenchState & state,
+                                                 const DocumentRecord & document,
+                                                 assets::AssetWindowState & assetView)
 {
     if (document.summary.sourceKind != DocumentSourceKind::configuredMetadata)
     {
@@ -2013,12 +2037,8 @@ void restoreConfiguredMetadataDocumentAssetState(WorkbenchState & state,
 
     const auto context = metadataContext(document.summary.identity.kind,
                                          document.summary.identity.source,
-                                         document.summary.identity.kind == DocumentKind::radarcol
-                                             ? "window.radarcol"
-                                             : document.summary.identity.kind == DocumentKind::texmapPair ? "window.texmaps"
-                                                                                                          : "window.tiledata");
-    if (const auto * record =
-            assets::findAssetState(state.assetStateRecords, state.activeProfile.name, "default", context);
+                                         std::string(metadataContextId(document.summary.identity.kind)));
+    if (const auto * record = assets::findAssetState(state.assetStateRecords, state.activeProfile.name, "default", context);
         record != nullptr)
     {
         assets::restoreAssetState(*record, assetView);
@@ -2047,9 +2067,7 @@ void updateAssetStateRecord(std::vector<assets::AssetStateRecord> & records, ass
 template <typename DocumentStates>
 void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind kind, const DocumentStates & documentStates)
 {
-    const std::string contextId = kind == DocumentKind::radarcol
-                                      ? "window.radarcol"
-                                      : kind == DocumentKind::texmapPair ? "window.texmaps" : "window.tiledata";
+    const std::string contextId(metadataContextId(kind));
     for (const auto & document : state.session.documents())
     {
         if (document.summary.identity.kind != kind || document.summary.sourceKind != DocumentSourceKind::configuredMetadata)

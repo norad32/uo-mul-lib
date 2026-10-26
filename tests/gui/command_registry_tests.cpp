@@ -6,6 +6,7 @@
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/documents/map_view_state.h"
 #include "gui_model/layout/panel_registry.h"
+#include "gui_model/layout/window_registry.h"
 #include "gui_model/lifecycle/document_lifecycle.h"
 #include "gui_model/source/source_identity.h"
 #include "gui_model/tools/tool_contracts.h"

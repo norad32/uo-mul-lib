@@ -1,12 +1,26 @@
 #include "gui/presentation/map_texture_cache.h"
+#include "gui_model/documents/map_document_state.h"
+#include "gui_model/documents/map_view_state.h"
+#include "gui_model/providers/data_providers.h"
+#include "gui_model/world/map_canvas_state.h"
+#include "gui_model/world/map_color.h"
 #include "uomul/map/map.h"
 #include <GL/gl.h>
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <imgui.h>
+#include <unordered_map>
 
 namespace uo_mule::gui
 {
+
+namespace
+{
+
+constexpr int colorChannelMaximum = 255;
+
+} // namespace
 
 MapCanvasCachedTexture makeMapTextureCacheEntry(const TextureProvider & textures, std::uint32_t id)
 {
@@ -26,7 +40,7 @@ MapCanvasCachedTexture makeMapTextureCacheEntry(const TextureProvider & textures
         entry.rgbaPixels.push_back(pixel.red);
         entry.rgbaPixels.push_back(pixel.green);
         entry.rgbaPixels.push_back(pixel.blue);
-        entry.rgbaPixels.push_back(255U);
+        entry.rgbaPixels.push_back(static_cast<std::uint8_t>(colorChannelMaximum));
     }
     return entry;
 }
@@ -104,11 +118,12 @@ ImU32 mapTextureTint(MapDisplayMode mode, uomul::MapTile tile) noexcept
 {
     if (mode != MapDisplayMode::combined)
     {
-        return IM_COL32(255, 255, 255, 255);
+        return IM_COL32(colorChannelMaximum, colorChannelMaximum, colorChannelMaximum, colorChannelMaximum);
     }
-    const double brightness = 0.5 + (static_cast<double>(zGrayscale(tile.z)) / 255.0);
-    const auto channel = static_cast<std::uint8_t>(std::clamp(static_cast<int>(brightness * 255.0), 0, 255));
-    return IM_COL32(channel, channel, channel, 255);
+    const double brightness = 0.5 + (static_cast<double>(zGrayscale(tile.z)) / static_cast<double>(colorChannelMaximum));
+    const auto channel = static_cast<std::uint8_t>(
+        std::clamp(static_cast<int>(brightness * static_cast<double>(colorChannelMaximum)), 0, colorChannelMaximum));
+    return IM_COL32(channel, channel, channel, colorChannelMaximum);
 }
 
 } // namespace uo_mule::gui
