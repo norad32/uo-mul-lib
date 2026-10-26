@@ -6,6 +6,7 @@
 #include "gui/presentation/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/dialogs/dialog_host.h"
+#include "gui_model/dialogs/file_browser_model.h"
 #include <algorithm>
 #include <cctype>
 #include <cstddef>

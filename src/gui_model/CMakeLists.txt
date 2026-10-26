@@ -1,6 +1,7 @@
 set(GUI_MODEL_SOURCES
     dialogs/dialog_contracts.cpp
     dialogs/dialog_host.cpp
+    dialogs/file_browser_model.cpp
     documents/document_identity.cpp
     documents/document_descriptors.cpp
     documents/map_document.cpp
