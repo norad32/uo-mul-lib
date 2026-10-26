@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <functional>
 #include <imgui.h>
 #include <limits>
 #include <optional>
@@ -46,6 +47,25 @@ constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     static_cast<unsigned int>(ImGuiWindowFlags_NoNav) | static_cast<unsigned int>(ImGuiWindowFlags_NoFocusOnAppearing) |
     static_cast<unsigned int>(ImGuiWindowFlags_NoBringToFrontOnFocus));
 constexpr float dialogCenterPivot = 0.5F;
+
+void closeDialogPopup(NewFileDialogState & state)
+{
+    state.activePopup = MapFileDialogMode::none;
+    if (state.rendering)
+    {
+        ImGui::CloseCurrentPopup();
+    }
+}
+
+void deferWorkflow(const NewFileDialogState & state, std::function<void()> action)
+{
+    if (state.deferWorkflow)
+    {
+        state.deferWorkflow(std::move(action));
+        return;
+    }
+    action();
+}
 
 [[nodiscard]] const char * popupName(MapFileDialogMode mode) noexcept
 {
@@ -79,7 +99,7 @@ void closeDialog(NewFileDialogState & state)
     {
         state.dialogHost->cancel();
     }
-    ImGui::CloseCurrentPopup();
+    closeDialogPopup(state);
     state.operation = {};
     state.overwriteKind = MapOverwriteKind::none;
     state.saveForPendingOperation = false;
@@ -97,7 +117,7 @@ void showError(NewFileDialogState & state, const uomul::Error & error)
     {
         state.notifications->add(NotificationSeverity::error, state.error);
     }
-    ImGui::CloseCurrentPopup();
+    closeDialogPopup(state);
     state.mode = MapFileDialogMode::error;
 }
 
@@ -109,7 +129,7 @@ void showError(NewFileDialogState & state, const uomul::Error & error)
     if (filesystemError)
     {
         state.error = path.string() + ": " + filesystemError.message();
-        ImGui::CloseCurrentPopup();
+        closeDialogPopup(state);
         state.mode = MapFileDialogMode::error;
         return false;
     }
@@ -119,7 +139,7 @@ void showError(NewFileDialogState & state, const uomul::Error & error)
 
 void showOverwrite(NewFileDialogState & state, MapOverwriteKind kind)
 {
-    ImGui::CloseCurrentPopup();
+    closeDialogPopup(state);
     state.overwriteKind = kind;
 
     if (kind == MapOverwriteKind::newMap)
@@ -179,7 +199,7 @@ void executeOperation(MapDocumentManager & mapDocument,
     state.operation = {};
     state.overwriteKind = MapOverwriteKind::none;
     state.saveForPendingOperation = false;
-    ImGui::CloseCurrentPopup();
+    closeDialogPopup(state);
     state.mode = MapFileDialogMode::none;
     state.activePopup = MapFileDialogMode::none;
 }
@@ -190,12 +210,65 @@ void continueOperation(MapDocumentManager & mapDocument, NewFileDialogState & st
 
     if (mapDocument.active().changes().dirty())
     {
-        ImGui::CloseCurrentPopup();
+        closeDialogPopup(state);
         state.mode = MapFileDialogMode::dirtyChanges;
         return;
     }
 
     executeOperation(mapDocument, state, PendingChangesAction::cancel, std::nullopt, overwrite);
+}
+
+void cancelControlledOperation(const NewFileDialogState & state)
+{
+    if (state.controller != nullptr)
+    {
+        static_cast<void>(state.controller->cancel());
+    }
+}
+
+void discardMapChanges(MapDocumentManager & mapDocument, NewFileDialogState & state)
+{
+    if (state.controller != nullptr)
+    {
+        static_cast<void>(state.controller->resolveDirty(PendingChangesAction::discard));
+    }
+    executeOperation(mapDocument, state, PendingChangesAction::discard, std::nullopt, state.operationOverwriteOutput);
+}
+
+void saveDirtyMap(MapDocumentManager & mapDocument, NewFileDialogState & state, bool closeAfterSave)
+{
+    if (state.controller != nullptr)
+    {
+        static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
+    }
+    const auto saved = mapDocument.save(mapDocument.active().changes().originalPath, false);
+    if (!saved)
+    {
+        if (state.controller != nullptr)
+        {
+            static_cast<void>(state.controller->completeSave(false));
+        }
+        showError(state, saved.error());
+        return;
+    }
+    const auto transition = state.controller == nullptr
+                                ? OperationTransition{.kind = OperationTransitionKind::execute, .error = {}}
+                                : state.controller->completeSave(true);
+    if (transition.kind == OperationTransitionKind::execute)
+    {
+        if (closeAfterSave)
+        {
+            executeOperation(mapDocument, state, PendingChangesAction::cancel, std::nullopt, state.operationOverwriteOutput);
+        }
+        else
+        {
+            continueOperation(mapDocument, state, state.operationOverwriteOutput);
+        }
+    }
+    else
+    {
+        closeDialog(state);
+    }
 }
 
 [[nodiscard]] bool beginControlledOperation(NewFileDialogState & state, const MapDocumentManager & mapDocument)
@@ -227,13 +300,13 @@ void continueOperation(MapDocumentManager & mapDocument, NewFileDialogState & st
         {
             state.notifications->add(NotificationSeverity::error, state.error);
         }
-        ImGui::CloseCurrentPopup();
+        closeDialogPopup(state);
         state.mode = MapFileDialogMode::error;
         return false;
     }
     if (transition.kind == OperationTransitionKind::showDirtyDecision)
     {
-        ImGui::CloseCurrentPopup();
+        closeDialogPopup(state);
         state.mode = MapFileDialogMode::dirtyChanges;
         return false;
     }
@@ -270,7 +343,7 @@ void requestOperation(MapDocumentManager & mapDocument, NewFileDialogState & sta
         if (outputPathError)
         {
             state.error = state.operation.path.string() + ": " + outputPathError.message();
-            ImGui::CloseCurrentPopup();
+            closeDialogPopup(state);
             state.mode = MapFileDialogMode::error;
             return;
         }
@@ -283,7 +356,7 @@ void requestOperation(MapDocumentManager & mapDocument, NewFileDialogState & sta
             if (!sourcePathError && output == source)
             {
                 state.error = "New map output must not replace the currently open map";
-                ImGui::CloseCurrentPopup();
+                closeDialogPopup(state);
                 state.mode = MapFileDialogMode::error;
                 return;
             }
@@ -381,7 +454,7 @@ void drawOpenDialog(MapDocumentManager & mapDocument, NewFileDialogState & state
                 .path = state.openPath.data(),
                 .dimensions = *dimensions,
             };
-            requestOperation(mapDocument, state);
+            deferWorkflow(state, [&mapDocument, &state] { requestOperation(mapDocument, state); });
         }
     }
 
@@ -434,7 +507,7 @@ void drawNewTypeDialog(NewFileDialogState & state)
                            });
         state.mode = state.newFileKind == NewFileKind::map ? MapFileDialogMode::newMap : MapFileDialogMode::none;
         state.activePopup = MapFileDialogMode::none;
-        ImGui::CloseCurrentPopup();
+        closeDialogPopup(state);
     }
     ImGui::SameLine();
     if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
@@ -496,12 +569,12 @@ void drawNewMapForm(MapDocumentManager & mapDocument, NewFileDialogState & state
                         .z = static_cast<std::int8_t>(state.initialTileZ),
                     },
             };
-            requestOperation(mapDocument, state);
+            deferWorkflow(state, [&mapDocument, &state] { requestOperation(mapDocument, state); });
         }
         else
         {
             state.error = dimensions.error();
-            ImGui::CloseCurrentPopup();
+            closeDialogPopup(state);
             state.mode = MapFileDialogMode::error;
         }
     }
@@ -555,7 +628,7 @@ finishPendingSave(MapDocumentManager & mapDocument, NewFileDialogState & state, 
     const bool overwriteOperation = state.operationOverwriteOutput;
     state.overwriteKind = MapOverwriteKind::none;
     continueOperation(mapDocument, state, overwriteOperation);
-    ImGui::CloseCurrentPopup();
+    closeDialogPopup(state);
     return true;
 }
 
@@ -593,6 +666,50 @@ saveAs(MapDocumentManager & mapDocument, NewFileDialogState & state, const std::
     return true;
 }
 
+void requestSaveAs(MapDocumentManager & mapDocument, NewFileDialogState & state, const std::filesystem::path & path)
+{
+    std::error_code outputError;
+    const bool exists = std::filesystem::exists(path, outputError);
+    if (outputError)
+    {
+        showError(state,
+                  uomul::Error{.code = uomul::ErrorCode::io, .path = path, .offset = 0, .message = outputError.message()});
+        return;
+    }
+    if (state.controller != nullptr && state.controller->phase() == OperationPhase::idle)
+    {
+        OperationRequest request{
+            .kind = OperationKind::saveAs,
+            .documentId = mapDocument.activeDocumentId(),
+            .path = path,
+            .dimensions = mapDocument.active().changes().dimensions,
+        };
+        const auto transition =
+            state.controller->begin(std::move(request), mapDocument.active().changes().dirty(), exists, state.collisionPolicy);
+        if (transition.kind == OperationTransitionKind::showOverwriteConfirmation)
+        {
+            showOverwrite(state, MapOverwriteKind::save);
+            return;
+        }
+        if (transition.kind == OperationTransitionKind::showDirtyDecision)
+        {
+            state.mode = MapFileDialogMode::dirtyChanges;
+            state.activePopup = MapFileDialogMode::none;
+            return;
+        }
+        if (transition.kind == OperationTransitionKind::rejected)
+        {
+            showError(state,
+                      uomul::Error{.code = uomul::ErrorCode::io, .path = path, .offset = 0, .message = transition.error});
+            return;
+        }
+    }
+    if (state.mode != MapFileDialogMode::error)
+    {
+        static_cast<void>(saveAs(mapDocument, state, path));
+    }
+}
+
 void drawSaveAsDialog(MapDocumentManager & mapDocument, NewFileDialogState & state)
 {
     dialogFieldLabel("Commit path");
@@ -613,58 +730,8 @@ void drawSaveAsDialog(MapDocumentManager & mapDocument, NewFileDialogState & sta
     if (dialogButton(iconLabel(IconId::save, "Save").c_str(), state.savePath.front() != '\0'))
     {
         const std::filesystem::path path(state.savePath.data());
-        std::error_code outputError;
-        const bool exists = std::filesystem::exists(path, outputError);
-        if (outputError)
-        {
-            showError(state,
-                      uomul::Error{.code = uomul::ErrorCode::io, .path = path, .offset = 0, .message = outputError.message()});
-            endDialogFooter();
-            return;
-        }
-        if (state.controller != nullptr && state.controller->phase() == OperationPhase::idle)
-        {
-            OperationRequest request{
-                .kind = OperationKind::saveAs,
-                .documentId = mapDocument.activeDocumentId(),
-                .path = path,
-                .dimensions = mapDocument.active().changes().dimensions,
-            };
-            const auto transition = state.controller->begin(
-                std::move(request), mapDocument.active().changes().dirty(), exists, state.collisionPolicy);
-            if (transition.kind == OperationTransitionKind::showOverwriteConfirmation)
-            {
-                showOverwrite(state, MapOverwriteKind::save);
-                endDialogFooter();
-                return;
-            }
-            if (transition.kind == OperationTransitionKind::showDirtyDecision)
-            {
-                state.mode = MapFileDialogMode::dirtyChanges;
-                state.activePopup = MapFileDialogMode::none;
-                ImGui::CloseCurrentPopup();
-                endDialogFooter();
-                return;
-            }
-            if (transition.kind == OperationTransitionKind::rejected)
-            {
-                showError(state,
-                          uomul::Error{.code = uomul::ErrorCode::io, .path = path, .offset = 0, .message = transition.error});
-                endDialogFooter();
-                return;
-            }
-        }
-        if (state.mode == MapFileDialogMode::error)
-        {
-            endDialogFooter();
-            return;
-        }
-
-        if (!saveAs(mapDocument, state, path))
-        {
-            endDialogFooter();
-            return;
-        }
+        deferWorkflow(state, [&mapDocument, &state, path] { requestSaveAs(mapDocument, state, path); });
+        closeDialogPopup(state);
     }
 
     ImGui::SameLine();
@@ -691,52 +758,22 @@ void drawCloseDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState &
     beginDialogFooter({strings::closeWithoutSaving(), strings::cancel(), strings::save()});
     if (dialogButton(iconLabel(IconId::close, strings::closeWithoutSaving()).c_str()))
     {
-        if (state.controller != nullptr)
-        {
-            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::discard));
-        }
-        executeOperation(mapDocument, state, PendingChangesAction::discard, std::nullopt, state.operationOverwriteOutput);
+        deferWorkflow(state, [&mapDocument, &state] { discardMapChanges(mapDocument, state); });
+        closeDialogPopup(state);
     }
 
     ImGui::SameLine();
     if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
-        if (state.controller != nullptr)
-        {
-            static_cast<void>(state.controller->cancel());
-        }
+        deferWorkflow(state, [&state] { cancelControlledOperation(state); });
         closeDialog(state);
     }
 
     ImGui::SameLine();
     if (dialogButton(iconLabel(IconId::save, "Save").c_str()))
     {
-        if (state.controller != nullptr)
-        {
-            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
-        }
-        const auto saved = mapDocument.save(mapDocument.active().changes().originalPath, false);
-        if (!saved)
-        {
-            if (state.controller != nullptr)
-            {
-                static_cast<void>(state.controller->completeSave(false));
-            }
-            showError(state, saved.error());
-            endDialogFooter();
-            return;
-        }
-        const auto transition = state.controller == nullptr
-                                    ? OperationTransition{.kind = OperationTransitionKind::execute, .error = {}}
-                                    : state.controller->completeSave(true);
-        if (transition.kind == OperationTransitionKind::execute)
-        {
-            executeOperation(mapDocument, state, PendingChangesAction::cancel, std::nullopt, state.operationOverwriteOutput);
-        }
-        else
-        {
-            closeDialog(state);
-        }
+        deferWorkflow(state, [&mapDocument, &state] { saveDirtyMap(mapDocument, state, true); });
+        closeDialogPopup(state);
     }
     endDialogFooter();
 }
@@ -753,43 +790,22 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
     beginDialogFooter({"Save", "Save As...", "Discard", "Cancel"});
     if (dialogButton(iconLabel(IconId::save, "Save").c_str()))
     {
-        if (state.controller != nullptr)
-        {
-            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
-        }
-        const auto saved = mapDocument.save(mapDocument.active().changes().originalPath, false);
-        if (!saved)
-        {
-            if (state.controller != nullptr)
-            {
-                static_cast<void>(state.controller->completeSave(false));
-            }
-            showError(state, saved.error());
-            endDialogFooter();
-            return;
-        }
-        const auto transition = state.controller == nullptr
-                                    ? OperationTransition{.kind = OperationTransitionKind::execute, .error = {}}
-                                    : state.controller->completeSave(true);
-        if (transition.kind == OperationTransitionKind::execute)
-        {
-            const bool overwriteOperation = state.operationOverwriteOutput;
-            continueOperation(mapDocument, state, overwriteOperation);
-        }
-        else
-        {
-            closeDialog(state);
-        }
+        deferWorkflow(state, [&mapDocument, &state] { saveDirtyMap(mapDocument, state, false); });
+        closeDialogPopup(state);
     }
 
     ImGui::SameLine();
 
     if (dialogButton(iconLabel(IconId::save, "Save As...").c_str()))
     {
-        if (state.controller != nullptr)
-        {
-            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
-        }
+        deferWorkflow(state,
+                      [&state]
+                      {
+                          if (state.controller != nullptr)
+                          {
+                              static_cast<void>(state.controller->resolveDirty(PendingChangesAction::save));
+                          }
+                      });
         state.saveForPendingOperation = true;
         state.savePath.fill('\0');
         requestFileBrowser(*state.browser,
@@ -801,29 +817,22 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
                                .title = "Save Map As",
                            });
         state.mode = MapFileDialogMode::saveAs;
-        ImGui::CloseCurrentPopup();
+        closeDialogPopup(state);
     }
 
     ImGui::SameLine();
 
     if (dialogButton(iconLabel(IconId::cancel, "Discard").c_str()))
     {
-        if (state.controller != nullptr)
-        {
-            static_cast<void>(state.controller->resolveDirty(PendingChangesAction::discard));
-        }
-        executeOperation(mapDocument, state, PendingChangesAction::discard, std::nullopt, state.operationOverwriteOutput);
-        ImGui::CloseCurrentPopup();
+        deferWorkflow(state, [&mapDocument, &state] { discardMapChanges(mapDocument, state); });
+        closeDialogPopup(state);
     }
 
     ImGui::SameLine();
 
     if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
-        if (state.controller != nullptr)
-        {
-            static_cast<void>(state.controller->cancel());
-        }
+        deferWorkflow(state, [&state] { cancelControlledOperation(state); });
         state.operation = {};
         state.overwriteKind = MapOverwriteKind::none;
         closeDialog(state);
@@ -856,7 +865,7 @@ void handleOverwriteSave(MapDocumentManager & mapDocument, NewFileDialogState & 
         {
             state.mode = MapFileDialogMode::dirtyChanges;
             state.activePopup = MapFileDialogMode::none;
-            ImGui::CloseCurrentPopup();
+            closeDialogPopup(state);
             return;
         }
         if (transition.kind != OperationTransitionKind::showSaveDialog)
@@ -906,30 +915,37 @@ void drawOverwriteDialog(MapDocumentManager & mapDocument, NewFileDialogState & 
     beginDialogFooter({"Overwrite", "Cancel"});
     if (dialogButton(iconLabel(IconId::ok, "Overwrite").c_str()))
     {
-        if (state.controller != nullptr)
-        {
-            static_cast<void>(state.controller->resolveOverwrite(true));
-        }
-        if (state.overwriteKind == MapOverwriteKind::save)
-        {
-            handleOverwriteSave(mapDocument, state, path);
-        }
-        else
-        {
-            handleOverwriteNewMap(mapDocument, state);
-        }
-
-        ImGui::CloseCurrentPopup();
+        deferWorkflow(state,
+                      [&mapDocument, &state, path]
+                      {
+                          if (state.controller != nullptr)
+                          {
+                              static_cast<void>(state.controller->resolveOverwrite(true));
+                          }
+                          if (state.overwriteKind == MapOverwriteKind::save)
+                          {
+                              handleOverwriteSave(mapDocument, state, path);
+                          }
+                          else
+                          {
+                              handleOverwriteNewMap(mapDocument, state);
+                          }
+                      });
+        closeDialogPopup(state);
     }
 
     ImGui::SameLine();
 
     if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
-        if (state.controller != nullptr)
-        {
-            static_cast<void>(state.controller->resolveOverwrite(false));
-        }
+        deferWorkflow(state,
+                      [&state]
+                      {
+                          if (state.controller != nullptr)
+                          {
+                              static_cast<void>(state.controller->resolveOverwrite(false));
+                          }
+                      });
         state.overwriteKind = MapOverwriteKind::none;
         state.operation = {};
         state.saveForPendingOperation = false;
@@ -951,7 +967,7 @@ void drawMapFacetWorkflow(MapDocumentManager & mapDocument, NewFileDialogState &
                 .path = state.openPath.data(),
                 .dimensions = *dimensions,
             };
-            requestOperation(mapDocument, state);
+            deferWorkflow(state, [&mapDocument, &state] { requestOperation(mapDocument, state); });
         }
     }
     else if (result == MapFacetDialogResult::cancel)
@@ -979,7 +995,7 @@ void drawErrorDialog(NewFileDialogState & state)
             state.error.clear();
             state.mode = MapFileDialogMode::saveAs;
             state.activePopup = MapFileDialogMode::none;
-            ImGui::CloseCurrentPopup();
+            closeDialogPopup(state);
             endDialogFooter();
             return;
         }
@@ -1162,6 +1178,7 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
                        FileBrowserState & browser,
                        bool & shouldClose)
 {
+    state.rendering = false;
     state.shouldClose = false;
     state.controller = &controller;
     state.collisionPolicy = collisionPolicy;
@@ -1212,7 +1229,9 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
         return;
     }
 
+    state.rendering = true;
     drawDialogContent(mapDocument, state, currentMode);
+    state.rendering = false;
 
     endDialog();
     ImGui::PopID();

@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -69,6 +70,8 @@ struct PendingMapOperation
 struct NewFileDialogState
 {
     DialogHostState * dialogHost = nullptr;
+    std::function<void(std::function<void()>)> deferWorkflow;
+    bool rendering = false;
     OperationController * controller = nullptr;
     NotificationState * notifications = nullptr;
     OutputCollisionPolicy collisionPolicy = OutputCollisionPolicy::confirm;

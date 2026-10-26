@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -29,6 +30,7 @@ struct FileBrowserSummary
 struct FileBrowserState
 {
     DialogHostState * dialogHost = nullptr;
+    bool recentFoldersDirty = false;
     bool visible = false;
     bool showHidden = false;
     FileBrowserRequest request{};
@@ -51,6 +53,7 @@ void sortFileBrowserCandidates(std::vector<FileBrowserAssetCandidate> & candidat
 
 void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request);
 void cancelFileBrowser(FileBrowserState & state);
+void persistFileBrowserRecentFolders(FileBrowserState & state);
 [[nodiscard]] std::optional<DialogResult> drawFileBrowser(FileBrowserState & state, std::uint64_t generation);
 
 } // namespace uo_mule::gui

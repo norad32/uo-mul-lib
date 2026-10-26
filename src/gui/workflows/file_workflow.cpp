@@ -16,6 +16,7 @@
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -40,6 +41,15 @@ void returnToFileBrowser(WorkbenchState & state, const FileBrowserResult & resul
                            .extension = ".mul",
                            .title = "Open MUL File",
                        });
+}
+
+void queueFileBrowserPersistence(WorkbenchState & state)
+{
+    if (!state.fileBrowser.recentFoldersDirty)
+    {
+        return;
+    }
+    state.deferWorkflowAction([&state] { persistFileBrowserRecentFolders(state.fileBrowser); });
 }
 
 void openCreatedAsset(WorkbenchState & state,
@@ -499,6 +509,8 @@ bool drawFileDialogs(WorkbenchState & state)
     std::optional<DialogResult> dialogResult;
     if (state.dialogHost.owns(DialogId::mapWorkflow))
     {
+        state.menuBarState.fileDialog.deferWorkflow = [&state](std::function<void()> action)
+        { state.deferWorkflowAction(std::move(action)); };
         drawNewFileDialog(state.mapDocuments,
                           state.menuBarState.fileDialog,
                           state.operationController,
@@ -530,6 +542,7 @@ bool drawFileDialogs(WorkbenchState & state)
             profileChanged = completeDialogResult(state, *selectorResult) || profileChanged;
         }
     }
+    queueFileBrowserPersistence(state);
     return profileChanged;
 }
 

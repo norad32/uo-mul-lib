@@ -143,7 +143,7 @@ void recordRecentFolder(FileBrowserState & state, const std::filesystem::path & 
     {
         state.recentFolders.resize(maxRecentLocations);
     }
-    saveRecentFolders(state);
+    state.recentFoldersDirty = true;
 }
 
 [[nodiscard]] std::string lowercase(std::string value)
@@ -752,9 +752,11 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
 void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
 {
     auto * const dialogHost = state.dialogHost;
+    const bool recentFoldersDirty = state.recentFoldersDirty;
     auto recentFolders = std::move(state.recentFolders);
     state = {};
     state.dialogHost = dialogHost;
+    state.recentFoldersDirty = recentFoldersDirty;
     state.recentFolders = std::move(recentFolders);
     if (state.recentFolders.empty())
     {
@@ -798,10 +800,22 @@ void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
 void cancelFileBrowser(FileBrowserState & state)
 {
     auto * const dialogHost = state.dialogHost;
+    const bool recentFoldersDirty = state.recentFoldersDirty;
     auto recentFolders = std::move(state.recentFolders);
     state = {};
     state.dialogHost = dialogHost;
+    state.recentFoldersDirty = recentFoldersDirty;
     state.recentFolders = std::move(recentFolders);
+}
+
+void persistFileBrowserRecentFolders(FileBrowserState & state)
+{
+    if (!state.recentFoldersDirty)
+    {
+        return;
+    }
+    saveRecentFolders(state);
+    state.recentFoldersDirty = false;
 }
 
 namespace
