@@ -246,6 +246,15 @@ DataProfileValidation validateDataProfile(const DataProfile & profile)
     validateRadarcol(profile, result);
     validateTexmaps(profile, result);
     validateTiledata(profile, result);
+    if (profile.sourceRoot.empty() && profile.files.empty())
+    {
+        addDiagnostic(result,
+                      Diagnostic::Severity::error,
+                      std::nullopt,
+                      {},
+                      "profile does not define a metadata source",
+                      {"Choose a metadata folder or set a file override."});
+    }
     return result;
 }
 

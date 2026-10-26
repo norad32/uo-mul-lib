@@ -131,6 +131,17 @@ TEST_CASE("DataProfileValidation_Should_ReportIncompleteTexmapsSet")
     REQUIRE(validation.diagnostics.size() == 1);
 }
 
+TEST_CASE("DataProfileValidation_Should_RejectEmptyProfile")
+{
+    const uo_mule::gui::DataProfile profile;
+
+    const auto validation = uo_mule::gui::validateDataProfile(profile);
+
+    REQUIRE(validation.hasErrors());
+    REQUIRE(validation.diagnostics.size() == 1);
+    REQUIRE(validation.diagnostics.front().severity == uo_mule::gui::Diagnostic::Severity::error);
+}
+
 TEST_CASE("DataProfileValidation_Should_PreserveExplicitOverrideStatus")
 {
     const TemporaryProfileDirectory directory;
