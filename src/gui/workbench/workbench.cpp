@@ -4,6 +4,7 @@
 #include "gui/commands/command_registry.h"
 #include "gui/commands/menu_bar.h"
 #include "gui/dialogs/file_browser_dialog.h"
+#include "gui/dialogs/document_close_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/documents/document_window_name.h"
@@ -83,7 +84,6 @@ constexpr float dockRightWidthRatio = 0.447F;
 constexpr float dockLeftBottomRatio = 0.5F;
 constexpr float toolDockSplitRatio = 0.38F;
 constexpr float statusBarHeight = 36.0F;
-constexpr float dialogCenterPivot = 0.5F;
 constexpr std::size_t shortcutCount = 10;
 constexpr std::size_t graveShortcutIndex = 0;
 constexpr std::size_t saveAsShortcutIndex = 1;
@@ -1374,6 +1374,8 @@ void continueQuit(WorkbenchState & state)
         {.id = state.session.documents().front().summary.identity.id, .dirtyPolicy = DocumentCloseDirtyPolicy::prompt});
 }
 
+void closePendingDocument(WorkbenchState & state, DocumentId id);
+
 void finishPendingDocumentClose(WorkbenchState & state, DocumentId id, PendingChangesAction action)
 {
     if (action == PendingChangesAction::save)
@@ -1381,31 +1383,13 @@ void finishPendingDocumentClose(WorkbenchState & state, DocumentId id, PendingCh
         const auto transition = state.operationController.completeSave(true);
         if (transition.kind == OperationTransitionKind::execute)
         {
-            const auto closed = state.session.closeDocument(id, state.mapDocuments);
-            if (!closed)
-            {
-                state.notifications.add(NotificationSeverity::error, closed.error().message);
-            }
-            else
-            {
-                evictClosedDocumentState(state, id);
-                continueQuit(state);
-            }
+            state.deferWorkflowAction([&state, id] { closePendingDocument(state, id); });
         }
     }
     else if (action == PendingChangesAction::discard)
     {
         static_cast<void>(state.operationController.cancel());
-        const auto closed = state.session.closeDocument(id, state.mapDocuments);
-        if (!closed)
-        {
-            state.notifications.add(NotificationSeverity::error, closed.error().message);
-        }
-        else
-        {
-            evictClosedDocumentState(state, id);
-            continueQuit(state);
-        }
+        state.deferWorkflowAction([&state, id] { closePendingDocument(state, id); });
     }
 }
 
@@ -1624,45 +1608,21 @@ void drawPendingDocumentCloseDialog(WorkbenchState & state)
         return;
     }
     const auto id = *state.pendingDocumentCloseDecision;
-    const ImGuiViewport * viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(dialogCenterPivot, dialogCenterPivot));
-    if (!ImGui::BeginPopup("PendingDocumentClose###dialog.pending-document-close"))
-    {
-        ImGui::OpenPopup("PendingDocumentClose###dialog.pending-document-close");
-        return;
-    }
-
     DocumentRecord * record = findMutableDocument(state, id);
-    const std::string filename = pendingDocumentFilename(record);
-
-    const std::string savePrompt = strings::formatSaveChangesPrompt(filename);
-    ImGui::TextUnformatted(savePrompt.c_str());
-    ImGui::TextColored(theme::imguiColor(theme::mutedText), "%s", strings::discardChangesWarning());
-
-    const std::string closeWithoutSavingLabel = iconLabel(IconId::close, strings::closeWithoutSaving());
-    if (ImGui::Button(closeWithoutSavingLabel.c_str()))
-    {
-        requestPendingDocumentResolution(state, record, PendingChangesAction::discard);
-        ImGui::CloseCurrentPopup();
-    }
-    ImGui::SameLine();
-    const std::string cancelLabel = iconLabel(IconId::cancel, "Cancel");
-    if (ImGui::Button(cancelLabel.c_str()))
-    {
-        state.pendingDocumentCloseDecision.reset();
-        state.pendingDocumentCloseAction.reset();
-        state.quitRequested = false;
-        static_cast<void>(state.operationController.cancel());
-        ImGui::CloseCurrentPopup();
-    }
-    ImGui::SameLine();
-    const std::string saveLabel = iconLabel(IconId::save, "Save");
-    if (ImGui::Button(saveLabel.c_str()))
-    {
-        requestPendingDocumentResolution(state, record, PendingChangesAction::save);
-        ImGui::CloseCurrentPopup();
-    }
-    ImGui::EndPopup();
+    DocumentCloseDialogState dialog{
+        .visible = true,
+        .filename = pendingDocumentFilename(record),
+        .actionRequested = [&state, id](PendingChangesAction action)
+        { requestPendingDocumentResolution(state, findMutableDocument(state, id), action); },
+        .cancelRequested = [&state]
+        {
+            state.pendingDocumentCloseDecision.reset();
+            state.pendingDocumentCloseAction.reset();
+            state.quitRequested = false;
+            static_cast<void>(state.operationController.cancel());
+        },
+    };
+    drawDocumentCloseDialog(dialog);
 }
 
 void requestDocumentClose(WorkbenchState & state, DocumentId id)
@@ -1672,14 +1632,19 @@ void requestDocumentClose(WorkbenchState & state, DocumentId id)
 
 void applyPendingDocumentAction(WorkbenchState & state)
 {
-    if (const auto id = state.documentLifecycle.takeActivation())
+    const auto pendingClose = state.documentLifecycle.takeClose();
+    if (pendingClose)
+    {
+        // A visible map queues activation while it is rendered. A close request
+        // supersedes that stale activation request and must be applied first.
+        static_cast<void>(state.documentLifecycle.takeActivation());
+    }
+    else if (const auto id = state.documentLifecycle.takeActivation())
     {
         activateDocumentOrNotify(state, *id);
         return;
     }
-
-    const auto pendingClose = state.documentLifecycle.takeClose();
-    if (!pendingClose)
+    else
     {
         return;
     }
@@ -1699,6 +1664,11 @@ void applyPendingDocumentAction(WorkbenchState & state)
     if (requested == nullptr)
     {
         return;
+    }
+
+    if (!state.quitRequested)
+    {
+        hideConfiguredMetadataView(state, requested->summary);
     }
 
     if (requested->summary.dirty)
@@ -2176,7 +2146,10 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
         state.radarcolState.hoveredContext = updateHoveredPanelContext;
         state.texmapsState.hoveredContext = updateHoveredPanelContext;
         state.tiledataState.hoveredContext = updateHoveredPanelContext;
-        ensureConfiguredMetadataWindows(state);
+        if (!state.quitRequested)
+        {
+            ensureConfiguredMetadataWindows(state);
+        }
         drawDockSpace(state, bottomPanelHeight);
         drawDocumentSurface(state);
         drawPendingDocumentCloseDialog(state);
