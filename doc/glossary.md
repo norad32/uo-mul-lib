@@ -6,7 +6,7 @@ These are the standard terms used throughout the project documentation.
 | --- | --- | --- |
 | File | One path on disk | `radarcol.mul` |
 | File set | Related files on disk | `texidx.mul` and `texmaps.mul` |
-| Document | An open editable file or file set | A Texmap Pair document |
+| Document | An open editable file or file set | A Texmaps-set document |
 | Changes | Unsaved file edits | Replacing texture 42 |
 | View state | Selection and display state | Selected tile and zoom level |
 | Command | A user request | Save or Discard |
