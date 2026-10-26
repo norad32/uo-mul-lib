@@ -12,7 +12,6 @@ struct DialogWindowSpec
     ImVec2 minimumSize;
 };
 
-[[nodiscard]] DialogWindowSpec standardDialogSpec() noexcept;
 [[nodiscard]] DialogWindowSpec largeDialogSpec() noexcept;
 [[nodiscard]] DialogWindowSpec browserDialogSpec() noexcept;
 [[nodiscard]] DialogWindowSpec mapDialogSpec() noexcept;

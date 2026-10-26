@@ -1,5 +1,4 @@
 #include "gui_model/dialogs/dialog_contracts.h"
-#include <utility>
 
 namespace uo_mule::gui
 {
@@ -22,9 +21,9 @@ const char * dialogPopupId(DialogId id) noexcept
     return "###dialog.none";
 }
 
-DialogRequest makeDialogRequest(DialogId id, DialogRequestPayload payload)
+DialogRequest makeDialogRequest(DialogId id)
 {
-    return {.id = id, .popupId = dialogPopupId(id), .payload = std::move(payload), .replaceActive = false, .generation = 0};
+    return {.id = id, .popupId = dialogPopupId(id), .replaceActive = false, .generation = 0};
 }
 
 } // namespace uo_mule::gui

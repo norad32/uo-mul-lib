@@ -791,7 +791,7 @@ void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
     }
     if (state.dialogHost != nullptr)
     {
-        auto dialogRequest = makeDialogRequest(DialogId::fileBrowser, FileBrowserDialogRequest{.request = state.request});
+        auto dialogRequest = makeDialogRequest(DialogId::fileBrowser);
         dialogRequest.replaceActive = true;
         static_cast<void>(state.dialogHost->request(std::move(dialogRequest)));
     }

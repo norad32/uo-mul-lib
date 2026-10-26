@@ -79,8 +79,7 @@ TEST_CASE("dialogRequests_Should_ActivateAndReplaceTheAuthoritativeHost")
     {
         FAIL("The file-browser request must activate the dialog host");
     }
-    REQUIRE(std::get<uo_mule::gui::FileBrowserDialogRequest>(state.dialogHost.active->payload).request.target ==
-            uo_mule::gui::FileBrowserTarget::genericOpen);
+    REQUIRE(state.fileBrowser.request.target == uo_mule::gui::FileBrowserTarget::genericOpen);
 
     uo_mule::gui::requestMapDialog(state.menuBarState.fileDialog, uo_mule::gui::MapFileDialogMode::newType);
     REQUIRE(state.dialogHost.owns(uo_mule::gui::DialogId::mapWorkflow));

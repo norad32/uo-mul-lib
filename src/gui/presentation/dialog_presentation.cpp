@@ -14,10 +14,6 @@ namespace
 constexpr float framePaddingMultiplier = 2.0F;
 constexpr float dialogCenterPivot = 0.5F;
 
-constexpr float standardWidth = 520.0F;
-constexpr float standardHeight = 320.0F;
-constexpr float standardMinimumWidth = 360.0F;
-constexpr float standardMinimumHeight = 220.0F;
 constexpr float largeWidth = 860.0F;
 constexpr float largeHeight = 720.0F;
 constexpr float largeMinimumWidth = 640.0F;
@@ -41,14 +37,6 @@ constexpr float dialogFieldLabelWidth = 240.0F;
 }
 
 } // namespace
-
-DialogWindowSpec standardDialogSpec() noexcept
-{
-    return {
-        .initialSize = ImVec2(standardWidth, standardHeight),
-        .minimumSize = ImVec2(standardMinimumWidth, standardMinimumHeight),
-    };
-}
 
 DialogWindowSpec largeDialogSpec() noexcept
 {

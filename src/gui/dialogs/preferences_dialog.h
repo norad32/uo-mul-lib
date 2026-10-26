@@ -24,7 +24,6 @@ struct PreferencesDialogState
 {
     DialogHostState * dialogHost = nullptr;
     bool visible = false;
-    bool initialized = false;
     bool closeRequested = false;
     bool showWelcomeOnStartup = true;
     IdFormat idFormat = IdFormat::hexadecimal;

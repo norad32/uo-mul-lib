@@ -1,22 +1,21 @@
 #include "gui/presentation/dialog_presentation.h"
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("dialogPresentation_Should_ProvideBoundedStandardDialogSize")
+TEST_CASE("dialogPresentation_Should_ProvideBoundedDialogSizes")
 {
-    const auto spec = uo_mule::gui::standardDialogSpec();
-
-    REQUIRE(spec.initialSize.x >= spec.minimumSize.x);
-    REQUIRE(spec.initialSize.y >= spec.minimumSize.y);
-}
-
-TEST_CASE("dialogPresentation_Should_ProvideLargerBrowserAndPreferencesSizes")
-{
-    const auto standard = uo_mule::gui::standardDialogSpec();
     const auto large = uo_mule::gui::largeDialogSpec();
     const auto browser = uo_mule::gui::browserDialogSpec();
 
-    REQUIRE(large.initialSize.x > standard.initialSize.x);
-    REQUIRE(large.initialSize.y > standard.initialSize.y);
-    REQUIRE(browser.initialSize.x > standard.initialSize.x);
-    REQUIRE(browser.initialSize.y > standard.initialSize.y);
+    REQUIRE(large.initialSize.x >= large.minimumSize.x);
+    REQUIRE(large.initialSize.y >= large.minimumSize.y);
+    REQUIRE(browser.initialSize.x >= browser.minimumSize.x);
+    REQUIRE(browser.initialSize.y >= browser.minimumSize.y);
+}
+
+TEST_CASE("dialogPresentation_Should_ProvideLargerBrowserSize")
+{
+    const auto large = uo_mule::gui::largeDialogSpec();
+    const auto browser = uo_mule::gui::browserDialogSpec();
+
+    REQUIRE(browser.initialSize.x > large.initialSize.x);
 }

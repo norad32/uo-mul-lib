@@ -21,7 +21,6 @@ void DialogHostState::activate(DialogRequest request)
     request.popupId = dialogPopupId(request.id);
     if (active && active->id == request.id)
     {
-        active->payload = std::move(request.payload);
         active->replaceActive = request.replaceActive;
         return;
     }

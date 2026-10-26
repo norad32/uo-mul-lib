@@ -93,7 +93,7 @@ void activateFileSelector(const FileSelectorState & state)
     {
         return;
     }
-    auto request = makeDialogRequest(DialogId::fileSelector, FileSelectorDialogRequest{.sourcePath = state.browserResult.path});
+    auto request = makeDialogRequest(DialogId::fileSelector);
     request.replaceActive = true;
     static_cast<void>(state.dialogHost->request(std::move(request)));
 }

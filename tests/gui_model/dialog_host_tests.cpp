@@ -8,7 +8,6 @@ using uo_mule::gui::DataFileRole;
 using uo_mule::gui::DialogAction;
 using uo_mule::gui::DialogHostState;
 using uo_mule::gui::DialogId;
-using uo_mule::gui::DialogPathResult;
 using uo_mule::gui::FileBrowserResult;
 using uo_mule::gui::FileBrowserTarget;
 using uo_mule::gui::makeDialogRequest;
@@ -40,13 +39,16 @@ TEST_CASE("dialogHost_Should_ReplaceAndDeliverTypedResult")
     const auto generation = host.active.value_or(uo_mule::gui::DialogRequest{}).generation;
     REQUIRE(host.complete({.id = DialogId::fileBrowser,
                            .action = DialogAction::accept,
-                           .payload = DialogPathResult{.path = "selected.mul"},
+                           .payload = FileBrowserResult{.path = "selected.mul",
+                                                        .mapCandidates = {},
+                                                        .assetCandidates = {},
+                                                        .assetCandidate = std::nullopt},
                            .generation = generation}));
 
     const auto result = host.consumeResult().value_or(uo_mule::gui::DialogResult{});
     REQUIRE(result.id == DialogId::fileBrowser);
     REQUIRE(result.action == DialogAction::accept);
-    REQUIRE(std::get<DialogPathResult>(result.payload).path == "selected.mul");
+    REQUIRE(std::get<FileBrowserResult>(result.payload).path == "selected.mul");
     REQUIRE_FALSE(host.active.has_value());
 }
 

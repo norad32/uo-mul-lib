@@ -336,7 +336,6 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
 {
     state.workingProfile = profile;
     state.visible = true;
-    state.initialized = true;
     state.message.clear();
     state.browser = nullptr;
     state.showWelcomeOnStartup = preferences.showWelcomeOnStartup;
@@ -359,7 +358,7 @@ void activatePreferencesDialog(const PreferencesDialogState & state)
     {
         return;
     }
-    auto request = makeDialogRequest(DialogId::preferences, PreferencesDialogRequest{.focusProfile = false});
+    auto request = makeDialogRequest(DialogId::preferences);
     request.replaceActive = true;
     static_cast<void>(state.dialogHost->request(std::move(request)));
 }
@@ -368,9 +367,6 @@ void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserRes
 {
     switch (result.target)
     {
-        case FileBrowserTarget::dataSourceRoot :
-            copyToBuffer(state.sourceRoot, result.path);
-            break;
         case FileBrowserTarget::dataSearchRoot :
             searchMetadataFolder(state, result.path);
             return;

@@ -964,34 +964,7 @@ void requestMapDialog(NewFileDialogState & state, MapFileDialogMode mode)
         return;
     }
 
-    MapDialogWorkflow workflow = MapDialogWorkflow::error;
-    switch (mode)
-    {
-        case MapFileDialogMode::openMap :
-            workflow = MapDialogWorkflow::open;
-            break;
-        case MapFileDialogMode::newMap :
-        case MapFileDialogMode::newType :
-        case MapFileDialogMode::selectMapFacet :
-            workflow = MapDialogWorkflow::create;
-            break;
-        case MapFileDialogMode::saveAs :
-            workflow = MapDialogWorkflow::saveAs;
-            break;
-        case MapFileDialogMode::dirtyChanges :
-            workflow = MapDialogWorkflow::dirtyChanges;
-            break;
-        case MapFileDialogMode::overwrite :
-            workflow = MapDialogWorkflow::overwrite;
-            break;
-        case MapFileDialogMode::error :
-            workflow = MapDialogWorkflow::error;
-            break;
-        case MapFileDialogMode::none :
-            return;
-    }
-
-    auto request = makeDialogRequest(DialogId::mapWorkflow, MapDialogRequest{.workflow = workflow});
+    auto request = makeDialogRequest(DialogId::mapWorkflow);
     request.replaceActive = true;
     static_cast<void>(state.dialogHost->request(std::move(request)));
 }
