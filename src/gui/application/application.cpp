@@ -356,8 +356,29 @@ int Application::run()
     glfwWindowHintString(GLFW_WAYLAND_APP_ID, applicationId.c_str());
 #endif
     const std::string applicationName(core::applicationName());
-    WorkbenchState state(loadPreferences());
-    loadLayout(state.panelRegistry, state.windowRegistry, state.layout);
+    const Preferences loadedGlobalPreferences = loadPreferences();
+    Preferences initialPreferences;
+    initialPreferences.activeDataProfile = loadedGlobalPreferences.activeDataProfile;
+    WorkbenchState state(initialPreferences);
+    state.activeProfile.name = loadedGlobalPreferences.activeDataProfile;
+    bool invalidProfileLoad = false;
+    if (!state.activeProfile.name.empty())
+    {
+        const auto loaded = state.profileStore.load(state.activeProfile.name);
+        if (loaded.diagnostics.empty())
+        {
+            state.activeProfile = loaded.profile;
+            state.preferences = state.activeProfile.preferences;
+            state.preferences.activeDataProfile = loadedGlobalPreferences.activeDataProfile;
+            state.toolState.loadPreferences(state.preferences.tools);
+            loadProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+        }
+        else
+        {
+            invalidProfileLoad = true;
+        }
+    }
+    state.persistedPreferences = state.preferences;
     state.assetStateRecords = assets::loadAssetState(assets::assetStatePath());
     const std::unique_ptr<GLFWwindow, WindowDeleter> window{
         glfwCreateWindow(defaultWindowWidth, defaultWindowHeight, applicationName.c_str(), nullptr, nullptr)};
@@ -392,20 +413,6 @@ int Application::run()
     {
         ImGui::LoadIniSettingsFromMemory(state.layout.dockingIni.c_str(), state.layout.dockingIni.size());
     }
-    state.activeProfile.name = state.preferences.activeDataProfile;
-    bool invalidProfileLoad = false;
-    if (!state.activeProfile.name.empty())
-    {
-        const auto loaded = state.profileStore.load(state.activeProfile.name);
-        if (loaded.diagnostics.empty())
-        {
-            state.activeProfile = loaded.profile;
-        }
-        else
-        {
-            invalidProfileLoad = true;
-        }
-    }
     state.session.updateProfile(state.activeProfile);
     state.mapDocuments.invalidateProviderCaches();
     if (state.session.mapReady() && !state.preferences.showWelcomeOnStartup)
@@ -434,20 +441,30 @@ int Application::run()
         drawFrame(window.get(), *logSink_, state);
     }
 
-    if (state.workbenchLayoutApplied)
+    if (state.workbenchLayoutApplied && !state.nativeWelcomeWindowMode)
     {
+        const bool nativeFullscreen = glfwGetWindowMonitor(window.get()) != nullptr;
+        state.preferences.fullscreen = nativeFullscreen;
+        state.preferences.maximized = !nativeFullscreen && glfwGetWindowAttrib(window.get(), GLFW_MAXIMIZED) == GLFW_TRUE;
         captureWindowLayout(window.get(), state.layout, state.preferences.fullscreen);
         const char * dockingIni = ImGui::SaveIniSettingsToMemory();
         state.layout.dockingIni = dockingIni == nullptr ? std::string{} : std::string(dockingIni);
-        saveLayout(state.panelRegistry, state.windowRegistry, state.layout);
-        if (state.assetStateResetRequested)
-        {
-            assets::resetAssetState(state.assetStateRecords);
-        }
-        assets::saveAssetState(assets::assetStatePath(), state.assetStateRecords);
     }
     state.toolState.savePreferences(state.preferences.tools);
-    savePreferences(state.preferences);
+    if (!state.activeProfile.name.empty())
+    {
+        state.activeProfile.preferences = state.preferences;
+        saveProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+        state.profileStore.save(state.activeProfile);
+    }
+    Preferences globalSelector;
+    globalSelector.activeDataProfile = state.activeProfile.name;
+    savePreferences(globalSelector);
+    if (state.assetStateResetRequested)
+    {
+        assets::resetAssetState(state.assetStateRecords);
+    }
+    assets::saveAssetState(assets::assetStatePath(), state.assetStateRecords);
 
     SPDLOG_LOGGER_INFO(logger_, "GUI closed");
     return 0;

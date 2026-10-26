@@ -2,6 +2,7 @@
 
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/layout/window_registry.h"
+#include "gui_model/profile/data_profile.h"
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -38,5 +39,10 @@ void saveLayout(const std::filesystem::path & path,
                 const PanelRegistry & panels,
                 const WindowRegistry & windows,
                 const AppLayout & layout);
+void loadProfileLayout(const ProfileLayout & source, PanelRegistry & panels, WindowRegistry & windows, AppLayout & layout);
+void saveProfileLayout(ProfileLayout & destination,
+                       const PanelRegistry & panels,
+                       const WindowRegistry & windows,
+                       const AppLayout & layout);
 
 } // namespace uo_mule::gui

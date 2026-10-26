@@ -35,7 +35,7 @@ TEST_CASE("loadPreferences_Should_UseDefaults_If_FileIsMissing")
     std::filesystem::remove_all(preferencesFile.parent_path());
 }
 
-TEST_CASE("savePreferences_Should_RoundTripSettings")
+TEST_CASE("savePreferences_Should_PersistOnlyActiveProfileSelector")
 {
     const auto configDirectory = std::filesystem::temp_directory_path() / "pref-roundtrip";
     const auto preferencesFile = configDirectory / std::string(uo_mule::core::applicationName()) / "preferences.conf";
@@ -58,15 +58,15 @@ TEST_CASE("savePreferences_Should_RoundTripSettings")
 
     REQUIRE(
         std::filesystem::is_regular_file(configDirectory / std::string(uo_mule::core::applicationName()) / "preferences.conf"));
-    REQUIRE(actual.showLogPanel);
-    REQUIRE_FALSE(actual.autoScroll);
-    REQUIRE(actual.logPanelCollapsed);
-    REQUIRE(std::abs(actual.logPanelHeight - expectedLogPanelHeight) < heightTolerance);
-    REQUIRE_FALSE(actual.showWelcomeOnStartup);
-    REQUIRE(actual.idFormat == uo_mule::gui::IdFormat::decimal);
+    REQUIRE_FALSE(actual.showLogPanel);
+    REQUIRE(actual.autoScroll);
+    REQUIRE_FALSE(actual.logPanelCollapsed);
+    REQUIRE(std::abs(actual.logPanelHeight) < heightTolerance);
+    REQUIRE(actual.showWelcomeOnStartup);
+    REQUIRE(actual.idFormat == uo_mule::gui::IdFormat::hexadecimal);
     REQUIRE(actual.texmapsHideUnused);
-    REQUIRE(actual.texmapsTablePresentation);
-    REQUIRE(actual.fullscreen);
+    REQUIRE_FALSE(actual.texmapsTablePresentation);
+    REQUIRE_FALSE(actual.fullscreen);
     REQUIRE(actual.activeDataProfile == "Classic UO Felucca");
     std::filesystem::remove_all(configDirectory);
 }
@@ -106,7 +106,7 @@ TEST_CASE("savePreferences_Should_ReplaceExistingPreferences")
     const auto loaded = uo_mule::gui::loadPreferences(preferencesFile);
 
     REQUIRE(std::filesystem::is_regular_file(preferencesFile));
-    REQUIRE(loaded.showLogPanel);
+    REQUIRE_FALSE(loaded.showLogPanel);
     std::filesystem::remove_all(preferencesDirectory);
 }
 
@@ -123,7 +123,7 @@ TEST_CASE("preferences_Should_PersistLastActiveProfile")
     std::filesystem::remove_all(preferencesFile.parent_path());
 }
 
-TEST_CASE("savePreferences_Should_RoundTripToolOptionsWithoutSelectionState")
+TEST_CASE("savePreferences_Should_NotPersistProfileBoundToolOptionsGlobally")
 {
     // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     const auto preferencesFile = std::filesystem::temp_directory_path() / "pref-tools" / "preferences.conf";
@@ -150,20 +150,12 @@ TEST_CASE("savePreferences_Should_RoundTripToolOptionsWithoutSelectionState")
     uo_mule::gui::savePreferences(expected, preferencesFile);
     const auto actual = uo_mule::gui::loadPreferences(preferencesFile);
 
-    REQUIRE(actual.tools.activeTool == uo_mule::gui::ToolId::replace);
-    REQUIRE(actual.tools.selectionGranularity == uo_mule::gui::ToolSelectionGranularity::blocks);
-    REQUIRE(actual.tools.activeTileSet);
-    REQUIRE(actual.tools.activeTile == uomul::MapTile{.id = 1234, .z = -12});
-    REQUIRE(actual.tools.fillIdEnabled);
-    REQUIRE_FALSE(actual.tools.fillZEnabled);
-    REQUIRE_FALSE(actual.tools.replaceIdEnabled);
-    REQUIRE(actual.tools.replaceZEnabled);
-    REQUIRE(actual.tools.replaceSource == uomul::MapTile{.id = 22, .z = 3});
-    REQUIRE(actual.tools.replaceTarget == uomul::MapTile{.id = 44, .z = 5});
-    REQUIRE(actual.tools.fuzzy.scope == uo_mule::gui::FuzzyScope::wholeMap);
-    REQUIRE(actual.tools.fuzzy.id == 77);
-    REQUIRE(actual.tools.fuzzy.z == -4);
-    REQUIRE(actual.tools.fuzzy.name == "granite floor");
+    REQUIRE(actual.tools.activeTool == uo_mule::gui::ToolId::move);
+    REQUIRE(actual.tools.selectionGranularity == uo_mule::gui::ToolSelectionGranularity::tiles);
+    REQUIRE_FALSE(actual.tools.activeTileSet);
+    REQUIRE(actual.tools.activeTile == uomul::MapTile{});
+    REQUIRE(actual.tools.fuzzy.scope == uo_mule::gui::FuzzyScope::contiguous);
+    REQUIRE(actual.tools.fuzzy.name.empty());
     std::filesystem::remove_all(preferencesFile.parent_path());
     // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 }

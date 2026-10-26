@@ -3,6 +3,7 @@
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/layout/window_registry.h"
 #include "gui_model/persistence/config_paths.h"
+#include "gui_model/profile/data_profile.h"
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -153,6 +154,53 @@ void saveLayout(const std::filesystem::path & path,
     file << '\n';
     file.close();
     std::filesystem::rename(temporary, path);
+}
+
+void loadProfileLayout(const ProfileLayout & source, PanelRegistry & panels, WindowRegistry & windows, AppLayout & layout)
+{
+    layout.window.geometryValid = source.window.geometryValid;
+    layout.window.x = source.window.x;
+    layout.window.y = source.window.y;
+    layout.window.width = source.window.width;
+    layout.window.height = source.window.height;
+    layout.dockingIni = source.dockingIni;
+    for (auto & panel : panels.panels())
+    {
+        if (const auto visible = source.panels.find(panel.stableId); visible != source.panels.end())
+        {
+            panel.visible = visible->second;
+        }
+    }
+    for (auto & window : windows.windows())
+    {
+        if (const auto visible = source.windows.find(window.stableId); visible != source.windows.end())
+        {
+            window.visible = visible->second;
+        }
+    }
+}
+
+void saveProfileLayout(ProfileLayout & destination,
+                       const PanelRegistry & panels,
+                       const WindowRegistry & windows,
+                       const AppLayout & layout)
+{
+    destination.window.geometryValid = layout.window.geometryValid;
+    destination.window.x = layout.window.x;
+    destination.window.y = layout.window.y;
+    destination.window.width = layout.window.width;
+    destination.window.height = layout.window.height;
+    destination.dockingIni = layout.dockingIni;
+    destination.panels.clear();
+    destination.windows.clear();
+    for (const auto & panel : panels.panels())
+    {
+        destination.panels[panel.stableId] = panel.visible;
+    }
+    for (const auto & window : windows.windows())
+    {
+        destination.windows[window.stableId] = window.visible;
+    }
 }
 
 } // namespace uo_mule::gui

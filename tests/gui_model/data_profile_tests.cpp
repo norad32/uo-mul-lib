@@ -53,6 +53,22 @@ TEST_CASE("DataProfile_Should_RoundTripRolePathsAndPolicies")
     expected.outputCollisionPolicy = uo_mule::gui::OutputCollisionPolicy::reject;
     expected.files[uo_mule::gui::DataFileRole::texidx] = {.path = "texidx.mul"};
     expected.files[uo_mule::gui::DataFileRole::texmaps] = {.path = "texmaps.mul"};
+    expected.preferences.showLogPanel = true;
+    expected.preferences.fullscreen = true;
+    expected.preferences.maximized = true;
+    expected.preferences.tools.activeTool = uo_mule::gui::ToolId::replace;
+    expected.preferences.tools.fuzzy.nameEnabled = true;
+    expected.preferences.tools.fuzzy.name = "granite floor";
+    expected.layout.window = {
+        .geometryValid = true,
+        .x = 37,
+        .y = 42,
+        .width = 1440,
+        .height = 900,
+    };
+    expected.layout.dockingIni = "[Window][Map]\nDockId=0x1234,1\n";
+    expected.layout.panels["panel.tool-palette"] = false;
+    expected.layout.windows["window.texmaps"] = false;
 
     uo_mule::gui::saveDataProfile(expected, profilePath);
     const auto loaded = uo_mule::gui::loadDataProfile(profilePath);
@@ -63,6 +79,17 @@ TEST_CASE("DataProfile_Should_RoundTripRolePathsAndPolicies")
     REQUIRE(loaded.profile.sourceRoot == expected.sourceRoot);
     REQUIRE(loaded.profile.discoveryMode == expected.discoveryMode);
     REQUIRE(loaded.profile.outputCollisionPolicy == expected.outputCollisionPolicy);
+    REQUIRE(loaded.profile.preferences.showLogPanel);
+    REQUIRE(loaded.profile.preferences.fullscreen);
+    REQUIRE(loaded.profile.preferences.maximized);
+    REQUIRE(loaded.profile.preferences.tools.activeTool == uo_mule::gui::ToolId::replace);
+    REQUIRE(loaded.profile.preferences.tools.fuzzy.name == "granite floor");
+    REQUIRE(loaded.profile.layout.window.geometryValid);
+    REQUIRE(loaded.profile.layout.window.width == 1440);
+    REQUIRE(loaded.profile.layout.window.height == 900);
+    REQUIRE(loaded.profile.layout.dockingIni == expected.layout.dockingIni);
+    REQUIRE_FALSE(loaded.profile.layout.panels.at("panel.tool-palette"));
+    REQUIRE_FALSE(loaded.profile.layout.windows.at("window.texmaps"));
 }
 
 TEST_CASE("DataProfileStore_Should_IgnoreUnknownKeysAndRejectUnsafeProfileNames")

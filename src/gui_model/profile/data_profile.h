@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gui_model/persistence/preferences.h"
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -76,6 +77,26 @@ struct DataFileEntry
     bool userOverride = false;
 };
 
+inline constexpr int defaultProfileWindowWidth = 1280;
+inline constexpr int defaultProfileWindowHeight = 1000;
+
+struct ProfileWindowLayout
+{
+    bool geometryValid = false;
+    int x = 0;
+    int y = 0;
+    int width = defaultProfileWindowWidth;
+    int height = defaultProfileWindowHeight;
+};
+
+struct ProfileLayout
+{
+    ProfileWindowLayout window;
+    std::string dockingIni;
+    std::map<std::string, bool> panels;
+    std::map<std::string, bool> windows;
+};
+
 struct DataProfile
 {
     static constexpr std::uint32_t currentSchemaVersion = 0;
@@ -87,6 +108,8 @@ struct DataProfile
     OutputCollisionPolicy outputCollisionPolicy = OutputCollisionPolicy::confirm;
     TiledataLayoutSelection tiledataLayout = TiledataLayoutSelection::autoDetect;
     std::map<DataFileRole, DataFileEntry> files;
+    Preferences preferences;
+    ProfileLayout layout;
 };
 
 [[nodiscard]] const std::vector<DataFileRole> & knownDataFileRoles() noexcept;

@@ -13,6 +13,7 @@
 #include <fstream>
 #include <iomanip>
 #include <optional>
+#include <ostream>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -243,6 +244,10 @@ void applyGeneralPreference(Preferences & preferences, std::string_view key, std
     {
         preferences.fullscreen = value == "1";
     }
+    else if (key == "maximized")
+    {
+        preferences.maximized = value == "1";
+    }
     else if (key == "map_view_tile_source")
     {
         preferences.mapViewTileSource = value == "radarcol" ? MapViewTileSource::radarcol : MapViewTileSource::textures;
@@ -353,6 +358,49 @@ void applyPreference(Preferences & preferences, std::string_view key, std::strin
 
 } // namespace
 
+void applySerializedPreference(Preferences & preferences, std::string_view key, std::string_view value)
+{
+    applyPreference(preferences, key, value);
+}
+
+void appendSerializedPreferences(std::ostream & output, const Preferences & preferences, std::string_view prefix)
+{
+    const auto write = [&output, prefix](std::string_view key, const auto & value)
+    { output << prefix << key << ' ' << value << '\n'; };
+    write("logs_panel_visible", static_cast<int>(preferences.showLogPanel));
+    write("logs_autoscroll", static_cast<int>(preferences.autoScroll));
+    write("logs_panel_height", preferences.logPanelHeight);
+    write("logs_panel_collapsed", static_cast<int>(preferences.logPanelCollapsed));
+    write("show_welcome_on_startup", static_cast<int>(preferences.showWelcomeOnStartup));
+    write("id_format", std::string_view(preferences.idFormat == IdFormat::decimal ? "decimal" : "hexadecimal"));
+    write("texmaps_hide_unused", static_cast<int>(preferences.texmapsHideUnused));
+    write("texmaps_table_presentation", static_cast<int>(preferences.texmapsTablePresentation));
+    write("fullscreen", static_cast<int>(preferences.fullscreen));
+    write("maximized", static_cast<int>(preferences.maximized));
+    write("map_view_tile_source",
+          std::string_view(preferences.mapViewTileSource == MapViewTileSource::radarcol ? "radarcol" : "textures"));
+    write("tool_active", toolName(preferences.tools.activeTool));
+    write("tool_region", granularityName(preferences.tools.selectionGranularity));
+    write("tool_active_tile_set", static_cast<int>(preferences.tools.activeTileSet));
+    write("tool_active_tile_id", preferences.tools.activeTile.id);
+    write("tool_active_tile_z", static_cast<int>(preferences.tools.activeTile.z));
+    write("tool_fill_id", static_cast<int>(preferences.tools.fillIdEnabled));
+    write("tool_fill_z", static_cast<int>(preferences.tools.fillZEnabled));
+    write("tool_replace_id", static_cast<int>(preferences.tools.replaceIdEnabled));
+    write("tool_replace_z", static_cast<int>(preferences.tools.replaceZEnabled));
+    write("tool_replace_source_id", preferences.tools.replaceSource.id);
+    write("tool_replace_source_z", static_cast<int>(preferences.tools.replaceSource.z));
+    write("tool_replace_target_id", preferences.tools.replaceTarget.id);
+    write("tool_replace_target_z", static_cast<int>(preferences.tools.replaceTarget.z));
+    write("tool_fuzzy_scope", fuzzyScopeName(preferences.tools.fuzzy.scope));
+    write("tool_fuzzy_id_enabled", static_cast<int>(preferences.tools.fuzzy.idEnabled));
+    write("tool_fuzzy_id", preferences.tools.fuzzy.id);
+    write("tool_fuzzy_z_enabled", static_cast<int>(preferences.tools.fuzzy.zEnabled));
+    write("tool_fuzzy_z", static_cast<int>(preferences.tools.fuzzy.z));
+    write("tool_fuzzy_name_enabled", static_cast<int>(preferences.tools.fuzzy.nameEnabled));
+    output << prefix << "tool_fuzzy_name " << std::quoted(preferences.tools.fuzzy.name) << '\n';
+}
+
 Preferences loadPreferences()
 {
     const auto path = preferencesPath();
@@ -372,18 +420,7 @@ Preferences loadPreferences(const std::filesystem::path & path)
             file >> std::quoted(preferences.activeDataProfile);
             continue;
         }
-
-        if (key == "tool_fuzzy_name")
-        {
-            file >> std::quoted(preferences.tools.fuzzy.name);
-            continue;
-        }
-
-        if (!(file >> value))
-        {
-            break;
-        }
-        applyPreference(preferences, key, value);
+        std::getline(file, value);
     }
     return preferences;
 }
@@ -401,38 +438,7 @@ void savePreferences(const Preferences & preferences, const std::filesystem::pat
 {
     std::filesystem::create_directories(path.parent_path());
     std::ostringstream contents;
-    contents << "logs_panel_visible " << static_cast<int>(preferences.showLogPanel) << '\n';
-    contents << "logs_autoscroll " << static_cast<int>(preferences.autoScroll) << '\n';
-    contents << "logs_panel_height " << preferences.logPanelHeight << '\n';
-    contents << "logs_panel_collapsed " << static_cast<int>(preferences.logPanelCollapsed) << '\n';
     contents << "active_data_profile " << std::quoted(preferences.activeDataProfile) << '\n';
-    contents << "show_welcome_on_startup " << static_cast<int>(preferences.showWelcomeOnStartup) << '\n';
-    contents << "id_format " << (preferences.idFormat == IdFormat::decimal ? "decimal" : "hexadecimal") << '\n';
-    contents << "texmaps_hide_unused " << static_cast<int>(preferences.texmapsHideUnused) << '\n';
-    contents << "texmaps_table_presentation " << static_cast<int>(preferences.texmapsTablePresentation) << '\n';
-    contents << "fullscreen " << static_cast<int>(preferences.fullscreen) << '\n';
-    contents << "map_view_tile_source "
-             << (preferences.mapViewTileSource == MapViewTileSource::radarcol ? "radarcol" : "textures") << '\n';
-    contents << "tool_active " << toolName(preferences.tools.activeTool) << '\n';
-    contents << "tool_region " << granularityName(preferences.tools.selectionGranularity) << '\n';
-    contents << "tool_active_tile_set " << static_cast<int>(preferences.tools.activeTileSet) << '\n';
-    contents << "tool_active_tile_id " << preferences.tools.activeTile.id << '\n';
-    contents << "tool_active_tile_z " << static_cast<int>(preferences.tools.activeTile.z) << '\n';
-    contents << "tool_fill_id " << static_cast<int>(preferences.tools.fillIdEnabled) << '\n';
-    contents << "tool_fill_z " << static_cast<int>(preferences.tools.fillZEnabled) << '\n';
-    contents << "tool_replace_id " << static_cast<int>(preferences.tools.replaceIdEnabled) << '\n';
-    contents << "tool_replace_z " << static_cast<int>(preferences.tools.replaceZEnabled) << '\n';
-    contents << "tool_replace_source_id " << preferences.tools.replaceSource.id << '\n';
-    contents << "tool_replace_source_z " << static_cast<int>(preferences.tools.replaceSource.z) << '\n';
-    contents << "tool_replace_target_id " << preferences.tools.replaceTarget.id << '\n';
-    contents << "tool_replace_target_z " << static_cast<int>(preferences.tools.replaceTarget.z) << '\n';
-    contents << "tool_fuzzy_scope " << fuzzyScopeName(preferences.tools.fuzzy.scope) << '\n';
-    contents << "tool_fuzzy_id_enabled " << static_cast<int>(preferences.tools.fuzzy.idEnabled) << '\n';
-    contents << "tool_fuzzy_id " << preferences.tools.fuzzy.id << '\n';
-    contents << "tool_fuzzy_z_enabled " << static_cast<int>(preferences.tools.fuzzy.zEnabled) << '\n';
-    contents << "tool_fuzzy_z " << static_cast<int>(preferences.tools.fuzzy.z) << '\n';
-    contents << "tool_fuzzy_name_enabled " << static_cast<int>(preferences.tools.fuzzy.nameEnabled) << '\n';
-    contents << "tool_fuzzy_name " << std::quoted(preferences.tools.fuzzy.name) << '\n';
     TemporaryPreferencesFile temporaryFile(path);
     temporaryFile.write(contents.str());
     temporaryFile.commit(path);

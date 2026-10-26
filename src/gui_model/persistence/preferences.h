@@ -48,6 +48,7 @@ struct Preferences
     bool texmapsHideUnused = true;
     bool texmapsTablePresentation = false;
     bool fullscreen = false;
+    bool maximized = false;
     MapViewTileSource mapViewTileSource = MapViewTileSource::textures;
     ToolPreferences tools{};
 
@@ -59,8 +60,8 @@ struct Preferences
                activeDataProfile == other.activeDataProfile && showWelcomeOnStartup == other.showWelcomeOnStartup &&
                idFormat == other.idFormat && texmapsHideUnused == other.texmapsHideUnused &&
                texmapsTablePresentation == other.texmapsTablePresentation && fullscreen == other.fullscreen &&
-               mapViewTileSource == other.mapViewTileSource && tools.activeTool == other.tools.activeTool &&
-               tools.selectionGranularity == other.tools.selectionGranularity &&
+               maximized == other.maximized && mapViewTileSource == other.mapViewTileSource &&
+               tools.activeTool == other.tools.activeTool && tools.selectionGranularity == other.tools.selectionGranularity &&
                tools.activeTileSet == other.tools.activeTileSet && tools.activeTile == other.tools.activeTile &&
                tools.fillIdEnabled == other.tools.fillIdEnabled && tools.fillZEnabled == other.tools.fillZEnabled &&
                tools.replaceIdEnabled == other.tools.replaceIdEnabled && tools.replaceZEnabled == other.tools.replaceZEnabled &&

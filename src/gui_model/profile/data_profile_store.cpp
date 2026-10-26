@@ -1,6 +1,7 @@
 #include "gui_model/profile/data_profile_store.h"
 #include "core/app_info.h"
 #include "gui_model/persistence/config_paths.h"
+#include "gui_model/persistence/preferences_store.h"
 #include "gui_model/profile/data_profile.h"
 #include <atomic>
 #include <cerrno>
@@ -209,6 +210,56 @@ void parseProfileLine(DataProfileLoadResult & result,
 {
     std::istringstream line{std::string(rawValue)};
     std::string value;
+    if (key.starts_with("preference."))
+    {
+        const auto preferenceKey = key.substr(std::string_view("preference.").size());
+        if (preferenceKey == "tool_fuzzy_name")
+        {
+            line >> std::quoted(value);
+        }
+        else
+        {
+            line >> value;
+        }
+        if (!line.fail())
+        {
+            applySerializedPreference(result.profile.preferences, preferenceKey, value);
+        }
+        else
+        {
+            addParseDiagnostic(result, path, key);
+        }
+        return;
+    }
+    if (key == "layout.window_geometry")
+    {
+        ProfileWindowLayout window;
+        if (line >> window.x >> window.y >> window.width >> window.height && window.width > 0 && window.height > 0)
+        {
+            window.geometryValid = true;
+            result.profile.layout.window = window;
+        }
+        else
+        {
+            addParseDiagnostic(result, path, key);
+        }
+        return;
+    }
+    if (key == "layout.panel" || key == "layout.window")
+    {
+        std::string stableId;
+        bool visible = false;
+        if (line >> std::quoted(stableId) >> visible)
+        {
+            auto & surfaces = key == "layout.panel" ? result.profile.layout.panels : result.profile.layout.windows;
+            surfaces[std::move(stableId)] = visible;
+        }
+        else
+        {
+            addParseDiagnostic(result, path, key);
+        }
+        return;
+    }
     if (key != "schema_version" && !parseGeneralField(result, path, key, line, value) &&
         !parseRolePath(result, path, key, line, value) && !parseRoleOverride(result, path, key, line))
     {
@@ -239,6 +290,31 @@ void appendRoleFiles(std::ostringstream & contents, const DataProfile & profile)
             contents << dataFileRoleName(role) << ".override " << entry->second.userOverride << '\n';
         }
     }
+}
+
+void appendProfilePreferences(std::ostringstream & contents, const DataProfile & profile)
+{
+    appendSerializedPreferences(contents, profile.preferences, "preference.");
+}
+
+void appendProfileLayout(std::ostringstream & contents, const DataProfile & profile)
+{
+    if (profile.layout.window.geometryValid)
+    {
+        contents << "layout.window_geometry " << profile.layout.window.x << ' ' << profile.layout.window.y << ' '
+                 << profile.layout.window.width << ' ' << profile.layout.window.height << '\n';
+    }
+    for (const auto & [stableId, visible] : profile.layout.panels)
+    {
+        contents << "layout.panel " << std::quoted(stableId) << ' ' << visible << '\n';
+    }
+    for (const auto & [stableId, visible] : profile.layout.windows)
+    {
+        contents << "layout.window " << std::quoted(stableId) << ' ' << visible << '\n';
+    }
+    contents << "layout.docking_ini_size " << profile.layout.dockingIni.size() << '\n';
+    contents.write(profile.layout.dockingIni.data(), static_cast<std::streamsize>(profile.layout.dockingIni.size()));
+    contents << '\n';
 }
 
 [[nodiscard]] std::filesystem::path temporaryProfilePath(const std::filesystem::path & path)
@@ -328,8 +404,32 @@ DataProfileLoadResult loadDataProfile(const std::filesystem::path & path)
     std::string key;
     std::string rawValue;
 
-    while (file >> key >> std::ws)
+    while (file >> key)
     {
+        if (key == "layout.docking_ini_size")
+        {
+            std::size_t size = 0;
+            if (!(file >> size))
+            {
+                addParseDiagnostic(result, path, key);
+                break;
+            }
+            file.get();
+            std::string dockingIni(size, '\0');
+            file.read(dockingIni.data(), static_cast<std::streamsize>(size));
+            if (file.gcount() != static_cast<std::streamsize>(size))
+            {
+                addParseDiagnostic(result, path, key);
+                break;
+            }
+            result.profile.layout.dockingIni = std::move(dockingIni);
+            if (file.peek() != std::char_traits<char>::eof())
+            {
+                file.get();
+            }
+            continue;
+        }
+        file >> std::ws;
         std::getline(file, rawValue);
         parseProfileLine(result, path, key, rawValue);
     }
@@ -344,6 +444,8 @@ void saveDataProfile(const DataProfile & profile, const std::filesystem::path & 
     std::ostringstream contents;
     contents << serializeProfile(profile);
     appendRoleFiles(contents, profile);
+    appendProfilePreferences(contents, profile);
+    appendProfileLayout(contents, profile);
     writeProfileAtomically(path, contents.str());
 }
 

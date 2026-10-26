@@ -200,6 +200,10 @@ bool applyWorkbenchLayout(GLFWwindow * window, WorkbenchState & state)
         }
         glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
     }
+    else if (state.preferences.maximized)
+    {
+        glfwMaximizeWindow(window);
+    }
     else if (state.layout.window.geometryValid)
     {
         glfwSetWindowPos(window, state.layout.window.x, state.layout.window.y);
@@ -749,7 +753,7 @@ void applyPendingPreferenceChanges(WorkbenchState & state)
     state.pendingPreferenceChanges = {};
 }
 
-[[nodiscard]] bool applyPendingPreferencesDialog(WorkbenchState & state)
+[[nodiscard]] bool applyPendingPreferencesDialog(GLFWwindow * window, WorkbenchState & state)
 {
     if (!state.pendingPreferencesResult)
     {
@@ -758,13 +762,50 @@ void applyPendingPreferenceChanges(WorkbenchState & state)
 
     const PreferencesDialogResult result = std::move(*state.pendingPreferencesResult);
     state.pendingPreferencesResult.reset();
-    state.preferences = result.preferences;
     if (!result.applyProfile)
     {
+        state.preferences = result.preferences;
         return false;
     }
 
+    const bool profileChanged = result.profile.name != state.activeProfile.name;
+    if (state.workbenchLayoutApplied && !state.nativeWelcomeWindowMode)
+    {
+        const bool nativeFullscreen = glfwGetWindowMonitor(window) != nullptr;
+        state.preferences.fullscreen = nativeFullscreen;
+        state.preferences.maximized = !nativeFullscreen && glfwGetWindowAttrib(window, GLFW_MAXIMIZED) == GLFW_TRUE;
+        if (!nativeFullscreen && !state.preferences.maximized)
+        {
+            captureWindowGeometry(window, state.layout);
+        }
+        const char * dockingIni = ImGui::SaveIniSettingsToMemory();
+        state.layout.dockingIni = dockingIni == nullptr ? std::string{} : std::string(dockingIni);
+    }
+    if (profileChanged && !state.activeProfile.name.empty())
+    {
+        state.activeProfile.preferences = state.preferences;
+        saveProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+        state.profileStore.save(state.activeProfile);
+    }
     state.activeProfile = result.profile;
+    if (profileChanged)
+    {
+        state.preferences = state.activeProfile.preferences;
+        state.preferences.activeDataProfile = state.activeProfile.name;
+        state.toolState.loadPreferences(state.preferences.tools);
+        state.panelRegistry.resetToDefaults();
+        state.windowRegistry.resetToDefaults();
+        state.layout = {};
+        loadProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+        state.workbenchLayoutApplied = false;
+    }
+    else
+    {
+        state.preferences = result.preferences;
+        state.preferences.activeDataProfile = state.activeProfile.name;
+        state.activeProfile.preferences = state.preferences;
+        state.workbenchLayoutApplied = false;
+    }
     return true;
 }
 
@@ -2116,7 +2157,12 @@ void applyPendingPersistence(WorkbenchState & state)
             if (state.activeProfile.name == profileName)
             {
                 state.activeProfile = {};
-                state.preferences.activeDataProfile.clear();
+                state.preferences = {};
+                state.toolState.loadPreferences(state.preferences.tools);
+                state.panelRegistry.resetToDefaults();
+                state.windowRegistry.resetToDefaults();
+                state.layout = {};
+                state.workbenchLayoutApplied = false;
                 applyProfileChange(state);
             }
             requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
@@ -2131,7 +2177,14 @@ void applyPendingPersistence(WorkbenchState & state)
     {
         try
         {
-            state.profileStore.save(state.menuBarState.preferencesDialog.workingProfile);
+            DataProfile profile = state.menuBarState.preferencesDialog.workingProfile;
+            if (profile.name == state.activeProfile.name)
+            {
+                profile.preferences = state.preferences;
+                saveProfileLayout(profile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+                state.activeProfile = profile;
+            }
+            state.profileStore.save(profile);
             state.menuBarState.preferencesDialog.profileSaveRequested = false;
         }
         catch (const std::exception & error)
@@ -2141,7 +2194,15 @@ void applyPendingPersistence(WorkbenchState & state)
     }
     if (state.preferences != state.persistedPreferences)
     {
-        savePreferences(state.preferences);
+        if (!state.activeProfile.name.empty())
+        {
+            state.activeProfile.preferences = state.preferences;
+            saveProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+            state.profileStore.save(state.activeProfile);
+        }
+        Preferences globalPreferences;
+        globalPreferences.activeDataProfile = state.activeProfile.name;
+        savePreferences(globalPreferences);
         state.persistedPreferences = state.preferences;
     }
     if (state.assetStateResetRequested)
@@ -2187,18 +2248,29 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
         return;
     }
 
+    const bool leavingWelcome = state.nativeWelcomeWindowMode && !welcome;
+    if (welcome && state.workbenchLayoutApplied && glfwGetWindowMonitor(window) == nullptr)
+    {
+        state.preferences.maximized = glfwGetWindowAttrib(window, GLFW_MAXIMIZED) == GLFW_TRUE;
+    }
     glfwSetWindowAttrib(window, GLFW_DECORATED, welcome ? GLFW_FALSE : GLFW_TRUE);
     glfwSetWindowAttrib(window, GLFW_RESIZABLE, welcome ? GLFW_FALSE : GLFW_TRUE);
-    if (welcome && !state.preferences.fullscreen)
+    if (welcome)
     {
-        int width = 0;
-        int height = 0;
-        glfwGetWindowSize(window, &width, &height);
-        glfwSetWindowSize(window, width, welcomeWindowHeight);
+        if (glfwGetWindowMonitor(window) != nullptr)
+        {
+            glfwSetWindowMonitor(window, nullptr, 0, 0, welcomeWindowWidth, welcomeWindowHeight, 0);
+        }
+        else
+        {
+            glfwRestoreWindow(window);
+            glfwSetWindowSize(window, welcomeWindowWidth, welcomeWindowHeight);
+        }
     }
-    else if (!welcome && !state.preferences.fullscreen && state.layout.window.geometryValid)
+    if (leavingWelcome)
     {
-        glfwSetWindowSize(window, state.layout.window.width, state.layout.window.height);
+        state.workbenchLayoutApplied = false;
+        static_cast<void>(applyWorkbenchLayout(window, state));
     }
     state.nativeWelcomeWindowMode = welcome;
 }
@@ -2285,9 +2357,9 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
         state.session.refreshRecentFiles();
     }
     updateNativeWindowMode(window, state, welcome);
+    const bool enteredWorkbench = wasWelcome && !welcome;
     if (!welcome)
     {
-        const bool enteredWorkbench = wasWelcome && !welcome;
         if (enteredWorkbench || !state.workbenchLayoutApplied)
         {
             static_cast<void>(applyWorkbenchLayout(window, state));
@@ -2298,7 +2370,7 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
     const bool welcomeProfileChanged = drawWelcomeOrWorkbench(logSink, state, welcome);
     applyDeferredWorkflowActions(state);
     applyLogPanelRequest(state, logSink);
-    const bool preferencesProfileChanged = applyPendingPreferencesDialog(state);
+    const bool preferencesProfileChanged = applyPendingPreferencesDialog(window, state);
     if (profileChanged || welcomeProfileChanged || preferencesProfileChanged)
     {
         applyProfileChange(state);
