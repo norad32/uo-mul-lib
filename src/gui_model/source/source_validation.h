@@ -15,7 +15,7 @@ enum class SourceValidationStatus : std::uint8_t
 {
     missing,
     invalid,
-    incompletePair,
+    incompleteSet,
     valid,
     unsupported,
 };

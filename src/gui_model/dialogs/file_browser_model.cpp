@@ -37,7 +37,7 @@ constexpr int radarcolNamedScore = 100;
 constexpr int radarcolFilenameScore = 80;
 constexpr int radarcolClassicSizeScore = 60;
 constexpr int radarcolStructuralScore = 20;
-constexpr int texmapsPairScore = 90;
+constexpr int texmapsScore = 90;
 constexpr int tiledataNamedScore = 100;
 constexpr int tiledataSizeScore = 60;
 constexpr int filenameHintScoreBonus = 10;
@@ -204,7 +204,7 @@ void appendTexmapsCandidate(FileBrowserSummary & summary, const std::filesystem:
     }
     const std::filesystem::path indexPath = selectedIsIndex ? path : texmapsCompanionPath(path, false);
     const std::filesystem::path dataPath = selectedIsData ? path : texmapsCompanionPath(path, true);
-    auto pair = inspectTexmapsPair(indexPath, dataPath);
+    auto set = inspectTexmapsSet(indexPath, dataPath);
     std::error_code indexError;
     const bool hasIndex = std::filesystem::is_regular_file(indexPath, indexError);
     indexError.clear();
@@ -214,35 +214,35 @@ void appendTexmapsCandidate(FileBrowserSummary & summary, const std::filesystem:
         return;
     }
 
-    pair.label = "Texmaps";
-    pair.reason = pair.openable ? std::to_string(pair.itemCount) + " entries" : pair.reason;
+    set.label = "Texmaps";
+    set.reason = set.openable ? std::to_string(set.itemCount) + " entries" : set.reason;
     if (!selectedIsIndex && !selectedIsData)
     {
-        pair.warning = "Unexpected filename";
+        set.warning = "Unexpected filename";
     }
     else if (!hasIndex)
     {
-        pair.warning = "texidx.mul file is not set";
+        set.warning = "texidx.mul file is not set";
     }
     else if (!hasData)
     {
-        pair.warning = "texmaps.mul file is not set";
+        set.warning = "texmaps.mul file is not set";
     }
-    if (pair.openable)
+    if (set.openable)
     {
-        summary.assetCandidates.push_back(pair);
+        summary.assetCandidates.push_back(set);
         return;
     }
 
     summary.assetCandidates.push_back(FileBrowserAssetCandidate{
-        .kind = MulAssetKind::texmapsPair,
+        .kind = MulAssetKind::texmapsSet,
         .path = path,
         .companionPath = {},
         .label = "Texmaps",
         .facet = {},
         .reason = "A matching Texmaps file set must be set",
-        .warning = std::move(pair.warning),
-        .score = filenameHint ? texmapsPairScore + filenameHintScoreBonus : texmapsPairScore,
+        .warning = std::move(set.warning),
+        .score = filenameHint ? texmapsScore + filenameHintScoreBonus : texmapsScore,
         .dimensions = std::nullopt,
         .validated = false,
         .openable = false,
@@ -435,7 +435,7 @@ FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & pat
     return summary;
 }
 
-FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & indexPath, const std::filesystem::path & dataPath)
+FileBrowserAssetCandidate inspectTexmapsSet(const std::filesystem::path & indexPath, const std::filesystem::path & dataPath)
 {
     const auto reader = uomul::TexMapsReader::open(indexPath, dataPath);
     std::string reason;
@@ -452,14 +452,14 @@ FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & index
         reason = reader.error().message;
     }
     return FileBrowserAssetCandidate{
-        .kind = MulAssetKind::texmapsPair,
+        .kind = MulAssetKind::texmapsSet,
         .path = indexPath,
         .companionPath = dataPath,
-        .label = "Texture pair",
+        .label = "Texmaps",
         .facet = {},
         .reason = std::move(reason),
         .warning = {},
-        .score = texmapsPairScore,
+        .score = texmapsScore,
         .itemCount = reader ? reader->textureCount() : 0U,
         .dimensions = std::nullopt,
         .validated = reader.has_value(),

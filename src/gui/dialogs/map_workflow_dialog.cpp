@@ -13,6 +13,7 @@
 #include "gui_model/documents/map_document_manager.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/operations/operation_controller.h"
+#include "gui_model/persistence/preferences.h"
 #include "gui_model/profile/data_profile.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
@@ -76,9 +77,7 @@ void deferWorkflow(const NewFileDialogState & state, std::function<void()> actio
         case MapFileDialogMode::selectMapFacet :
             return "Select Facet###dialog.map-facet";
         case MapFileDialogMode::newType :
-            return "New###dialog.new-file-type";
-        case MapFileDialogMode::newMap :
-            return "New Empty Map###dialog.new-map";
+            return "Create new mul file###dialog.new-file-type";
         case MapFileDialogMode::saveAs :
             return "Save As / Commit###dialog.map-save";
         case MapFileDialogMode::dirtyChanges :
@@ -356,11 +355,12 @@ void requestOperation(MapDocumentManager & mapDocument, NewFileDialogState & sta
     return tileId >= 0 && tileId <= maximumTileId && tileZ >= minimumTileZ && tileZ <= maximumTileZ;
 }
 
-[[nodiscard]] bool drawDimensionsFields(const char * id, int & preset, std::uint32_t & width, std::uint32_t & height)
+[[nodiscard]] bool
+drawDimensionsFields(const char * id, int & preset, std::uint32_t & width, std::uint32_t & height, bool useMapLabel = false)
 {
     ImGui::PushID(id);
-    const bool valid =
-        drawMapDimensionFields(preset, width, height, false, {.fieldWidth = dimensionFieldWidth, .labelWidth = std::nullopt});
+    const bool valid = drawMapDimensionFields(
+        preset, width, height, useMapLabel, {.fieldWidth = dimensionFieldWidth, .labelWidth = std::nullopt});
     ImGui::PopID();
     return valid;
 }
@@ -441,123 +441,137 @@ void drawOpenDialog(MapDocumentManager & mapDocument, NewFileDialogState & state
     endDialogFooter();
 }
 
-void drawNewTypeDialog(NewFileDialogState & state)
+void startNewMapOperation(MapDocumentManager & mapDocument, NewFileDialogState & state)
 {
-    constexpr std::array<const char *, 3> fileTypeLabels{"Map", "Radarcol", "Texmap Pair"};
-    ImGui::TextUnformatted("Choose a file type to create.");
-    ImGui::Separator();
-
-    int selectedType = static_cast<int>(state.newFileKind);
-    dialogFieldLabel("File type");
-    dialogFieldWidth(newFileTypeFieldWidth);
-    if (ImGui::Combo("##NewFileType", &selectedType, fileTypeLabels.data(), static_cast<int>(fileTypeLabels.size())))
+    const auto dimensions = resolveMapDimensions(state.newMapFacet, state.newMapWidth, state.newMapHeight);
+    if (!dimensions)
     {
-        state.newFileKind = static_cast<NewFileKind>(selectedType);
+        state.error = dimensions.error();
+        closeDialogPopup(state);
+        state.mode = MapFileDialogMode::error;
+        return;
     }
 
-    beginDialogFooter({"Choose location", "Cancel"});
-    if (dialogButton(iconLabel(IconId::fileBrowserDialog, "Choose location").c_str()))
+    state.operation = {
+        .kind = PendingMapOperationKind::newMap,
+        .path = state.newMapPath.data(),
+        .dimensions = *dimensions,
+        .initialTile =
+            {
+                .id = static_cast<std::uint16_t>(state.initialTileId),
+                .z = static_cast<std::int8_t>(state.initialTileZ),
+            },
+    };
+    deferWorkflow(state, [&mapDocument, &state] { requestOperation(mapDocument, state); });
+}
+
+void requestNewFileOutput(NewFileDialogState & state)
+{
+    FileBrowserTarget target = FileBrowserTarget::newMapOutput;
+    switch (state.newFileKind)
     {
-        FileBrowserTarget target = FileBrowserTarget::newMapOutput;
-        switch (state.newFileKind)
-        {
-            case NewFileKind::map :
-                target = FileBrowserTarget::newMapOutput;
-                break;
-            case NewFileKind::radarcol :
-                target = FileBrowserTarget::newRadarcolOutput;
-                break;
-            case NewFileKind::texmapPair :
-                target = FileBrowserTarget::newTexmapsData;
-                break;
-        }
+        case NewFileKind::map :
+            target = FileBrowserTarget::newMapOutput;
+            break;
+        case NewFileKind::radarcol :
+            target = FileBrowserTarget::newRadarcolOutput;
+            break;
+        case NewFileKind::texmaps :
+            target = FileBrowserTarget::newTexmapsData;
+            break;
+        case NewFileKind::tiledata :
+            target = FileBrowserTarget::newTiledataOutput;
+            break;
+    }
+
+    if (state.browser != nullptr)
+    {
         requestFileBrowser(*state.browser,
                            {
                                .mode = FileBrowserMode::saveFile,
                                .target = target,
                                .initialPath = {},
                                .extension = ".mul",
-                               .title = "New File",
+                               .title = "Create new mul file",
                            });
-        state.mode = state.newFileKind == NewFileKind::map ? MapFileDialogMode::newMap : MapFileDialogMode::none;
-        state.activePopup = MapFileDialogMode::none;
-        closeDialogPopup(state);
     }
-    ImGui::SameLine();
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
-    {
-        closeDialog(state);
-    }
-    endDialogFooter();
+    state.activePopup = MapFileDialogMode::none;
+    closeDialogPopup(state);
 }
 
-void drawNewMapForm(MapDocumentManager & mapDocument, NewFileDialogState & state)
+void drawNewTypeDialog(MapDocumentManager & mapDocument, NewFileDialogState & state)
 {
-    dialogFieldLabel("Output path");
-    ImGui::TextUnformatted(state.newMapPath.data());
-    if (ImGui::IsItemClicked() && state.browser != nullptr)
+    constexpr std::array<const char *, 4> fileTypeLabels{"Map", "Radarcol", "Texmaps", "Tiledata"};
+    int selectedType = static_cast<int>(state.newFileKind);
+    dialogFieldLabel("File type");
+    dialogFieldWidth(newFileTypeFieldWidth);
+    if (ImGui::Combo("##NewFileType", &selectedType, fileTypeLabels.data(), static_cast<int>(fileTypeLabels.size())))
     {
-        requestFileBrowser(*state.browser,
-                           {
-                               .mode = FileBrowserMode::saveFile,
-                               .target = FileBrowserTarget::newMapOutput,
-                               .initialPath = state.newMapPath.data(),
-                               .extension = ".mul",
-                               .title = "Create Map",
-                           });
-    }
-    const bool validDimensions =
-        drawDimensionsFields("NewDimensions", state.newMapFacet, state.newMapWidth, state.newMapHeight);
-
-    if (!validDimensions)
-    {
-        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", strings::invalidDimensions());
+        state.newFileKind = static_cast<NewFileKind>(selectedType);
+        state.newMapPath.fill('\0');
     }
 
-    dialogFieldLabel("Tile ID");
-    dialogFieldWidth(dimensionFieldWidth);
-    ImGui::InputScalar(
-        "##TileId", ImGuiDataType_S32, &state.initialTileId, nullptr, nullptr, "%d", ImGuiInputTextFlags_CharsDecimal);
-    dialogFieldLabel("Elevation");
-    dialogFieldWidth(dimensionFieldWidth);
-    ImGui::InputScalar("##Elevation", ImGuiDataType_S32, &state.initialTileZ, nullptr, nullptr, "%d");
-    const bool validTile = validInitialTile(state.initialTileId, state.initialTileZ);
-    if (!validTile)
+    bool valid = true;
+    if (state.newFileKind == NewFileKind::map)
     {
-        ImGui::TextColored(theme::imguiColor(theme::warning), "ID must be 0-65535 and Z must be -128 to 127.");
-    }
-
-    beginDialogFooter({"Create", "Cancel"});
-    if (dialogButton(iconLabel(IconId::ok, "Create").c_str(), state.newMapPath.front() != '\0' && validDimensions && validTile))
-    {
-        const auto dimensions = resolveMapDimensions(state.newMapFacet, state.newMapWidth, state.newMapHeight);
-        if (dimensions)
+        const bool validDimensions =
+            drawDimensionsFields("NewDimensions", state.newMapFacet, state.newMapWidth, state.newMapHeight, true);
+        if (!validDimensions)
         {
-            state.operation = {
-                .kind = PendingMapOperationKind::newMap,
-                .path = state.newMapPath.data(),
-                .dimensions = *dimensions,
-                .initialTile =
-                    {
-                        .id = static_cast<std::uint16_t>(state.initialTileId),
-                        .z = static_cast<std::int8_t>(state.initialTileZ),
-                    },
-            };
-            deferWorkflow(state, [&mapDocument, &state] { requestOperation(mapDocument, state); });
+            ImGui::TextColored(theme::imguiColor(theme::warning), "%s", strings::invalidDimensions());
+        }
+
+        dialogFieldLabel(iconLabel(IconId::identifier, strings::tileId()).c_str());
+        dialogFieldWidth(dimensionFieldWidth);
+        const auto idInputFlags =
+            state.idFormat == IdFormat::hexadecimal ? ImGuiInputTextFlags_CharsHexadecimal : ImGuiInputTextFlags_CharsDecimal;
+        ImGui::InputScalar("##TileId",
+                           ImGuiDataType_S32,
+                           &state.initialTileId,
+                           nullptr,
+                           nullptr,
+                           state.idFormat == IdFormat::hexadecimal ? "%04X" : "%d",
+                           idInputFlags);
+
+        dialogFieldLabel(iconLabel(IconId::axisZArrow, strings::elevation()).c_str());
+        dialogFieldWidth(dimensionFieldWidth);
+        ImGui::InputScalar("##Elevation", ImGuiDataType_S32, &state.initialTileZ, nullptr, nullptr, "%d");
+        const bool validTile = validInitialTile(state.initialTileId, state.initialTileZ);
+        if (!validTile)
+        {
+            ImGui::TextColored(theme::imguiColor(theme::warning), "ID must be 0-65535 and Z must be -128 to 127.");
+        }
+        valid = validDimensions && validTile;
+    }
+    else if (state.newFileKind == NewFileKind::radarcol)
+    {
+        dialogFieldLabel("Default color");
+        dialogFieldWidth(dimensionFieldWidth);
+        ImGui::ColorEdit3("##RadarcolDefaultColor", state.radarDefaultColor.data(), ImGuiColorEditFlags_NoInputs);
+        ImGui::Checkbox("Use embedded colors", &state.useEmbeddedRadarColors);
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("The inputted color will not be used when embedded colors are enabled.");
+        }
+    }
+
+    const std::string okLabel = iconLabel(IconId::ok, strings::ok());
+    const std::string cancelLabel = iconLabel(IconId::cancel, strings::cancel());
+    beginDialogFooter({okLabel.c_str(), cancelLabel.c_str()}, false);
+    if (dialogButton(okLabel.c_str(), valid))
+    {
+        if (state.newFileKind == NewFileKind::map && state.newMapPath.front() != '\0')
+        {
+            startNewMapOperation(mapDocument, state);
         }
         else
         {
-            state.error = dimensions.error();
-            closeDialogPopup(state);
-            state.mode = MapFileDialogMode::error;
+            requestNewFileOutput(state);
         }
     }
-
     ImGui::SameLine();
-
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
+    if (dialogButton(cancelLabel.c_str()))
     {
-        state.operation = {};
         closeDialog(state);
     }
     endDialogFooter();
@@ -909,16 +923,13 @@ void drawDialogContent(MapDocumentManager & mapDocument, NewFileDialogState & st
     switch (mode)
     {
         case MapFileDialogMode::newType :
-            drawNewTypeDialog(state);
+            drawNewTypeDialog(mapDocument, state);
             break;
         case MapFileDialogMode::selectMapFacet :
             drawMapFacetWorkflow(mapDocument, state);
             break;
         case MapFileDialogMode::openMap :
             drawOpenDialog(mapDocument, state);
-            break;
-        case MapFileDialogMode::newMap :
-            drawNewMapForm(mapDocument, state);
             break;
         case MapFileDialogMode::saveAs :
             drawSaveAsDialog(mapDocument, state);
@@ -955,8 +966,30 @@ void cancelFileDialog(NewFileDialogState & state)
     state.error.clear();
 }
 
+void startNewMapCreation(MapDocumentManager & mapDocument, NewFileDialogState & state)
+{
+    auto deferredWorkflow = std::move(state.deferWorkflow);
+    state.deferWorkflow = {};
+    startNewMapOperation(mapDocument, state);
+    state.deferWorkflow = std::move(deferredWorkflow);
+    if (state.mode != MapFileDialogMode::none)
+    {
+        requestMapDialog(state, state.mode);
+    }
+}
+
 void requestMapDialog(NewFileDialogState & state, MapFileDialogMode mode)
 {
+    const MapFileDialogMode previousMode = state.mode;
+    if (mode == MapFileDialogMode::newType && previousMode != mode)
+    {
+        state.newMapPath.fill('\0');
+        state.newFileKind = NewFileKind::map;
+        state.initialTileId = 0;
+        state.initialTileZ = 0;
+        state.radarDefaultColor = {0.0F, 0.0F, 0.0F};
+        state.useEmbeddedRadarColors = true;
+    }
     state.mode = mode;
     state.activePopup = MapFileDialogMode::none;
     if (state.dialogHost == nullptr)
@@ -1045,13 +1078,15 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
                        OperationController & controller,
                        OutputCollisionPolicy collisionPolicy,
                        NotificationState & notifications,
-                       FileBrowserState & browser)
+                       FileBrowserState & browser,
+                       IdFormat idFormat)
 {
     state.rendering = false;
     state.controller = &controller;
     state.collisionPolicy = collisionPolicy;
     state.notifications = &notifications;
     state.browser = &browser;
+    state.idFormat = idFormat;
     if (state.mode == MapFileDialogMode::none)
     {
         if (state.dialogHost != nullptr && state.dialogHost->owns(DialogId::mapWorkflow))
@@ -1081,7 +1116,7 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
         ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(dialogCenterPivot, dialogCenterPivot));
     }
     const bool dialogVisible =
-        currentMode == MapFileDialogMode::selectMapFacet
+        currentMode == MapFileDialogMode::selectMapFacet || currentMode == MapFileDialogMode::newType
             ? beginAutoSizeDialog(popupName(currentMode), nullptr)
             : beginDialog(popupName(currentMode), nullptr, mapDialogSpec(), ImGuiWindowFlags_AlwaysAutoResize);
     if (!dialogVisible)

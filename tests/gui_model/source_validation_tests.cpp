@@ -80,7 +80,7 @@ TEST_CASE("sourceValidation_Should_ReportValidRadarcolWithCanonicalPathAndRecord
     }
 }
 
-TEST_CASE("sourceValidation_Should_ReportIncompleteTexturePairByMissingRole")
+TEST_CASE("sourceValidation_Should_ReportIncompleteTextureSetByMissingRole")
 {
     const TemporaryDirectory directory;
     std::ofstream(directory.path() / "texidx.mul").close();
@@ -93,7 +93,7 @@ TEST_CASE("sourceValidation_Should_ReportIncompleteTexturePairByMissingRole")
     REQUIRE(data != nullptr);
     if (data != nullptr)
     {
-        REQUIRE(data->status == uo_mule::gui::SourceValidationStatus::incompletePair);
+        REQUIRE(data->status == uo_mule::gui::SourceValidationStatus::incompleteSet);
         REQUIRE(data->diagnostic.find("texmaps") != std::string::npos);
     }
 }

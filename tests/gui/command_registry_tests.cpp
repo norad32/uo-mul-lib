@@ -174,13 +174,13 @@ TEST_CASE("fileCloseCommand_Should_RequestTheActiveTexmapPlaceholder")
     const auto id = state.session.openDocument({
         .identity =
             {
-                .kind = uo_mule::gui::DocumentKind::texmapPair,
+                .kind = uo_mule::gui::DocumentKind::texmaps,
                 .source = uo_mule::gui::makeRoleAwareDocumentSourceIdentity({
                     {.role = uo_mule::gui::SourceRole::index, .path = indexPath},
                     {.role = uo_mule::gui::SourceRole::data, .path = dataPath},
                 }),
             },
-        .displayName = "Texmap Pair",
+        .displayName = "Texmaps",
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
     });

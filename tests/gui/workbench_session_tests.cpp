@@ -204,11 +204,11 @@ TEST_CASE("recentFileStore_Should_RoundTripAllRecentDocumentKinds")
 
     uo_mule::gui::RecentFileStore store(recentPath);
     store.record(radarcolPath, std::nullopt, {}, uo_mule::gui::DocumentKind::radarcol);
-    store.record(texidxPath, std::nullopt, {}, uo_mule::gui::DocumentKind::texmapPair, texmapsPath);
+    store.record(texidxPath, std::nullopt, {}, uo_mule::gui::DocumentKind::texmaps, texmapsPath);
 
     const uo_mule::gui::RecentFileStore loaded(recentPath);
     REQUIRE(loaded.files().size() == 2);
-    REQUIRE(loaded.files().at(0).kind == uo_mule::gui::DocumentKind::texmapPair);
+    REQUIRE(loaded.files().at(0).kind == uo_mule::gui::DocumentKind::texmaps);
     REQUIRE(loaded.files().at(0).companionPath == texmapsPath);
     REQUIRE(loaded.files().at(1).kind == uo_mule::gui::DocumentKind::radarcol);
     REQUIRE(loaded.files().at(1).companionPath.empty());

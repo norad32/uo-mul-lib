@@ -16,10 +16,10 @@ TEST_CASE("assetExportRequest_Should_DefaultToSingleBmpFileExport")
 TEST_CASE("assetExportRequest_Should_RepresentPngDirectoryExport")
 {
     uo_mule::gui::assets::AssetExportRequest request{
-        .kind = uo_mule::gui::DocumentKind::texmapPair,
+        .kind = uo_mule::gui::DocumentKind::texmaps,
         .source =
             {
-                .kind = uo_mule::gui::DocumentKind::texmapPair,
+                .kind = uo_mule::gui::DocumentKind::texmaps,
                 .contextKind = uo_mule::gui::assets::AssetSourceContext::Kind::document,
                 .source = {},
                 .contextId = "document.texmaps.1",
@@ -31,7 +31,7 @@ TEST_CASE("assetExportRequest_Should_RepresentPngDirectoryExport")
         .overwrite = true,
     };
 
-    REQUIRE(request.kind == uo_mule::gui::DocumentKind::texmapPair);
+    REQUIRE(request.kind == uo_mule::gui::DocumentKind::texmaps);
     REQUIRE(request.source.contextKind == uo_mule::gui::assets::AssetSourceContext::Kind::document);
     REQUIRE(request.items.size() == 1U);
     REQUIRE(request.format == uo_mule::gui::assets::AssetExportFormat::png);

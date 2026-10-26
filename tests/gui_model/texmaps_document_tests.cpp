@@ -61,8 +61,8 @@ private:
     std::filesystem::path path_;
 };
 
-[[nodiscard]] std::expected<void, uomul::Error> createPair(const std::filesystem::path & indexPath,
-                                                           const std::filesystem::path & dataPath)
+[[nodiscard]] std::expected<void, uomul::Error> createSet(const std::filesystem::path & indexPath,
+                                                          const std::filesystem::path & dataPath)
 {
     auto editor = uomul::TexMapsEditor::createEmpty(indexPath, dataPath);
     if (!editor)
@@ -73,9 +73,9 @@ private:
 }
 
 [[nodiscard]] std::expected<void, uomul::Error>
-createPairWithTextures(const std::filesystem::path & indexPath,
-                       const std::filesystem::path & dataPath,
-                       const std::vector<uo_mule::gui::TexmapsTextureEdit> & edits)
+createSetWithTextures(const std::filesystem::path & indexPath,
+                      const std::filesystem::path & dataPath,
+                      const std::vector<uo_mule::gui::TexmapsTextureEdit> & edits)
 {
     auto editor = uomul::TexMapsEditor::createEmpty(indexPath, dataPath);
     if (!editor)
@@ -138,13 +138,13 @@ createPairWithTextures(const std::filesystem::path & indexPath,
     return intent;
 }
 
-[[nodiscard]] uo_mule::gui::DocumentSummary pairSummary(const std::filesystem::path & indexPath,
-                                                        const std::filesystem::path & dataPath)
+[[nodiscard]] uo_mule::gui::DocumentSummary setSummary(const std::filesystem::path & indexPath,
+                                                       const std::filesystem::path & dataPath)
 {
     return {
         .identity =
             {
-                .kind = uo_mule::gui::DocumentKind::texmapPair,
+                .kind = uo_mule::gui::DocumentKind::texmaps,
                 .source = uo_mule::gui::makeRoleAwareDocumentSourceIdentity({
                     {.role = uo_mule::gui::SourceRole::index, .path = indexPath},
                     {.role = uo_mule::gui::SourceRole::data, .path = dataPath},
@@ -159,9 +159,9 @@ createPairWithTextures(const std::filesystem::path & indexPath,
     };
 }
 
-void requireOpenedPair(const uo_mule::gui::TexmapsDocument & document,
-                       const std::filesystem::path & indexPath,
-                       const std::filesystem::path & dataPath)
+void requireOpenedSet(const uo_mule::gui::TexmapsDocument & document,
+                      const std::filesystem::path & indexPath,
+                      const std::filesystem::path & dataPath)
 {
     REQUIRE(document.reader());
     if (document.reader())
@@ -236,9 +236,9 @@ void requireReaderHasTexture(const uo_mule::gui::TexmapsDocument & document, std
     }
 }
 
-void requireStagedPair(uo_mule::gui::TexmapsDocument & document,
-                       const uomul::TextureImage & small,
-                       const uomul::TextureImage & large)
+void requireStagedSet(uo_mule::gui::TexmapsDocument & document,
+                      const uomul::TextureImage & small,
+                      const uomul::TextureImage & large)
 {
     REQUIRE(document.handleIntent(replaceBatchIntent({
         {.textureId = firstTextureId, .texture = small},
@@ -252,9 +252,9 @@ void requireStagedPair(uo_mule::gui::TexmapsDocument & document,
     requireEffectiveTexture(document, secondTextureId, large);
 }
 
-void requireSavedPair(uo_mule::gui::TexmapsDocument & document,
-                      const uomul::TextureImage & small,
-                      const uomul::TextureImage & large)
+void requireSavedSet(uo_mule::gui::TexmapsDocument & document,
+                     const uomul::TextureImage & small,
+                     const uomul::TextureImage & large)
 {
     REQUIRE(document.handleIntent(lifecycleIntent(uo_mule::gui::TexmapsDocumentIntentKind::save)));
     REQUIRE_FALSE(document.dirty());
@@ -267,22 +267,22 @@ void requireSavedPair(uo_mule::gui::TexmapsDocument & document,
 
 } // namespace
 
-TEST_CASE("texmapsDocument_Should_OpenValidatedRoleAwarePairWithoutCreatingStagedOutput")
+TEST_CASE("texmapsDocument_Should_OpenValidatedRoleAwareSetWithoutCreatingStagedOutput")
 {
     const TestDirectory directory;
     const auto indexPath = directory.path() / "texidx.mul";
     const auto dataPath = directory.path() / "texmaps.mul";
-    REQUIRE(createPair(indexPath, dataPath));
+    REQUIRE(createSet(indexPath, dataPath));
 
     auto document = uo_mule::gui::TexmapsDocument::open(firstDocumentId, indexPath, dataPath);
     REQUIRE(document);
     if (document)
     {
-        requireOpenedPair(*document, indexPath, dataPath);
+        requireOpenedSet(*document, indexPath, dataPath);
     }
 }
 
-TEST_CASE("texmapsDocument_Should_PreserveInvalidPairErrors")
+TEST_CASE("texmapsDocument_Should_PreserveInvalidSetErrors")
 {
     const TestDirectory directory;
     const auto indexPath = directory.path() / "texidx.mul";
@@ -296,14 +296,14 @@ TEST_CASE("texmapsDocument_Should_PreserveInvalidPairErrors")
     REQUIRE(document.sourceDataPath() == dataPath);
 }
 
-TEST_CASE("texmapsDocument_Should_SaveAsBothPairFilesAndUpdateIdentity")
+TEST_CASE("texmapsDocument_Should_SaveAsBothSetFilesAndUpdateIdentity")
 {
     const TestDirectory directory;
     const auto sourceIndex = directory.path() / "source.idx";
     const auto sourceData = directory.path() / "source.mul";
     const auto outputIndex = directory.path() / "output.idx";
     const auto outputData = directory.path() / "output.mul";
-    REQUIRE(createPair(sourceIndex, sourceData));
+    REQUIRE(createSet(sourceIndex, sourceData));
 
     auto document = uo_mule::gui::TexmapsDocument::open(saveAsDocumentId, sourceIndex, sourceData);
     REQUIRE(document);
@@ -330,12 +330,12 @@ TEST_CASE("texmapsDocument_Should_SaveAsBothPairFilesAndUpdateIdentity")
     REQUIRE_FALSE(document->dirty());
 }
 
-TEST_CASE("texmapsDocument_Should_RejectPairAliases")
+TEST_CASE("texmapsDocument_Should_RejectSetAliases")
 {
     const TestDirectory directory;
     const auto sourceIndex = directory.path() / "source.idx";
     const auto sourceData = directory.path() / "source.mul";
-    REQUIRE(createPair(sourceIndex, sourceData));
+    REQUIRE(createSet(sourceIndex, sourceData));
 
     auto editable = uo_mule::gui::TexmapsDocument::open(aliasDocumentId, sourceIndex, sourceData);
     REQUIRE(editable);
@@ -353,15 +353,15 @@ TEST_CASE("texmapsDocument_Should_RejectPairAliases")
     REQUIRE(editable->sourceDataPath() == sourceData);
 }
 
-TEST_CASE("texmapsDocument_Should_RejectExistingSaveAsPairWithoutOverwrite")
+TEST_CASE("texmapsDocument_Should_RejectExistingSaveAsSetWithoutOverwrite")
 {
     const TestDirectory directory;
     const auto sourceIndex = directory.path() / "source.idx";
     const auto sourceData = directory.path() / "source.mul";
     const auto outputIndex = directory.path() / "output.idx";
     const auto outputData = directory.path() / "output.mul";
-    REQUIRE(createPair(sourceIndex, sourceData));
-    REQUIRE(createPair(outputIndex, outputData));
+    REQUIRE(createSet(sourceIndex, sourceData));
+    REQUIRE(createSet(outputIndex, outputData));
 
     auto document = uo_mule::gui::TexmapsDocument::open(saveAsDocumentId, sourceIndex, sourceData);
     REQUIRE(document);
@@ -384,14 +384,14 @@ TEST_CASE("texmapsDocument_Should_StageSmallAndLargeReplacementsAndSaveThem")
     const TestDirectory directory;
     const auto indexPath = directory.path() / "source.idx";
     const auto dataPath = directory.path() / "source.mul";
-    REQUIRE(createPair(indexPath, dataPath));
+    REQUIRE(createSet(indexPath, dataPath));
 
     auto document = uo_mule::gui::TexmapsDocument::open(firstDocumentId, indexPath, dataPath);
     REQUIRE(document);
     const auto small = makeTexture(uomul::textureSmallDimension, smallTextureSample);
     const auto large = makeTexture(uomul::textureLargeDimension, largeTextureSample);
-    requireStagedPair(*document, small, large);
-    requireSavedPair(*document, small, large);
+    requireStagedSet(*document, small, large);
+    requireSavedSet(*document, small, large);
 }
 
 TEST_CASE("texmapsDocument_Should_ClearRevertDiscardAndKeepNoOpsClean")
@@ -400,7 +400,7 @@ TEST_CASE("texmapsDocument_Should_ClearRevertDiscardAndKeepNoOpsClean")
     const auto indexPath = directory.path() / "source.idx";
     const auto dataPath = directory.path() / "source.mul";
     const auto committed = makeTexture(uomul::textureSmallDimension, smallTextureSample);
-    REQUIRE(createPairWithTextures(indexPath, dataPath, {{.textureId = committedTextureId, .texture = committed}}));
+    REQUIRE(createSetWithTextures(indexPath, dataPath, {{.textureId = committedTextureId, .texture = committed}}));
 
     auto document = uo_mule::gui::TexmapsDocument::open(saveAsDocumentId, indexPath, dataPath);
     REQUIRE(document);
@@ -448,7 +448,7 @@ TEST_CASE("texmapsDocument_Should_RejectInvalidTextureEditsBeforeStaging")
     const TestDirectory directory;
     const auto indexPath = directory.path() / "source.idx";
     const auto dataPath = directory.path() / "source.mul";
-    REQUIRE(createPair(indexPath, dataPath));
+    REQUIRE(createSet(indexPath, dataPath));
     auto document = uo_mule::gui::TexmapsDocument::open(aliasDocumentId, indexPath, dataPath);
     REQUIRE(document);
 
@@ -468,14 +468,14 @@ TEST_CASE("texmapsDocument_Should_RejectInvalidTextureEditsBeforeStaging")
     REQUIRE_FALSE(document->editing());
 }
 
-TEST_CASE("texmapsDocument_Should_SaveAsStagedPairAndUpdateEffectiveReader")
+TEST_CASE("texmapsDocument_Should_SaveAsStagedSetAndUpdateEffectiveReader")
 {
     const TestDirectory directory;
     const auto sourceIndex = directory.path() / "source.idx";
     const auto sourceData = directory.path() / "source.mul";
     const auto outputIndex = directory.path() / "output.idx";
     const auto outputData = directory.path() / "output.mul";
-    REQUIRE(createPair(sourceIndex, sourceData));
+    REQUIRE(createSet(sourceIndex, sourceData));
     auto document = uo_mule::gui::TexmapsDocument::open(saveAsDocumentId, sourceIndex, sourceData);
     REQUIRE(document);
     const auto texture = makeTexture(uomul::textureLargeDimension, largeTextureSample);
@@ -496,15 +496,15 @@ TEST_CASE("texmapsDocument_Should_SaveAsStagedPairAndUpdateEffectiveReader")
     requireEffectiveTexture(*document, firstTextureId, texture);
 }
 
-TEST_CASE("documentManager_Should_AttachEditableStandaloneAndReadOnlyConfiguredTexmapPairs")
+TEST_CASE("documentManager_Should_AttachEditableStandaloneAndReadOnlyConfiguredtexmapss")
 {
     const TestDirectory directory;
     const auto indexPath = directory.path() / "texidx.mul";
     const auto dataPath = directory.path() / "texmaps.mul";
-    REQUIRE(createPair(indexPath, dataPath));
+    REQUIRE(createSet(indexPath, dataPath));
 
     uo_mule::gui::DocumentManager documents;
-    const auto standaloneId = documents.open(pairSummary(indexPath, dataPath));
+    const auto standaloneId = documents.open(setSummary(indexPath, dataPath));
     REQUIRE(standaloneId != 0U);
     requireStandaloneTexmaps(documents.find(standaloneId));
 

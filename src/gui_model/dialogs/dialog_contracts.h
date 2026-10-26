@@ -38,6 +38,7 @@ enum class FileBrowserTarget : std::uint8_t
     newRadarcolOutput,
     defaultRadarcolOutput,
     newTexmapsData,
+    newTiledataOutput,
     imageOpen,
     imageFolderOpen,
     texmapExportFile,
@@ -49,7 +50,7 @@ enum class MulAssetKind : std::uint8_t
     unknown,
     map,
     radarcol,
-    texmapsPair,
+    texmapsSet,
     tiledata,
 };
 

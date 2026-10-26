@@ -421,7 +421,7 @@ void collectCandidates(const std::filesystem::path & root,
     }
 }
 
-void validateTexturePairs(DataDiscoveryResult & result)
+void validateTexmapsSet(DataDiscoveryResult & result)
 {
     auto * index = result.find(DataFileRole::texidx);
     auto * data = result.find(DataFileRole::texmaps);
@@ -514,7 +514,7 @@ DataDiscoveryResult discoverDataFiles(const std::filesystem::path & root, Discov
 
     const auto directories = scanDirectories(result.sourceRoot, mode, result);
     collectCandidates(result.sourceRoot, directories, options.validateCandidates, result);
-    validateTexturePairs(result);
+    validateTexmapsSet(result);
     return result;
 }
 

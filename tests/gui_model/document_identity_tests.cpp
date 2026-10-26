@@ -104,7 +104,7 @@ TEST_CASE("DocumentIdentity_Should_CanonicalizeEquivalentSinglePathSources")
                                                {.id = 2, .kind = uo_mule::gui::DocumentKind::map, .source = second}));
 }
 
-TEST_CASE("DocumentIdentity_Should_RepresentTexmapPairAsOneUnorderedSource")
+TEST_CASE("DocumentIdentity_Should_RepresenttexmapsAsOneUnorderedSource")
 {
     const auto identity = uo_mule::gui::makeRoleAwareDocumentSourceIdentity({
         {.role = uo_mule::gui::SourceRole::index, .path = testRoot() / "texidx.mul"},
@@ -183,7 +183,7 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
 
     uo_mule::gui::DocumentManager documents;
     const auto radarcolIdentity = uo_mule::gui::makeDocumentSourceIdentity({testRoot() / "radarcol.mul"});
-    const auto pairIdentity = uo_mule::gui::makeRoleAwareDocumentSourceIdentity({
+    const auto setIdentity = uo_mule::gui::makeRoleAwareDocumentSourceIdentity({
         {.role = uo_mule::gui::SourceRole::index, .path = testRoot() / "texidx.mul"},
         {.role = uo_mule::gui::SourceRole::data, .path = testRoot() / "texmaps.mul"},
     });
@@ -196,9 +196,9 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
     });
-    const auto pairId = documents.open({
-        .identity = {.kind = uo_mule::gui::DocumentKind::texmapPair, .source = pairIdentity},
-        .displayName = "Texmap Pair",
+    const auto setId = documents.open({
+        .identity = {.kind = uo_mule::gui::DocumentKind::texmaps, .source = setIdentity},
+        .displayName = "Texmaps",
         .sourceKind = uo_mule::gui::DocumentSourceKind::standalone,
         .validation = uo_mule::gui::DocumentValidationState::valid,
         .facetKey = std::nullopt,
@@ -209,12 +209,12 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
     documents.sync(mapDocumentState);
 
     REQUIRE(radarcolId != 0);
-    REQUIRE(pairId != 0);
+    REQUIRE(setId != 0);
     REQUIRE(documents.documents().size() == 3);
     REQUIRE(documents.active().has_value());
     const auto mapId = documents.active().value_or(uo_mule::gui::MapDocument{}).id;
     REQUIRE(mapId != radarcolId);
-    REQUIRE(mapId != pairId);
+    REQUIRE(mapId != setId);
     REQUIRE(documents.activate(radarcolId));
     REQUIRE(documents.activeIdentity().value_or(uo_mule::gui::DocumentIdentity{}).id == radarcolId);
     REQUIRE(documents.open({
@@ -228,8 +228,8 @@ TEST_CASE("DocumentManager_Should_CoexistWithAndReuseMetadataPlaceholders")
                 .dimensions = std::nullopt,
             }) == radarcolId);
     REQUIRE(documents.documents().size() == 3);
-    REQUIRE(documents.close(pairId));
-    REQUIRE_FALSE(documents.find(pairId));
+    REQUIRE(documents.close(setId));
+    REQUIRE_FALSE(documents.find(setId));
     REQUIRE(documents.activeIdentity().value_or(uo_mule::gui::DocumentIdentity{}).id == radarcolId);
     REQUIRE(documents.activate(mapId));
     REQUIRE(documents.active().has_value());
@@ -404,17 +404,17 @@ TEST_CASE("ConfiguredDocumentSource_Should_MatchCanonicalRadarcolPaths")
     REQUIRE(configuredIdentity == opened);
 }
 
-TEST_CASE("ConfiguredDocumentSource_Should_RequireBothTexmapPairPaths")
+TEST_CASE("ConfiguredDocumentSource_Should_RequireBothtexmapsPaths")
 {
     const TestDirectory directory;
     uo_mule::gui::DataProfile profile;
     profile.sourceRoot = testRoot();
     profile.files[uo_mule::gui::DataFileRole::texidx] = {.path = "texidx.mul"};
 
-    REQUIRE_FALSE(uo_mule::gui::configuredDocumentSourceIdentity(profile, uo_mule::gui::DocumentKind::texmapPair));
+    REQUIRE_FALSE(uo_mule::gui::configuredDocumentSourceIdentity(profile, uo_mule::gui::DocumentKind::texmaps));
 
     profile.files[uo_mule::gui::DataFileRole::texmaps] = {.path = "texmaps.mul"};
-    const auto configured = uo_mule::gui::configuredDocumentSourceIdentity(profile, uo_mule::gui::DocumentKind::texmapPair);
+    const auto configured = uo_mule::gui::configuredDocumentSourceIdentity(profile, uo_mule::gui::DocumentKind::texmaps);
     REQUIRE(configured.has_value());
     const auto configuredIdentity = configured.value_or(uo_mule::gui::DocumentSourceIdentity{});
     REQUIRE(configuredIdentity.paths().size() == 2);

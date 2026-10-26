@@ -177,7 +177,7 @@ void validateTexmaps(const DataProfile & profile, DataProfileValidation & result
                   Diagnostic::Severity::error,
                   missingRole,
                   {},
-                  "Texmaps file pair is not available",
+                  "Texmaps file pset is not available",
                   {"Set both texidx.mul and texmaps.mul."});
 }
 

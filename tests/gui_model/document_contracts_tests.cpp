@@ -5,7 +5,7 @@ TEST_CASE("DocumentContracts_Should_ExposeInitialDocumentKinds")
 {
     REQUIRE(uo_mule::gui::documentKindName(uo_mule::gui::DocumentKind::map) == "Map");
     REQUIRE(uo_mule::gui::documentKindName(uo_mule::gui::DocumentKind::radarcol) == "Radarcol");
-    REQUIRE(uo_mule::gui::documentKindName(uo_mule::gui::DocumentKind::texmapPair) == "Texmap Pair");
+    REQUIRE(uo_mule::gui::documentKindName(uo_mule::gui::DocumentKind::texmaps) == "Texmaps");
 }
 
 TEST_CASE("DocumentContracts_Should_DistinguishMetadataOwnership")

@@ -68,7 +68,7 @@ private:
     std::optional<DocumentId> activeId_;
     std::optional<MapDocument> emptyMap_;
     std::optional<DocumentSourceIdentity> configuredRadarcolSource_;
-    std::optional<DocumentSourceIdentity> configuredTexmapPairSource_;
+    std::optional<DocumentSourceIdentity> configuredtexmapsSource_;
     std::optional<DocumentSourceIdentity> configuredTiledataSource_;
 };
 

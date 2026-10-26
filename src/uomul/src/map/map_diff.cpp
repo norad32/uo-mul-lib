@@ -641,7 +641,7 @@ private:
     bool active_ = true;
 };
 
-std::expected<void, Error> installDiffPair(const DiffOutputPaths & outputs, const DiffTemporaryFiles & files)
+std::expected<void, Error> installDiffSet(const DiffOutputPaths & outputs, const DiffTemporaryFiles & files)
 {
     if (::link(files.data.c_str(), outputs.data.c_str()) != 0)
     {
@@ -664,7 +664,7 @@ std::expected<void, Error> installDiffPair(const DiffOutputPaths & outputs, cons
 std::expected<DiffReport, Error>
 publishDiffWithoutOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles & files, DiffReport report)
 {
-    auto installed = installDiffPair(outputs, files);
+    auto installed = installDiffSet(outputs, files);
     if (!installed)
     {
         removeDiffTemporaries(files);
@@ -685,7 +685,7 @@ publishDiffWithOverwrite(const DiffOutputPaths & outputs, DiffTemporaryFiles & f
 
     DiffBackupCleanup rollback(*backups, outputs);
 
-    auto installed = installDiffPair(outputs, files);
+    auto installed = installDiffSet(outputs, files);
     if (!installed)
     {
         removeDiffTemporaries(files);

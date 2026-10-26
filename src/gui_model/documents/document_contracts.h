@@ -7,12 +7,12 @@
 namespace uo_mule::gui
 {
 
-// The initial workbench document kinds. A Texmap Pair is one logical document.
+// The initial workbench document kinds. A Texmaps-set is one logical document.
 enum class DocumentKind : std::uint8_t
 {
     map,
     radarcol,
-    texmapPair,
+    texmaps,
     statics,
     combined,
     tiledata,
@@ -59,8 +59,8 @@ inline constexpr UnsupportedMulPolicy unsupportedMulPolicy = UnsupportedMulPolic
             return "Map";
         case DocumentKind::radarcol :
             return "Radarcol";
-        case DocumentKind::texmapPair :
-            return "Texmap Pair";
+        case DocumentKind::texmaps :
+            return "Texmaps";
         case DocumentKind::statics :
             return "Statics";
         case DocumentKind::combined :
@@ -81,8 +81,8 @@ inline constexpr UnsupportedMulPolicy unsupportedMulPolicy = UnsupportedMulPolic
             return "map";
         case DocumentKind::radarcol :
             return "radarcol";
-        case DocumentKind::texmapPair :
-            return "texmap_pair";
+        case DocumentKind::texmaps :
+            return "texmaps_set";
         case DocumentKind::statics :
             return "statics";
         case DocumentKind::combined :

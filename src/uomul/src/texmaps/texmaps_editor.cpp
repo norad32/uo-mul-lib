@@ -75,20 +75,20 @@ std::expected<void, Error> validateOutput(const std::filesystem::path & path, bo
     return {};
 }
 
-struct PairInPlaceState
+struct SetInPlaceState
 {
     bool index = false;
     bool data = false;
 };
 
-std::expected<PairInPlaceState, Error> determinePairInPlaceState(const std::filesystem::path & outputIndex,
-                                                                 const std::filesystem::path & outputData,
-                                                                 const std::filesystem::path * sourceIndex,
-                                                                 const std::filesystem::path * sourceData)
+std::expected<SetInPlaceState, Error> determineSetInPlaceState(const std::filesystem::path & outputIndex,
+                                                               const std::filesystem::path & outputData,
+                                                               const std::filesystem::path * sourceIndex,
+                                                               const std::filesystem::path * sourceData)
 {
     if (sourceIndex == nullptr || sourceData == nullptr)
     {
-        return PairInPlaceState{};
+        return SetInPlaceState{};
     }
 
     auto exactIndex = detail::MulCommon::pathsExactlyMatch(*sourceIndex, outputIndex);
@@ -103,13 +103,13 @@ std::expected<PairInPlaceState, Error> determinePairInPlaceState(const std::file
         return std::unexpected(exactData.error());
     }
 
-    return PairInPlaceState{.index = *exactIndex, .data = *exactData};
+    return SetInPlaceState{.index = *exactIndex, .data = *exactData};
 }
 
-std::expected<void, Error> validatePairOutputs(const std::filesystem::path & outputIndex,
-                                               const std::filesystem::path & outputData,
-                                               bool overwrite,
-                                               const PairInPlaceState & inPlace)
+std::expected<void, Error> validateSetOutputs(const std::filesystem::path & outputIndex,
+                                              const std::filesystem::path & outputData,
+                                              bool overwrite,
+                                              const SetInPlaceState & inPlace)
 {
     if (auto valid = validateOutput(outputIndex, overwrite || inPlace.index); !valid)
     {
@@ -158,7 +158,7 @@ std::expected<void, Error> validateSourceOutputAliases(const std::filesystem::pa
                                                        const std::filesystem::path & outputData,
                                                        const std::filesystem::path * sourceIndex,
                                                        const std::filesystem::path * sourceData,
-                                                       const PairInPlaceState & inPlace)
+                                                       const SetInPlaceState & inPlace)
 {
     if (sourceIndex == nullptr || sourceData == nullptr)
     {
@@ -180,19 +180,19 @@ std::expected<void, Error> validateSourceOutputAliases(const std::filesystem::pa
     return validateSourceOutputAlias(*sourceData, outputData, inPlace.data);
 }
 
-std::expected<void, Error> validatePairPaths(const std::filesystem::path & outputIndex,
-                                             const std::filesystem::path & outputData,
-                                             bool overwrite,
-                                             const std::filesystem::path * sourceIndex = nullptr,
-                                             const std::filesystem::path * sourceData = nullptr)
+std::expected<void, Error> validateSetPaths(const std::filesystem::path & outputIndex,
+                                            const std::filesystem::path & outputData,
+                                            bool overwrite,
+                                            const std::filesystem::path * sourceIndex = nullptr,
+                                            const std::filesystem::path * sourceData = nullptr)
 {
-    auto inPlace = determinePairInPlaceState(outputIndex, outputData, sourceIndex, sourceData);
+    auto inPlace = determineSetInPlaceState(outputIndex, outputData, sourceIndex, sourceData);
     if (!inPlace)
     {
         return std::unexpected(inPlace.error());
     }
 
-    if (auto valid = validatePairOutputs(outputIndex, outputData, overwrite, *inPlace); !valid)
+    if (auto valid = validateSetOutputs(outputIndex, outputData, overwrite, *inPlace); !valid)
     {
         return valid;
     }
@@ -281,7 +281,7 @@ std::expected<std::filesystem::path, Error> linkBackup(const std::filesystem::pa
     }
 
     return std::unexpected(
-        detail::MulCommon::makeError(ErrorCode::commitFailed, source, 0, "unable to allocate pair backup path"));
+        detail::MulCommon::makeError(ErrorCode::commitFailed, source, 0, "unable to allocate set backup path"));
 }
 
 std::expected<void, Error>
@@ -411,10 +411,10 @@ writeIndexEntries(int descriptor, const std::filesystem::path & path, const std:
     return {};
 }
 
-std::expected<void, Error> replaceStagedPair(const std::filesystem::path & currentIndex,
-                                             const std::filesystem::path & currentData,
-                                             const std::filesystem::path & replacementIndex,
-                                             const std::filesystem::path & replacementData)
+std::expected<void, Error> replaceStagedSet(const std::filesystem::path & currentIndex,
+                                            const std::filesystem::path & currentData,
+                                            const std::filesystem::path & replacementIndex,
+                                            const std::filesystem::path & replacementData)
 {
     auto indexBackup = linkBackup(currentIndex);
     if (!indexBackup)
@@ -658,7 +658,7 @@ std::expected<TexMapsEditor, Error> TexMapsEditor::create(const std::filesystem:
         return std::unexpected(entries.error());
     }
 
-    if (auto paths = validatePairPaths(outputIndex, outputData, options.overwriteOutput, &sourceIndex, &sourceData); !paths)
+    if (auto paths = validateSetPaths(outputIndex, outputData, options.overwriteOutput, &sourceIndex, &sourceData); !paths)
     {
         return std::unexpected(paths.error());
     }
@@ -717,7 +717,7 @@ std::expected<TexMapsEditor, Error> TexMapsEditor::createEmpty(const std::filesy
                                                                const std::filesystem::path & outputData,
                                                                TexMapsEditOptions options)
 {
-    if (auto paths = validatePairPaths(outputIndex, outputData, options.overwriteOutput); !paths)
+    if (auto paths = validateSetPaths(outputIndex, outputData, options.overwriteOutput); !paths)
     {
         return std::unexpected(paths.error());
     }
@@ -923,7 +923,7 @@ std::expected<TextureDeduplicationReport, Error> TexMapsEditor::deduplicateTextu
         return std::unexpected(detail::MulCommon::makeError(ErrorCode::io, replacementIndexPath, 0, std::strerror(errno)));
     }
 
-    if (auto replaced = replaceStagedPair(
+    if (auto replaced = replaceStagedSet(
             impl_->stagedPath(impl_->indexId), impl_->stagedPath(impl_->dataId), replacementIndexPath, replacementDataPath);
         !replaced)
     {

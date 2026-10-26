@@ -320,7 +320,7 @@ void openRecentAsset(WorkbenchState & state, const RecentFile & recent)
 {
     DocumentSummary summary;
     summary.identity.kind = recent.kind;
-    if (recent.kind == DocumentKind::texmapPair)
+    if (recent.kind == DocumentKind::texmaps)
     {
         summary.identity.source = makeRoleAwareDocumentSourceIdentity(
             {{.role = SourceRole::index, .path = recent.path}, {.role = SourceRole::data, .path = recent.companionPath}});

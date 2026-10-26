@@ -110,7 +110,7 @@ TEST_CASE("DataProfileStore_Should_DeleteProfile")
     REQUIRE_FALSE(std::filesystem::exists(store.path(profile.name)));
 }
 
-TEST_CASE("DataProfileValidation_Should_ReportIncompleteTexturePair")
+TEST_CASE("DataProfileValidation_Should_ReportIncompleteTexmapsSet")
 {
     const TemporaryProfileDirectory directory;
     const auto source = directory.path() / "source";

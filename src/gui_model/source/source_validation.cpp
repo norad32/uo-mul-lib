@@ -91,23 +91,23 @@ std::vector<SourceValidationResult> validateDataProfileSources(const DataProfile
         if (indexAvailable != dataAvailable)
         {
             auto & incomplete = indexAvailable ? *data : *index;
-            incomplete.status = SourceValidationStatus::incompletePair;
+            incomplete.status = SourceValidationStatus::incompleteSet;
             incomplete.diagnostic = std::string(dataFileRoleName(incomplete.role)) + " role: Texmaps file set is not available";
         }
         else if (indexAvailable && dataAvailable)
         {
-            const auto pair = uomul::TexMapsReader::open(index->canonicalPath, data->canonicalPath);
-            if (!pair)
+            const auto set = uomul::TexMapsReader::open(index->canonicalPath, data->canonicalPath);
+            if (!set)
             {
                 index->status = SourceValidationStatus::invalid;
                 data->status = SourceValidationStatus::invalid;
-                index->diagnostic = "texidx role: " + pair.error().message;
-                data->diagnostic = "texmaps role: " + pair.error().message;
+                index->diagnostic = "texidx role: " + set.error().message;
+                data->diagnostic = "texmaps role: " + set.error().message;
             }
             else
             {
-                index->recordCount = pair->textureCount();
-                data->recordCount = pair->textureCount();
+                index->recordCount = set->textureCount();
+                data->recordCount = set->textureCount();
             }
         }
     }

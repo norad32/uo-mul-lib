@@ -239,7 +239,7 @@ TEST_CASE("generate_Should_RejectExistingIndexFile_If_OverwriteIsDisabled")
     REQUIRE(uomul::test::readBytes(diffIndexPath(diffDirectory)) == "existing index");
 }
 
-TEST_CASE("generate_Should_ReplaceExistingDiffPair_If_OverwriteIsEnabled")
+TEST_CASE("generate_Should_ReplaceExistingDiffSet_If_OverwriteIsEnabled")
 {
     const TestDirectory directory;
     const auto base = directory.path() / "base.mul";
@@ -258,7 +258,7 @@ TEST_CASE("generate_Should_ReplaceExistingDiffPair_If_OverwriteIsEnabled")
     REQUIRE(std::filesystem::file_size(diffIndexPath(diffDirectory)) == 0);
 }
 
-TEST_CASE("apply_Should_CopyBaseWithoutChanges_If_DiffPairIsEmpty")
+TEST_CASE("apply_Should_CopyBaseWithoutChanges_If_DiffSetIsEmpty")
 {
     const TestDirectory directory;
     const auto base = directory.path() / "base.mul";

@@ -835,7 +835,7 @@ void configureDocumentTextureDrop(assets::AssetAdapter & adapter,
                                               "|revision=" + std::to_string(revision),
                               .source =
                                   {
-                                      .kind = DocumentKind::texmapPair,
+                                      .kind = DocumentKind::texmaps,
                                       .contextKind = assets::AssetSourceContext::Kind::document,
                                       .source = document.sourceIdentity(),
                                       .contextId = "document.texmaps." + std::to_string(document.id()),

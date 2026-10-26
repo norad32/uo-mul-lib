@@ -4,6 +4,7 @@
 #include "gui/workbench/notification_state.h"
 #include "gui_model/documents/map_document_manager.h"
 #include "gui_model/operations/operation_controller.h"
+#include "gui_model/persistence/preferences.h"
 #include "gui_model/profile/data_profile.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
@@ -29,7 +30,6 @@ enum class MapFileDialogMode : std::uint8_t
     openMap,
     selectMapFacet,
     newType,
-    newMap,
     saveAs,
     dirtyChanges,
     overwrite,
@@ -40,7 +40,8 @@ enum class NewFileKind : std::uint8_t
 {
     map,
     radarcol,
-    texmapPair,
+    texmaps,
+    tiledata,
 };
 
 enum class PendingMapOperationKind : std::uint8_t
@@ -86,8 +87,11 @@ struct NewFileDialogState
     FileBrowserState * browser = nullptr;
     int newMapFacet = 1;
     NewFileKind newFileKind = NewFileKind::map;
+    IdFormat idFormat = IdFormat::decimal;
     int initialTileId = 0;
     int initialTileZ = 0;
+    std::array<float, 3> radarDefaultColor{0.0F, 0.0F, 0.0F};
+    bool useEmbeddedRadarColors = true;
     MapFileDialogMode mode = MapFileDialogMode::none;
     MapFileDialogMode activePopup = MapFileDialogMode::none;
     PendingMapOperation operation{};
@@ -104,9 +108,11 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
                        OperationController & controller,
                        OutputCollisionPolicy collisionPolicy,
                        NotificationState & notifications,
-                       FileBrowserState & browser);
+                       FileBrowserState & browser,
+                       IdFormat idFormat);
 
 void cancelFileDialog(NewFileDialogState & state);
+void startNewMapCreation(MapDocumentManager & mapDocument, NewFileDialogState & state);
 void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult & result);
 void returnToFileBrowser(NewFileDialogState & state, FileBrowserState & browser);
 

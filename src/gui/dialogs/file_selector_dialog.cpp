@@ -40,7 +40,7 @@ bool drawCandidate(FileSelectorState & state, std::size_t index)
         ImGui::TextDisabled(
             "%s %u x %u", candidate.facet.c_str(), candidate.dimensions->widthTiles, candidate.dimensions->heightTiles);
     }
-    else if (candidate.kind == MulAssetKind::radarcol || candidate.kind == MulAssetKind::texmapsPair)
+    else if (candidate.kind == MulAssetKind::radarcol || candidate.kind == MulAssetKind::texmapsSet)
     {
         ImGui::SameLine();
         ImGui::TextDisabled(strings::entriesFormat(), candidate.itemCount);
@@ -56,7 +56,7 @@ bool drawCandidate(FileSelectorState & state, std::size_t index)
                        "%s",
                        candidate.openable ? "Openable" : "Requires selection");
     ImGui::Unindent();
-    return candidate.kind == MulAssetKind::texmapsPair && !candidate.openable && ImGui::SmallButton("Choose companion");
+    return candidate.kind == MulAssetKind::texmapsSet && !candidate.openable && ImGui::SmallButton("Choose companion");
 }
 
 } // namespace
@@ -76,7 +76,7 @@ void openFileSelector(FileSelectorState & state, FileBrowserResult result)
     else if (state.browserResult.target == FileBrowserTarget::texmapsIndex ||
              state.browserResult.target == FileBrowserTarget::texmapsData)
     {
-        std::erase_if(state.candidates, [](const auto & candidate) { return candidate.kind != MulAssetKind::texmapsPair; });
+        std::erase_if(state.candidates, [](const auto & candidate) { return candidate.kind != MulAssetKind::texmapsSet; });
     }
     sortFileBrowserCandidates(state.candidates);
     const auto firstOpenable =
@@ -108,7 +108,7 @@ FileBrowserResult selectedFileSelectorResult(const FileSelectorState & state)
     }
 
     result.assetCandidate = state.candidates.at(state.selectedCandidate);
-    if (result.assetCandidate->kind == MulAssetKind::texmapsPair)
+    if (result.assetCandidate->kind == MulAssetKind::texmapsSet)
     {
         result.path = result.assetCandidate->path;
     }
@@ -126,15 +126,15 @@ bool applyFileSelectorCompanion(FileSelectorState & state, const std::filesystem
         return value;
     }();
     const bool selectedIsIndex = lowerSelectedName == "texidx.mul";
-    const auto pair = selectedIsIndex ? inspectTexmapsPair(state.browserResult.path, path)
-                                      : inspectTexmapsPair(path, state.browserResult.path);
-    if (!pair.openable)
+    const auto set =
+        selectedIsIndex ? inspectTexmapsSet(state.browserResult.path, path) : inspectTexmapsSet(path, state.browserResult.path);
+    if (!set.openable)
     {
-        state.error = pair.reason;
+        state.error = set.reason;
         return false;
     }
 
-    state.candidates = {pair};
+    state.candidates = {set};
     state.selectedCandidate = 0;
     state.error.clear();
     return true;

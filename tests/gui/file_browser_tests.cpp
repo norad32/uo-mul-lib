@@ -88,7 +88,7 @@ TEST_CASE("fileBrowser_Should_IdentifyValidRadarColorTable")
     std::filesystem::remove(path, error);
 }
 
-TEST_CASE("fileBrowser_Should_NotTreatIndexFileAsOpenableTextureAsset_If_PairIsMissing")
+TEST_CASE("fileBrowser_Should_NotTreatIndexFileAsOpenableTexmapsSet_If_SetIsMissing")
 {
     const auto directory = std::filesystem::temp_directory_path();
     const auto indexPath = directory / "texidx.mul";
@@ -100,7 +100,7 @@ TEST_CASE("fileBrowser_Should_NotTreatIndexFileAsOpenableTextureAsset_If_PairIsM
     const auto summary = inspectFileBrowserSelection(indexPath);
     REQUIRE(std::ranges::any_of(summary.assetCandidates,
                                 [](const auto & candidate)
-                                { return candidate.kind == MulAssetKind::texmapsPair && !candidate.openable; }));
+                                { return candidate.kind == MulAssetKind::texmapsSet && !candidate.openable; }));
 
     std::error_code error;
     std::filesystem::remove(indexPath, error);
@@ -113,12 +113,12 @@ TEST_CASE("fileSelector_Should_RejectDirectTextureIndexResult")
     result.target = FileBrowserTarget::texmapsIndex;
     result.path = "texidx.mul";
     result.assetCandidates.push_back(FileBrowserAssetCandidate{
-        .kind = MulAssetKind::texmapsPair,
+        .kind = MulAssetKind::texmapsSet,
         .path = result.path,
         .companionPath = {},
-        .label = "Texture pair",
+        .label = "Textmaps",
         .facet = {},
-        .reason = "A matching pair is required",
+        .reason = "A matching texmaps-set is required",
         .warning = {},
         .score = directTextureScore,
         .dimensions = std::nullopt,
@@ -133,7 +133,7 @@ TEST_CASE("fileSelector_Should_RejectDirectTextureIndexResult")
     REQUIRE_FALSE(selected.assetCandidate.value_or(FileBrowserAssetCandidate{}).openable);
 }
 
-TEST_CASE("fileBrowser_Should_TreatEmptyTexturePairAsOneOpenableAsset")
+TEST_CASE("fileBrowser_Should_TreatEmptyTexmapsSetAsOneOpenableAsset")
 {
     const auto directory = std::filesystem::temp_directory_path();
     const auto indexPath = directory / "texidx.mul";
@@ -146,12 +146,12 @@ TEST_CASE("fileBrowser_Should_TreatEmptyTexturePairAsOneOpenableAsset")
     }
 
     const auto summary = inspectFileBrowserSelection(indexPath);
-    const auto pair = std::ranges::find_if(summary.assetCandidates,
-                                           [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsPair; });
-    REQUIRE(pair != summary.assetCandidates.end());
-    REQUIRE(pair->openable);
-    REQUIRE(pair->path == indexPath);
-    REQUIRE(pair->companionPath == dataPath);
+    const auto set = std::ranges::find_if(summary.assetCandidates,
+                                          [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsSet; });
+    REQUIRE(set != summary.assetCandidates.end());
+    REQUIRE(set->openable);
+    REQUIRE(set->path == indexPath);
+    REQUIRE(set->companionPath == dataPath);
 
     std::error_code error;
     std::filesystem::remove(indexPath, error);

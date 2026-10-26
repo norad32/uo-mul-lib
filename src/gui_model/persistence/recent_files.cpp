@@ -59,9 +59,9 @@ constexpr std::uint32_t recentFilesSchemaVersion = 0;
     {
         return DocumentKind::radarcol;
     }
-    if (name == "texmap_pair")
+    if (name == "texmaps_set")
     {
-        return DocumentKind::texmapPair;
+        return DocumentKind::texmaps;
     }
     return std::nullopt;
 }

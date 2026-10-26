@@ -682,7 +682,7 @@ const char * radarcol() noexcept
 }
 const char * texmaps() noexcept
 {
-    return "Texmap Pair";
+    return "Texmaps";
 }
 
 const char * radarcolFallbackTitle() noexcept

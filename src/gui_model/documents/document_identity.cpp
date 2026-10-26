@@ -20,7 +20,7 @@ std::optional<DocumentSourceIdentity> configuredDocumentSourceIdentity(const Dat
             }
             return makeDocumentSourceIdentity({path});
         }
-        case DocumentKind::texmapPair :
+        case DocumentKind::texmaps :
         {
             const auto index = resolvedDataFilePath(profile, DataFileRole::texidx);
             const auto data = resolvedDataFilePath(profile, DataFileRole::texmaps);

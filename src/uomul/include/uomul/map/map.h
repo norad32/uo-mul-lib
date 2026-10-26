@@ -438,7 +438,7 @@ public:
 
     /** @brief Applies a legacy map diff to a base map and publishes the result.
      *  @param baseMap Map to patch.
-     *  @param diffDirectory Directory containing the map-diff pair.
+     *  @param diffDirectory Directory containing the map-diff set.
      *  @param outputMap Destination map path.
      *  @param mapIndex Facet index used in diff filenames.
      *  @param dimensions Dimensions shared by the maps.

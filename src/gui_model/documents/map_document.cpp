@@ -26,15 +26,15 @@ namespace
 
 [[nodiscard]] bool configuredMetadataSource(const DocumentIdentity & identity,
                                             const std::optional<DocumentSourceIdentity> & radarcolSource,
-                                            const std::optional<DocumentSourceIdentity> & texmapPairSource,
+                                            const std::optional<DocumentSourceIdentity> & texmapsSource,
                                             const std::optional<DocumentSourceIdentity> & tiledataSource)
 {
     switch (identity.kind)
     {
         case DocumentKind::radarcol :
             return radarcolSource.has_value() && identity.source == radarcolSource.value();
-        case DocumentKind::texmapPair :
-            return texmapPairSource.has_value() && identity.source == texmapPairSource.value();
+        case DocumentKind::texmaps :
+            return texmapsSource.has_value() && identity.source == texmapsSource.value();
         case DocumentKind::tiledata :
             return tiledataSource.has_value() && identity.source == tiledataSource.value();
         case DocumentKind::map :
@@ -49,7 +49,7 @@ namespace
 void updateMetadataSource(DocumentRecord & document, bool configured)
 {
     const auto kind = document.summary.identity.kind;
-    if (kind != DocumentKind::radarcol && kind != DocumentKind::texmapPair && kind != DocumentKind::tiledata)
+    if (kind != DocumentKind::radarcol && kind != DocumentKind::texmaps && kind != DocumentKind::tiledata)
     {
         return;
     }
@@ -82,7 +82,7 @@ void updateMetadataSource(DocumentRecord & document, bool configured)
 
 [[nodiscard]] std::optional<TexmapsDocument> openTexmapsDocument(DocumentSummary & summary)
 {
-    if (summary.identity.kind != DocumentKind::texmapPair)
+    if (summary.identity.kind != DocumentKind::texmaps)
     {
         return std::nullopt;
     }
@@ -212,13 +212,13 @@ void DocumentManager::close() noexcept
 void DocumentManager::updateMetadataSources(const DataProfile & profile)
 {
     configuredRadarcolSource_ = configuredDocumentSourceIdentity(profile, DocumentKind::radarcol);
-    configuredTexmapPairSource_ = configuredDocumentSourceIdentity(profile, DocumentKind::texmapPair);
+    configuredtexmapsSource_ = configuredDocumentSourceIdentity(profile, DocumentKind::texmaps);
     configuredTiledataSource_ = configuredDocumentSourceIdentity(profile, DocumentKind::tiledata);
 
     for (auto & document : documents_)
     {
         const bool configured = configuredMetadataSource(
-            document.summary.identity, configuredRadarcolSource_, configuredTexmapPairSource_, configuredTiledataSource_);
+            document.summary.identity, configuredRadarcolSource_, configuredtexmapsSource_, configuredTiledataSource_);
         updateMetadataSource(document, configured);
     }
 }
@@ -238,7 +238,7 @@ DocumentId DocumentManager::open(DocumentSummary summary)
 
     summary.identity.id = nextId_++;
     const bool configured = configuredMetadataSource(
-        summary.identity, configuredRadarcolSource_, configuredTexmapPairSource_, configuredTiledataSource_);
+        summary.identity, configuredRadarcolSource_, configuredtexmapsSource_, configuredTiledataSource_);
     summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
 
     auto radarcol = openRadarcolDocument(summary);
@@ -326,7 +326,7 @@ void DocumentManager::syncAssetDocuments() noexcept
         if (document.texmaps)
         {
             const auto source = document.texmaps->sourceIdentity();
-            const bool configured = configuredTexmapPairSource_.has_value() && source == *configuredTexmapPairSource_;
+            const bool configured = configuredtexmapsSource_.has_value() && source == *configuredtexmapsSource_;
             document.summary.identity.source = source;
             document.summary.displayName = document.texmaps->sourceIndexPath().filename().string();
             document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;

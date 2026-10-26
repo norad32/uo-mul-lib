@@ -3,6 +3,7 @@
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/presentation/bounded_buffer.h"
 #include "gui/presentation/strings.h"
 #include "gui/workbench/notification_state.h"
 #include "gui/workbench/workbench_state.h"
@@ -11,10 +12,15 @@
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/radarcol_document.h"
 #include "gui_model/profile/data_profile.h"
+#include "gui_model/providers/embedded_radarcol.h"
 #include "gui_model/session/workbench_session.h"
 #include "gui_model/source/source_identity.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
+#include "uomul/tiledata/tiledata.h"
+#include <algorithm>
+#include <array>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -118,7 +124,45 @@ bool createDefaultRadarcolImpl(WorkbenchState & state, const std::filesystem::pa
     return true;
 }
 
-void createNewAsset(WorkbenchState & state, FileBrowserTarget target, const std::filesystem::path & path)
+bool createNewRadarcol(WorkbenchState & state,
+                       const std::filesystem::path & path,
+                       bool useEmbeddedColors,
+                       const std::array<float, 3> & defaultColor)
+{
+    auto created = uomul::RadarColEditor::createEmpty(path);
+    if (!created)
+    {
+        state.notifications.add(NotificationSeverity::error, strings::formatError(created.error()));
+        return false;
+    }
+
+    constexpr float colorScale = 255.0F;
+    const auto channel = [](float value) { return static_cast<std::uint8_t>(std::clamp(value, 0.0F, 1.0F) * colorScale); };
+    const uomul::RadarColor fallback = uomul::RadarColorConverter::fromRgb888(
+        channel(defaultColor.at(0)), channel(defaultColor.at(1)), channel(defaultColor.at(2)));
+    for (std::uint32_t index = 0; index < uomul::radarColorCount; ++index)
+    {
+        const uomul::RadarColor value = useEmbeddedColors ? embeddedRadarcolColor(index).value_or(fallback) : fallback;
+        if (auto edited = created->editRawColor(index, value); !edited)
+        {
+            state.notifications.add(NotificationSeverity::error, strings::formatError(edited.error()));
+            return false;
+        }
+    }
+    if (auto committed = created->commit(); !committed)
+    {
+        state.notifications.add(NotificationSeverity::error, strings::formatError(committed.error()));
+        return false;
+    }
+    openCreatedAsset(state, DocumentKind::radarcol, path);
+    return true;
+}
+
+void createNewAsset(WorkbenchState & state,
+                    FileBrowserTarget target,
+                    const std::filesystem::path & path,
+                    bool useEmbeddedColors,
+                    const std::array<float, 3> & defaultColor)
 {
     if (target == FileBrowserTarget::defaultRadarcolOutput)
     {
@@ -127,7 +171,13 @@ void createNewAsset(WorkbenchState & state, FileBrowserTarget target, const std:
     }
     if (target == FileBrowserTarget::newRadarcolOutput)
     {
-        auto created = uomul::RadarColEditor::createEmpty(path);
+        static_cast<void>(createNewRadarcol(state, path, useEmbeddedColors, defaultColor));
+        return;
+    }
+
+    if (target == FileBrowserTarget::newTiledataOutput)
+    {
+        auto created = uomul::TiledataEditor::createEmpty(path, uomul::TiledataLayout::extended64);
         if (!created)
         {
             state.notifications.add(NotificationSeverity::error, strings::formatError(created.error()));
@@ -138,7 +188,7 @@ void createNewAsset(WorkbenchState & state, FileBrowserTarget target, const std:
             state.notifications.add(NotificationSeverity::error, strings::formatError(committed.error()));
             return;
         }
-        openCreatedAsset(state, DocumentKind::radarcol, path);
+        openCreatedAsset(state, DocumentKind::tiledata, path);
         return;
     }
 
@@ -156,7 +206,7 @@ void createNewAsset(WorkbenchState & state, FileBrowserTarget target, const std:
         state.notifications.add(NotificationSeverity::error, strings::formatError(committed.error()));
         return;
     }
-    openCreatedAsset(state, DocumentKind::texmapPair, indexPath, path);
+    openCreatedAsset(state, DocumentKind::texmaps, indexPath, path);
 }
 
 bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, const FileBrowserAssetCandidate & candidate)
@@ -174,7 +224,7 @@ bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, 
     // standalone document.
     cancelFileDialog(state.menuBarState.fileDialog);
 
-    DocumentKind kind = DocumentKind::texmapPair;
+    DocumentKind kind = DocumentKind::texmaps;
     if (candidate.kind == MulAssetKind::radarcol)
     {
         kind = DocumentKind::radarcol;
@@ -217,14 +267,14 @@ bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, 
     return false;
 }
 
-bool routePairResult(WorkbenchState & state, const FileBrowserResult & result, const FileBrowserAssetCandidate & pair)
+bool routeSetResult(WorkbenchState & state, const FileBrowserResult & result, const FileBrowserAssetCandidate & set)
 {
     auto indexResult = result;
     indexResult.target = FileBrowserTarget::texmapsIndex;
-    indexResult.path = pair.path;
+    indexResult.path = set.path;
     auto dataResult = result;
     dataResult.target = FileBrowserTarget::texmapsData;
-    dataResult.path = pair.companionPath;
+    dataResult.path = set.companionPath;
     applyFileBrowserResult(state.menuBarState.preferencesDialog, indexResult);
     applyFileBrowserResult(state.menuBarState.preferencesDialog, dataResult);
     if (state.menuBarState.preferencesDialog.visible)
@@ -341,13 +391,29 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 [[nodiscard]] bool routeNewAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 {
     if (result.target != FileBrowserTarget::newRadarcolOutput && result.target != FileBrowserTarget::defaultRadarcolOutput &&
-        result.target != FileBrowserTarget::newTexmapsData)
+        result.target != FileBrowserTarget::newTexmapsData && result.target != FileBrowserTarget::newTiledataOutput)
     {
         return false;
     }
     const auto target = result.target;
     const auto path = result.path;
-    state.deferWorkflowAction([&state, target, path] { createNewAsset(state, target, path); });
+    const bool useEmbeddedColors = state.menuBarState.fileDialog.useEmbeddedRadarColors;
+    const auto defaultColor = state.menuBarState.fileDialog.radarDefaultColor;
+    cancelFileDialog(state.menuBarState.fileDialog);
+    state.deferWorkflowAction([&state, target, path, useEmbeddedColors, defaultColor]
+                              { createNewAsset(state, target, path, useEmbeddedColors, defaultColor); });
+    return true;
+}
+
+[[nodiscard]] bool routeNewMapResult(WorkbenchState & state, const FileBrowserResult & result)
+{
+    if (result.target != FileBrowserTarget::newMapOutput)
+    {
+        return false;
+    }
+
+    copyToBuffer(state.menuBarState.fileDialog.newMapPath, result.path);
+    state.deferWorkflowAction([&state] { startNewMapCreation(state.mapDocuments, state.menuBarState.fileDialog); });
     return true;
 }
 
@@ -381,7 +447,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 [[nodiscard]] bool routeFileBrowserResult(WorkbenchState & state, const FileBrowserResult & result)
 {
     if (routeImageOrExportResult(state, result) || routeCompanionResult(state, result) || routeNewAssetResult(state, result) ||
-        routeUnsupportedGenericResult(state, result))
+        routeNewMapResult(state, result) || routeUnsupportedGenericResult(state, result))
     {
         return false;
     }
@@ -408,9 +474,9 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
         return false;
     }
 
-    if (result.assetCandidate && result.assetCandidate->kind == MulAssetKind::texmapsPair)
+    if (result.assetCandidate && result.assetCandidate->kind == MulAssetKind::texmapsSet)
     {
-        return routePairResult(state, result, *result.assetCandidate);
+        return routeSetResult(state, result, *result.assetCandidate);
     }
 
     state.deferWorkflowAction([&state, result] { applyAssetResult(state, result); });
@@ -462,7 +528,7 @@ bool handleDialogResult(WorkbenchState & state, DialogResult result)
                                .target = FileBrowserTarget::texmapsCompanion,
                                .initialPath = original.path.parent_path(),
                                .extension = ".mul",
-                               .title = "Choose Texture Pair Companion",
+                               .title = "Choose Texmaps Companion",
                            });
         return false;
     }
@@ -510,7 +576,8 @@ bool drawFileDialogs(WorkbenchState & state)
                           state.operationController,
                           state.activeProfile.outputCollisionPolicy,
                           state.notifications,
-                          state.fileBrowser);
+                          state.fileBrowser,
+                          state.preferences.idFormat);
     }
     if (state.dialogHost.owns(DialogId::preferences))
     {

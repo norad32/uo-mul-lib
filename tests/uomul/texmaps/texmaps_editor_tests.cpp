@@ -143,7 +143,7 @@ TEST_CASE("TexMapsEditor_createEmpty_Should_CreateCompleteMapWithDefaultTile_If_
     REQUIRE(reader->hasTexture(0) == false);
 }
 
-TEST_CASE("TexMapsEditor_createEmpty_Should_EditDeduplicateAndCommitTexturePair")
+TEST_CASE("TexMapsEditor_createEmpty_Should_EditDeduplicateAndCommitTextureSet")
 {
     const TestDirectory directory;
     const auto index = directory.path() / "out.idx";
@@ -212,7 +212,7 @@ TEST_CASE("TexMapsEditor_commit_Should_ReplaceBothOutputs_If_OverwriteIsEnabled"
     REQUIRE(std::filesystem::file_size(data) == 0);
 }
 
-TEST_CASE("TexMapsEditor_create_Should_PreserveSourcePairOnAbortAndCommitCopyThrough")
+TEST_CASE("TexMapsEditor_create_Should_PreserveSourceSetOnAbortAndCommitCopyThrough")
 {
     const TestDirectory directory;
     const auto sourceIndex = directory.path() / "source.idx";
@@ -239,7 +239,7 @@ TEST_CASE("TexMapsEditor_create_Should_PreserveSourcePairOnAbortAndCommitCopyThr
     REQUIRE(uomul::test::readBytes(outputData) == sourceDataBytes);
 }
 
-TEST_CASE("TexMapsEditor_create_Should_EditInPlace_IfOutputsNameTheSourcePair")
+TEST_CASE("TexMapsEditor_create_Should_EditInPlace_IfOutputsNameTheSourceSet")
 {
     const TestDirectory directory;
     const auto index = directory.path() / "source.idx";

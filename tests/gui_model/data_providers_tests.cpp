@@ -297,7 +297,7 @@ TEST_CASE("DataProviders_Should_SynchronizeConfiguredTexmapsDocumentChanges")
     const auto documentId = documents.open({
         .identity =
             {
-                .kind = uo_mule::gui::DocumentKind::texmapPair,
+                .kind = uo_mule::gui::DocumentKind::texmaps,
                 .source = uo_mule::gui::makeRoleAwareDocumentSourceIdentity({
                     {.role = uo_mule::gui::SourceRole::index, .path = indexPath},
                     {.role = uo_mule::gui::SourceRole::data, .path = dataPath},

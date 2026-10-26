@@ -284,7 +284,7 @@ std::expected<void, uomul::Error> TexmapsDocument::replaceTexture(const TexmapsT
     auto * editor = activeEditor();
     if (editor == nullptr)
     {
-        return std::unexpected(makeDocumentError(sourceIndexPath_, "Texmap Pair editor is not available"));
+        return std::unexpected(makeDocumentError(sourceIndexPath_, "Texmaps editor is not available"));
     }
     if (auto staged = editor->editTexture(edit.textureId, edit.texture); !staged)
     {
@@ -372,7 +372,7 @@ std::expected<void, uomul::Error> TexmapsDocument::clearTextures(const std::vect
         auto * editor = activeEditor();
         if (editor == nullptr)
         {
-            return fail(makeDocumentError(sourceIndexPath_, "Texmap Pair editor is not available"));
+            return fail(makeDocumentError(sourceIndexPath_, "Texmaps editor is not available"));
         }
         if (auto staged = editor->clearTexture(textureId); !staged)
         {
@@ -430,7 +430,7 @@ std::expected<void, uomul::Error> TexmapsDocument::revertTextures(const std::vec
         auto * editor = activeEditor();
         if (editor == nullptr)
         {
-            return fail(makeDocumentError(sourceIndexPath_, "Texmap Pair editor is not available"));
+            return fail(makeDocumentError(sourceIndexPath_, "Texmaps editor is not available"));
         }
         std::expected<void, uomul::Error> staged;
         if (committed->has_value())
@@ -489,7 +489,7 @@ std::expected<void, uomul::Error> TexmapsDocument::save()
 {
     if (!editor_)
     {
-        return fail(makeDocumentError(outputIndexPath_, "Texmap Pair has no staged changes"));
+        return fail(makeDocumentError(outputIndexPath_, "Texmaps has no staged changes"));
     }
 
     auto indexInPlace = uomul::detail::MulCommon::pathsExactlyMatch(sourceIndexPath_, outputIndexPath_);

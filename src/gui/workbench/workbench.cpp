@@ -542,7 +542,7 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
         return nullptr;
     }
 
-    const auto role = kind == DocumentKind::texmapPair ? SourceRole::index : SourceRole::primary;
+    const auto role = kind == DocumentKind::texmaps ? SourceRole::index : SourceRole::primary;
     const auto * path = source->path(role);
     if (path == nullptr || path->empty())
     {
@@ -652,7 +652,7 @@ void configureMapPanelCallbacks(WorkbenchState & state)
     {
         state.windowRegistry.find(WindowId::texmaps)->visible = true;
         state.texmapsState.assetView.requestedItem = {.value = std::to_string(id)};
-        focusConfiguredMetadataWindow(state, DocumentKind::texmapPair);
+        focusConfiguredMetadataWindow(state, DocumentKind::texmaps);
     };
     state.radarcolState.activeTileColor = [&state] -> std::optional<uomul::RadarColor>
     {
@@ -1092,7 +1092,7 @@ void ensureConfiguredMetadataViewDocument(WorkbenchState & state, DocumentKind k
     {
         return;
     }
-    const auto * path = source->path(kind == DocumentKind::texmapPair ? SourceRole::index : SourceRole::primary);
+    const auto * path = source->path(kind == DocumentKind::texmaps ? SourceRole::index : SourceRole::primary);
     if (path == nullptr || path->empty())
     {
         return;
@@ -1113,9 +1113,9 @@ void ensureConfiguredMetadataWindows(WorkbenchState & state)
     {
         ensureConfiguredMetadataViewDocument(state, DocumentKind::radarcol);
     }
-    if (metadataViewVisible(state, DocumentKind::texmapPair))
+    if (metadataViewVisible(state, DocumentKind::texmaps))
     {
-        ensureConfiguredMetadataViewDocument(state, DocumentKind::texmapPair);
+        ensureConfiguredMetadataViewDocument(state, DocumentKind::texmaps);
     }
     if (metadataViewVisible(state, DocumentKind::tiledata))
     {
@@ -1138,7 +1138,7 @@ void focusConfiguredMetadataWindow(WorkbenchState & state, DocumentKind kind)
 
 [[nodiscard]] WindowId metadataWindowId(DocumentKind kind) noexcept
 {
-    if (kind == DocumentKind::texmapPair)
+    if (kind == DocumentKind::texmaps)
     {
         return WindowId::texmaps;
     }
@@ -1155,7 +1155,7 @@ void focusConfiguredMetadataWindow(WorkbenchState & state, DocumentKind kind)
     {
         case DocumentKind::radarcol :
             return "window.radarcol";
-        case DocumentKind::texmapPair :
+        case DocumentKind::texmaps :
             return "window.texmaps";
         case DocumentKind::tiledata :
             return "window.tiledata";
@@ -1218,7 +1218,7 @@ void forwardMetadataAssetRequest(WorkbenchState & state,
                 }
             };
         }
-        else if (kind == DocumentKind::texmapPair)
+        else if (kind == DocumentKind::texmaps)
         {
             targetState.focusResult = [&state](bool visible)
             {
@@ -1322,7 +1322,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         return;
     }
 
-    if (document.summary.identity.kind == DocumentKind::texmapPair && document.texmaps)
+    if (document.summary.identity.kind == DocumentKind::texmaps && document.texmaps)
     {
         auto [assetView, inserted] = state.texmapsState.documentAssetViews.try_emplace(document.summary.identity.id);
         if (inserted)
@@ -1369,7 +1369,7 @@ void drawDocumentWindows(WorkbenchState & state)
     forwardMetadataAssetRequest(
         state, DocumentKind::radarcol, state.radarcolState.assetView, state.radarcolState.documentAssetViews);
     forwardMetadataAssetRequest(
-        state, DocumentKind::texmapPair, state.texmapsState.assetView, state.texmapsState.documentAssetViews);
+        state, DocumentKind::texmaps, state.texmapsState.assetView, state.texmapsState.documentAssetViews);
     forwardMetadataAssetRequest(
         state, DocumentKind::tiledata, state.tiledataState.assetView, state.tiledataState.documentAssetViews);
     for (auto & document : state.session.documentsMutable())
@@ -2003,7 +2003,7 @@ void restoreMetadataAssetState(WorkbenchState & state)
     const auto radarContext =
         metadataContext(DocumentKind::radarcol, state.providers.radarColors().status().sourceIdentity, "window.radarcol");
     const auto texmapContext =
-        metadataContext(DocumentKind::texmapPair, state.providers.textures().status().sourceIdentity, "window.texmaps");
+        metadataContext(DocumentKind::texmaps, state.providers.textures().status().sourceIdentity, "window.texmaps");
     const auto tiledataContext =
         metadataContext(DocumentKind::tiledata, state.providers.tiledata().status().sourceIdentity, "window.tiledata");
     if (const auto * record =
@@ -2169,7 +2169,7 @@ void applyPendingPersistence(WorkbenchState & state)
     }
 
     captureConfiguredMetadataAssetState(state, DocumentKind::radarcol, state.radarcolState.documentAssetViews);
-    captureConfiguredMetadataAssetState(state, DocumentKind::texmapPair, state.texmapsState.documentAssetViews);
+    captureConfiguredMetadataAssetState(state, DocumentKind::texmaps, state.texmapsState.documentAssetViews);
     captureConfiguredMetadataAssetState(state, DocumentKind::tiledata, state.tiledataState.documentAssetViews);
 }
 

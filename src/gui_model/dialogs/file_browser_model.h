@@ -31,8 +31,8 @@ struct FileBrowserSummary
 void saveRecentFolders(const std::vector<std::filesystem::path> & folders);
 void recordRecentFolder(std::vector<std::filesystem::path> & folders, const std::filesystem::path & folder);
 [[nodiscard]] FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & path);
-[[nodiscard]] FileBrowserAssetCandidate inspectTexmapsPair(const std::filesystem::path & indexPath,
-                                                           const std::filesystem::path & dataPath);
+[[nodiscard]] FileBrowserAssetCandidate inspectTexmapsSet(const std::filesystem::path & indexPath,
+                                                          const std::filesystem::path & dataPath);
 void sortFileBrowserCandidates(std::vector<FileBrowserAssetCandidate> & candidates);
 
 } // namespace uo_mule::gui

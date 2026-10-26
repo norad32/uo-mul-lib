@@ -29,11 +29,11 @@ TEST_CASE("documentDescriptors_Should_CreateValidRadarcolSummary")
     REQUIRE(summary->identity.source.path(SourceRole::primary) != nullptr);
 }
 
-TEST_CASE("documentDescriptors_Should_RejectIncompleteTexmapPair")
+TEST_CASE("documentDescriptors_Should_RejectIncompletetexmaps")
 {
     const DocumentDescriptorRegistry registry;
     const auto summary = registry.createSummary({
-        .kind = DocumentKind::texmapPair,
+        .kind = DocumentKind::texmaps,
         .source = makeDocumentSourceIdentity({"texidx.mul"}),
         .displayName = "texidx.mul",
         .facetKey = std::nullopt,

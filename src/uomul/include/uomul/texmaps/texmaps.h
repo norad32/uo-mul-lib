@@ -65,10 +65,10 @@ public:
     TexMapsReader & operator=(const TexMapsReader &) = delete;
     ~TexMapsReader();
 
-    /** @brief Opens a matching texidx.mul and texmaps.mul pair.
+    /** @brief Opens a matching texidx.mul and texmaps.mul set.
      *  @param indexFile Texture index file.
      *  @param dataFile Texture payload file referenced by the index.
-     *  @retval value Reader for the validated texture pair.
+     *  @retval value Reader for the validated texture set.
      *  @retval error Invalid paths, malformed index entries, or data-range errors.
      */
     [[nodiscard]] static std::expected<TexMapsReader, Error> open(const std::filesystem::path & indexFile,
@@ -109,14 +109,14 @@ public:
     TexMapsEditor & operator=(const TexMapsEditor &) = delete;
     ~TexMapsEditor();
 
-    /** @brief Creates an editor that stages a matching source index and payload pair.
+    /** @brief Creates an editor that stages a matching source index and payload set.
      *  @param sourceIndex Existing texidx.mul file.
      *  @param sourceData Existing texmaps.mul file referenced by sourceIndex.
      *  @param outputIndex Destination index published by commit.
      *  @param outputData Destination payload published by commit.
      *  @param options Controls replacement of both output files.
-     *  @retval value Editor for the staged texture pair.
-     *  @retval error Invalid paths, malformed input pair, or staging I/O failure details.
+     *  @retval value Editor for the staged texture set.
+     *  @retval error Invalid paths, malformed input set, or staging I/O failure details.
      */
     [[nodiscard]] static std::expected<TexMapsEditor, Error> create(const std::filesystem::path & sourceIndex,
                                                                     const std::filesystem::path & sourceData,
@@ -124,12 +124,12 @@ public:
                                                                     const std::filesystem::path & outputData,
                                                                     TexMapsEditOptions options = {});
 
-    /** @brief Creates an editor for a new empty texture pair.
+    /** @brief Creates an editor for a new empty texmaps set.
      *  The index contains 0x4000 empty entries and the payload file is empty.
      *  @param outputIndex Destination texidx.mul path.
      *  @param outputData Destination texmaps.mul path.
      *  @param options Controls replacement of both output files.
-     *  @retval value Editor for the new staged texture pair.
+     *  @retval value Editor for the new staged texmaps set.
      *  @retval error Invalid paths or staging I/O failure details.
      */
     [[nodiscard]] static std::expected<TexMapsEditor, Error> createEmpty(const std::filesystem::path & outputIndex,
@@ -154,19 +154,19 @@ public:
      */
     [[nodiscard]] std::expected<void, Error> clearTexture(std::uint32_t id);
 
-    /** @brief Deduplicates identical texture payloads in the staged pair.
+    /** @brief Deduplicates identical texture payloads in the staged set.
      *  Rewrites index lookups so identical raw pixel words with the same dimensions reference one
      *  payload, rebuilds the data file with unique referenced payloads, and preserves empty entries.
      *  Equality is determined by full pixel comparison, not hash equality alone.
      *  @retval value Counts of scanned entries, unique payloads, duplicates, and bytes before/after.
-     *  @retval error Inactive editor, malformed staged pair, or staging I/O failure details; failure leaves the editor state
+     *  @retval error Inactive editor, malformed staged set, or staging I/O failure details; failure leaves the editor state
      * unchanged.
      */
     [[nodiscard]] std::expected<TextureDeduplicationReport, Error> deduplicateTextures();
 
-    /** @brief Publishes the staged index and payload pair together.
+    /** @brief Publishes the staged index and payload set together.
      *  @retval value Both outputs committed successfully.
-     *  @retval error Inactive editor, sync failure, or pair-publish failure details.
+     *  @retval error Inactive editor, sync failure, or set-publish failure details.
      */
     [[nodiscard]] std::expected<void, Error> commit();
 
