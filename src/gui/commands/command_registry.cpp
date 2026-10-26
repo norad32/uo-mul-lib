@@ -352,7 +352,7 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
                                .target = FileBrowserTarget::genericOpen,
                                .initialPath = {},
                                .extension = ".mul",
-                               .title = "Open MUL File",
+                               .title = strings::openMulFile(),
                            });
     }
 }

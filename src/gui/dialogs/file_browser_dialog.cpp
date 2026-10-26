@@ -35,6 +35,7 @@ constexpr float placesWidth = 160.0F;
 constexpr float summaryWidth = 260.0F;
 constexpr float listingHeight = 480.0F;
 constexpr float dateColumnWidth = 150.0F;
+constexpr float newFolderInputWidth = 280.0F;
 constexpr std::size_t dateBufferSize = 64;
 constexpr std::array<const char *, 7> standardPlaceNames{
     "Desktop",
@@ -236,7 +237,7 @@ void drawPlaces(FileBrowserState & state)
         }
     }
 
-    dialogSeparatorText("Recent Locations");
+    dialogHeading("Recent Locations");
     for (const auto & location : state.recentFolders)
     {
         const auto filename = location.filename().string();
@@ -452,11 +453,87 @@ void drawBrowserToolbar(FileBrowserState & state)
         ImGui::SetTooltip("%s", strings::showHidden());
     }
 
+    ImGui::SameLine();
+    if (drawBrowserToolbarButton(IconId::folderPlus, strings::createFolder(), "browser.create-folder"))
+    {
+        copyToBuffer(state.newFolderName, strings::newFolder());
+        state.createFolderVisible = true;
+        state.error.clear();
+        ImGui::OpenPopup("Create folder###dialog.file-browser.create-folder");
+    }
+
     ImGui::SetNextItemWidth(-1.0F);
     if (ImGui::InputText("##Location", state.location.data(), state.location.size(), ImGuiInputTextFlags_EnterReturnsTrue))
     {
         navigate(state, state.location.data(), true);
     }
+}
+
+[[nodiscard]] bool createFolder(FileBrowserState & state)
+{
+    const std::filesystem::path name(state.newFolderName.data());
+    if (name.empty() || name == "." || name == ".." || name.has_root_path() || name.has_parent_path())
+    {
+        state.error = strings::invalidFolderName();
+        return false;
+    }
+
+    const std::filesystem::path path = state.directory / name;
+    std::error_code error;
+    if (!std::filesystem::create_directory(path, error) || error)
+    {
+        state.error = error ? error.message() : strings::folderAlreadyExists();
+        return false;
+    }
+
+    navigate(state, state.directory, false);
+    return true;
+}
+
+void drawCreateFolderPopup(FileBrowserState & state)
+{
+    if (!ImGui::BeginPopupModal(
+            "Create folder###dialog.file-browser.create-folder", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    }
+
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        state.createFolderVisible = false;
+        state.error.clear();
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        return;
+    }
+
+    ImGui::TextUnformatted(strings::folderName());
+    ImGui::SetNextItemWidth(newFolderInputWidth);
+    const bool submitted = ImGui::InputText(
+        "##browser.new-folder", state.newFolderName.data(), state.newFolderName.size(), ImGuiInputTextFlags_EnterReturnsTrue);
+    if (!state.error.empty())
+    {
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", state.error.c_str());
+    }
+
+    const std::string createLabel = iconLabel(IconId::ok, strings::create());
+    const std::string cancelLabel = iconLabel(IconId::cancel, strings::cancel());
+    beginDialogFooter({createLabel.c_str(), cancelLabel.c_str()}, false);
+    const bool createPressed = dialogButton(createLabel.c_str());
+    if ((submitted || createPressed) && createFolder(state))
+    {
+        state.createFolderVisible = false;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (dialogButton(cancelLabel.c_str()))
+    {
+        state.createFolderVisible = false;
+        state.error.clear();
+        ImGui::CloseCurrentPopup();
+    }
+    endDialogFooter();
+    ImGui::EndPopup();
 }
 
 [[nodiscard]] std::vector<std::filesystem::directory_entry> browserEntries(const FileBrowserState & state)
@@ -670,9 +747,10 @@ std::optional<DialogResult> drawFileBrowser(FileBrowserState & state, std::uint6
         return std::nullopt;
     }
 
-    const std::string title = state.request.title.empty()
-                                  ? iconLabel(IconId::fileBrowserDialog, "Open File###dialog.file-browser")
-                                  : iconLabel(IconId::fileBrowserDialog, state.request.title + "###dialog.file-browser");
+    const std::string title =
+        state.request.title.empty()
+            ? iconLabel(IconId::fileBrowserDialog, std::string(strings::openMulFile()) + "###dialog.file-browser")
+            : iconLabel(IconId::fileBrowserDialog, state.request.title + "###dialog.file-browser");
     if (!beginDialog(title.c_str(),
                      &state.visible,
                      browserDialogSpec(),
@@ -683,6 +761,7 @@ std::optional<DialogResult> drawFileBrowser(FileBrowserState & state, std::uint6
     }
 
     drawBrowserToolbar(state);
+    drawCreateFolderPopup(state);
     auto result = drawBrowserListing(state, generation);
     if (!result)
     {

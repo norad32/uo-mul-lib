@@ -397,6 +397,34 @@ const char * showHidden() noexcept
 {
     return "Show hidden";
 }
+const char * openMulFile() noexcept
+{
+    return "Open mul file";
+}
+const char * create() noexcept
+{
+    return "Create";
+}
+const char * createFolder() noexcept
+{
+    return "Create folder";
+}
+const char * folderName() noexcept
+{
+    return "Folder name";
+}
+const char * newFolder() noexcept
+{
+    return "New Folder";
+}
+const char * invalidFolderName() noexcept
+{
+    return "Enter a valid folder name";
+}
+const char * folderAlreadyExists() noexcept
+{
+    return "A folder with that name already exists";
+}
 const char * entriesFormat() noexcept
 {
     return "%u entries";

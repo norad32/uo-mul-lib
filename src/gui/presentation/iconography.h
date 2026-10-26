@@ -33,6 +33,7 @@ enum class IconId : std::uint8_t
     fileBrowserDialog,
     alertBox,
     folderOpen,
+    folderPlus,
     information,
     pineTreeVariant,
     redo,

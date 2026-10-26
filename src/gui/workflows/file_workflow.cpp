@@ -39,7 +39,7 @@ void returnToFileBrowser(WorkbenchState & state, const FileBrowserResult & resul
                            .role = result.role,
                            .initialPath = initialPath,
                            .extension = ".mul",
-                           .title = "Open MUL File",
+                           .title = strings::openMulFile(),
                        });
 }
 
@@ -558,6 +558,13 @@ bool drawFileWorkflow(WorkbenchState & state)
 
 bool handleFileWorkflowEscape(WorkbenchState & state)
 {
+    if (state.fileBrowser.createFolderVisible)
+    {
+        state.fileBrowser.createFolderVisible = false;
+        state.fileBrowser.error.clear();
+        return true;
+    }
+
     if (!state.dialogHost.active)
     {
         if (state.fileBrowser.visible)

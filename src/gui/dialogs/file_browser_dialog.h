@@ -20,11 +20,13 @@ struct FileBrowserState
     bool recentFoldersDirty = false;
     bool visible = false;
     bool showHidden = false;
+    bool createFolderVisible = false;
     FileBrowserRequest request{};
     std::filesystem::path directory;
     std::filesystem::path selectedPath;
     std::array<char, fileBrowserBufferSize> location{};
     std::array<char, fileBrowserBufferSize> filename{};
+    std::array<char, fileBrowserBufferSize> newFolderName{};
     std::vector<std::filesystem::path> history;
     std::size_t historyIndex = 0;
     std::vector<std::filesystem::path> recentFolders;

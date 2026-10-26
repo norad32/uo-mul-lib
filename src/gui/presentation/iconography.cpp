@@ -11,7 +11,7 @@ namespace uo_mule::gui
 namespace
 {
 
-constexpr std::array<IconMapping, 80> mappings{
+constexpr std::array<IconMapping, 81> mappings{
     {
         {.id = IconId::selection, .codepoint = 0xF0489, .outlineCodepoint = 0xF0489},
         {.id = IconId::pan, .codepoint = 0xF01BE, .outlineCodepoint = 0xF01BE},
@@ -36,6 +36,7 @@ constexpr std::array<IconMapping, 80> mappings{
         {.id = IconId::fileBrowserDialog, .codepoint = 0xF0770, .outlineCodepoint = 0xF0DCF},
         {.id = IconId::alertBox, .codepoint = 0xF0027, .outlineCodepoint = 0xF0CE4},
         {.id = IconId::folderOpen, .codepoint = 0xF0770, .outlineCodepoint = 0xF0DCF},
+        {.id = IconId::folderPlus, .codepoint = 0xF0257, .outlineCodepoint = 0xF0B9D},
         {.id = IconId::information, .codepoint = 0xF02FC, .outlineCodepoint = 0xF02FD},
         {.id = IconId::pineTreeVariant, .codepoint = 0xF1C73, .outlineCodepoint = 0xF1C74},
         {.id = IconId::redo, .codepoint = 0xF044E, .outlineCodepoint = 0xF044F},
@@ -96,7 +97,7 @@ constexpr std::array<IconMapping, 80> mappings{
     },
 };
 
-constexpr std::array<std::string_view, 80> names{
+constexpr std::array<std::string_view, 81> names{
     {
         "selection",
         "pan",
@@ -121,6 +122,7 @@ constexpr std::array<std::string_view, 80> names{
         "fileBrowserDialog",
         "alertBox",
         "folderOpen",
+        "folderPlus",
         "information",
         "pineTreeVariant",
         "redo",
@@ -181,7 +183,7 @@ constexpr std::array<std::string_view, 80> names{
     },
 };
 
-constexpr std::array<std::string_view, 80> mdiNames{
+constexpr std::array<std::string_view, 81> mdiNames{
     {
         "selection",
         "cursor-move",
@@ -206,6 +208,7 @@ constexpr std::array<std::string_view, 80> mdiNames{
         "tune",
         "alert-box",
         "folder-open",
+        "folder-plus",
         "information",
         "pine-tree-variant",
         "redo",
@@ -266,7 +269,7 @@ constexpr std::array<std::string_view, 80> mdiNames{
     },
 };
 
-constexpr std::array<std::string_view, 80> mdiOutlineNames{
+constexpr std::array<std::string_view, 81> mdiOutlineNames{
     {
         "selection",
         "cursor-move",
@@ -291,6 +294,7 @@ constexpr std::array<std::string_view, 80> mdiOutlineNames{
         "tune-variant",
         "alert-box-outline",
         "folder-open-outline",
+        "folder-plus-outline",
         "information-outline",
         "pine-tree-variant-outline",
         "redo-variant",

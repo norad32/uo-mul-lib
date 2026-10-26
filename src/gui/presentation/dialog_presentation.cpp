@@ -120,6 +120,7 @@ void dialogFieldWidth(float width)
 
 void beginDialogFooter(std::initializer_list<const char *> labels, bool alignRight)
 {
+    ImGui::Spacing();
     if (!alignRight)
     {
         ImGui::BeginGroup();

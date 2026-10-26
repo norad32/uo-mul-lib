@@ -409,7 +409,7 @@ void drawOpenDialog(MapDocumentManager & mapDocument, NewFileDialogState & state
                                .target = FileBrowserTarget::mapOpen,
                                .initialPath = state.openPath.data(),
                                .extension = ".mul",
-                               .title = "Open File",
+                               .title = strings::openMulFile(),
                            });
     }
     const bool validDimensions = drawDimensionsFields("OpenDimensions", state.openFacet, state.openWidth, state.openHeight);
@@ -980,7 +980,7 @@ void returnToFileBrowser(NewFileDialogState & state, FileBrowserState & browser)
                            .target = FileBrowserTarget::genericOpen,
                            .initialPath = initialPath,
                            .extension = ".mul",
-                           .title = "Open MUL File",
+                           .title = strings::openMulFile(),
                        });
 }
 
