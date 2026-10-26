@@ -97,6 +97,9 @@ void ensureConfiguredMetadataViewDocument(WorkbenchState & state, DocumentKind k
 void ensureConfiguredMetadataWindows(WorkbenchState & state);
 void focusConfiguredMetadataWindow(WorkbenchState & state, DocumentKind kind);
 [[nodiscard]] bool metadataViewVisible(const WorkbenchState & state, DocumentKind kind) noexcept;
+void restoreConfiguredMetadataDocumentAssetState(WorkbenchState & state,
+                                                const DocumentRecord & document,
+                                                assets::AssetWindowState & assetView);
 constexpr std::size_t fullscreenShortcutIndex = 7;
 constexpr std::size_t assetEditShortcutIndex = 8;
 constexpr std::size_t assetCopyShortcutIndex = 9;
@@ -1266,6 +1269,11 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
 
     if (document.summary.identity.kind == DocumentKind::radarcol && document.radarcol)
     {
+        auto [assetView, inserted] = state.radarcolState.documentAssetViews.try_emplace(document.summary.identity.id);
+        if (inserted)
+        {
+            restoreConfiguredMetadataDocumentAssetState(state, document, assetView->second);
+        }
         bool visible = true;
         dockDocumentWindow();
         drawRadarcolDocumentWindow(state.radarcolState,
@@ -1284,6 +1292,11 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
 
     if (document.summary.identity.kind == DocumentKind::tiledata && document.tiledata)
     {
+        auto [assetView, inserted] = state.tiledataState.documentAssetViews.try_emplace(document.summary.identity.id);
+        if (inserted)
+        {
+            restoreConfiguredMetadataDocumentAssetState(state, document, assetView->second);
+        }
         bool visible = true;
         dockDocumentWindow();
         drawTiledataDocumentWindow(state.tiledataState,
@@ -1303,6 +1316,11 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
 
     if (document.summary.identity.kind == DocumentKind::texmapPair && document.texmaps)
     {
+        auto [assetView, inserted] = state.texmapsState.documentAssetViews.try_emplace(document.summary.identity.id);
+        if (inserted)
+        {
+            restoreConfiguredMetadataDocumentAssetState(state, document, assetView->second);
+        }
         bool visible = true;
         dockDocumentWindow();
         drawTexmapsDocumentWindow(state.texmapsState,
@@ -1984,6 +2002,29 @@ void restoreMetadataAssetState(WorkbenchState & state)
     state.assetStateRestored = true;
 }
 
+void restoreConfiguredMetadataDocumentAssetState(WorkbenchState & state,
+                                                const DocumentRecord & document,
+                                                assets::AssetWindowState & assetView)
+{
+    if (document.summary.sourceKind != DocumentSourceKind::configuredMetadata)
+    {
+        return;
+    }
+
+    const auto context = metadataContext(document.summary.identity.kind,
+                                         document.summary.identity.source,
+                                         document.summary.identity.kind == DocumentKind::radarcol
+                                             ? "window.radarcol"
+                                             : document.summary.identity.kind == DocumentKind::texmapPair ? "window.texmaps"
+                                                                                                          : "window.tiledata");
+    if (const auto * record =
+            assets::findAssetState(state.assetStateRecords, state.activeProfile.name, "default", context);
+        record != nullptr)
+    {
+        assets::restoreAssetState(*record, assetView);
+    }
+}
+
 void updateAssetStateRecord(std::vector<assets::AssetStateRecord> & records, assets::AssetStateRecord record)
 {
     const auto existing = std::ranges::find_if(records,
@@ -2003,6 +2044,31 @@ void updateAssetStateRecord(std::vector<assets::AssetStateRecord> & records, ass
     }
 }
 
+template <typename DocumentStates>
+void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind kind, const DocumentStates & documentStates)
+{
+    const std::string contextId = kind == DocumentKind::radarcol
+                                      ? "window.radarcol"
+                                      : kind == DocumentKind::texmapPair ? "window.texmaps" : "window.tiledata";
+    for (const auto & document : state.session.documents())
+    {
+        if (document.summary.identity.kind != kind || document.summary.sourceKind != DocumentSourceKind::configuredMetadata)
+        {
+            continue;
+        }
+        const auto assetView = documentStates.find(document.summary.identity.id);
+        if (assetView == documentStates.end())
+        {
+            continue;
+        }
+        updateAssetStateRecord(state.assetStateRecords,
+                               assets::captureAssetState(state.activeProfile.name,
+                                                         "default",
+                                                         metadataContext(kind, document.summary.identity.source, contextId),
+                                                         assetView->second));
+    }
+}
+
 void evictClosedDocumentState(WorkbenchState & state, DocumentId id)
 {
     state.radarcolState.documentAssetViews.erase(id);
@@ -2016,6 +2082,11 @@ void evictClosedDocumentState(WorkbenchState & state, DocumentId id)
 
 void applyPendingPersistence(WorkbenchState & state)
 {
+    // Tool state is edited directly through the palette and is persisted in the
+    // regular preferences record. Keep that record synchronized before the
+    // change check below so tool changes are saved during the session too.
+    state.toolState.savePreferences(state.preferences.tools);
+
     if (state.menuBarState.preferencesDialog.profileDeleteRequested)
     {
         const std::string profileName = *state.menuBarState.preferencesDialog.profileDeleteRequested;
@@ -2078,23 +2149,9 @@ void applyPendingPersistence(WorkbenchState & state)
         state.assetStateRestored = true;
     }
 
-    const auto radarContext =
-        metadataContext(DocumentKind::radarcol, state.providers.radarColors().status().sourceIdentity, "window.radarcol");
-    const auto texmapContext =
-        metadataContext(DocumentKind::texmapPair, state.providers.textures().status().sourceIdentity, "window.texmaps");
-    updateAssetStateRecord(
-        state.assetStateRecords,
-        assets::captureAssetState(state.activeProfile.name, "default", radarContext, state.radarcolState.assetView));
-    updateAssetStateRecord(
-        state.assetStateRecords,
-        assets::captureAssetState(state.activeProfile.name, "default", texmapContext, state.texmapsState.assetView));
-    updateAssetStateRecord(
-        state.assetStateRecords,
-        assets::captureAssetState(
-            state.activeProfile.name,
-            "default",
-            metadataContext(DocumentKind::tiledata, state.providers.tiledata().status().sourceIdentity, "window.tiledata"),
-            state.tiledataState.assetView));
+    captureConfiguredMetadataAssetState(state, DocumentKind::radarcol, state.radarcolState.documentAssetViews);
+    captureConfiguredMetadataAssetState(state, DocumentKind::texmapPair, state.texmapsState.documentAssetViews);
+    captureConfiguredMetadataAssetState(state, DocumentKind::tiledata, state.tiledataState.documentAssetViews);
 }
 
 [[nodiscard]] bool welcomeShell(const WorkbenchState & state) noexcept

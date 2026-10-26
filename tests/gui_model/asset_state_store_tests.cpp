@@ -56,6 +56,7 @@ TEST_CASE("assetStateStore_Should_RoundTripSemanticContextAndPresentationState")
     const auto path = directory.path() / "asset_state.ini";
     uo_mule::gui::assets::AssetWindowState state;
     state.presentation = uo_mule::gui::assets::AssetPresentation::table;
+    state.viewMode = "statics";
     state.query.filter = "stone";
     state.scrollPosition = 42.0F; // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     state.selection.selected = {{.value = "7"}, {.value = "9"}};
@@ -71,12 +72,19 @@ TEST_CASE("assetStateStore_Should_RoundTripSemanticContextAndPresentationState")
     REQUIRE(found != nullptr);
     REQUIRE(found->context == context);
     REQUIRE(found->state.presentation == uo_mule::gui::assets::AssetPresentation::table);
+    REQUIRE(found->state.viewMode == "statics");
     REQUIRE(found->state.query == state.query);
     REQUIRE(std::abs(found->state.scrollPosition - state.scrollPosition) <
             0.001F); // NOLINT(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     REQUIRE(found->state.selection.selected == state.selection.selected);
     REQUIRE(found->state.selection.anchor == state.selection.anchor);
     REQUIRE(found->state.selection.anchorIndex == state.selection.anchorIndex);
+
+    uo_mule::gui::assets::AssetWindowState restored;
+    uo_mule::gui::assets::restoreAssetState(*found, restored);
+    REQUIRE(restored.presentation == uo_mule::gui::assets::AssetPresentation::table);
+    REQUIRE(restored.presentationContext == uo_mule::gui::assets::presentationContextKey(context));
+    REQUIRE(restored.viewMode == "statics");
 }
 
 TEST_CASE("assetStateStore_Should_IgnoreUnknownContexts_If_LookingUpState")

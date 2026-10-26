@@ -152,6 +152,10 @@ struct AssetWindowState
     AssetPresentation presentation = AssetPresentation::grid;
     std::string presentationContext;
     std::map<std::string, AssetPresentation> presentations;
+    // Optional view-specific mode, such as the Radarcol or Tiledata map/static
+    // selector. It is intentionally generic so asset-state persistence can
+    // retain document-window presentation choices without knowing the view.
+    std::string viewMode;
     AssetQuery query;
     std::string queryCacheContext;
     std::string queryCacheFilter;
@@ -177,6 +181,8 @@ struct AssetWindowState
     double highlightUntil = 0.0;
     std::function<void(bool)> focusResult;
 };
+
+[[nodiscard]] std::string presentationContextKey(const AssetSourceContext & source);
 
 void resetContext(AssetWindowState & state) noexcept;
 

@@ -706,8 +706,18 @@ void drawRadarcolDocumentWindow(RadarcolDocumentWindowState & state,
                                 std::string windowIdentity,
                                 const std::function<void()> & becameVisible)
 {
+    auto & assetView = state.documentAssetViews[document.id()];
+    if (assetView.viewMode == "statics")
+    {
+        state.documentBrowserKinds[document.id()] = RadarcolBrowserKind::statics;
+    }
+    else if (assetView.viewMode == "map")
+    {
+        state.documentBrowserKinds[document.id()] = RadarcolBrowserKind::map;
+    }
     const auto adapter = makeDocumentAdapter(state, document, idFormat, std::move(windowIdentity));
-    assets::drawAssetBrowser(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
+    assets::drawAssetBrowser(adapter, assetView, visible, becameVisible);
+    assetView.viewMode = state.documentBrowserKinds.at(document.id()) == RadarcolBrowserKind::statics ? "statics" : "map";
     drawRadarcolColorPicker(state, document);
 }
 

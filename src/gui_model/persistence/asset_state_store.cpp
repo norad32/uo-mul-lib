@@ -84,6 +84,11 @@ bool readRecord(std::istream & file, AssetStateRecord & record, std::uint32_t sc
         }
     }
     file >> marker;
+    if (marker == "view_mode")
+    {
+        file >> std::quoted(record.state.viewMode);
+        file >> marker;
+    }
     if (marker == "scroll")
     {
         file >> record.state.scrollPosition;
@@ -178,7 +183,8 @@ void saveAssetState(const std::filesystem::path & path, const std::vector<AssetS
         file << "record " << std::quoted(record.profileIdentity) << ' ' << std::quoted(record.assetWindowIdentity) << ' ';
         writeSource(file, record.context);
         file << "presentation " << static_cast<int>(record.state.presentation) << "\nquery "
-             << std::quoted(record.state.query.filter) << " \"\" 1\ndetails 0\nscroll " << record.state.scrollPosition
+             << std::quoted(record.state.query.filter) << " \"\" 1\ndetails 0\nview_mode "
+             << std::quoted(record.state.viewMode) << "\nscroll " << record.state.scrollPosition
              << "\nselection " << record.state.selection.selected.size();
         for (const auto & selected : record.state.selection.selected)
         {
@@ -225,6 +231,10 @@ void restoreAssetState(const AssetStateRecord & record, AssetWindowState & state
 {
     resetContext(state);
     state.presentation = record.state.presentation;
+    state.presentationContext = presentationContextKey(record.context);
+    state.presentations.clear();
+    state.presentations[state.presentationContext] = state.presentation;
+    state.viewMode = record.state.viewMode;
     state.query = record.state.query;
     state.scrollPosition = record.state.scrollPosition;
     state.scrollPositionRestorePending = true;

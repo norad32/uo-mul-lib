@@ -65,14 +65,7 @@ void drawQueryControls(const AssetAdapter & adapter, AssetWindowState & state)
 
 [[nodiscard]] std::string presentationContextKey(const AssetAdapterDescriptor & descriptor)
 {
-    std::string key = std::to_string(static_cast<int>(descriptor.source.contextKind));
-    key += "|" + std::to_string(static_cast<int>(descriptor.source.kind));
-    key += "|" + descriptor.source.contextId;
-    for (const auto & [role, path] : descriptor.source.source.roles)
-    {
-        key += "|" + std::to_string(static_cast<int>(role)) + ":" + path.generic_string();
-    }
-    return key;
+    return ::uo_mule::gui::assets::presentationContextKey(descriptor.source);
 }
 
 [[nodiscard]] AssetPresentation defaultPresentation(const AssetCapabilitySet & capabilities) noexcept

@@ -499,10 +499,20 @@ void drawTiledataDocumentWindow(TiledataDocumentWindowState & state,
         return;
     }
 
+    auto & assetView = state.documentAssetViews[document.id()];
+    if (assetView.viewMode == "statics")
+    {
+        state.browserKind = TiledataBrowserKind::statics;
+    }
+    else if (assetView.viewMode == "map")
+    {
+        state.browserKind = TiledataBrowserKind::map;
+    }
     const DocumentTiledataProvider provider(document);
     const auto adapter =
         makeDocumentAdapter(state, document, provider, textures, radarColors, idFormat, std::move(windowIdentity));
-    assets::drawAssetBrowser(adapter, state.documentAssetViews[document.id()], visible, becameVisible);
+    assets::drawAssetBrowser(adapter, assetView, visible, becameVisible);
+    assetView.viewMode = state.browserKind == TiledataBrowserKind::statics ? "statics" : "map";
 }
 
 } // namespace uo_mule::gui
