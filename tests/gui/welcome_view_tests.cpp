@@ -76,11 +76,14 @@ TEST_CASE("welcomeView_Should_RenderRecentMapAndAssetRows")
     const auto recentPath = std::filesystem::temp_directory_path() / "uo-mule-welcome-recent-files";
     std::error_code error;
     std::filesystem::remove(recentPath, error);
+    const auto mapPath = recentPath.parent_path() / "uo-mule-welcome-map.mul";
+    const auto radarcolPath = recentPath.parent_path() / "uo-mule-welcome-radarcol.mul";
+    std::ofstream(mapPath) << "map";
+    std::ofstream(radarcolPath) << "radarcol";
     uo_mule::gui::WorkbenchState state;
     state.session = uo_mule::gui::WorkbenchSession(recentPath);
-    state.session.recordRecentFile("custom-map.mul",
-                                   uomul::Dimensions{.widthTiles = recentMapWidth, .heightTiles = recentMapHeight});
-    state.session.recordRecentFile("radarcol.mul", uo_mule::gui::DocumentKind::radarcol, {}, recentAssetItemCount);
+    state.session.recordRecentFile(mapPath, uomul::Dimensions{.widthTiles = recentMapWidth, .heightTiles = recentMapHeight});
+    state.session.recordRecentFile(radarcolPath, uo_mule::gui::DocumentKind::radarcol, {}, recentAssetItemCount);
     state.session.refreshRecentFiles();
 
     const uo_mule::gui::test::ImGuiFrame frame;
@@ -88,4 +91,6 @@ TEST_CASE("welcomeView_Should_RenderRecentMapAndAssetRows")
 
     REQUIRE(state.session.recentFiles().size() == 2U);
     std::filesystem::remove(recentPath, error);
+    std::filesystem::remove(mapPath, error);
+    std::filesystem::remove(radarcolPath, error);
 }

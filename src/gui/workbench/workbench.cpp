@@ -746,6 +746,48 @@ void applyPendingPreferenceChanges(WorkbenchState & state)
     state.pendingPreferenceChanges = {};
 }
 
+void evictClosedDocumentState(WorkbenchState & state, DocumentId id);
+
+template <typename DocumentStates>
+void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind kind, const DocumentStates & documentStates);
+
+[[nodiscard]] bool prepareConfiguredMetadataForProfileSwitch(WorkbenchState & state)
+{
+    std::vector<DocumentId> configuredDocumentIds;
+    for (const auto & document : state.session.documents())
+    {
+        if (document.summary.sourceKind != DocumentSourceKind::configuredMetadata)
+        {
+            continue;
+        }
+        if ((document.radarcol && document.radarcol->dirty()) || (document.texmaps && document.texmaps->dirty()))
+        {
+            state.notifications.add(NotificationSeverity::error,
+                                    "Cannot switch profiles while a configured metadata document has unsaved changes");
+            return false;
+        }
+        configuredDocumentIds.push_back(document.summary.identity.id);
+    }
+
+    captureConfiguredMetadataAssetState(state, DocumentKind::radarcol, state.radarcolState.documentAssetViews);
+    captureConfiguredMetadataAssetState(state, DocumentKind::texmaps, state.texmapsState.documentAssetViews);
+    captureConfiguredMetadataAssetState(state, DocumentKind::tiledata, state.tiledataState.documentAssetViews);
+    state.activeProfile.preferences = state.preferences;
+    saveProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+    state.profileStore.save(state.activeProfile);
+
+    for (const auto id : configuredDocumentIds)
+    {
+        if (auto closed = state.session.closeDocument(id, state.mapDocuments); !closed)
+        {
+            state.notifications.add(NotificationSeverity::error, closed.error().message);
+            return false;
+        }
+        evictClosedDocumentState(state, id);
+    }
+    return true;
+}
+
 [[nodiscard]] bool applyPendingPreferencesDialog(GLFWwindow * window, WorkbenchState & state)
 {
     if (!state.pendingPreferencesResult)
@@ -774,11 +816,9 @@ void applyPendingPreferenceChanges(WorkbenchState & state)
         const char * dockingIni = ImGui::SaveIniSettingsToMemory();
         state.layout.dockingIni = dockingIni == nullptr ? std::string{} : std::string(dockingIni);
     }
-    if (profileChanged && !state.activeProfile.name.empty())
+    if (profileChanged && !state.activeProfile.name.empty() && !prepareConfiguredMetadataForProfileSwitch(state))
     {
-        state.activeProfile.preferences = state.preferences;
-        saveProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
-        state.profileStore.save(state.activeProfile);
+        return false;
     }
     state.activeProfile = result.profile;
     if (profileChanged)
@@ -1042,7 +1082,6 @@ ImGuiID documentDockNodeId()
 }
 
 void requestDocumentClose(WorkbenchState & state, DocumentId id);
-void evictClosedDocumentState(WorkbenchState & state, DocumentId id);
 
 void activateDocumentOrNotify(WorkbenchState & state, DocumentId id)
 {
