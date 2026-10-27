@@ -69,7 +69,7 @@ constexpr std::uint32_t recentFilesSchemaVersion = 0;
     return std::nullopt;
 }
 
-void refreshEntryValidity(RecentFile & file)
+[[nodiscard]] bool refreshEntryValidity(RecentFile & file)
 {
     std::error_code error;
     const bool pathIsFile = std::filesystem::is_regular_file(file.path, error);
@@ -77,11 +77,10 @@ void refreshEntryValidity(RecentFile & file)
     if (!pathIsFile || !companionIsFile)
     {
         file.failure = error ? error.message() : "File is missing";
+        return false;
     }
-    else
-    {
-        file.failure.clear();
-    }
+    file.failure.clear();
+    return true;
 }
 
 [[nodiscard]] std::optional<RecentFile> loadRecentEntry(std::ifstream & file)
@@ -161,7 +160,7 @@ std::vector<RecentFile> loadRecentFiles(const std::filesystem::path & path)
 
     for (auto & map : result)
     {
-        refreshEntryValidity(map);
+        static_cast<void>(refreshEntryValidity(map));
     }
     if (result.size() > recentFileLimit)
     {
@@ -243,9 +242,10 @@ void RecentFileStore::record(std::filesystem::path path,
 
 void RecentFileStore::refreshValidity()
 {
-    for (auto & file : files_)
+    const auto removed = std::erase_if(files_, [](RecentFile & file) { return !refreshEntryValidity(file); });
+    if (removed != 0U)
     {
-        refreshEntryValidity(file);
+        saveRecentFiles(files_, path_);
     }
 }
 

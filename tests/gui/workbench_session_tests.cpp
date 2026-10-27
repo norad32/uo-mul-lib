@@ -143,6 +143,32 @@ TEST_CASE("recentFileStore_Should_RoundTripAndMarkMissingEntries")
     REQUIRE_FALSE(loaded.files().front().failure.empty());
 }
 
+TEST_CASE("recentFileStore_Should_PruneMissingFilesAndCompanions")
+{
+    const TemporaryDirectory directory;
+    const auto recentPath = directory.path() / "recent.conf";
+    const auto mapPath = directory.path() / "map0.mul";
+    const auto indexPath = directory.path() / "texidx.mul";
+    const auto dataPath = directory.path() / "texmaps.mul";
+    std::ofstream(mapPath) << "map";
+    std::ofstream(indexPath) << "index";
+    std::ofstream(dataPath) << "data";
+
+    uo_mule::gui::RecentFileStore store(recentPath);
+    store.record(mapPath);
+    store.record(indexPath, std::nullopt, {}, uo_mule::gui::DocumentKind::texmaps, dataPath);
+    std::filesystem::remove(dataPath);
+
+    store.refreshValidity();
+
+    REQUIRE(store.files().size() == 1);
+    REQUIRE(store.files().front().path == mapPath);
+
+    const uo_mule::gui::RecentFileStore reloaded(recentPath);
+    REQUIRE(reloaded.files().size() == 1);
+    REQUIRE(reloaded.files().front().path == mapPath);
+}
+
 TEST_CASE("recentFileStore_Should_RejectMissingOrNonzeroSchemaAndPreserveFile")
 {
     const TemporaryDirectory directory;
