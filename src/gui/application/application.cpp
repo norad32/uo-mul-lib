@@ -15,6 +15,7 @@
 #include <GLFW/glfw3.h>
 #include <array>
 #include <cstddef>
+#include <exception>
 #include <fstream>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -340,6 +341,58 @@ void captureWindowLayout(GLFWwindow * window, AppLayout & layout, bool fullscree
     layout.window.geometryValid = layout.window.width > 0 && layout.window.height > 0;
 }
 
+void saveShutdownState(WorkbenchState & state, spdlog::logger & logger)
+{
+    try
+    {
+        state.toolState.savePreferences(state.preferences.tools);
+    }
+    catch (const std::exception & error)
+    {
+        SPDLOG_LOGGER_ERROR(&logger, "Tool preferences save failed during GUI shutdown: {}", error.what());
+    }
+
+    try
+    {
+        if (!state.activeProfile.name.empty())
+        {
+            DataProfile profile = state.activeProfile;
+            profile.preferences = state.preferences;
+            saveProfileLayout(profile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+            state.profileStore.save(profile);
+            state.activeProfile = std::move(profile);
+        }
+    }
+    catch (const std::exception & error)
+    {
+        SPDLOG_LOGGER_ERROR(&logger, "Profile save failed during GUI shutdown: {}", error.what());
+    }
+
+    try
+    {
+        Preferences globalSelector;
+        globalSelector.activeDataProfile = state.activeProfile.name;
+        savePreferences(globalSelector);
+    }
+    catch (const std::exception & error)
+    {
+        SPDLOG_LOGGER_ERROR(&logger, "Global preferences save failed during GUI shutdown: {}", error.what());
+    }
+
+    try
+    {
+        if (state.assetStateResetRequested)
+        {
+            assets::resetAssetState(state.assetStateRecords);
+        }
+        assets::saveAssetState(assets::assetStatePath(), state.assetStateRecords);
+    }
+    catch (const std::exception & error)
+    {
+        SPDLOG_LOGGER_ERROR(&logger, "Asset state save failed during GUI shutdown: {}", error.what());
+    }
+}
+
 } // namespace
 
 Application::Application(std::shared_ptr<spdlog::logger> logger, std::shared_ptr<logger::GuiLogSink> logSink) :
@@ -451,21 +504,7 @@ int Application::run()
         const char * dockingIni = ImGui::SaveIniSettingsToMemory();
         state.layout.dockingIni = dockingIni == nullptr ? std::string{} : std::string(dockingIni);
     }
-    state.toolState.savePreferences(state.preferences.tools);
-    if (!state.activeProfile.name.empty())
-    {
-        state.activeProfile.preferences = state.preferences;
-        saveProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
-        state.profileStore.save(state.activeProfile);
-    }
-    Preferences globalSelector;
-    globalSelector.activeDataProfile = state.activeProfile.name;
-    savePreferences(globalSelector);
-    if (state.assetStateResetRequested)
-    {
-        assets::resetAssetState(state.assetStateRecords);
-    }
-    assets::saveAssetState(assets::assetStatePath(), state.assetStateRecords);
+    saveShutdownState(state, *logger_);
 
     SPDLOG_LOGGER_INFO(logger_, "GUI closed");
     return 0;
