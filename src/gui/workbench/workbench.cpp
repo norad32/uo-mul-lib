@@ -2209,6 +2209,30 @@ void evictClosedDocumentState(WorkbenchState & state, DocumentId id)
     state.tiledataState.documentAssetViews.erase(id);
 }
 
+void persistPreferenceChanges(WorkbenchState & state)
+{
+    try
+    {
+        if (!state.activeProfile.name.empty())
+        {
+            DataProfile profile = state.activeProfile;
+            profile.preferences = state.preferences;
+            saveProfileLayout(profile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+            state.profileStore.save(profile);
+            state.activeProfile = std::move(profile);
+        }
+
+        Preferences globalPreferences;
+        globalPreferences.activeDataProfile = state.activeProfile.name;
+        savePreferences(globalPreferences);
+        state.persistedPreferences = state.preferences;
+    }
+    catch (const std::exception & error)
+    {
+        state.notifications.add(NotificationSeverity::error, "Preferences save failed: " + std::string(error.what()));
+    }
+}
+
 void applyPendingPersistence(WorkbenchState & state)
 {
     // Tool state is edited directly through the palette and is persisted in the
@@ -2251,9 +2275,12 @@ void applyPendingPersistence(WorkbenchState & state)
             {
                 profile.preferences = state.preferences;
                 saveProfileLayout(profile.layout, state.panelRegistry, state.windowRegistry, state.layout);
-                state.activeProfile = profile;
             }
             state.profileStore.save(profile);
+            if (profile.name == state.activeProfile.name)
+            {
+                state.activeProfile = std::move(profile);
+            }
             state.menuBarState.preferencesDialog.profileSaveRequested = false;
         }
         catch (const std::exception & error)
@@ -2263,16 +2290,7 @@ void applyPendingPersistence(WorkbenchState & state)
     }
     if (state.preferences != state.persistedPreferences)
     {
-        if (!state.activeProfile.name.empty())
-        {
-            state.activeProfile.preferences = state.preferences;
-            saveProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
-            state.profileStore.save(state.activeProfile);
-        }
-        Preferences globalPreferences;
-        globalPreferences.activeDataProfile = state.activeProfile.name;
-        savePreferences(globalPreferences);
-        state.persistedPreferences = state.preferences;
+        persistPreferenceChanges(state);
     }
     if (state.assetStateResetRequested)
     {
