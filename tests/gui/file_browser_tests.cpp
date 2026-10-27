@@ -119,6 +119,31 @@ TEST_CASE("fileBrowser_Should_InspectGenericFileMetadata")
     std::filesystem::remove(path, error);
 }
 
+TEST_CASE("fileBrowserModel_Should_ProvideNormalizedEntryMetadata")
+{
+    const auto directory = std::filesystem::temp_directory_path() / "uo-mule-file-browser-model-metadata";
+    const auto path = directory / "Entry.MUL";
+    std::error_code error;
+    std::filesystem::remove_all(directory, error);
+    std::filesystem::create_directories(directory, error);
+    REQUIRE_FALSE(error);
+    {
+        std::ofstream output(path, std::ios::binary);
+        output << "test";
+    }
+
+    REQUIRE(normalizeFileBrowserText("MiXeD.MUL") == "mixed.mul");
+    REQUIRE(isFileBrowserDirectory(directory));
+    const auto metadata = inspectFileBrowserEntry(path);
+    REQUIRE(metadata.exists);
+    REQUIRE_FALSE(metadata.directory);
+    REQUIRE(metadata.regularFile);
+    REQUIRE(metadata.size.value_or(0U) == 4U);
+    REQUIRE_FALSE(metadata.modified.empty());
+
+    std::filesystem::remove_all(directory, error);
+}
+
 TEST_CASE("fileBrowser_Should_IdentifyValidRadarColorTable")
 {
     const auto path = std::filesystem::temp_directory_path() / "radarcol.mul";
@@ -633,6 +658,63 @@ TEST_CASE("fileBrowser_Should_AccumulateMultipleRecentFolders")
     REQUIRE(state.recentFolders.at(2) == std::filesystem::absolute(first).lexically_normal());
 
     std::filesystem::remove_all(root, error);
+}
+
+TEST_CASE("fileBrowser_Should_MarkRecentFoldersDirtyWhenOrderChanges")
+{
+    const auto root = std::filesystem::temp_directory_path() / "uo-mule-file-browser-recent-dirty";
+    const auto configRoot = std::filesystem::temp_directory_path() / "uo-mule-file-browser-recent-dirty-config";
+    const auto first = root / "first";
+    const auto second = root / "second";
+    std::error_code error;
+    std::filesystem::remove_all(configRoot, error);
+    std::filesystem::create_directories(configRoot, error);
+    REQUIRE_FALSE(error);
+    const ConfigHomeOverride config(configRoot);
+    std::filesystem::create_directories(first, error);
+    std::filesystem::create_directories(second, error);
+    REQUIRE_FALSE(error);
+
+    FileBrowserState state;
+    requestFileBrowser(state,
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::openGeneric,
+                           .initialPath = first,
+                           .extension = ".mul",
+                           .title = "Open",
+                       });
+    REQUIRE(state.recentFoldersDirty);
+    persistFileBrowserRecentFolders(state);
+    REQUIRE_FALSE(state.recentFoldersDirty);
+
+    requestFileBrowser(state,
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::openGeneric,
+                           .initialPath = second,
+                           .extension = ".mul",
+                           .title = "Open",
+                       });
+    REQUIRE(state.recentFoldersDirty);
+    persistFileBrowserRecentFolders(state);
+    REQUIRE_FALSE(state.recentFoldersDirty);
+
+    FileBrowserState reopened;
+    requestFileBrowser(reopened,
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::openGeneric,
+                           .initialPath = {},
+                           .extension = ".mul",
+                           .title = "Open",
+                       });
+    REQUIRE(reopened.directory == std::filesystem::absolute(second).lexically_normal());
+
+    cancelFileBrowser(state);
+    cancelFileBrowser(reopened);
+    std::filesystem::remove_all(root, error);
+    std::filesystem::remove_all(configRoot, error);
 }
 
 TEST_CASE("fileBrowserRecentFolders_Should_RequireSchemaZeroAndRoundTripAtomically")

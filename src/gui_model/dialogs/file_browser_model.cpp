@@ -46,13 +46,6 @@ constexpr std::uint32_t recentFoldersSchemaVersion = 0;
     return std::filesystem::is_directory(path, error) && !error;
 }
 
-[[nodiscard]] std::string lowercase(std::string value)
-{
-    std::ranges::transform(
-        value, value.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-    return value;
-}
-
 [[nodiscard]] std::string formatModifiedTime(const std::filesystem::file_time_type & value)
 {
     const auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
@@ -73,6 +66,13 @@ constexpr std::uint32_t recentFoldersSchemaVersion = 0;
 }
 
 } // namespace
+
+std::string normalizeFileBrowserText(std::string value)
+{
+    std::ranges::transform(
+        value, value.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+    return value;
+}
 
 std::filesystem::path normalizeFileBrowserDirectory(const std::filesystem::path & path)
 {
@@ -132,9 +132,13 @@ void saveRecentFolders(const std::vector<std::filesystem::path> & folders)
     writeFileAtomically(path, contents.str(), "recent folders");
 }
 
-void recordRecentFolder(std::vector<std::filesystem::path> & folders, const std::filesystem::path & folder)
+bool recordRecentFolder(std::vector<std::filesystem::path> & folders, const std::filesystem::path & folder)
 {
     const auto normalized = normalizeFileBrowserDirectory(folder);
+    if (!folders.empty() && folders.front() == normalized)
+    {
+        return false;
+    }
     const auto removed = std::ranges::remove(folders, normalized);
     folders.erase(removed.begin(), removed.end());
     folders.insert(folders.begin(), normalized);
@@ -142,6 +146,7 @@ void recordRecentFolder(std::vector<std::filesystem::path> & folders, const std:
     {
         folders.resize(maxRecentLocations);
     }
+    return true;
 }
 
 bool fileBrowserMatchesFilter(const std::filesystem::path & path, std::string_view extension)
@@ -150,8 +155,8 @@ bool fileBrowserMatchesFilter(const std::filesystem::path & path, std::string_vi
     {
         return true;
     }
-    const auto actual = lowercase(path.extension().string());
-    const auto filters = lowercase(std::string(extension));
+    const auto actual = normalizeFileBrowserText(path.extension().string());
+    const auto filters = normalizeFileBrowserText(std::string(extension));
     std::size_t begin = 0;
     while (begin < filters.size())
     {
@@ -170,6 +175,37 @@ bool fileBrowserMatchesFilter(const std::filesystem::path & path, std::string_vi
     return false;
 }
 
+FileBrowserEntryMetadata inspectFileBrowserEntry(const std::filesystem::path & path)
+{
+    FileBrowserEntryMetadata metadata;
+    std::error_code error;
+    metadata.exists = std::filesystem::exists(path, error) && !error;
+    if (!metadata.exists)
+    {
+        metadata.modified = "Unknown";
+        return metadata;
+    }
+
+    error.clear();
+    metadata.directory = std::filesystem::is_directory(path, error) && !error;
+    error.clear();
+    metadata.regularFile = std::filesystem::is_regular_file(path, error) && !error;
+    if (metadata.regularFile)
+    {
+        error.clear();
+        const auto size = std::filesystem::file_size(path, error);
+        if (!error)
+        {
+            metadata.size = size;
+        }
+    }
+
+    error.clear();
+    const auto modified = std::filesystem::last_write_time(path, error);
+    metadata.modified = error ? "Unknown" : formatModifiedTime(modified);
+    return metadata;
+}
+
 FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & path)
 {
     FileBrowserSummary summary;
@@ -182,17 +218,22 @@ FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & pat
         summary.error = error ? error.message() : "File does not exist";
         return summary;
     }
-    summary.size = std::filesystem::file_size(path, error);
-    if (error)
+    const auto metadata = inspectFileBrowserEntry(path);
+    summary.size = metadata.size;
+    summary.modified = metadata.modified;
+    if (!summary.size)
     {
-        summary.error = error.message();
+        error.clear();
+        static_cast<void>(std::filesystem::file_size(path, error));
+        if (error)
+        {
+            summary.error = error.message();
+        }
     }
-    const auto modified = std::filesystem::last_write_time(path, error);
-    summary.modified = error ? "Unknown" : formatModifiedTime(modified);
     const std::ifstream readable(path);
     summary.readable = readable.good();
 
-    if (!summary.regularFile || lowercase(path.extension().string()) != ".mul")
+    if (!summary.regularFile || normalizeFileBrowserText(path.extension().string()) != ".mul")
     {
         return summary;
     }

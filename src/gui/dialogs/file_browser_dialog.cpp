@@ -10,12 +10,9 @@
 #include "gui_model/dialogs/file_browser_model.h"
 #include <algorithm>
 #include <array>
-#include <cctype>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <ctime>
 #include <filesystem>
 #include <imgui.h>
 #include <optional>
@@ -36,7 +33,6 @@ constexpr float summaryWidth = 260.0F;
 constexpr float listingHeight = 480.0F;
 constexpr float dateColumnWidth = 150.0F;
 constexpr float newFolderInputWidth = 280.0F;
-constexpr std::size_t dateBufferSize = 64;
 constexpr std::string_view createFolderPopupId = "dialog.file-browser.create-folder";
 const std::array<const char *, 7> standardPlaceNames{
     strings::desktop(),
@@ -53,49 +49,26 @@ const std::array<const char *, 7> standardPlaceNames{
     return std::string(strings::createFolder()) + "###" + std::string(createFolderPopupId);
 }
 
-[[nodiscard]] std::string lowercase(std::string value)
-{
-    std::ranges::transform(
-        value, value.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-    return value;
-}
-
-[[nodiscard]] std::string formatModifiedTime(const std::filesystem::file_time_type & value)
-{
-    const auto systemTime = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
-        value - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
-    const std::time_t time = std::chrono::system_clock::to_time_t(systemTime);
-    std::tm local{};
-    if (const auto * converted = std::localtime(&time); converted != nullptr)
-    {
-        local = *converted;
-    }
-
-    std::array<char, dateBufferSize> buffer{};
-    if (std::strftime(buffer.data(), buffer.size(), "%Y-%m-%d %H:%M:%S", &local) == 0)
-    {
-        return strings::unknown();
-    }
-    return buffer.data();
-}
-
 void updateSummary(FileBrowserState & state)
 {
-    if (state.selectedPath.empty() || !std::filesystem::exists(state.selectedPath))
+    if (state.selectedPath.empty())
     {
         state.summary = {};
         return;
     }
     state.summary = inspectFileBrowserSelection(state.selectedPath);
+    if (!state.summary.exists)
+    {
+        state.summary = {};
+    }
 }
 
 void navigate(FileBrowserState & state, const std::filesystem::path & path, bool addHistory)
 {
     const auto directory = normalizeFileBrowserDirectory(path);
-    std::error_code error;
-    if (!std::filesystem::is_directory(directory, error) || error)
+    if (!isFileBrowserDirectory(directory))
     {
-        state.error = error ? error.message() : strings::pathNotDirectory();
+        state.error = strings::pathNotDirectory();
         return;
     }
 
@@ -118,17 +91,17 @@ void navigate(FileBrowserState & state, const std::filesystem::path & path, bool
         }
         state.historyIndex = state.history.size() - 1U;
     }
-    recordRecentFolder(state.recentFolders, directory);
+    state.recentFoldersDirty = recordRecentFolder(state.recentFolders, directory) || state.recentFoldersDirty;
 }
 
 [[nodiscard]] bool selectableEntry(const FileBrowserState & state, const std::filesystem::directory_entry & entry)
 {
-    std::error_code error;
-    if (entry.is_directory(error))
+    const auto metadata = inspectFileBrowserEntry(entry.path());
+    if (metadata.directory)
     {
-        return !error;
+        return true;
     }
-    return !error && entry.is_regular_file(error) && fileBrowserMatchesFilter(entry.path(), state.request.extension);
+    return metadata.regularFile && fileBrowserMatchesFilter(entry.path(), state.request.extension);
 }
 
 [[nodiscard]] std::filesystem::path savePath(const FileBrowserState & state)
@@ -163,13 +136,11 @@ void navigate(FileBrowserState & state, const std::filesystem::path & path, bool
         {
             return false;
         }
-        std::error_code error;
-        return std::filesystem::is_directory(result.parent_path(), error) && !error;
+        return isFileBrowserDirectory(result.parent_path());
     }
 
     result = state.selectedPath;
-    std::error_code error;
-    return !result.empty() && std::filesystem::is_regular_file(result, error) && !error &&
+    return !result.empty() && inspectFileBrowserEntry(result).regularFile &&
            fileBrowserMatchesFilter(result, state.request.extension);
 }
 
@@ -201,7 +172,7 @@ std::optional<DialogResult> complete(FileBrowserState & state, std::uint64_t gen
         .assetCandidates = state.summary.assetCandidates,
         .assetCandidate = std::nullopt,
     };
-    recordRecentFolder(state.recentFolders, path.parent_path());
+    state.recentFoldersDirty = recordRecentFolder(state.recentFolders, path.parent_path()) || state.recentFoldersDirty;
     state.visible = false;
     return DialogResult{
         .id = DialogId::fileBrowser,
@@ -360,9 +331,9 @@ void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
     {
         initial = state.recentFolders.empty() ? std::filesystem::current_path() : state.recentFolders.front();
     }
-    std::error_code error;
-    const bool initialIsFile = std::filesystem::is_regular_file(initial, error);
-    const bool initialIsSavePath = state.request.mode == FileBrowserMode::saveFile && !std::filesystem::exists(initial, error);
+    const auto initialMetadata = inspectFileBrowserEntry(initial);
+    const bool initialIsFile = initialMetadata.regularFile;
+    const bool initialIsSavePath = state.request.mode == FileBrowserMode::saveFile && !initialMetadata.exists;
     if (initialIsFile || initialIsSavePath)
     {
         state.directory = normalizeFileBrowserDirectory(initial.parent_path());
@@ -567,15 +538,14 @@ void drawCreateFolderPopup(FileBrowserState & state)
     std::ranges::sort(entries,
                       [](const auto & left, const auto & right)
                       {
-                          std::error_code leftError;
-                          std::error_code rightError;
-                          const bool leftDirectory = left.is_directory(leftError);
-                          const bool rightDirectory = right.is_directory(rightError);
+                          const bool leftDirectory = inspectFileBrowserEntry(left.path()).directory;
+                          const bool rightDirectory = inspectFileBrowserEntry(right.path()).directory;
                           if (leftDirectory != rightDirectory)
                           {
                               return leftDirectory > rightDirectory;
                           }
-                          return lowercase(left.path().filename().string()) < lowercase(right.path().filename().string());
+                          return normalizeFileBrowserText(left.path().filename().string()) <
+                                 normalizeFileBrowserText(right.path().filename().string());
                       });
     return entries;
 }
@@ -606,13 +576,11 @@ drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory_entr
         }
     }
     ImGui::TableNextColumn();
-    std::error_code sizeError;
-    const auto size = entry.is_regular_file(sizeError) ? formatFileSize(entry.file_size(sizeError)) : "";
+    const auto metadata = inspectFileBrowserEntry(entry.path());
+    const auto size = metadata.size ? formatFileSize(*metadata.size) : "";
     ImGui::TextUnformatted(size.c_str());
     ImGui::TableNextColumn();
-    std::error_code timeError;
-    const auto modified = entry.last_write_time(timeError);
-    ImGui::TextUnformatted(timeError ? strings::unknown() : formatModifiedTime(modified).c_str());
+    ImGui::TextUnformatted(metadata.modified.c_str());
     return std::nullopt;
 }
 
