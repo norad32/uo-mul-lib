@@ -10,8 +10,11 @@
 #include "gui/presentation/theme.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui/workflows/file_workflow.h"
+#include "gui_model/dialogs/file_browser_model.h"
+#include "gui_model/dialogs/file_deduction.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
+#include "gui_model/documents/map_document.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/persistence/recent_files.h"
 #include "gui_model/profile/data_profile.h"
@@ -203,7 +206,8 @@ void applyRecentMapToOpenDialog(NewFileDialogState & dialog, const RecentFile & 
 {
     dialog.mode = MapFileDialogMode::openMap;
     dialog.activePopup = MapFileDialogMode::none;
-    dialog.openWithoutReview = recent.dimensions.has_value();
+    dialog.openWithoutReview = false;
+    dialog.openCandidates.clear();
     std::ranges::fill(dialog.openPath, '\0');
     const std::string path = recent.path.string();
     std::copy_n(path.c_str(), std::min(path.size(), dialog.openPath.size() - 1U), dialog.openPath.data());
@@ -214,6 +218,42 @@ void applyRecentMapToOpenDialog(NewFileDialogState & dialog, const RecentFile & 
         return;
     }
 
+    const auto cachedCandidate = inspectMapCandidate(recent.path, *recent.dimensions);
+    const bool cachedFacetMatches = recent.facet == mapFacetKey(*recent.dimensions);
+    if (!cachedCandidate || !cachedCandidate->valid || !cachedFacetMatches)
+    {
+        const auto summary = inspectFileBrowserSelection(recent.path);
+        dialog.openCandidates = summary.mapCandidates;
+        dialog.openFacet = 0;
+        for (const auto & candidate : dialog.openCandidates)
+        {
+            if (!candidate.valid)
+            {
+                continue;
+            }
+
+            std::size_t index = 0;
+            for (const auto & facet : uomul::knownFacetSizes())
+            {
+                if (facet.name == candidate.presetName)
+                {
+                    dialog.openFacet = static_cast<int>(index + 1U);
+                    dialog.openWidth = candidate.dimensions.widthTiles;
+                    dialog.openHeight = candidate.dimensions.heightTiles;
+                    break;
+                }
+                index++;
+            }
+            if (dialog.openFacet != 0)
+            {
+                break;
+            }
+        }
+        requestMapDialog(dialog, MapFileDialogMode::selectMapFacet);
+        return;
+    }
+
+    dialog.openWithoutReview = true;
     dialog.openWidth = recent.dimensions->widthTiles;
     dialog.openHeight = recent.dimensions->heightTiles;
     dialog.openFacet = 0;

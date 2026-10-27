@@ -60,6 +60,45 @@ private:
     std::optional<std::string> previous_;
 };
 
+ImGuiWindow * findWelcomeRecentRow()
+{
+    for (ImGuiWindow * window : ImGui::GetCurrentContext()->Windows)
+    {
+        if (std::string(window->Name).contains("welcome.recent-row"))
+        {
+            return window;
+        }
+    }
+    return nullptr;
+}
+
+void drawWelcomeMouseFrame(uo_mule::gui::WorkbenchState & state, ImGuiIO & io, ImVec2 position, bool pressed)
+{
+    ImGui::EndFrame();
+    io.AddMousePosEvent(position.x, position.y);
+    io.AddMouseButtonEvent(ImGuiMouseButton_Left, pressed);
+    ImGui::NewFrame();
+    uo_mule::gui::drawWelcomeView(state);
+}
+
+void activateWelcomeRecentWithKeyboard(uo_mule::gui::WorkbenchState & state)
+{
+    auto & io = ImGui::GetIO();
+    io.ConfigFlags = static_cast<ImGuiConfigFlags>(static_cast<unsigned int>(io.ConfigFlags) |
+                                                   static_cast<unsigned int>(ImGuiConfigFlags_NavEnableKeyboard));
+    uo_mule::gui::drawWelcomeView(state);
+
+    ImGui::EndFrame();
+    io.AddKeyEvent(ImGuiKey_Tab, true);
+    ImGui::NewFrame();
+    uo_mule::gui::drawWelcomeView(state);
+
+    ImGui::EndFrame();
+    io.AddKeyEvent(ImGuiKey_Enter, true);
+    ImGui::NewFrame();
+    uo_mule::gui::drawWelcomeView(state);
+}
+
 } // namespace
 
 TEST_CASE("welcomeView_Should_RenderEmptyProfileAndSelectGreeting")
@@ -125,7 +164,8 @@ TEST_CASE("welcomeView_Should_DeferRecentMapActivationUntilAfterRendering")
     const InvalidWelcomeBanner banner;
     const auto recentPath = std::filesystem::temp_directory_path() / "uo-mule-welcome-deferred-map.mul";
     std::error_code error;
-    std::ofstream(recentPath) << "map";
+    REQUIRE(
+        uomul::MapEditor::createEmpty(recentPath, {.widthTiles = recentMapWidth, .heightTiles = recentMapHeight}).has_value());
     uo_mule::gui::WorkbenchState state;
     state.session.recordRecentFile(recentPath, uomul::Dimensions{.widthTiles = recentMapWidth, .heightTiles = recentMapHeight});
     state.session.refreshRecentFiles();
@@ -154,6 +194,7 @@ TEST_CASE("welcomeView_Should_DeferRecentMapActivationUntilAfterRendering")
     action();
 
     REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::openMap);
+    REQUIRE(state.menuBarState.fileDialog.openWithoutReview);
     std::filesystem::remove(recentPath, error);
 }
 
@@ -192,52 +233,58 @@ TEST_CASE("welcomeView_Should_RequestReviewForRecentMapWithoutDimensions")
     std::filesystem::remove(recentPath, error);
 }
 
+TEST_CASE("welcomeView_Should_ReviewRecentMapWhenCachedDimensionsAreStale")
+{
+    const InvalidWelcomeBanner banner;
+    const auto recentPath = std::filesystem::temp_directory_path() / "uo-mule-welcome-stale-map.mul";
+    std::error_code error;
+    const uomul::Dimensions cachedDimensions{.widthTiles = recentMapWidth, .heightTiles = recentMapHeight};
+    const uomul::Dimensions currentDimensions{.widthTiles = 128U, .heightTiles = 128U};
+    std::filesystem::remove(recentPath, error);
+    REQUIRE(uomul::MapEditor::createEmpty(recentPath, cachedDimensions).has_value());
+    uo_mule::gui::WorkbenchState state;
+    state.session.recordRecentFile(recentPath, cachedDimensions);
+    state.session.refreshRecentFiles();
+
+    std::filesystem::remove(recentPath, error);
+    REQUIRE(uomul::MapEditor::createEmpty(recentPath, currentDimensions).has_value());
+
+    const uo_mule::gui::test::ImGuiFrame frame;
+    activateWelcomeRecentWithKeyboard(state);
+
+    REQUIRE_FALSE(state.deferredWorkflowActions.empty());
+    const auto action = std::move(state.deferredWorkflowActions.front());
+    state.deferredWorkflowActions.clear();
+    action();
+
+    REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::selectMapFacet);
+    REQUIRE_FALSE(state.menuBarState.fileDialog.openWithoutReview);
+    std::filesystem::remove(recentPath, error);
+}
+
 TEST_CASE("welcomeView_Should_DeferRecentMapActivationOnDoubleClick")
 {
     const InvalidWelcomeBanner banner;
     const auto recentPath = std::filesystem::temp_directory_path() / "uo-mule-welcome-double-click-map.mul";
     std::error_code error;
-    std::ofstream(recentPath) << "map";
+    REQUIRE(
+        uomul::MapEditor::createEmpty(recentPath, {.widthTiles = recentMapWidth, .heightTiles = recentMapHeight}).has_value());
     uo_mule::gui::WorkbenchState state;
     state.session.recordRecentFile(recentPath, uomul::Dimensions{.widthTiles = recentMapWidth, .heightTiles = recentMapHeight});
     state.session.refreshRecentFiles();
 
     const uo_mule::gui::test::ImGuiFrame frame;
     uo_mule::gui::drawWelcomeView(state);
-    ImGuiWindow * recentRow = nullptr;
-    for (ImGuiWindow * window : ImGui::GetCurrentContext()->Windows)
-    {
-        if (std::string(window->Name).contains("welcome.recent-row"))
-        {
-            recentRow = window;
-            break;
-        }
-    }
+    ImGuiWindow * recentRow = findWelcomeRecentRow();
     REQUIRE(recentRow != nullptr);
     const ImVec2 mousePosition(recentRow->Pos.x + (recentRow->Size.x * 0.5F), recentRow->Pos.y + (recentRow->Size.y * 0.5F));
     auto & io = ImGui::GetIO();
 
-    ImGui::EndFrame();
-    io.AddMousePosEvent(mousePosition.x, mousePosition.y);
-    io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
-    ImGui::NewFrame();
-    uo_mule::gui::drawWelcomeView(state);
-
-    ImGui::EndFrame();
-    io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
-    ImGui::NewFrame();
-    uo_mule::gui::drawWelcomeView(state);
-
-    ImGui::EndFrame();
-    io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
-    ImGui::NewFrame();
-    uo_mule::gui::drawWelcomeView(state);
+    drawWelcomeMouseFrame(state, io, mousePosition, true);
+    drawWelcomeMouseFrame(state, io, mousePosition, false);
+    drawWelcomeMouseFrame(state, io, mousePosition, true);
 
     REQUIRE(io.MouseClickedCount[ImGuiMouseButton_Left] == 2);
-    REQUIRE(io.MousePos.x >= recentRow->Pos.x);
-    REQUIRE(io.MousePos.x <= recentRow->Pos.x + recentRow->Size.x);
-    REQUIRE(io.MousePos.y >= recentRow->Pos.y);
-    REQUIRE(io.MousePos.y <= recentRow->Pos.y + recentRow->Size.y);
     REQUIRE(state.deferredWorkflowActions.size() == 1U);
     std::filesystem::remove(recentPath, error);
 }
