@@ -1,3 +1,4 @@
+#include "core/app_info.h"
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/presentation/file_size.h"
@@ -14,11 +15,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <ios>
 #include <iterator>
 #include <optional>
+#include <string>
 #include <system_error>
 #include <vector>
 
@@ -34,6 +37,39 @@ constexpr std::streamsize emptyTextureIndexBytes = 12;
 constexpr int mapCandidateScore = 80;
 constexpr int radarCandidateScore = 20;
 constexpr std::uint16_t fixtureTextureValue = 0x1234U;
+
+class ConfigHomeOverride
+{
+public:
+    explicit ConfigHomeOverride(const std::filesystem::path & path)
+    {
+        if (const char * existing = std::getenv("XDG_CONFIG_HOME"); existing != nullptr)
+        {
+            previous_ = existing;
+        }
+        setenv("XDG_CONFIG_HOME", path.c_str(), 1); // NOLINT(misc-include-cleaner): POSIX environment API.
+    }
+
+    ~ConfigHomeOverride()
+    {
+        if (previous_)
+        {
+            setenv("XDG_CONFIG_HOME", previous_->c_str(), 1); // NOLINT(misc-include-cleaner): POSIX environment API.
+        }
+        else
+        {
+            unsetenv("XDG_CONFIG_HOME"); // NOLINT(misc-include-cleaner): POSIX environment API.
+        }
+    }
+
+    ConfigHomeOverride(const ConfigHomeOverride &) = delete;
+    ConfigHomeOverride & operator=(const ConfigHomeOverride &) = delete;
+    ConfigHomeOverride(ConfigHomeOverride &&) = delete;
+    ConfigHomeOverride & operator=(ConfigHomeOverride &&) = delete;
+
+private:
+    std::optional<std::string> previous_;
+};
 
 void createTexmapsFixture(const std::filesystem::path & indexPath, const std::filesystem::path & dataPath)
 {
@@ -597,6 +633,34 @@ TEST_CASE("fileBrowser_Should_AccumulateMultipleRecentFolders")
     REQUIRE(state.recentFolders.at(2) == std::filesystem::absolute(first).lexically_normal());
 
     std::filesystem::remove_all(root, error);
+}
+
+TEST_CASE("fileBrowserRecentFolders_Should_RequireSchemaZeroAndRoundTripAtomically")
+{
+    const auto configRoot = std::filesystem::temp_directory_path() / "uo-mule-file-browser-recent-schema";
+    std::error_code error;
+    std::filesystem::remove_all(configRoot, error);
+    std::filesystem::create_directories(configRoot, error);
+    REQUIRE_FALSE(error);
+    const ConfigHomeOverride config(configRoot);
+
+    const std::vector<std::filesystem::path> expected{
+        configRoot / "first",
+        configRoot / "second",
+    };
+    saveRecentFolders(expected);
+
+    const auto persistedPath = configRoot / std::string(uo_mule::core::applicationName()) / "file_browser_folders.conf";
+    REQUIRE(std::filesystem::is_regular_file(persistedPath));
+    REQUIRE(loadRecentFolders() == expected);
+
+    {
+        std::ofstream output(persistedPath);
+        output << "schema_version 1\n" << expected.front().string() << '\n';
+    }
+    REQUIRE(loadRecentFolders().empty());
+
+    std::filesystem::remove_all(configRoot, error);
 }
 
 } // namespace

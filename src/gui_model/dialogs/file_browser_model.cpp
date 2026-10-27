@@ -1,16 +1,20 @@
 #include "gui_model/dialogs/file_browser_model.h"
 #include "core/app_info.h"
 #include "gui_model/dialogs/file_deduction.h"
+#include "gui_model/persistence/atomic_file.h"
 #include "gui_model/persistence/config_paths.h"
+#include "gui_model/persistence/schema_validation.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <ios>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -24,6 +28,7 @@ namespace
 
 constexpr std::size_t dateBufferSize = 64;
 constexpr std::size_t maxRecentLocations = 12;
+constexpr std::uint32_t recentFoldersSchemaVersion = 0;
 
 [[nodiscard]] std::filesystem::path recentFoldersPath()
 {
@@ -94,6 +99,12 @@ std::vector<std::filesystem::path> loadRecentFolders()
         return folders;
     }
     std::ifstream input(path);
+    std::string schemaLine;
+    if (!std::getline(input, schemaLine) || !hasSchemaVersion(schemaLine, recentFoldersSchemaVersion))
+    {
+        return folders;
+    }
+
     std::string value;
     while (std::getline(input, value) && folders.size() < maxRecentLocations)
     {
@@ -112,17 +123,13 @@ void saveRecentFolders(const std::vector<std::filesystem::path> & folders)
     {
         return;
     }
-    std::error_code error;
-    std::filesystem::create_directories(path.parent_path(), error);
-    if (error)
-    {
-        return;
-    }
-    std::ofstream output(path, std::ios::trunc);
+    std::ostringstream contents;
+    contents << "schema_version " << recentFoldersSchemaVersion << '\n';
     for (const auto & folder : folders)
     {
-        output << folder.string() << '\n';
+        contents << folder.string() << '\n';
     }
+    writeFileAtomically(path, contents.str(), "recent folders");
 }
 
 void recordRecentFolder(std::vector<std::filesystem::path> & folders, const std::filesystem::path & folder)
