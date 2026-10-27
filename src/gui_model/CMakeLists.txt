@@ -9,6 +9,7 @@ set(GUI_MODEL_SOURCES
     documents/radarcol_document.cpp
     documents/texmaps_document.cpp
     documents/tiledata_document.cpp
+    persistence/atomic_file.cpp
     persistence/config_paths.cpp
     persistence/asset_state_store.cpp
     persistence/preferences.cpp

@@ -19,6 +19,7 @@
 #include <fstream>
 #include <iomanip>
 #include <ios>
+#include <iterator>
 #include <optional>
 #include <random>
 #include <string>
@@ -140,6 +141,27 @@ TEST_CASE("recentFileStore_Should_RoundTripAndMarkMissingEntries")
     }
     REQUIRE(loaded.files().front().facet == "Felucca");
     REQUIRE_FALSE(loaded.files().front().failure.empty());
+}
+
+TEST_CASE("recentFileStore_Should_RejectMissingOrNonzeroSchemaAndPreserveFile")
+{
+    const TemporaryDirectory directory;
+    const auto recentPath = directory.path() / "recent.conf";
+
+    for (const std::string contents : {"map \"legacy.mul\"\n", "schema_version 1\n"})
+    {
+        {
+            std::ofstream file(recentPath);
+            file << contents;
+        }
+
+        const auto loaded = uo_mule::gui::loadRecentFiles(recentPath);
+        std::ifstream file(recentPath);
+        const std::string preserved((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+        REQUIRE(loaded.empty());
+        REQUIRE(preserved == contents);
+    }
 }
 
 TEST_CASE("recentFileStore_Should_PersistLastOpenedTimestamp")

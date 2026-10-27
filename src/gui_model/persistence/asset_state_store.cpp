@@ -2,16 +2,18 @@
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/model/assets/asset_window_contracts.h"
+#include "gui_model/persistence/atomic_file.h"
 #include "gui_model/persistence/config_paths.h"
+#include "gui_model/persistence/schema_validation.h"
 #include "gui_model/source/source_identity.h"
 #include <cstddef>
-#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <ios>
 #include <istream>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -134,26 +136,17 @@ std::vector<AssetStateRecord> loadAssetState(const std::filesystem::path & path)
     }
 
     std::ifstream file(path);
+    std::string schemaLine;
+    if (!std::getline(file, schemaLine) || !hasSchemaVersion(schemaLine, currentAssetStateSchemaVersion))
+    {
+        return {};
+    }
+
     std::string key;
-    std::uint32_t schemaVersion = 0;
-    bool schemaValidated = false;
     while (file >> key)
     {
-        if (key == "schema_version")
+        if (key == "record")
         {
-            file >> schemaVersion;
-            if (schemaVersion != currentAssetStateSchemaVersion)
-            {
-                return {};
-            }
-            schemaValidated = true;
-        }
-        else if (key == "record")
-        {
-            if (!schemaValidated)
-            {
-                return {};
-            }
             AssetStateRecord record;
             if (readRecord(file, record))
             {
@@ -166,10 +159,6 @@ std::vector<AssetStateRecord> loadAssetState(const std::filesystem::path & path)
             std::getline(file, ignored);
         }
     }
-    if (!schemaValidated)
-    {
-        return {};
-    }
     return records;
 }
 
@@ -179,35 +168,32 @@ void saveAssetState(const std::filesystem::path & path, const std::vector<AssetS
     {
         return;
     }
-    std::filesystem::create_directories(path.parent_path());
-    const auto temporary = path.string() + ".tmp";
-    std::ofstream file(temporary, std::ios::trunc);
-    file << "schema_version " << currentAssetStateSchemaVersion << '\n';
+    std::ostringstream contents;
+    contents << "schema_version " << currentAssetStateSchemaVersion << '\n';
     for (const auto & record : records)
     {
-        file << "record " << std::quoted(record.profileIdentity) << ' ' << std::quoted(record.assetWindowIdentity) << ' ';
-        writeSource(file, record.context);
-        file << "presentation " << static_cast<int>(record.state.presentation) << "\nhide_empty " << record.state.hideEmpty
-             << "\nquery " << std::quoted(record.state.query.filter) << "\nview_mode " << std::quoted(record.state.viewMode)
-             << "\nscroll " << record.state.scrollPosition << "\nselection " << record.state.selection.selected.size();
+        contents << "record " << std::quoted(record.profileIdentity) << ' ' << std::quoted(record.assetWindowIdentity) << ' ';
+        writeSource(contents, record.context);
+        contents << "presentation " << static_cast<int>(record.state.presentation) << "\nhide_empty " << record.state.hideEmpty
+                 << "\nquery " << std::quoted(record.state.query.filter) << "\nview_mode " << std::quoted(record.state.viewMode)
+                 << "\nscroll " << record.state.scrollPosition << "\nselection " << record.state.selection.selected.size();
         for (const auto & selected : record.state.selection.selected)
         {
-            file << ' ' << std::quoted(selected.value);
+            contents << ' ' << std::quoted(selected.value);
         }
-        file << ' ' << record.state.selection.anchor.has_value();
+        contents << ' ' << record.state.selection.anchor.has_value();
         if (const auto & anchor = record.state.selection.anchor; anchor.has_value())
         {
-            file << ' ' << std::quoted(anchor->value);
+            contents << ' ' << std::quoted(anchor->value);
         }
-        file << ' ' << record.state.selection.anchorIndex.has_value();
+        contents << ' ' << record.state.selection.anchorIndex.has_value();
         if (const auto & anchorIndex = record.state.selection.anchorIndex; anchorIndex.has_value())
         {
-            file << ' ' << *anchorIndex;
+            contents << ' ' << *anchorIndex;
         }
-        file << '\n';
+        contents << '\n';
     }
-    file.close();
-    std::filesystem::rename(temporary, path);
+    writeFileAtomically(path, contents.str(), "asset state");
 }
 
 void resetAssetState(std::vector<AssetStateRecord> & records) noexcept

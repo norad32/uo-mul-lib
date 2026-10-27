@@ -1,12 +1,11 @@
 #include "gui_model/profile/data_profile_store.h"
 #include "core/app_info.h"
+#include "gui_model/persistence/atomic_file.h"
 #include "gui_model/persistence/config_paths.h"
 #include "gui_model/persistence/preferences_store.h"
+#include "gui_model/persistence/schema_validation.h"
 #include "gui_model/profile/data_profile.h"
-#include <atomic>
-#include <cerrno>
-#include <cstdint>
-#include <cstdio>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -17,7 +16,6 @@
 #include <string>
 #include <string_view>
 #include <system_error>
-#include <unistd.h>
 #include <utility>
 
 namespace uo_mule::gui
@@ -25,8 +23,6 @@ namespace uo_mule::gui
 
 namespace
 {
-
-std::atomic<std::uint64_t> temporaryFileCounter = 0;
 
 [[nodiscard]] std::string safeProfileFileStem(std::string_view name)
 {
@@ -317,34 +313,17 @@ void appendProfileLayout(std::ostringstream & contents, const DataProfile & prof
     contents << '\n';
 }
 
-[[nodiscard]] std::filesystem::path temporaryProfilePath(const std::filesystem::path & path)
+[[nodiscard]] bool
+validateProfileSchema(std::ifstream & file, DataProfileLoadResult & result, const std::filesystem::path & path)
 {
-    return path.string() + ".tmp." + std::to_string(getpid()) + "." + std::to_string(temporaryFileCounter.fetch_add(1));
-}
-
-void writeProfileAtomically(const std::filesystem::path & path, std::string_view contents)
-{
-    const auto temporary = temporaryProfilePath(path);
+    std::string schemaLine;
+    if (!std::getline(file, schemaLine) || !hasSchemaVersion(schemaLine, DataProfile::currentSchemaVersion))
     {
-        std::ofstream file(temporary, std::ios::trunc);
-        if (!file)
-        {
-            throw std::system_error(errno, std::generic_category(), "Cannot create temporary data profile");
-        }
-
-        file << contents;
-        file.flush();
-        if (!file)
-        {
-            throw std::system_error(errno, std::generic_category(), "Cannot write data profile");
-        }
+        addDiagnostic(result, Diagnostic::Severity::error, "invalid or missing data profile schema version", path);
+        result.profile = {};
+        return false;
     }
-
-    if (std::rename(temporary.c_str(), path.c_str()) != 0)
-    {
-        std::filesystem::remove(temporary);
-        throw std::system_error(errno, std::generic_category(), "Cannot replace data profile");
-    }
+    return true;
 }
 
 } // namespace
@@ -401,6 +380,11 @@ DataProfileLoadResult loadDataProfile(const std::filesystem::path & path)
         return result;
     }
 
+    if (!validateProfileSchema(file, result, path))
+    {
+        return result;
+    }
+
     std::string key;
     std::string rawValue;
 
@@ -440,13 +424,12 @@ DataProfileLoadResult loadDataProfile(const std::filesystem::path & path)
 
 void saveDataProfile(const DataProfile & profile, const std::filesystem::path & path)
 {
-    std::filesystem::create_directories(path.parent_path());
     std::ostringstream contents;
     contents << serializeProfile(profile);
     appendRoleFiles(contents, profile);
     appendProfilePreferences(contents, profile);
     appendProfileLayout(contents, profile);
-    writeProfileAtomically(path, contents.str());
+    writeFileAtomically(path, contents.str(), "data profile");
 }
 
 } // namespace uo_mule::gui

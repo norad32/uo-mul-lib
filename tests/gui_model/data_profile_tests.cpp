@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <iterator>
 #include <string>
 
 namespace
@@ -128,6 +129,47 @@ TEST_CASE("DataProfileStore_Should_ReturnDefaults_If_ProfileIsMissing")
     REQUIRE(loaded.diagnostics.empty());
     REQUIRE(loaded.profile.schemaVersion == uo_mule::gui::DataProfile::currentSchemaVersion);
     REQUIRE(loaded.profile.name.empty());
+}
+
+TEST_CASE("DataProfileStore_Should_RejectMissingSchemaAndPreserveFile")
+{
+    const TemporaryProfileDirectory directory;
+    const auto profilePath = directory.path() / "invalid.profile";
+    {
+        std::ofstream file(profilePath);
+        file << "name \"legacy\"\n";
+    }
+
+    const auto loaded = uo_mule::gui::loadDataProfile(profilePath);
+    std::ifstream file(profilePath);
+    const std::string preserved((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+    REQUIRE(loaded.profile.schemaVersion == uo_mule::gui::DataProfile::currentSchemaVersion);
+    REQUIRE(loaded.profile.name.empty());
+    REQUIRE(loaded.profile.sourceRoot.empty());
+    REQUIRE(loaded.profile.files.empty());
+    REQUIRE(loaded.profile.preferences == uo_mule::gui::Preferences{});
+    REQUIRE(loaded.profile.layout.dockingIni.empty());
+    REQUIRE_FALSE(loaded.diagnostics.empty());
+    REQUIRE(preserved == "name \"legacy\"\n");
+}
+
+TEST_CASE("DataProfileStore_Should_RejectNonzeroSchemaAndPreserveFile")
+{
+    const TemporaryProfileDirectory directory;
+    const auto profilePath = directory.path() / "invalid.profile";
+    {
+        std::ofstream file(profilePath);
+        file << "schema_version 1\nname \"old\"\n";
+    }
+
+    const auto loaded = uo_mule::gui::loadDataProfile(profilePath);
+    std::ifstream file(profilePath);
+    const std::string preserved((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+    REQUIRE(loaded.profile.name.empty());
+    REQUIRE_FALSE(loaded.diagnostics.empty());
+    REQUIRE(preserved == "schema_version 1\nname \"old\"\n");
 }
 
 TEST_CASE("DataProfileStore_Should_DeleteProfile")

@@ -5,6 +5,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <string>
 #include <system_error>
 #include <vector>
 
@@ -88,6 +91,27 @@ TEST_CASE("assetStateStore_Should_RoundTripSemanticContextAndPresentationState")
     REQUIRE(restored.hideEmpty);
     REQUIRE(restored.presentationContext == uo_mule::gui::assets::presentationContextKey(context));
     REQUIRE(restored.viewMode == "statics");
+}
+
+TEST_CASE("assetStateStore_Should_RejectMissingOrNonzeroSchemaAndPreserveFile")
+{
+    const TestDirectory directory;
+    const auto path = directory.path() / "asset_state.ini";
+
+    for (const std::string contents : {"record \"profile\"\n", "schema_version 1\n"})
+    {
+        {
+            std::ofstream file(path);
+            file << contents;
+        }
+
+        const auto loaded = uo_mule::gui::assets::loadAssetState(path);
+        std::ifstream file(path);
+        const std::string preserved((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+        REQUIRE(loaded.empty());
+        REQUIRE(preserved == contents);
+    }
 }
 
 TEST_CASE("assetStateStore_Should_IgnoreUnknownContexts_If_LookingUpState")

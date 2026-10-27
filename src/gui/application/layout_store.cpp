@@ -1,12 +1,15 @@
 #include "gui/application/layout_store.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/layout/window_registry.h"
+#include "gui_model/persistence/atomic_file.h"
+#include "gui_model/persistence/schema_validation.h"
 #include "gui_model/profile/data_profile.h"
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <ios>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -65,6 +68,11 @@ void loadLayout(const std::filesystem::path & path, PanelRegistry & panels, Wind
     }
 
     std::ifstream file(path);
+    std::string schemaLine;
+    if (!std::getline(file, schemaLine) || !hasSchemaVersion(schemaLine, currentLayoutSchemaVersion))
+    {
+        return;
+    }
     std::string key;
     std::string value;
     while (file >> key)
@@ -102,28 +110,25 @@ void saveLayout(const std::filesystem::path & path,
         return;
     }
 
-    std::filesystem::create_directories(path.parent_path());
-    const auto temporary = path.string() + ".tmp";
-    std::ofstream file(temporary, std::ios::trunc);
-    file << "schema_version " << currentLayoutSchemaVersion << '\n';
+    std::ostringstream contents;
+    contents << "schema_version " << currentLayoutSchemaVersion << '\n';
     for (const auto & panel : panels.panels())
     {
-        file << "panel " << std::quoted(panel.stableId) << ' ' << panel.visible << '\n';
+        contents << "panel " << std::quoted(panel.stableId) << ' ' << panel.visible << '\n';
     }
     for (const auto & window : windows.windows())
     {
-        file << "window " << std::quoted(window.stableId) << ' ' << window.visible << '\n';
+        contents << "window " << std::quoted(window.stableId) << ' ' << window.visible << '\n';
     }
     if (layout.window.geometryValid)
     {
-        file << "window_geometry " << layout.window.x << ' ' << layout.window.y << ' ' << layout.window.width << ' '
-             << layout.window.height << '\n';
+        contents << "window_geometry " << layout.window.x << ' ' << layout.window.y << ' ' << layout.window.width << ' '
+                 << layout.window.height << '\n';
     }
-    file << "docking_ini_size " << layout.dockingIni.size() << '\n';
-    file.write(layout.dockingIni.data(), static_cast<std::streamsize>(layout.dockingIni.size()));
-    file << '\n';
-    file.close();
-    std::filesystem::rename(temporary, path);
+    contents << "docking_ini_size " << layout.dockingIni.size() << '\n';
+    contents.write(layout.dockingIni.data(), static_cast<std::streamsize>(layout.dockingIni.size()));
+    contents << '\n';
+    writeFileAtomically(path, contents.str(), "layout");
 }
 
 void loadProfileLayout(const ProfileLayout & source, PanelRegistry & panels, WindowRegistry & windows, AppLayout & layout)

@@ -4,6 +4,8 @@
 #include "gui_model/layout/window_registry.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 
 namespace
@@ -53,6 +55,36 @@ TEST_CASE("appLayout_Should_RoundTripPanelsWindowsAndDockSettings")
     REQUIRE(actualLayout.window.width == expectedWidth);
     REQUIRE(actualLayout.window.height == expectedHeight);
     REQUIRE(actualLayout.dockingIni == expectedLayout.dockingIni);
+
+    std::filesystem::remove_all(configDirectory);
+}
+
+TEST_CASE("appLayout_Should_RejectMissingOrNonzeroSchemaAndPreserveFile")
+{
+    const auto configDirectory = std::filesystem::temp_directory_path() / "uo-mule-layout-schema";
+    const auto layoutFile = configDirectory / "layout.ini";
+    std::filesystem::remove_all(configDirectory);
+
+    for (const std::string contents : {"panel \"panel.tool-palette\" 0\n", "schema_version 1\n"})
+    {
+        std::filesystem::create_directories(configDirectory);
+        {
+            std::ofstream file(layoutFile);
+            file << contents;
+        }
+
+        uo_mule::gui::PanelRegistry panels;
+        uo_mule::gui::WindowRegistry windows;
+        uo_mule::gui::AppLayout layout;
+        uo_mule::gui::loadLayout(layoutFile, panels, windows, layout);
+
+        std::ifstream file(layoutFile);
+        const std::string preserved((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+        REQUIRE(panels.find(uo_mule::gui::PanelId::toolPalette)->visible);
+        REQUIRE_FALSE(layout.window.geometryValid);
+        REQUIRE(preserved == contents);
+    }
 
     std::filesystem::remove_all(configDirectory);
 }

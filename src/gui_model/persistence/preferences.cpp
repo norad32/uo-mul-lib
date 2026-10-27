@@ -1,14 +1,12 @@
 #include "gui_model/persistence/preferences.h"
 #include "core/app_info.h"
+#include "gui_model/persistence/atomic_file.h"
 #include "gui_model/persistence/config_paths.h"
 #include "gui_model/persistence/preferences_store.h"
+#include "gui_model/persistence/schema_validation.h"
 #include "gui_model/tools/tool_contracts.h"
 #include <algorithm>
-#include <atomic>
-#include <cerrno>
 #include <cstdint>
-#include <cstdio>
-#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -17,9 +15,6 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <sys/types.h>
-#include <system_error>
-#include <unistd.h>
 
 namespace uo_mule::gui
 {
@@ -93,32 +88,9 @@ namespace
     }
 }
 
-std::atomic<std::uint64_t> temporaryFileCounter = 0;
-constexpr std::uint32_t maximumTemporaryFileAttempts = 128;
 constexpr std::int32_t minimumZ = -128;
 constexpr std::int32_t maximumZ = 127;
 constexpr std::int32_t maximumTileId = 65535;
-
-[[nodiscard]] int createTemporaryPreferencesFile(std::string & path)
-{
-    const std::string basePath = path;
-    for (std::uint32_t attempt = 0; attempt < maximumTemporaryFileAttempts; attempt++)
-    {
-        path = basePath + ".tmp." + std::to_string(getpid()) + "." + std::to_string(temporaryFileCounter.fetch_add(1));
-        const int descriptor = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-        if (descriptor != -1 || errno != EEXIST)
-        {
-            if (descriptor == -1)
-            {
-                throw std::system_error(errno, std::generic_category(), "Cannot create temporary preferences file");
-            }
-
-            return descriptor;
-        }
-    }
-
-    throw std::system_error(EEXIST, std::generic_category(), "Cannot create temporary preferences file");
-}
 
 [[nodiscard]] std::optional<std::filesystem::path> preferencesPath()
 {
@@ -129,78 +101,6 @@ constexpr std::int32_t maximumTileId = 65535;
     }
     return config / std::string(core::applicationName()) / "preferences.conf";
 }
-
-class TemporaryPreferencesFile
-{
-public:
-    explicit TemporaryPreferencesFile(const std::filesystem::path & path) :
-        path_(path.string()), descriptor_(createTemporaryPreferencesFile(path_))
-    {
-    }
-
-    ~TemporaryPreferencesFile()
-    {
-        if (descriptor_ != -1)
-        {
-            close(descriptor_);
-        }
-
-        if (!committed_)
-        {
-            unlink(path_.c_str());
-        }
-    }
-
-    TemporaryPreferencesFile(const TemporaryPreferencesFile &) = delete;
-    TemporaryPreferencesFile & operator=(const TemporaryPreferencesFile &) = delete;
-    TemporaryPreferencesFile(TemporaryPreferencesFile &&) = delete;
-    TemporaryPreferencesFile & operator=(TemporaryPreferencesFile &&) = delete;
-
-    void write(std::string_view contents) const
-    {
-        while (!contents.empty())
-        {
-            const ssize_t bytesWritten = ::write(descriptor_, contents.data(), contents.size());
-            if (bytesWritten == -1)
-            {
-                if (errno == EINTR)
-                {
-                    continue;
-                }
-                throw std::system_error(errno, std::generic_category(), "Cannot write preferences file");
-            }
-            contents.remove_prefix(static_cast<std::size_t>(bytesWritten));
-        }
-    }
-
-    void commit(const std::filesystem::path & destination)
-    {
-        if (fsync(descriptor_) == -1)
-        {
-            throw std::system_error(errno, std::generic_category(), "Cannot sync preferences file");
-        }
-
-        if (close(descriptor_) == -1)
-        {
-            descriptor_ = -1;
-            throw std::system_error(errno, std::generic_category(), "Cannot close preferences file");
-        }
-
-        descriptor_ = -1;
-
-        if (rename(path_.c_str(), destination.c_str()) == -1)
-        {
-            throw std::system_error(errno, std::generic_category(), "Cannot replace preferences file");
-        }
-
-        committed_ = true;
-    }
-
-private:
-    std::string path_;
-    int descriptor_ = -1;
-    bool committed_ = false;
-};
 
 void applyGeneralPreference(Preferences & preferences, std::string_view key, std::string_view value)
 {
@@ -401,6 +301,12 @@ Preferences loadPreferences(const std::filesystem::path & path)
 {
     Preferences preferences;
     std::ifstream file(path);
+    std::string schemaLine;
+    if (!std::getline(file, schemaLine) || !hasSchemaVersion(schemaLine, currentPreferencesSchemaVersion))
+    {
+        return {};
+    }
+
     std::string key;
     std::string value;
     while (file >> key)
@@ -426,12 +332,10 @@ void savePreferences(const Preferences & preferences)
 
 void savePreferences(const Preferences & preferences, const std::filesystem::path & path)
 {
-    std::filesystem::create_directories(path.parent_path());
     std::ostringstream contents;
-    contents << "active_data_profile " << std::quoted(preferences.activeDataProfile) << '\n';
-    TemporaryPreferencesFile temporaryFile(path);
-    temporaryFile.write(contents.str());
-    temporaryFile.commit(path);
+    contents << "schema_version " << currentPreferencesSchemaVersion << '\n'
+             << "active_data_profile " << std::quoted(preferences.activeDataProfile) << '\n';
+    writeFileAtomically(path, contents.str(), "preferences");
 }
 
 } // namespace uo_mule::gui

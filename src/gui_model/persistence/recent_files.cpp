@@ -1,7 +1,9 @@
 #include "gui_model/persistence/recent_files.h"
 #include "core/app_info.h"
 #include "gui_model/documents/document_contracts.h"
+#include "gui_model/persistence/atomic_file.h"
 #include "gui_model/persistence/config_paths.h"
+#include "gui_model/persistence/schema_validation.h"
 #include "uomul/map/map.h"
 #include <algorithm>
 #include <chrono>
@@ -11,6 +13,7 @@
 #include <iomanip>
 #include <ios>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -136,21 +139,16 @@ std::vector<RecentFile> loadRecentFiles(const std::filesystem::path & path)
 {
     std::vector<RecentFile> result;
     std::ifstream file(path);
-    bool schemaValidated = false;
+    std::string schemaLine;
+    if (!std::getline(file, schemaLine) || !hasSchemaVersion(schemaLine, recentFilesSchemaVersion))
+    {
+        return {};
+    }
+
     std::string key;
     while (file >> key)
     {
-        if (key == "schema_version")
-        {
-            std::uint32_t version = 0;
-            if (!(file >> version) || version != recentFilesSchemaVersion)
-            {
-                return {};
-            }
-            schemaValidated = true;
-            continue;
-        }
-        if (!schemaValidated || key != "map")
+        if (key != "map")
         {
             return {};
         }
@@ -159,11 +157,6 @@ std::vector<RecentFile> loadRecentFiles(const std::filesystem::path & path)
         {
             result.push_back(*map);
         }
-    }
-
-    if (!schemaValidated)
-    {
-        return {};
     }
 
     for (auto & map : result)
@@ -183,24 +176,21 @@ void saveRecentFiles(const std::vector<RecentFile> & files, const std::filesyste
     {
         return;
     }
-    std::filesystem::create_directories(path.parent_path());
-    const auto temporary = path.string() + ".tmp";
-    std::ofstream file(temporary, std::ios::trunc);
-    file << "schema_version " << recentFilesSchemaVersion << '\n';
+    std::ostringstream contents;
+    contents << "schema_version " << recentFilesSchemaVersion << '\n';
     for (const auto & map : files)
     {
-        file << "map " << std::quoted(map.path.string()) << ' ' << std::quoted(map.displayName) << ' '
-             << static_cast<bool>(map.dimensions);
+        contents << "map " << std::quoted(map.path.string()) << ' ' << std::quoted(map.displayName) << ' '
+                 << static_cast<bool>(map.dimensions);
         if (map.dimensions)
         {
-            file << ' ' << map.dimensions->widthTiles << ' ' << map.dimensions->heightTiles;
+            contents << ' ' << map.dimensions->widthTiles << ' ' << map.dimensions->heightTiles;
         }
-        file << ' ' << std::quoted(map.facet) << ' ' << std::quoted(map.failure) << ' '
-             << std::quoted(std::string(documentKindStableName(map.kind))) << ' ' << map.itemCount << ' '
-             << std::quoted(map.companionPath.string()) << ' ' << map.lastOpened << ' ' << map.lastModified << '\n';
+        contents << ' ' << std::quoted(map.facet) << ' ' << std::quoted(map.failure) << ' '
+                 << std::quoted(std::string(documentKindStableName(map.kind))) << ' ' << map.itemCount << ' '
+                 << std::quoted(map.companionPath.string()) << ' ' << map.lastOpened << ' ' << map.lastModified << '\n';
     }
-    file.close();
-    std::filesystem::rename(temporary, path);
+    writeFileAtomically(path, contents.str(), "recent files");
 }
 
 RecentFileStore::RecentFileStore(std::filesystem::path path) : path_(path.empty() ? recentFilesPath() : std::move(path))

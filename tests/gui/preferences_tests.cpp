@@ -33,6 +33,34 @@ TEST_CASE("loadPreferences_Should_UseDefaults_If_FileIsMissing")
     std::filesystem::remove_all(preferencesFile.parent_path());
 }
 
+TEST_CASE("loadPreferences_Should_RejectMissingNonzeroOrMalformedSchemaAndPreserveFile")
+{
+    const auto preferencesFile = std::filesystem::temp_directory_path() / "pref-schema" / "preferences.conf";
+    std::filesystem::remove_all(preferencesFile.parent_path());
+
+    for (const std::string contents : {
+             "active_data_profile \"legacy\"\n",
+             "schema_version 1\nactive_data_profile \"old\"\n",
+             "schema_version 0 trailing\nactive_data_profile \"old\"\n",
+         })
+    {
+        std::filesystem::create_directories(preferencesFile.parent_path());
+        {
+            std::ofstream file(preferencesFile);
+            file << contents;
+        }
+
+        const auto loaded = uo_mule::gui::loadPreferences(preferencesFile);
+        std::ifstream file(preferencesFile);
+        const std::string preserved((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+        REQUIRE(loaded == uo_mule::gui::Preferences{});
+        REQUIRE(preserved == contents);
+    }
+
+    std::filesystem::remove_all(preferencesFile.parent_path());
+}
+
 TEST_CASE("savePreferences_Should_PersistOnlyActiveProfileSelector")
 {
     const auto configDirectory = std::filesystem::temp_directory_path() / "pref-roundtrip";
