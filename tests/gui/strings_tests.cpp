@@ -6,7 +6,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <string_view>
 
-TEST_CASE("uiStrings_Should_CentralizeSharedDisplayVocabulary")
+TEST_CASE("Strings_Should_CentralizeSharedDisplayVocabulary")
 {
     REQUIRE(std::string_view(uo_mule::gui::strings::open()) == "Open");
     REQUIRE(std::string_view(uo_mule::gui::strings::ok()) == "OK");
@@ -31,7 +31,7 @@ TEST_CASE("uiStrings_Should_CentralizeSharedDisplayVocabulary")
     REQUIRE(uo_mule::gui::strings::dataFileName(uo_mule::gui::DataFileRole::radarcol) == "radarcol.mul");
 }
 
-TEST_CASE("uiStrings_Should_FormatSharedStatusValues")
+TEST_CASE("Strings_Should_FormatSharedStatusValues")
 {
     REQUIRE(uo_mule::gui::strings::formatProfileStatus("") == "Profile: None");
     REQUIRE(uo_mule::gui::strings::formatMapStatus({}) == "Map: None");
@@ -46,7 +46,24 @@ TEST_CASE("uiStrings_Should_FormatSharedStatusValues")
     REQUIRE(uo_mule::gui::strings::formatSelectedColors(3U) == "Selected colors: 3");
 }
 
-TEST_CASE("uiStrings_Should_FormatIdsAccordingToPreference")
+TEST_CASE("Strings_Should_CentralizeWelcomePreferencesAndFileBrowserCopy")
+{
+    REQUIRE(std::string_view(uo_mule::gui::strings::welcome()) == "Welcome");
+    REQUIRE(uo_mule::gui::strings::formatTimestamp("Modified", "Unknown") == "Modified: Unknown");
+    REQUIRE(uo_mule::gui::strings::formatDimensions(8U, 16U) == "8 x 16");
+    REQUIRE(uo_mule::gui::strings::formatEntries(3U) == "3 entries");
+    REQUIRE(uo_mule::gui::strings::formatVersion("1.2.3") == "Version 1.2.3");
+    REQUIRE(std::string_view(uo_mule::gui::strings::metadataPaths()) == "Metadata Paths");
+    REQUIRE(std::string_view(uo_mule::gui::strings::settings()) == "Settings");
+    REQUIRE(std::string_view(uo_mule::gui::strings::tiledataFormat()) == "Tiledata format");
+    REQUIRE(std::string_view(uo_mule::gui::strings::idFormat()) == "ID Format");
+    REQUIRE(std::string_view(uo_mule::gui::strings::recentLocations()) == "Recent Locations");
+    REQUIRE(std::string_view(uo_mule::gui::strings::selectFileMetadata()) == "Select a file to inspect its metadata.");
+    REQUIRE(std::string_view(uo_mule::gui::strings::chooseMatchingFileOrDirectory()) == "Choose a matching file or directory");
+    REQUIRE(std::string_view(uo_mule::gui::strings::selectFolder()) == "Select Folder");
+}
+
+TEST_CASE("Strings_Should_FormatIdsAccordingToPreference")
 {
     REQUIRE(uo_mule::gui::strings::formatId(0x3AU, uo_mule::gui::IdFormat::hexadecimal) == "0x003A");
     REQUIRE(uo_mule::gui::strings::formatId(0x3AU, uo_mule::gui::IdFormat::decimal) == "58");

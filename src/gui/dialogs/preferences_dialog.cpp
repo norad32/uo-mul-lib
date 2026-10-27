@@ -201,7 +201,8 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
         validateWorkingProfile(state);
     }
     ImGui::SameLine();
-    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, "Open##MetadataPath").c_str()) && state.browser != nullptr)
+    const std::string openMetadataPathLabel = std::string(strings::open()) + "##MetadataPath";
+    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, openMetadataPathLabel).c_str()) && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
                            {
@@ -215,7 +216,7 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
     }
     if (role == DataFileRole::tiledata)
     {
-        dialogFieldLabel("Tiledata format");
+        dialogFieldLabel(strings::tiledataFormat());
         dialogFieldWidth(pathInputWidth);
         const std::string selected(tiledataLayoutSelectionName(state.workingProfile.tiledataLayout));
         if (ImGui::BeginCombo("##TiledataLayout", selected.c_str()))
@@ -266,7 +267,7 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
 
 void drawMetadataSection(PreferencesDialogState & state)
 {
-    if (!ImGui::CollapsingHeader(iconLabel(IconId::fileBrowserDialog, "Metadata Paths").c_str(),
+    if (!ImGui::CollapsingHeader(iconLabel(IconId::fileBrowserDialog, strings::metadataPaths()).c_str(),
                                  ImGuiTreeNodeFlags_DefaultOpen))
     {
         return;
@@ -294,14 +295,14 @@ void drawMetadataSection(PreferencesDialogState & state)
 
 void drawSettingsSection(PreferencesDialogState & state)
 {
-    if (!ImGui::CollapsingHeader(iconLabel(IconId::settings, "Settings").c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+    if (!ImGui::CollapsingHeader(iconLabel(IconId::settings, strings::settings()).c_str(), ImGuiTreeNodeFlags_DefaultOpen))
     {
         return;
     }
 
     dialogFieldLabel(strings::showWelcomeScreen());
     ImGui::Checkbox("##ShowWelcomeScreen", &state.showWelcomeOnStartup);
-    dialogFieldLabel("ID Format");
+    dialogFieldLabel(strings::idFormat());
     dialogFieldWidth(pathInputWidth);
     const char * idFormatLabel = state.idFormat == IdFormat::decimal ? strings::decimal() : strings::hexadecimalName();
     if (ImGui::BeginCombo("##IdFormat", idFormatLabel))

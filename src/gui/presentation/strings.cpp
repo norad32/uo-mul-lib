@@ -13,16 +13,6 @@
 
 namespace uo_mule::gui::strings
 {
-namespace
-{
-
-[[nodiscard]] std::string_view unknown() noexcept
-{
-    return "Unknown";
-}
-
-} // namespace
-
 const char * open() noexcept
 {
     return "Open";
@@ -224,6 +214,10 @@ const char * preferencesDialogSubheading() noexcept
 {
     return "Configure your data profile and application settings";
 }
+const char * welcome() noexcept
+{
+    return "Welcome";
+}
 const char * artworkBanner() noexcept
 {
     return "Artwork banner";
@@ -377,6 +371,118 @@ const char * openMulFile() noexcept
 {
     return "Open mul file";
 }
+const char * desktop() noexcept
+{
+    return "Desktop";
+}
+const char * documents() noexcept
+{
+    return "Documents";
+}
+const char * downloads() noexcept
+{
+    return "Downloads";
+}
+const char * music() noexcept
+{
+    return "Music";
+}
+const char * pictures() noexcept
+{
+    return "Pictures";
+}
+const char * videos() noexcept
+{
+    return "Videos";
+}
+const char * root() noexcept
+{
+    return "Root";
+}
+const char * places() noexcept
+{
+    return "Places";
+}
+const char * recentLocations() noexcept
+{
+    return "Recent Locations";
+}
+const char * fileSummary() noexcept
+{
+    return "File Summary";
+}
+const char * selectFileMetadata() noexcept
+{
+    return "Select a file to inspect its metadata.";
+}
+const char * map() noexcept
+{
+    return "Map";
+}
+const char * openable() noexcept
+{
+    return "Openable";
+}
+const char * invalidMapCandidate() noexcept
+{
+    return "Invalid map candidate";
+}
+const char * requiresSelection() noexcept
+{
+    return "Requires selection";
+}
+const char * pathNotDirectory() noexcept
+{
+    return "Path is not a directory";
+}
+const char * chooseValidMulOutputPath() noexcept
+{
+    return "Choose a valid .mul output path";
+}
+const char * chooseMatchingFileOrDirectory() noexcept
+{
+    return "Choose a matching file or directory";
+}
+const char * back() noexcept
+{
+    return "Back";
+}
+const char * forward() noexcept
+{
+    return "Forward";
+}
+const char * up() noexcept
+{
+    return "Up";
+}
+const char * refresh() noexcept
+{
+    return "Refresh";
+}
+const char * filename() noexcept
+{
+    return "Filename";
+}
+const char * sizeLabel() noexcept
+{
+    return "Size";
+}
+const char * dateLabel() noexcept
+{
+    return "Date";
+}
+const char * files() noexcept
+{
+    return "Files";
+}
+const char * summary() noexcept
+{
+    return "Summary";
+}
+const char * selectFolder() noexcept
+{
+    return "Select Folder";
+}
 const char * create() noexcept
 {
     return "Create";
@@ -400,6 +506,22 @@ const char * invalidFolderName() noexcept
 const char * folderAlreadyExists() noexcept
 {
     return "A folder with that name already exists";
+}
+const char * metadataPaths() noexcept
+{
+    return "Metadata Paths";
+}
+const char * settings() noexcept
+{
+    return "Settings";
+}
+const char * tiledataFormat() noexcept
+{
+    return "Tiledata format";
+}
+const char * idFormat() noexcept
+{
+    return "ID Format";
 }
 const char * entriesFormat() noexcept
 {
@@ -473,6 +595,31 @@ const char * modified() noexcept
 const char * opened() noexcept
 {
     return "Opened";
+}
+
+const char * unknown() noexcept
+{
+    return "Unknown";
+}
+
+std::string formatTimestamp(std::string_view prefix, std::string_view value)
+{
+    return std::string(prefix) + ": " + std::string(value);
+}
+
+std::string formatDimensions(std::uint32_t width, std::uint32_t height)
+{
+    return std::format("{} x {}", width, height);
+}
+
+std::string formatEntries(std::size_t count)
+{
+    return std::format("{} entries", count);
+}
+
+std::string formatVersion(std::string_view version)
+{
+    return "Version " + std::string(version);
 }
 
 std::string formatUnavailable(std::string_view detail)

@@ -143,22 +143,22 @@ void drawWelcomeBanner()
 {
     if (timestamp <= 0)
     {
-        return std::string(prefix) + ": unknown";
+        return strings::formatTimestamp(prefix, strings::unknown());
     }
 
     const std::time_t time = static_cast<std::time_t>(timestamp);
     std::tm localTime{};
     if (localtime_r(&time, &localTime) == nullptr)
     {
-        return std::string(prefix) + ": unknown";
+        return strings::formatTimestamp(prefix, strings::unknown());
     }
 
     std::array<char, timestampBufferSize> formatted{};
     if (std::strftime(formatted.data(), formatted.size(), "%Y-%m-%d %H:%M", &localTime) == 0U)
     {
-        return std::string(prefix) + ": unknown";
+        return strings::formatTimestamp(prefix, strings::unknown());
     }
-    return std::string(prefix) + ": " + std::string(formatted.data());
+    return strings::formatTimestamp(prefix, formatted.data());
 }
 
 [[nodiscard]] std::string dimensionsLabel(const RecentFile & recent)
@@ -168,7 +168,7 @@ void drawWelcomeBanner()
         return strings::dimensionsUnknown();
     }
 
-    return std::to_string(recent.dimensions->widthTiles) + " x " + std::to_string(recent.dimensions->heightTiles);
+    return strings::formatDimensions(recent.dimensions->widthTiles, recent.dimensions->heightTiles);
 }
 
 [[nodiscard]] std::string mapLabel(const RecentFile & recent)
@@ -196,7 +196,7 @@ void drawWelcomeBanner()
     }
     if (recent.itemCount > 0U)
     {
-        return std::to_string(recent.itemCount) + " entries";
+        return strings::formatEntries(recent.itemCount);
     }
     return {};
 }
@@ -438,7 +438,8 @@ void drawWelcomeView(WorkbenchState & state)
         static_cast<unsigned int>(ImGuiWindowFlags_NoScrollWithMouse) |
         static_cast<unsigned int>(ImGuiWindowFlags_NoSavedSettings));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
-    if (!ImGui::Begin("Welcome###welcome.map", nullptr, welcomeWindowFlags))
+    const std::string windowTitle = std::string(strings::welcome()) + "###welcome.map";
+    if (!ImGui::Begin(windowTitle.c_str(), nullptr, welcomeWindowFlags))
     {
         ImGui::End();
         ImGui::PopStyleVar();
@@ -504,10 +505,8 @@ void drawWelcomeView(WorkbenchState & state)
                                             ImVec2(separatorStart.x, separatorStart.y + separatorHeight),
                                             theme::packedOpaqueColor(theme::border));
         ImGui::SameLine();
-        ImGui::TextColored(theme::imguiColor(theme::mauve),
-                           "Version %.*s",
-                           static_cast<int>(core::applicationVersion().size()),
-                           core::applicationVersion().data());
+        const std::string versionLabel = strings::formatVersion(core::applicationVersion());
+        ImGui::TextColored(theme::imguiColor(theme::mauve), "%s", versionLabel.c_str());
         ImGui::EndTable();
     }
 
