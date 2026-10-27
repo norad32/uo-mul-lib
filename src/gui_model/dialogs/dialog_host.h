@@ -7,9 +7,15 @@
 namespace uo_mule::gui
 {
 
+struct ActiveDialog
+{
+    DialogId id = DialogId::none;
+    std::uint64_t generation = 0;
+};
+
 struct DialogHostState
 {
-    std::optional<DialogRequest> active;
+    std::optional<ActiveDialog> active;
     std::optional<DialogResult> result;
 
     [[nodiscard]] bool request(DialogRequest request);

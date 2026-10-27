@@ -12,20 +12,18 @@ bool DialogHostState::request(DialogRequest request)
     {
         return false;
     }
-    activate(std::move(request));
+    activate(request);
     return true;
 }
 
 void DialogHostState::activate(DialogRequest request)
 {
-    request.popupId = dialogPopupId(request.id);
     if (active && active->id == request.id)
     {
-        active->replaceActive = request.replaceActive;
         return;
     }
     request.generation = nextGeneration++;
-    active = std::move(request);
+    active = ActiveDialog{.id = request.id, .generation = request.generation};
     result.reset();
 }
 

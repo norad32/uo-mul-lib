@@ -23,7 +23,7 @@ const char * dialogPopupId(DialogId id) noexcept
 
 DialogRequest makeDialogRequest(DialogId id)
 {
-    return {.id = id, .popupId = dialogPopupId(id), .replaceActive = false, .generation = 0};
+    return {.id = id, .replaceActive = false, .generation = 0};
 }
 
 } // namespace uo_mule::gui

@@ -121,7 +121,6 @@ enum class DialogAction : std::uint8_t
 struct DialogRequest
 {
     DialogId id = DialogId::none;
-    std::string popupId;
     bool replaceActive = false;
     std::uint64_t generation = 0;
 };

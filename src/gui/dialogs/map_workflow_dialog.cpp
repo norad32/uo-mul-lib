@@ -1044,7 +1044,7 @@ void requestMapDialog(NewFileDialogState & state, MapFileDialogMode mode)
 
     auto request = makeDialogRequest(DialogId::mapWorkflow);
     request.replaceActive = true;
-    static_cast<void>(state.dialogHost->request(std::move(request)));
+    static_cast<void>(state.dialogHost->request(request));
 }
 
 void returnToFileBrowser(NewFileDialogState & state, FileBrowserState & browser)

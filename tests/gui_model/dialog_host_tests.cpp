@@ -3,7 +3,9 @@
 #include "gui_model/profile/data_profile.h"
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
+#include <string_view>
 
+using uo_mule::gui::ActiveDialog;
 using uo_mule::gui::DataFileRole;
 using uo_mule::gui::DialogAction;
 using uo_mule::gui::DialogHostState;
@@ -17,8 +19,8 @@ TEST_CASE("dialogContracts_Should_KeepStablePopupIdsSeparateFromDialogKinds")
     const auto request = makeDialogRequest(DialogId::preferences);
 
     REQUIRE(request.id == DialogId::preferences);
-    REQUIRE(request.popupId == "###dialog.preferences");
-    REQUIRE(request.popupId != "Preferences");
+    REQUIRE(std::string_view(uo_mule::gui::dialogPopupId(request.id)) == "###dialog.preferences");
+    REQUIRE(std::string_view(uo_mule::gui::dialogPopupId(request.id)) != "Preferences");
 }
 
 TEST_CASE("dialogHost_Should_RejectReplacementWithoutExplicitPermission")
@@ -36,7 +38,7 @@ TEST_CASE("dialogHost_Should_ReplaceAndDeliverTypedResult")
     auto replacement = makeDialogRequest(DialogId::fileBrowser);
     replacement.replaceActive = true;
     REQUIRE(host.request(replacement));
-    const auto generation = host.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto generation = host.active.value_or(ActiveDialog{}).generation;
     REQUIRE(host.complete({.id = DialogId::fileBrowser,
                            .action = DialogAction::accept,
                            .payload = FileBrowserResult{.path = "selected.mul",
@@ -67,7 +69,7 @@ TEST_CASE("dialogHost_Should_RejectResultFromReplacedWorkflow")
 {
     DialogHostState host;
     host.activate(makeDialogRequest(DialogId::preferences));
-    const auto staleGeneration = host.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto staleGeneration = host.active.value_or(ActiveDialog{}).generation;
 
     auto replacement = makeDialogRequest(DialogId::fileBrowser);
     replacement.replaceActive = true;
@@ -83,7 +85,7 @@ TEST_CASE("dialogHost_Should_RejectStaleResultForTheActiveDialog")
 {
     DialogHostState host;
     REQUIRE(host.request(makeDialogRequest(DialogId::fileBrowser)));
-    const auto generation = host.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto generation = host.active.value_or(ActiveDialog{}).generation;
 
     REQUIRE_FALSE(host.complete(
         {.id = DialogId::fileBrowser, .action = DialogAction::accept, .payload = {}, .generation = generation - 1U}));
@@ -95,7 +97,7 @@ TEST_CASE("dialogHost_Should_PublishTypedFileBrowserAcceptance")
 {
     DialogHostState host;
     REQUIRE(host.request(makeDialogRequest(DialogId::fileBrowser)));
-    const auto generation = host.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto generation = host.active.value_or(ActiveDialog{}).generation;
     const FileBrowserResult selected{
         .target = FileBrowserTarget::openMap,
         .role = DataFileRole::radarcol,

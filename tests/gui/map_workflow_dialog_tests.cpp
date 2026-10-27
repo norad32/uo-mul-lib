@@ -35,11 +35,11 @@ constexpr int firstFacetIndex = 1;
 
 } // namespace
 
+using uo_mule::gui::ActiveDialog;
 using uo_mule::gui::applyFileBrowserResult;
 using uo_mule::gui::cancelFileDialog;
 using uo_mule::gui::copyToBuffer;
 using uo_mule::gui::DialogId;
-using uo_mule::gui::DialogRequest;
 using uo_mule::gui::drawNewFileDialog;
 using uo_mule::gui::FileBrowserMapCandidate;
 using uo_mule::gui::FileBrowserState;
@@ -208,7 +208,7 @@ TEST_CASE("mapWorkflowDialog_Should_CancelFailedSaveAsAndAllowRetry")
     copyToBuffer(dialog.savePath, "retry-map.mul");
     requestMapDialog(dialog, MapFileDialogMode::saveAs);
     REQUIRE(state.dialogHost.active.has_value());
-    const auto firstGeneration = state.dialogHost.active.value_or(DialogRequest{}).generation;
+    const auto firstGeneration = state.dialogHost.active.value_or(ActiveDialog{}).generation;
 
     OperationRequest request{
         .kind = OperationKind::saveAs,
@@ -233,7 +233,7 @@ TEST_CASE("mapWorkflowDialog_Should_CancelFailedSaveAsAndAllowRetry")
 
     requestMapDialog(dialog, MapFileDialogMode::saveAs);
     REQUIRE(state.dialogHost.active.has_value());
-    REQUIRE(state.dialogHost.active.value_or(DialogRequest{}).generation > firstGeneration);
+    REQUIRE(state.dialogHost.active.value_or(ActiveDialog{}).generation > firstGeneration);
     REQUIRE(state.operationController.begin(request, false, false, OutputCollisionPolicy::confirm).kind ==
             uo_mule::gui::OperationTransitionKind::showSaveDialog);
     REQUIRE(state.operationController.completeSave(true).kind == uo_mule::gui::OperationTransitionKind::execute);

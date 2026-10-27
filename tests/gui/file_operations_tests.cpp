@@ -7,6 +7,7 @@
 #include "gui/workbench/workbench_state.h"
 #include "gui/workflows/file_workflow.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/dialogs/dialog_host.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/data_providers.h"
@@ -22,11 +23,11 @@
 #include <tuple>
 #include <utility>
 
+using uo_mule::gui::ActiveDialog;
 using uo_mule::gui::completeDialogResult;
 using uo_mule::gui::DataFileRole;
 using uo_mule::gui::DialogAction;
 using uo_mule::gui::DialogId;
-using uo_mule::gui::DialogRequest;
 using uo_mule::gui::DocumentKind;
 using uo_mule::gui::FileBrowserAssetCandidate;
 using uo_mule::gui::FileBrowserMode;
@@ -94,7 +95,7 @@ void verifyCreatedAssetWorkflow(const TemporaryDirectory & directory,
                                          .extension = ".mul",
                                          .title = "Create",
                                      });
-    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const uo_mule::gui::FileBrowserResult result{
         .target = target,
         .path = path,
@@ -133,7 +134,7 @@ void verifyStandaloneCollision(FileBrowserTarget target,
                            .extension = ".mul",
                            .title = "Create",
                        });
-    const auto generation = state.dialogHost.active.value_or(DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const FileBrowserResult result{
         .target = target,
         .path = output,
@@ -208,7 +209,7 @@ TEST_CASE("dialogWorkflow_Should_RouteMapBrowserResultThroughHost")
                                          .extension = ".mul",
                                          .title = "Open Map",
                                      });
-    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const uo_mule::gui::FileBrowserResult result{
         .target = uo_mule::gui::FileBrowserTarget::openMap,
         .path = "map0.mul",
@@ -247,7 +248,7 @@ TEST_CASE("dialogWorkflow_Should_ReturnToTypeSelectorAfterCompanionValidation")
         .assetCandidate = std::nullopt,
     };
     uo_mule::gui::openFileSelector(state.fileSelector, origin);
-    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
 
     REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
                                                      {.id = uo_mule::gui::DialogId::fileSelector,
@@ -258,7 +259,7 @@ TEST_CASE("dialogWorkflow_Should_ReturnToTypeSelectorAfterCompanionValidation")
     REQUIRE(state.dialogHost.owns(uo_mule::gui::DialogId::fileBrowser));
     REQUIRE(state.fileBrowser.request.target == uo_mule::gui::FileBrowserTarget::chooseTexmapsCompanion);
 
-    const auto companionGeneration = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto companionGeneration = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const uo_mule::gui::FileBrowserResult companionResult{
         .target = uo_mule::gui::FileBrowserTarget::chooseTexmapsCompanion,
         .path = dataPath,
@@ -292,7 +293,7 @@ TEST_CASE("dialogWorkflow_Should_ShowTypeSelectorForUnconfidentSingleCandidate")
                            .extension = ".mul",
                            .title = "Open MUL File",
                        });
-    const auto generation = state.dialogHost.active.value_or(DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const FileBrowserResult result{
         .target = FileBrowserTarget::openGeneric,
         .path = "unknown.mul",
@@ -338,7 +339,7 @@ TEST_CASE("dialogWorkflow_Should_ApplyPreferenceFileBrowserResultAndReactivatePr
                                          .extension = {},
                                          .title = "Search Metadata",
                                      });
-    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const auto root = std::filesystem::temp_directory_path() / "metadata-root";
     const uo_mule::gui::FileBrowserResult result{
         .target = uo_mule::gui::FileBrowserTarget::chooseDataSearchRoot,
@@ -370,7 +371,7 @@ TEST_CASE("dialogWorkflow_Should_CancelFileBrowserThroughHost")
                                          .extension = ".mul",
                                          .title = "Open MUL File",
                                      });
-    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
 
     REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
                                                      {.id = uo_mule::gui::DialogId::fileBrowser,
@@ -393,7 +394,7 @@ TEST_CASE("dialogWorkflow_Should_RejectStaleResultAfterDialogReplacement")
                                          .extension = ".mul",
                                          .title = "Open MUL File",
                                      });
-    const auto staleGeneration = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto staleGeneration = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     uo_mule::gui::requestMapDialog(state.menuBarState.fileDialog, uo_mule::gui::MapFileDialogMode::newType);
 
     REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
@@ -567,7 +568,7 @@ TEST_CASE("genericOpenWorkflow_Should_ReportUnsupportedResult")
                                          .extension = ".mul",
                                          .title = "Open",
                                      });
-    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const uo_mule::gui::FileBrowserResult result{
         .target = uo_mule::gui::FileBrowserTarget::openGeneric,
         .path = path,
@@ -602,7 +603,7 @@ TEST_CASE("genericOpenWorkflow_Should_DeferOpenableStandaloneAsset")
                            .extension = ".mul",
                            .title = "Open",
                        });
-    const auto generation = state.dialogHost.active.value_or(DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const FileBrowserAssetCandidate candidate{
         .kind = MulAssetKind::radarcol,
         .path = path,
@@ -652,7 +653,7 @@ TEST_CASE("genericOpenWorkflow_Should_DisplayTexmapsDataFileInDocumentTab")
                            .extension = ".mul",
                            .title = "Open",
                        });
-    const auto generation = state.dialogHost.active.value_or(DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const FileBrowserAssetCandidate candidate{
         .kind = MulAssetKind::texmapsSet,
         .path = indexPath,
@@ -696,7 +697,7 @@ TEST_CASE("genericOpenWorkflow_Should_RouteMapSetupCandidateToMapWorkflow")
                            .extension = ".mul",
                            .title = "Open",
                        });
-    const auto generation = state.dialogHost.active.value_or(DialogRequest{}).generation;
+    const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
     const FileBrowserAssetCandidate mapCandidate{
         .kind = MulAssetKind::map,
         .path = path,
@@ -747,7 +748,7 @@ TEST_CASE("imageWorkflow_Should_DeferEachRegisteredCallback")
         requestFileBrowser(
             state.fileBrowser,
             {.mode = FileBrowserMode::openFile, .target = target, .initialPath = path, .extension = {}, .title = "Choose"});
-        const auto generation = state.dialogHost.active.value_or(DialogRequest{}).generation;
+        const auto generation = state.dialogHost.active.value_or(ActiveDialog{}).generation;
         const FileBrowserResult result{
             .target = target,
             .path = path,

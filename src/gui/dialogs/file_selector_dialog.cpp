@@ -110,7 +110,7 @@ void activateFileSelector(const FileSelectorState & state)
     }
     auto request = makeDialogRequest(DialogId::fileSelector);
     request.replaceActive = true;
-    static_cast<void>(state.dialogHost->request(std::move(request)));
+    static_cast<void>(state.dialogHost->request(request));
 }
 
 FileBrowserResult selectedFileSelectorResult(const FileSelectorState & state)

@@ -424,7 +424,7 @@ void activatePreferencesDialog(const PreferencesDialogState & state)
     }
     auto request = makeDialogRequest(DialogId::preferences);
     request.replaceActive = true;
-    static_cast<void>(state.dialogHost->request(std::move(request)));
+    static_cast<void>(state.dialogHost->request(request));
 }
 
 void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserResult & result)
