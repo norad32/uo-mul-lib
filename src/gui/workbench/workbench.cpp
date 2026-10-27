@@ -2272,13 +2272,15 @@ void drawPreferencesPersistenceFailure(WorkbenchState & state)
     }
 
     ImGui::TextWrapped("%s", state.preferencesPersistenceError.c_str());
-    if (ImGui::Button("Retry##preferences-persistence"))
+    const std::string retryLabel = std::string(strings::retry()) + "##preferences-persistence";
+    if (ImGui::Button(retryLabel.c_str()))
     {
         state.preferencesPersistenceRetryRequested = true;
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Cancel##preferences-persistence"))
+    const std::string cancelLabel = std::string(strings::cancel()) + "##preferences-persistence";
+    if (ImGui::Button(cancelLabel.c_str()))
     {
         state.preferencesPersistenceSuppressed = true;
         state.preferencesPersistenceSuppressedFor = state.preferences;

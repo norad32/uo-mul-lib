@@ -29,6 +29,9 @@ namespace
 {
 
 constexpr float pathInputWidth = 480.0F;
+constexpr const char * preferencesDialogTitle = "Preferences###dialog.preferences";
+constexpr const char * preferencesDialogSubheading = "Configure your data profile and application settings";
+constexpr const char * chooseMetadataFolder = "Open##MetadataSearch";
 
 [[nodiscard]] std::filesystem::path bufferPath(const std::array<char, preferencesDialogBufferSize> & buffer)
 {
@@ -114,7 +117,8 @@ void drawProfilePersistenceFailure(PreferencesDialogState & state)
     }
 
     ImGui::TextColored(theme::imguiColor(theme::error), "%s", state.profilePersistenceError->c_str());
-    if (ImGui::Button("Retry##profile-persistence"))
+    const std::string retryLabel = std::string(strings::retry()) + "##profile-persistence";
+    if (ImGui::Button(retryLabel.c_str()))
     {
         state.profilePersistenceRetryRequested = true;
         if (state.profilePersistenceOperation == ProfilePersistenceOperation::save)
@@ -133,7 +137,8 @@ void drawProfilePersistenceFailure(PreferencesDialogState & state)
         state.profilePersistenceError.reset();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Cancel##profile-persistence"))
+    const std::string cancelLabel = std::string(strings::cancel()) + "##profile-persistence";
+    if (ImGui::Button(cancelLabel.c_str()))
     {
         state.profileSaveRequested = false;
         state.profileDeleteRequested.reset();
@@ -210,7 +215,7 @@ void drawProfileSection(PreferencesDialogState & state)
         state.profileListRefreshRequested = true;
     }
 
-    if (ImGui::Button(iconLabel(IconId::save, strings::saveProfile()).c_str()))
+    if (ImGui::Button(iconLabel(IconId::save, strings::save()).c_str()))
     {
         requestProfileSave(state);
     }
@@ -292,10 +297,9 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
 
     const auto * validation = state.validation.find(role);
     const DataFileStatus status = validation == nullptr ? DataFileStatus::missing : validation->status;
-    const DataFileStatus displayStatus = status == DataFileStatus::overridden ? DataFileStatus::found : status;
-    const theme::Color statusColor = [displayStatus]
+    const theme::Color statusColor = [status]
     {
-        switch (displayStatus)
+        switch (status)
         {
             case DataFileStatus::foundAndValidated :
                 return theme::success;
@@ -305,16 +309,11 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
                 return theme::error;
             case DataFileStatus::missing :
             case DataFileStatus::ambiguous :
-            case DataFileStatus::unsupported :
                 return theme::warning;
-            case DataFileStatus::optional :
-                return theme::mutedText;
-            case DataFileStatus::overridden :
-                return theme::info;
         }
         return theme::mutedText;
     }();
-    const std::string statusLabel(strings::dataFileStatusLabel(displayStatus));
+    const std::string statusLabel(strings::dataFileStatusLabel(status));
     ImGui::TextColored(theme::imguiColor(statusColor), "%s", statusLabel.c_str());
     ImGui::PopID();
 }
@@ -328,7 +327,7 @@ void drawMetadataSection(PreferencesDialogState & state)
     }
 
     dialogFieldLabel(strings::searchFolder());
-    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, strings::chooseFolder()).c_str()) && state.browser != nullptr)
+    if (ImGui::Button(iconLabel(IconId::fileBrowserDialog, chooseMetadataFolder).c_str()) && state.browser != nullptr)
     {
         requestFileBrowser(*state.browser,
                            {
@@ -455,7 +454,7 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
         {
             state.dialogHost->cancel();
         }
-        const std::string title = iconLabel(IconId::preferences, strings::preferencesDialogTitle());
+        const std::string title = iconLabel(IconId::preferences, preferencesDialogTitle);
         if (beginDialog(title.c_str(), nullptr, largeDialogSpec(), ImGuiWindowFlags_NoResize, ImGuiCond_Always))
         {
             ImGui::CloseCurrentPopup();
@@ -471,7 +470,7 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
     }
 
     state.browser = &browser;
-    const std::string title = iconLabel(IconId::preferences, strings::preferencesDialogTitle());
+    const std::string title = iconLabel(IconId::preferences, preferencesDialogTitle);
     if (!beginDialog(title.c_str(), &state.visible, largeDialogSpec(), ImGuiWindowFlags_NoResize, ImGuiCond_Always))
     {
         if (!state.visible)
@@ -481,7 +480,7 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
         return std::nullopt;
     }
 
-    dialogSubheading(strings::preferencesDialogSubheading());
+    dialogSubheading(preferencesDialogSubheading);
     drawProfileSection(state);
     drawSettingsSection(state);
     drawMetadataSection(state);

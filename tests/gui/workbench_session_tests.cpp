@@ -75,16 +75,16 @@ TEST_CASE("profileReadiness_Should_ReportRadarcolConfigurationWithoutBlockingFal
     createValidRadarcol(directory.path() / "radarcol.mul");
 
     const uo_mule::gui::DataProfile empty;
-    REQUIRE(uo_mule::gui::profileReadiness(empty) == uo_mule::gui::ProfileReadinessState::needsProfile);
+    REQUIRE(uo_mule::gui::profileReadiness(empty) == uo_mule::gui::ProfileReadinessState::noProfile);
     REQUIRE(uo_mule::gui::mapReady(empty));
 
     const auto incomplete = validProfile(directory.path());
     std::filesystem::remove(directory.path() / "radarcol.mul");
-    REQUIRE(uo_mule::gui::profileReadiness(incomplete) == uo_mule::gui::ProfileReadinessState::profileIncomplete);
+    REQUIRE(uo_mule::gui::profileReadiness(incomplete) == uo_mule::gui::ProfileReadinessState::incomplete);
     REQUIRE(uo_mule::gui::mapReady(incomplete));
 
     createValidRadarcol(directory.path() / "radarcol.mul");
-    REQUIRE(uo_mule::gui::profileReadiness(incomplete) == uo_mule::gui::ProfileReadinessState::ready);
+    REQUIRE(uo_mule::gui::profileReadiness(incomplete) == uo_mule::gui::ProfileReadinessState::complete);
 }
 
 TEST_CASE("workbenchSession_Should_TransitionFromProfileSetupToWelcome")
@@ -113,9 +113,9 @@ TEST_CASE("workbenchSession_Should_ShowWelcomeAfterInvalidProfileWithoutBlocking
 {
     uo_mule::gui::WorkbenchSession session;
 
-    session.markProfileInvalid();
+    session.markProfileIncomplete();
 
-    REQUIRE(session.profileState() == uo_mule::gui::ProfileReadinessState::profileInvalid);
+    REQUIRE(session.profileState() == uo_mule::gui::ProfileReadinessState::incomplete);
     REQUIRE(session.mapReady());
     REQUIRE(session.startupState() == uo_mule::gui::StartupState::mapWelcome);
 }

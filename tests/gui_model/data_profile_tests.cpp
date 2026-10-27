@@ -242,7 +242,7 @@ TEST_CASE("DataProfileValidation_Should_RejectEmptyProfile")
     REQUIRE(validation.diagnostics.front().severity == uo_mule::gui::Diagnostic::Severity::error);
 }
 
-TEST_CASE("DataProfileValidation_Should_PreserveExplicitOverrideStatus")
+TEST_CASE("DataProfileValidation_Should_ValidateExplicitOverrides")
 {
     const TemporaryProfileDirectory directory;
     const auto source = directory.path() / "source";
@@ -261,7 +261,7 @@ TEST_CASE("DataProfileValidation_Should_PreserveExplicitOverrideStatus")
     };
 
     const auto validation = uo_mule::gui::validateDataProfile(profile);
-    REQUIRE(validation.find(uo_mule::gui::DataFileRole::radarcol)->status == uo_mule::gui::DataFileStatus::overridden);
+    REQUIRE(validation.find(uo_mule::gui::DataFileRole::radarcol)->status == uo_mule::gui::DataFileStatus::foundAndValidated);
 }
 
 TEST_CASE("DataDiscovery_Should_FindRootAndKnownChildFilesCaseInsensitively")

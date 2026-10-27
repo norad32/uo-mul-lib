@@ -16,12 +16,11 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * open() noexcept;
 [[nodiscard]] const char * ok() noexcept;
 [[nodiscard]] const char * cancel() noexcept;
+[[nodiscard]] const char * retry() noexcept;
 [[nodiscard]] const char * save() noexcept;
+[[nodiscard]] const char * saveAs() noexcept;
 [[nodiscard]] const char * discard() noexcept;
-[[nodiscard]] const char * apply() noexcept;
-[[nodiscard]] const char * applyAndUse() noexcept;
-[[nodiscard]] const char * close() noexcept;
-[[nodiscard]] const char * load() noexcept;
+[[nodiscard]] const char * overwrite() noexcept;
 [[nodiscard]] const char * filter() noexcept;
 [[nodiscard]] const char * loading() noexcept;
 [[nodiscard]] const char * noItems() noexcept;
@@ -30,8 +29,6 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * assetViewUnavailable() noexcept;
 [[nodiscard]] const char * grid() noexcept;
 [[nodiscard]] const char * table() noexcept;
-[[nodiscard]] const char * item() noexcept;
-[[nodiscard]] const char * details() noexcept;
 [[nodiscard]] const char * hideEmpty() noexcept;
 [[nodiscard]] const char * dimensions() noexcept;
 [[nodiscard]] const char * facet() noexcept;
@@ -48,22 +45,14 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * name() noexcept;
 [[nodiscard]] const char * openProfile() noexcept;
 [[nodiscard]] const char * none() noexcept;
-[[nodiscard]] const char * newProfile() noexcept;
-[[nodiscard]] const char * saveProfile() noexcept;
 [[nodiscard]] const char * deleteProfile() noexcept;
-[[nodiscard]] const char * status() noexcept;
-[[nodiscard]] const char * missing() noexcept;
 [[nodiscard]] const char * searchFolder() noexcept;
-[[nodiscard]] const char * chooseFolder() noexcept;
 [[nodiscard]] const char * searchMetadataFolder() noexcept;
 [[nodiscard]] const char * showWelcomeScreen() noexcept;
 [[nodiscard]] const char * decimal() noexcept;
 [[nodiscard]] const char * mapViewTiles() noexcept;
 [[nodiscard]] const char * texturesRadarcolFallback() noexcept;
-[[nodiscard]] const char * preferencesDialogTitle() noexcept;
-[[nodiscard]] const char * preferencesDialogSubheading() noexcept;
 [[nodiscard]] const char * welcome() noexcept;
-[[nodiscard]] const char * artworkBanner() noexcept;
 [[nodiscard]] const char * recentFiles() noexcept;
 [[nodiscard]] const char * noFilesOpened() noexcept;
 [[nodiscard]] const char * openFileToAdd() noexcept;
@@ -96,8 +85,6 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * configurePreferencesWindow() noexcept;
 [[nodiscard]] const char * configurePreferencesLabel() noexcept;
 [[nodiscard]] const char * formatLabel() noexcept;
-[[nodiscard]] const char * pickSource() noexcept;
-[[nodiscard]] const char * tiledataName() noexcept;
 [[nodiscard]] const char * goToCoordinate() noexcept;
 [[nodiscard]] const char * goToBlock() noexcept;
 [[nodiscard]] const char * openEllipsis() noexcept;
@@ -165,7 +152,6 @@ namespace uo_mule::gui::strings
 [[nodiscard]] std::string formatDimensions(std::uint32_t width, std::uint32_t height);
 [[nodiscard]] std::string formatEntries(std::size_t count);
 [[nodiscard]] std::string formatVersion(std::string_view version);
-[[nodiscard]] std::string formatUnavailable(std::string_view detail);
 [[nodiscard]] std::string formatFontScale(bool iconFontAvailable, double scaleX, double scaleY);
 [[nodiscard]] std::string formatTile(std::uint32_t x, std::uint32_t y);
 [[nodiscard]] std::string formatBlock(std::uint32_t x, std::uint32_t y);
@@ -187,7 +173,6 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * tiles() noexcept;
 [[nodiscard]] const char * blocks() noexcept;
 [[nodiscard]] const char * tiledataNamesUnavailable() noexcept;
-[[nodiscard]] const char * metadata() noexcept;
 [[nodiscard]] const char * noProfile() noexcept;
 [[nodiscard]] const char * configured() noexcept;
 [[nodiscard]] const char * incomplete() noexcept;
@@ -197,14 +182,8 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * fileMenu() noexcept;
 [[nodiscard]] const char * viewMenu() noexcept;
 [[nodiscard]] const char * editMenu() noexcept;
-[[nodiscard]] const char * mapMenu() noexcept;
-[[nodiscard]] const char * dataMenu() noexcept;
 [[nodiscard]] const char * preferences() noexcept;
-[[nodiscard]] const char * mapCanvas() noexcept;
-[[nodiscard]] const char * tileInspector() noexcept;
-[[nodiscard]] const char * blockInspector() noexcept;
 [[nodiscard]] const char * radarcol() noexcept;
-[[nodiscard]] const char * texmaps() noexcept;
 [[nodiscard]] const char * radarcolFallbackTitle() noexcept;
 [[nodiscard]] const char * radarcolFallbackMessage() noexcept;
 [[nodiscard]] const char * radarcolFallbackQuestion() noexcept;
@@ -214,7 +193,6 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * closeWithoutSaving() noexcept;
 [[nodiscard]] const char * windowsMenu() noexcept;
 [[nodiscard]] const char * selectMenu() noexcept;
-[[nodiscard]] const char * toolsMenu() noexcept;
 [[nodiscard]] const char * worldMenu() noexcept;
 [[nodiscard]] const char * noMapOpen() noexcept;
 [[nodiscard]] const char * noTileUnderPointerOrSelected() noexcept;
@@ -245,7 +223,6 @@ namespace uo_mule::gui::strings
 [[nodiscard]] std::string_view providerSourceName(ProviderSourceKind source) noexcept;
 [[nodiscard]] std::string_view profileReadinessName(ProfileReadinessState state) noexcept;
 [[nodiscard]] std::string_view dataFileLabel(DataFileRole role) noexcept;
-[[nodiscard]] std::string_view dataFilePurpose(DataFileRole role) noexcept;
 [[nodiscard]] std::string_view dataFileName(DataFileRole role) noexcept;
 [[nodiscard]] std::string_view dataFileStatusLabel(DataFileStatus status) noexcept;
 
@@ -258,6 +235,5 @@ namespace uo_mule::gui::strings
 [[nodiscard]] std::string formatSaveChangesPrompt(std::string_view filename);
 [[nodiscard]] const char * discardChangesWarning() noexcept;
 [[nodiscard]] std::string formatId(std::uint32_t id, IdFormat format);
-[[nodiscard]] const char * idInputFormat(IdFormat format) noexcept;
 
 } // namespace uo_mule::gui::strings

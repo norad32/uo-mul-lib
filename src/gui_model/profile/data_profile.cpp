@@ -68,12 +68,6 @@ std::string_view dataFileStatusName(DataFileStatus status) noexcept
             return "ambiguous";
         case DataFileStatus::invalid :
             return "invalid";
-        case DataFileStatus::overridden :
-            return "overridden";
-        case DataFileStatus::optional :
-            return "optional";
-        case DataFileStatus::unsupported :
-            return "unsupported";
     }
     return "unknown";
 }

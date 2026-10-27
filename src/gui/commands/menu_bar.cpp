@@ -199,7 +199,7 @@ void drawSelectMenu(WorkbenchState & state)
 
 void drawToolsMenu(WorkbenchState & state)
 {
-    if (!ImGui::BeginMenu(strings::toolsMenu()))
+    if (!ImGui::BeginMenu(strings::tools()))
     {
         return;
     }

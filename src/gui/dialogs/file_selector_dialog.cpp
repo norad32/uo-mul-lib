@@ -72,7 +72,7 @@ CandidateAction drawCandidate(FileSelectorState & state, std::size_t index)
     ImGui::Indent();
     ImGui::TextColored(candidate.openable ? theme::imguiColor(theme::success) : theme::imguiColor(theme::warning),
                        "%s",
-                       candidate.openable ? "Openable" : "Requires selection");
+                       candidate.openable ? strings::openable() : strings::requiresSelection());
     ImGui::Unindent();
     if (candidate.kind == MulAssetKind::texmapsSet && !candidate.openable && ImGui::SmallButton("Choose companion"))
     {

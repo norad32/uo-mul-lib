@@ -426,8 +426,8 @@ void drawOpenDialog(MapDocumentManager & mapDocument, NewFileDialogState & state
     {
         ImGui::TextColored(theme::imguiColor(theme::warning), "%s", strings::invalidDimensions());
     }
-    beginDialogFooter({"Open", "Cancel"});
-    if (dialogButton(iconLabel(IconId::folder, "Open").c_str(), state.openPath.front() != '\0' && validDimensions))
+    beginDialogFooter({strings::open(), strings::cancel()});
+    if (dialogButton(iconLabel(IconId::folder, strings::open()).c_str(), state.openPath.front() != '\0' && validDimensions))
     {
         const auto dimensions = resolveMapDimensions(state.openFacet, state.openWidth, state.openHeight);
         if (dimensions)
@@ -442,7 +442,7 @@ void drawOpenDialog(MapDocumentManager & mapDocument, NewFileDialogState & state
     }
 
     ImGui::SameLine();
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
+    if (dialogButton(iconLabel(IconId::cancel, strings::cancel()).c_str()))
     {
         state.operation = {};
         closeDialog(state);
@@ -706,8 +706,8 @@ void drawSaveAsDialog(MapDocumentManager & mapDocument, NewFileDialogState & sta
                            });
     }
 
-    beginDialogFooter({"Save", "Cancel"});
-    if (dialogButton(iconLabel(IconId::save, "Save").c_str(), state.savePath.front() != '\0'))
+    beginDialogFooter({strings::save(), strings::cancel()});
+    if (dialogButton(iconLabel(IconId::save, strings::save()).c_str(), state.savePath.front() != '\0'))
     {
         const std::filesystem::path path(state.savePath.data());
         deferWorkflow(state, [&mapDocument, &state, path] { requestSaveAs(mapDocument, state, path); });
@@ -716,7 +716,7 @@ void drawSaveAsDialog(MapDocumentManager & mapDocument, NewFileDialogState & sta
 
     ImGui::SameLine();
 
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
+    if (dialogButton(iconLabel(IconId::cancel, strings::cancel()).c_str()))
     {
         state.saveForPendingOperation = false;
         closeDialog(state);
@@ -728,8 +728,8 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
 {
     ImGui::TextWrapped("The current map has staged changes. Save, save as, discard, or cancel this operation?");
 
-    beginDialogFooter({"Save", "Save As...", "Discard", "Cancel"});
-    if (dialogButton(iconLabel(IconId::save, "Save").c_str()))
+    beginDialogFooter({strings::save(), strings::saveAs(), strings::discard(), strings::cancel()});
+    if (dialogButton(iconLabel(IconId::save, strings::save()).c_str()))
     {
         deferWorkflow(state, [&mapDocument, &state] { saveDirtyMap(mapDocument, state); });
         closeDialogPopup(state);
@@ -737,7 +737,7 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
 
     ImGui::SameLine();
 
-    if (dialogButton(iconLabel(IconId::save, "Save As...").c_str()))
+    if (dialogButton(iconLabel(IconId::save, strings::saveAs()).c_str()))
     {
         deferWorkflow(state,
                       [&state]
@@ -763,7 +763,7 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
 
     ImGui::SameLine();
 
-    if (dialogButton(iconLabel(IconId::cancel, "Discard").c_str()))
+    if (dialogButton(iconLabel(IconId::cancel, strings::discard()).c_str()))
     {
         deferWorkflow(state, [&mapDocument, &state] { discardMapChanges(mapDocument, state); });
         closeDialogPopup(state);
@@ -771,7 +771,7 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
 
     ImGui::SameLine();
 
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
+    if (dialogButton(iconLabel(IconId::cancel, strings::cancel()).c_str()))
     {
         deferWorkflow(state, [&state] { cancelControlledOperation(state); });
         state.operation = {};
@@ -839,8 +839,8 @@ void drawOverwriteDialog(MapDocumentManager & mapDocument, NewFileDialogState & 
     }
     ImGui::TextWrapped("The file already exists:\n%s\nReplace it?", path.string().c_str());
 
-    beginDialogFooter({"Overwrite", "Cancel"});
-    if (dialogButton(iconLabel(IconId::ok, "Overwrite").c_str()))
+    beginDialogFooter({strings::overwrite(), strings::cancel()});
+    if (dialogButton(iconLabel(IconId::ok, strings::overwrite()).c_str()))
     {
         if (state.overwriteKind == MapOverwriteKind::standaloneAsset)
         {
@@ -881,7 +881,7 @@ void drawOverwriteDialog(MapDocumentManager & mapDocument, NewFileDialogState & 
 
     ImGui::SameLine();
 
-    if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
+    if (dialogButton(iconLabel(IconId::cancel, strings::cancel()).c_str()))
     {
         if (state.overwriteKind == MapOverwriteKind::standaloneAsset)
         {
@@ -939,8 +939,8 @@ void drawMapFacetWorkflow(MapDocumentManager & mapDocument, NewFileDialogState &
 void drawErrorDialog(NewFileDialogState & state)
 {
     ImGui::TextColored(theme::imguiColor(theme::error), "%s", state.error.c_str());
-    beginDialogFooter({"OK"});
-    if (dialogButton(iconLabel(IconId::ok, "OK").c_str()))
+    beginDialogFooter({strings::ok()});
+    if (dialogButton(iconLabel(IconId::ok, strings::ok()).c_str()))
     {
         if (state.controller != nullptr && state.controller->request().kind == OperationKind::saveAs &&
             state.controller->phase() == OperationPhase::awaitingSave)

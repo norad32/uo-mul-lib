@@ -17,12 +17,6 @@ namespace uo_mule::gui
 namespace
 {
 
-[[nodiscard]] constexpr bool isSupportedDataFileRole(DataFileRole role) noexcept
-{
-    static_cast<void>(role);
-    return true;
-}
-
 void addDiagnostic(DataProfileValidation & result,
                    Diagnostic::Severity severity,
                    std::optional<DataFileRole> role,
@@ -60,7 +54,7 @@ void validateFileRole(const DataProfile & profile, DataProfileValidation & resul
     auto validation = makeValidation(role, path);
     if (path.empty())
     {
-        validation.status = isSupportedDataFileRole(role) ? DataFileStatus::missing : DataFileStatus::unsupported;
+        validation.status = DataFileStatus::missing;
         appendValidation(result, std::move(validation));
         return;
     }
@@ -90,15 +84,7 @@ void validateFileRole(const DataProfile & profile, DataProfileValidation & resul
         return;
     }
 
-    if (!isSupportedDataFileRole(role))
-    {
-        validation.status = DataFileStatus::unsupported;
-        appendValidation(result, std::move(validation));
-        addDiagnostic(result, Diagnostic::Severity::info, role, path, "recognized file is not consumed by the current GUI");
-        return;
-    }
-
-    validation.status = profile.files.at(role).userOverride ? DataFileStatus::overridden : DataFileStatus::found;
+    validation.status = DataFileStatus::found;
     appendValidation(result, std::move(validation));
 }
 
@@ -111,11 +97,10 @@ void validateKnownFiles(const DataProfile & profile, DataProfileValidation & res
     }
 }
 
-void validateRadarcol(const DataProfile & profile, DataProfileValidation & result)
+void validateRadarcol(DataProfileValidation & result)
 {
     auto * file = result.find(DataFileRole::radarcol);
-    if (file == nullptr || file->status == DataFileStatus::missing || file->status == DataFileStatus::unsupported ||
-        file->status == DataFileStatus::invalid)
+    if (file == nullptr || file->status == DataFileStatus::missing || file->status == DataFileStatus::invalid)
     {
         return;
     }
@@ -128,10 +113,7 @@ void validateRadarcol(const DataProfile & profile, DataProfileValidation & resul
         return;
     }
 
-    if (!profile.files.at(DataFileRole::radarcol).userOverride)
-    {
-        file->status = DataFileStatus::foundAndValidated;
-    }
+    file->status = DataFileStatus::foundAndValidated;
 }
 
 [[nodiscard]] bool isUnavailable(const DataFileValidation * file) noexcept
@@ -139,7 +121,7 @@ void validateRadarcol(const DataProfile & profile, DataProfileValidation & resul
     return file == nullptr || file->status == DataFileStatus::missing || file->status == DataFileStatus::invalid;
 }
 
-void validateTexmaps(const DataProfile & profile, DataProfileValidation & result)
+void validateTexmaps(DataProfileValidation & result)
 {
     auto * textureIndex = result.find(DataFileRole::texidx);
     auto * data = result.find(DataFileRole::texmaps);
@@ -161,14 +143,8 @@ void validateTexmaps(const DataProfile & profile, DataProfileValidation & result
             return;
         }
 
-        if (!profile.files.at(DataFileRole::texidx).userOverride)
-        {
-            textureIndex->status = DataFileStatus::foundAndValidated;
-        }
-        if (!profile.files.at(DataFileRole::texmaps).userOverride)
-        {
-            data->status = DataFileStatus::foundAndValidated;
-        }
+        textureIndex->status = DataFileStatus::foundAndValidated;
+        data->status = DataFileStatus::foundAndValidated;
         return;
     }
 
@@ -201,10 +177,7 @@ void validateTiledata(const DataProfile & profile, DataProfileValidation & resul
         return;
     }
 
-    if (!profile.files.at(DataFileRole::tiledata).userOverride)
-    {
-        file->status = DataFileStatus::foundAndValidated;
-    }
+    file->status = DataFileStatus::foundAndValidated;
 }
 
 } // namespace
@@ -243,8 +216,8 @@ DataProfileValidation validateDataProfile(const DataProfile & profile)
 {
     DataProfileValidation result;
     validateKnownFiles(profile, result);
-    validateRadarcol(profile, result);
-    validateTexmaps(profile, result);
+    validateRadarcol(result);
+    validateTexmaps(result);
     validateTiledata(profile, result);
     if (profile.sourceRoot.empty() && profile.files.empty())
     {

@@ -31,6 +31,7 @@ namespace
 {
 
 constexpr std::size_t fuzzyNameBufferSize = 128U;
+constexpr const char * tiledataNameLabel = "Tiledata name##fuzzy.name.enabled";
 
 [[nodiscard]] std::optional<IconId> toolIcon(ToolId tool)
 {
@@ -283,7 +284,7 @@ void drawFuzzyOptions(WorkbenchState & state)
     const bool tiledataAvailable = state.providers.tiledata().status().state == ProviderAssetState::available;
     ImGui::BeginDisabled(!tiledataAvailable);
     bool nameEnabled = options.nameEnabled;
-    if (ImGui::Checkbox(strings::tiledataName(), &nameEnabled))
+    if (ImGui::Checkbox(tiledataNameLabel, &nameEnabled))
     {
         state.toolState.setFuzzyNameEnabled(nameEnabled);
     }

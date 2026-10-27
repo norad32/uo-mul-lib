@@ -14,10 +14,9 @@ namespace uo_mule::gui
 
 enum class ProfileReadinessState : std::uint8_t
 {
-    needsProfile,
-    profileInvalid,
-    profileIncomplete,
-    ready,
+    noProfile,
+    incomplete,
+    complete,
 };
 
 enum class StartupState : std::uint8_t
@@ -37,7 +36,7 @@ public:
     explicit WorkbenchSession(std::filesystem::path recentPath);
 
     void updateProfile(const DataProfile & profile);
-    void markProfileInvalid() noexcept;
+    void markProfileIncomplete() noexcept;
     [[nodiscard]] ProfileReadinessState profileState() const noexcept;
     [[nodiscard]] bool mapReady() const noexcept;
 
@@ -73,7 +72,7 @@ public:
     [[nodiscard]] MapContextSnapshot contextSnapshot(const MapDocumentState & mapDocument) const;
 
 private:
-    ProfileReadinessState profileState_ = ProfileReadinessState::needsProfile;
+    ProfileReadinessState profileState_ = ProfileReadinessState::noProfile;
     StartupState startupState_ = StartupState::configureProfile;
     RecentFileStore recentFiles_;
     DocumentManager documents_;

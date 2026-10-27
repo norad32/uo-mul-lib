@@ -24,12 +24,8 @@ namespace
         case DataFileStatus::invalid :
         case DataFileStatus::ambiguous :
             return SourceValidationStatus::invalid;
-        case DataFileStatus::unsupported :
-            return SourceValidationStatus::unsupported;
         case DataFileStatus::found :
         case DataFileStatus::foundAndValidated :
-        case DataFileStatus::overridden :
-        case DataFileStatus::optional :
             return SourceValidationStatus::valid;
     }
     return SourceValidationStatus::invalid;
@@ -43,8 +39,6 @@ namespace
             return "file is not available";
         case DataFileStatus::invalid :
             return "file is invalid";
-        case DataFileStatus::unsupported :
-            return "file is unsupported";
         default :
             return {};
     }

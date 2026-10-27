@@ -489,7 +489,7 @@ int Application::run()
     }
     if (invalidProfileLoad)
     {
-        state.session.markProfileInvalid();
+        state.session.markProfileIncomplete();
     }
     state.startupLoaded = true;
     glfwSetWindowUserPointer(window.get(), &state);

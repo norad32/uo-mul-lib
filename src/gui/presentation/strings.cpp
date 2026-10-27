@@ -25,29 +25,25 @@ const char * cancel() noexcept
 {
     return "Cancel";
 }
+const char * retry() noexcept
+{
+    return "Retry";
+}
 const char * save() noexcept
 {
     return "Save";
+}
+const char * saveAs() noexcept
+{
+    return "Save As...";
 }
 const char * discard() noexcept
 {
     return "Discard";
 }
-const char * apply() noexcept
+const char * overwrite() noexcept
 {
-    return "Apply";
-}
-const char * applyAndUse() noexcept
-{
-    return "Apply and Use";
-}
-const char * close() noexcept
-{
-    return "Close";
-}
-const char * load() noexcept
-{
-    return "Load";
+    return "Overwrite";
 }
 const char * filter() noexcept
 {
@@ -80,14 +76,6 @@ const char * grid() noexcept
 const char * table() noexcept
 {
     return "Table";
-}
-const char * item() noexcept
-{
-    return "Item";
-}
-const char * details() noexcept
-{
-    return "Details";
 }
 const char * hideEmpty() noexcept
 {
@@ -154,33 +142,13 @@ const char * none() noexcept
 {
     return "None";
 }
-const char * newProfile() noexcept
-{
-    return "New";
-}
-const char * saveProfile() noexcept
-{
-    return "Save";
-}
 const char * deleteProfile() noexcept
 {
     return "Delete";
 }
-const char * status() noexcept
-{
-    return "Status";
-}
-const char * missing() noexcept
-{
-    return "Missing";
-}
 const char * searchFolder() noexcept
 {
     return "Search folder";
-}
-const char * chooseFolder() noexcept
-{
-    return "Open##MetadataSearch";
 }
 const char * searchMetadataFolder() noexcept
 {
@@ -202,21 +170,9 @@ const char * texturesRadarcolFallback() noexcept
 {
     return "Textures";
 }
-const char * preferencesDialogTitle() noexcept
-{
-    return "Preferences###dialog.preferences";
-}
-const char * preferencesDialogSubheading() noexcept
-{
-    return "Configure your data profile and application settings";
-}
 const char * welcome() noexcept
 {
     return "Welcome";
-}
-const char * artworkBanner() noexcept
-{
-    return "Artwork banner";
 }
 const char * recentFiles() noexcept
 {
@@ -330,14 +286,6 @@ const char * configurePreferencesWindow() noexcept
 const char * formatLabel() noexcept
 {
     return "Format";
-}
-const char * pickSource() noexcept
-{
-    return "Pick source##RadarcolPickSource";
-}
-const char * tiledataName() noexcept
-{
-    return "Tiledata name##fuzzy.name.enabled";
 }
 const char * goToCoordinate() noexcept
 {
@@ -618,11 +566,6 @@ std::string formatVersion(std::string_view version)
     return "Version " + std::string(version);
 }
 
-std::string formatUnavailable(std::string_view detail)
-{
-    return "Unavailable: " + std::string(detail);
-}
-
 std::string formatFontScale(bool iconFontAvailable, double scaleX, double scaleY)
 {
     return std::format(
@@ -729,11 +672,6 @@ const char * tiledataNamesUnavailable() noexcept
     return "Tiledata names unavailable.";
 }
 
-const char * metadata() noexcept
-{
-    return "Metadata";
-}
-
 const char * noProfile() noexcept
 {
     return "No profile";
@@ -771,39 +709,14 @@ const char * editMenu() noexcept
 {
     return "Edit";
 }
-const char * mapMenu() noexcept
-{
-    return "Map";
-}
-const char * dataMenu() noexcept
-{
-    return "Data";
-}
 const char * preferences() noexcept
 {
     return "Preferences";
-}
-const char * mapCanvas() noexcept
-{
-    return "Map Canvas";
-}
-const char * tileInspector() noexcept
-{
-    return "Tile Inspector";
-}
-const char * blockInspector() noexcept
-{
-    return "Block Inspector";
 }
 const char * radarcol() noexcept
 {
     return "Radarcol";
 }
-const char * texmaps() noexcept
-{
-    return "Texmaps";
-}
-
 const char * radarcolFallbackTitle() noexcept
 {
     return "Radarcol fallback";
@@ -847,11 +760,6 @@ const char * windowsMenu() noexcept
 const char * selectMenu() noexcept
 {
     return "Select";
-}
-
-const char * toolsMenu() noexcept
-{
-    return "Tools";
 }
 
 const char * worldMenu() noexcept
@@ -1004,13 +912,12 @@ std::string_view profileReadinessName(ProfileReadinessState state) noexcept
 {
     switch (state)
     {
-        case ProfileReadinessState::needsProfile :
+        case ProfileReadinessState::noProfile :
             return "No profile";
-        case ProfileReadinessState::profileInvalid :
-        case ProfileReadinessState::profileIncomplete :
-            return "Fallback active";
-        case ProfileReadinessState::ready :
-            return "Configured";
+        case ProfileReadinessState::incomplete :
+            return "Incomplete";
+        case ProfileReadinessState::complete :
+            return "Complete";
     }
     return unknown();
 }
@@ -1029,22 +936,6 @@ std::string_view dataFileLabel(DataFileRole role) noexcept
             return "Tile data";
     }
     return "Data";
-}
-
-std::string_view dataFilePurpose(DataFileRole role) noexcept
-{
-    switch (role)
-    {
-        case DataFileRole::radarcol :
-            return "Radar and minimap color data.";
-        case DataFileRole::texidx :
-            return "Texture index and offset data.";
-        case DataFileRole::texmaps :
-            return "Texture pixel data.";
-        case DataFileRole::tiledata :
-            return "Tile flags and tile metadata.";
-    }
-    return "UO metadata file.";
 }
 
 std::string_view dataFileName(DataFileRole role) noexcept
@@ -1077,12 +968,6 @@ std::string_view dataFileStatusLabel(DataFileStatus status) noexcept
             return "Ambiguous";
         case DataFileStatus::invalid :
             return "Invalid";
-        case DataFileStatus::overridden :
-            return "Override";
-        case DataFileStatus::optional :
-            return "Optional";
-        case DataFileStatus::unsupported :
-            return "Unsupported";
     }
     return unknown();
 }
@@ -1134,11 +1019,6 @@ std::string formatId(std::uint32_t id, IdFormat format)
         return std::to_string(id);
     }
     return std::format("0x{:04X}", id);
-}
-
-const char * idInputFormat(IdFormat format) noexcept
-{
-    return format == IdFormat::decimal ? "%d" : "0x%04X";
 }
 
 } // namespace uo_mule::gui::strings

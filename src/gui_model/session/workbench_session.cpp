@@ -36,32 +36,32 @@ ProfileReadinessState profileReadiness(const DataProfile & profile)
 {
     if (profile.name.empty() && profile.files.empty() && profile.sourceRoot.empty())
     {
-        return ProfileReadinessState::needsProfile;
+        return ProfileReadinessState::noProfile;
     }
 
     const auto validation = validateDataProfile(profile);
     const auto * radarcol = validation.find(DataFileRole::radarcol);
     if (radarcol == nullptr || radarcol->status == DataFileStatus::missing)
     {
-        return ProfileReadinessState::profileIncomplete;
+        return ProfileReadinessState::incomplete;
     }
     if (radarcol->status == DataFileStatus::invalid)
     {
         std::error_code error;
         if (radarcol->path.empty() || !std::filesystem::exists(radarcol->path, error))
         {
-            return ProfileReadinessState::profileIncomplete;
+            return ProfileReadinessState::incomplete;
         }
     }
     if (radarcol->status == DataFileStatus::invalid || radarcol->status == DataFileStatus::ambiguous)
     {
-        return ProfileReadinessState::profileInvalid;
+        return ProfileReadinessState::incomplete;
     }
-    if (radarcol->status == DataFileStatus::foundAndValidated || radarcol->status == DataFileStatus::overridden)
+    if (radarcol->status == DataFileStatus::found || radarcol->status == DataFileStatus::foundAndValidated)
     {
-        return ProfileReadinessState::ready;
+        return ProfileReadinessState::complete;
     }
-    return ProfileReadinessState::profileInvalid;
+    return ProfileReadinessState::incomplete;
 }
 
 bool mapReady(const DataProfile & profile)
@@ -111,9 +111,9 @@ std::optional<DocumentId> WorkbenchSession::lockedDocument(const DocumentSourceI
     return sourceLocks_.owner(identity);
 }
 
-void WorkbenchSession::markProfileInvalid() noexcept
+void WorkbenchSession::markProfileIncomplete() noexcept
 {
-    profileState_ = ProfileReadinessState::profileInvalid;
+    profileState_ = ProfileReadinessState::incomplete;
     // A broken profile must not prevent map use; providers will use embedded Radarcol data.
     startupState_ = StartupState::mapWelcome;
 }
@@ -127,10 +127,9 @@ bool WorkbenchSession::mapReady() const noexcept
 {
     switch (profileState_)
     {
-        case ProfileReadinessState::needsProfile :
-        case ProfileReadinessState::profileInvalid :
-        case ProfileReadinessState::profileIncomplete :
-        case ProfileReadinessState::ready :
+        case ProfileReadinessState::noProfile :
+        case ProfileReadinessState::incomplete :
+        case ProfileReadinessState::complete :
             return true;
     }
     return false;

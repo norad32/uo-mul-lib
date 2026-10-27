@@ -275,13 +275,12 @@ void applyRecentMapToOpenDialog(NewFileDialogState & dialog, const RecentFile & 
 
 [[nodiscard]] bool metadataFileConfigured(DataFileStatus status) noexcept
 {
-    return status == DataFileStatus::found || status == DataFileStatus::foundAndValidated ||
-           status == DataFileStatus::overridden;
+    return status == DataFileStatus::found || status == DataFileStatus::foundAndValidated;
 }
 
 [[nodiscard]] bool metadataFileMissing(DataFileStatus status) noexcept
 {
-    return status == DataFileStatus::missing || status == DataFileStatus::unsupported;
+    return status == DataFileStatus::missing;
 }
 
 void drawMetadataTooltip(const DataProfileValidation & validation)

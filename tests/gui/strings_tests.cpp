@@ -11,6 +11,12 @@ TEST_CASE("Strings_Should_CentralizeSharedDisplayVocabulary")
     REQUIRE(std::string_view(uo_mule::gui::strings::open()) == "Open");
     REQUIRE(std::string_view(uo_mule::gui::strings::ok()) == "OK");
     REQUIRE(std::string_view(uo_mule::gui::strings::cancel()) == "Cancel");
+    REQUIRE(std::string_view(uo_mule::gui::strings::retry()) == "Retry");
+    REQUIRE(std::string_view(uo_mule::gui::strings::saveAs()) == "Save As...");
+    REQUIRE(std::string_view(uo_mule::gui::strings::overwrite()) == "Overwrite");
+    REQUIRE(std::string_view(uo_mule::gui::strings::openable()) == "Openable");
+    REQUIRE(std::string_view(uo_mule::gui::strings::requiresSelection()) == "Requires selection");
+    REQUIRE(std::string_view(uo_mule::gui::strings::unknown()) == "Unknown");
     REQUIRE(std::string_view(uo_mule::gui::strings::facet()) == "Facet");
     REQUIRE(std::string_view(uo_mule::gui::strings::width()) == "Width");
     REQUIRE(std::string_view(uo_mule::gui::strings::height()) == "Height");
@@ -36,7 +42,7 @@ TEST_CASE("Strings_Should_FormatSharedStatusValues")
     REQUIRE(uo_mule::gui::strings::formatProfileStatus("") == "Profile: None");
     REQUIRE(uo_mule::gui::strings::formatMapStatus({}) == "Map: None");
     REQUIRE(uo_mule::gui::strings::formatStateStatus(true) == "State: Staged changes");
-    REQUIRE(uo_mule::gui::strings::formatDataStatus(uo_mule::gui::ProfileReadinessState::ready) == "Data: Configured");
+    REQUIRE(uo_mule::gui::strings::formatDataStatus(uo_mule::gui::ProfileReadinessState::complete) == "Data: Complete");
     REQUIRE(uo_mule::gui::strings::formatRadarcolStatus(uo_mule::gui::ProviderSourceKind::embeddedDefault) ==
             "Radarcol: Embedded Radarcol");
     REQUIRE(uo_mule::gui::strings::formatSaveChangesPrompt("map.mul") == "Save changes to \"map.mul\" before closing?");

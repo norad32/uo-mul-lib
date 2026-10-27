@@ -22,6 +22,7 @@
 #include <imgui.h>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -33,6 +34,7 @@ namespace
 constexpr float swatchSize = 36.0F;
 constexpr float channelScale = 1.0F / 31.0F;
 constexpr std::uint32_t channelMask = 0x1FU;
+constexpr const char * pickSourceFallbackLabel = "Pick source##RadarcolPickSource";
 constexpr std::uint32_t redShift = 10U;
 constexpr std::uint32_t greenShift = 5U;
 constexpr std::uint32_t radarColorChannelMaximum = 31U;
@@ -237,9 +239,9 @@ void showPickerButtonTooltip()
 
 void drawPickerSourceControls(const RadarcolDocumentWindowState & state, RadarcolColorPickerState & picker)
 {
-    const std::string pickSourceLabel =
-        iconFontAvailable() ? iconGlyph(IconId::eyedropper) + "##RadarcolPickSource" : strings::pickSource();
-    if (ImGui::Button(pickSourceLabel.c_str()))
+    const std::string pickSourceButtonLabel =
+        iconFontAvailable() ? iconGlyph(IconId::eyedropper) + "##RadarcolPickSource" : pickSourceFallbackLabel;
+    if (ImGui::Button(pickSourceButtonLabel.c_str()))
     {
         picker.sourceMode = true;
         picker.open = false;

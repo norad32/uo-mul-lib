@@ -40,12 +40,6 @@ constexpr int validCandidateScore = 10;
     return lowerName == "data" || lowerName == "client" || lowerName == "mul" || lowerName == "art";
 }
 
-[[nodiscard]] bool isSupportedRole(DataFileRole role) noexcept
-{
-    static_cast<void>(role);
-    return true;
-}
-
 [[nodiscard]] std::filesystem::path normalizedRoot(const std::filesystem::path & root, std::vector<Diagnostic> & diagnostics)
 {
     std::error_code pathError;
@@ -361,13 +355,9 @@ void applyCandidateStatus(DataFileRole role,
         discovered.status = DataFileStatus::invalid;
         addDiagnostic(result, Diagnostic::Severity::warning, candidate.path, candidate.validationMessage, role);
     }
-    else if (isSupportedRole(role))
-    {
-        discovered.status = DataFileStatus::found;
-    }
     else
     {
-        discovered.status = DataFileStatus::unsupported;
+        discovered.status = DataFileStatus::found;
     }
 }
 

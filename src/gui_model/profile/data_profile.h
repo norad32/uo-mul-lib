@@ -35,9 +35,6 @@ enum class DataFileStatus : std::uint8_t
     missing,
     ambiguous,
     invalid,
-    overridden,
-    optional,
-    unsupported,
 };
 
 enum class DiscoveryMode : std::uint8_t

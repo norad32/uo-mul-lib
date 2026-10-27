@@ -26,6 +26,11 @@ namespace uo_mule::gui
 namespace
 {
 
+constexpr const char * unknownFileBrowserValue = "Unknown";
+constexpr const char * fileDoesNotExistMessage = "File does not exist";
+constexpr const char * noKnownFacetDimensionsMessage =
+    "No known facet dimensions match this MUL file; choose Custom dimensions";
+
 constexpr std::size_t dateBufferSize = 64;
 constexpr std::size_t maxRecentLocations = 12;
 constexpr std::uint32_t recentFoldersSchemaVersion = 0;
@@ -60,7 +65,7 @@ constexpr std::uint32_t recentFoldersSchemaVersion = 0;
     std::array<char, dateBufferSize> buffer{};
     if (std::strftime(buffer.data(), buffer.size(), "%Y-%m-%d %H:%M:%S", &local) == 0)
     {
-        return "Unknown";
+        return unknownFileBrowserValue;
     }
     return buffer.data();
 }
@@ -186,7 +191,7 @@ FileBrowserEntryMetadata inspectFileBrowserEntry(const std::filesystem::path & p
     metadata.exists = std::filesystem::exists(path, error) && !error;
     if (!metadata.exists)
     {
-        metadata.modified = "Unknown";
+        metadata.modified = unknownFileBrowserValue;
         return metadata;
     }
 
@@ -206,7 +211,7 @@ FileBrowserEntryMetadata inspectFileBrowserEntry(const std::filesystem::path & p
 
     error.clear();
     const auto modified = std::filesystem::last_write_time(path, error);
-    metadata.modified = error ? "Unknown" : formatModifiedTime(modified);
+    metadata.modified = error ? unknownFileBrowserValue : formatModifiedTime(modified);
     return metadata;
 }
 
@@ -219,7 +224,7 @@ FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & pat
     summary.regularFile = summary.exists && std::filesystem::is_regular_file(path, error) && !error;
     if (!summary.exists)
     {
-        summary.error = error ? error.message() : "File does not exist";
+        summary.error = error ? error.message() : fileDoesNotExistMessage;
         return summary;
     }
     const auto metadata = inspectFileBrowserEntry(path);
@@ -246,7 +251,7 @@ FileBrowserSummary inspectFileBrowserSelection(const std::filesystem::path & pat
     sortFileBrowserCandidates(summary.assetCandidates);
     if (summary.mapCandidates.empty() && summary.assetCandidates.empty())
     {
-        summary.error = "No known facet dimensions match this MUL file; choose Custom dimensions";
+        summary.error = noKnownFacetDimensionsMessage;
     }
     return summary;
 }
