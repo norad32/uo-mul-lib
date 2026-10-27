@@ -44,7 +44,6 @@ constexpr float actionButtonSpacing = 8.0F;
 constexpr float fallbackBannerHeight = 180.0F;
 constexpr float verticalCenterFactor = 0.5F;
 constexpr float recentRowHeight = 52.0F;
-constexpr float unavailableRecentRowHeight = 68.0F;
 constexpr float recentRowTextPadding = 8.0F;
 constexpr float welcomeFooterBottomPadding = 16.0F;
 constexpr std::size_t timestampBufferSize = 32;
@@ -376,13 +375,11 @@ void activateRecentFile(WorkbenchState & state, const RecentFile & recent)
 
 void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size_t index)
 {
-    const bool unavailable = !recent.failure.empty();
     ImGui::PushID(static_cast<int>(index));
     ImGui::BeginChild("###welcome.recent-row",
-                      ImVec2(0.0F, unavailable ? unavailableRecentRowHeight : recentRowHeight),
+                      ImVec2(0.0F, recentRowHeight),
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    const float rowHeight = unavailable ? unavailableRecentRowHeight : recentRowHeight;
     const ImVec2 rowStart = ImGui::GetCursorPos();
     bool keyboardActivated = false;
     bool mouseDoubleClicked = false;
@@ -397,7 +394,7 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
             ImGui::SetKeyboardFocusHere();
         }
         static_cast<void>(
-            ImGui::InvisibleButton("##welcome.recent.activate", ImVec2(ImGui::GetContentRegionAvail().x, rowHeight)));
+            ImGui::InvisibleButton("##welcome.recent.activate", ImVec2(ImGui::GetContentRegionAvail().x, recentRowHeight)));
         keyboardActivated = (ImGui::IsItemFocused() || state.welcomeRecentKeyboardSelection == index) &&
                             ImGui::IsKeyPressed(ImGuiKey_Enter, false);
         const ImVec2 rowMin = ImGui::GetWindowPos();
@@ -409,11 +406,11 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
         }
     }();
     ImGui::SetCursorPos(rowStart);
-    const std::size_t lineCount = unavailable ? 3U : 2U;
+    constexpr std::size_t lineCount = 2U;
     const float lineHeight = ImGui::GetTextLineHeight();
     const float contentHeight =
         (static_cast<float>(lineCount) * lineHeight) + (static_cast<float>(lineCount - 1U) * ImGui::GetStyle().ItemSpacing.y);
-    ImGui::SetCursorPosY(std::max(0.0F, (rowHeight - contentHeight) * verticalCenterFactor));
+    ImGui::SetCursorPosY(std::max(0.0F, (recentRowHeight - contentHeight) * verticalCenterFactor));
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + recentRowTextPadding);
     const float textStartX = ImGui::GetCursorPosX();
 
@@ -458,11 +455,6 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
     const std::string modifiedLabel = timestampLabel(strings::modified(), recent.lastModified);
     const std::string openedLabel = timestampLabel(strings::opened(), recent.lastOpened);
     ImGui::TextDisabled("%s | %s", modifiedLabel.c_str(), openedLabel.c_str());
-    if (unavailable)
-    {
-        const std::string unavailableLabel = strings::formatUnavailable(recent.failure);
-        ImGui::TextColored(theme::imguiColor(theme::error), "%s", unavailableLabel.c_str());
-    }
 
     ImGui::EndChild();
     if (keyboardActivated || mouseDoubleClicked)

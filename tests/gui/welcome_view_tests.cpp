@@ -2,6 +2,7 @@
 #include "gui/dialogs/map_workflow_dialog.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui_model/documents/document_contracts.h"
+#include "gui_model/persistence/recent_files.h"
 #include "imgui_test_support.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
@@ -136,6 +137,30 @@ TEST_CASE("welcomeView_Should_RenderRecentMapAndAssetRows")
     std::filesystem::remove(recentPath, error);
     std::filesystem::remove(mapPath, error);
     std::filesystem::remove(radarcolPath, error);
+}
+
+TEST_CASE("welcomeView_Should_RenderEmptyStateAfterMissingRecentFilesArePruned")
+{
+    const InvalidWelcomeBanner banner;
+    const auto recentPath = std::filesystem::temp_directory_path() / "uo-mule-welcome-pruned-recent-files";
+    const auto missingPath = recentPath.parent_path() / "uo-mule-welcome-missing.mul";
+    std::error_code error;
+    std::filesystem::remove(recentPath, error);
+    std::filesystem::remove(missingPath, error);
+
+    uo_mule::gui::RecentFileStore store(recentPath);
+    store.record(missingPath, uomul::Dimensions{.widthTiles = recentMapWidth, .heightTiles = recentMapHeight});
+
+    uo_mule::gui::WorkbenchState state;
+    state.session = uo_mule::gui::WorkbenchSession(recentPath);
+    state.session.refreshRecentFiles();
+
+    const uo_mule::gui::test::ImGuiFrame frame;
+    uo_mule::gui::drawWelcomeView(state);
+
+    REQUIRE(state.session.recentFiles().empty());
+    REQUIRE(findWelcomeRecentRow() == nullptr);
+    std::filesystem::remove(recentPath, error);
 }
 
 TEST_CASE("welcomeView_Should_SelectRecentRowWithTab")
