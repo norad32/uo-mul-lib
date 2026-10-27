@@ -458,6 +458,10 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
     const std::string title = iconLabel(IconId::preferences, strings::preferencesDialogTitle());
     if (!beginDialog(title.c_str(), &state.visible, largeDialogSpec(), ImGuiWindowFlags_NoResize, ImGuiCond_Always))
     {
+        if (!state.visible)
+        {
+            state.closeRequested = true;
+        }
         return std::nullopt;
     }
 

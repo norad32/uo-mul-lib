@@ -2,6 +2,7 @@
 #include "gui/dialogs/preferences_dialog.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/dialogs/dialog_host.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/profile/data_profile.h"
 #include "imgui_test_support.h"
@@ -15,6 +16,7 @@
 using uo_mule::gui::applyFileBrowserResult;
 using uo_mule::gui::DataFileRole;
 using uo_mule::gui::DataProfile;
+using uo_mule::gui::DialogHostState;
 using uo_mule::gui::DialogId;
 using uo_mule::gui::drawPreferencesDialog;
 using uo_mule::gui::FileBrowserResult;
@@ -167,5 +169,23 @@ TEST_CASE("preferencesDialog_Should_ClearCloseRequestAfterClosingPopup")
     const ImGuiFrame frame;
 
     REQUIRE_FALSE(drawPreferencesDialog(state, browser).has_value());
+    REQUIRE_FALSE(state.closeRequested);
+}
+
+TEST_CASE("preferencesDialog_Should_CancelHostAfterTitleBarClose")
+{
+    PreferencesDialogState state;
+    FileBrowserState browser;
+    DialogHostState host;
+    host.activate(makeDialogRequest(DialogId::preferences));
+    state.dialogHost = &host;
+    state.closeRequested = true;
+    const ImGuiFrame frame;
+
+    REQUIRE_FALSE(drawPreferencesDialog(state, browser).has_value());
+    const auto result = host.consumeResult().value_or(uo_mule::gui::DialogResult{});
+    REQUIRE(result.id == DialogId::preferences);
+    REQUIRE(result.action == uo_mule::gui::DialogAction::cancel);
+    REQUIRE_FALSE(host.active.has_value());
     REQUIRE_FALSE(state.closeRequested);
 }
