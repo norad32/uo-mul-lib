@@ -23,6 +23,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -59,7 +60,19 @@ void queueFileBrowserPersistence(WorkbenchState & state)
     {
         return;
     }
-    state.deferWorkflowAction([&state] { persistFileBrowserRecentFolders(state.fileBrowser); });
+    state.deferWorkflowAction(
+        [&state]
+        {
+            try
+            {
+                persistFileBrowserRecentFolders(state.fileBrowser);
+            }
+            catch (const std::exception & error)
+            {
+                state.notifications.add(NotificationSeverity::error,
+                                        "Recent folders save failed: " + std::string(error.what()));
+            }
+        });
 }
 
 [[nodiscard]] std::filesystem::path texmapsIndexPath(const std::filesystem::path & path)
