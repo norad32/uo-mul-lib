@@ -210,6 +210,7 @@ void applyRecentMapToOpenDialog(NewFileDialogState & dialog, const RecentFile & 
 
     if (!recent.dimensions)
     {
+        requestMapDialog(dialog, MapFileDialogMode::openMap);
         return;
     }
 
@@ -321,13 +322,16 @@ void openRecentAsset(WorkbenchState & state, const RecentFile & recent)
 
 void activateRecentFile(WorkbenchState & state, const RecentFile & recent)
 {
-    if (recent.kind == DocumentKind::map)
-    {
-        applyRecentMapToOpenDialog(state.menuBarState.fileDialog, recent);
-        return;
-    }
-
-    state.deferWorkflowAction([&state, recent] { openRecentAsset(state, recent); });
+    state.deferWorkflowAction(
+        [&state, recent]
+        {
+            if (recent.kind == DocumentKind::map)
+            {
+                applyRecentMapToOpenDialog(state.menuBarState.fileDialog, recent);
+                return;
+            }
+            openRecentAsset(state, recent);
+        });
 }
 
 void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size_t index)
@@ -340,10 +344,25 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     const float rowHeight = unavailable ? unavailableRecentRowHeight : recentRowHeight;
     const ImVec2 rowStart = ImGui::GetCursorPos();
+    bool keyboardActivated = false;
+    bool mouseDoubleClicked = false;
+    const bool keyboardSelectionMoved =
+        state.welcomeRecentKeyboardSelection == index &&
+        (ImGui::IsKeyPressed(ImGuiKey_Tab, false) || ImGui::IsKeyPressed(ImGuiKey_UpArrow, false) ||
+         ImGui::IsKeyPressed(ImGuiKey_DownArrow, false));
     [&]
     {
+        if (keyboardSelectionMoved)
+        {
+            ImGui::SetKeyboardFocusHere();
+        }
         static_cast<void>(
             ImGui::InvisibleButton("##welcome.recent.activate", ImVec2(ImGui::GetContentRegionAvail().x, rowHeight)));
+        keyboardActivated = (ImGui::IsItemFocused() || state.welcomeRecentKeyboardSelection == index) &&
+                            ImGui::IsKeyPressed(ImGuiKey_Enter, false);
+        const ImVec2 rowMin = ImGui::GetWindowPos();
+        const ImVec2 rowMax = ImVec2(rowMin.x + ImGui::GetWindowSize().x, rowMin.y + ImGui::GetWindowSize().y);
+        mouseDoubleClicked = ImGui::IsMouseHoveringRect(rowMin, rowMax) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
         if (ImGui::IsItemFocused())
         {
             state.welcomeRecentKeyboardSelection = index;
@@ -405,9 +424,8 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
         ImGui::TextColored(theme::imguiColor(theme::error), "%s", unavailableLabel.c_str());
     }
 
-    const bool rowDoubleClicked = rowHovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
     ImGui::EndChild();
-    if (rowDoubleClicked)
+    if (keyboardActivated || mouseDoubleClicked)
     {
         activateRecentFile(state, recent);
     }
@@ -526,15 +544,6 @@ void drawWelcomeView(WorkbenchState & state)
         for (std::size_t index = 0; index < state.session.recentFiles().size(); index++)
         {
             drawRecentFile(state, state.session.recentFiles().at(index), index);
-        }
-
-        if (state.welcomeRecentKeyboardSelection && ImGui::IsKeyPressed(ImGuiKey_Enter, false))
-        {
-            const std::size_t index = *state.welcomeRecentKeyboardSelection;
-            if (index < state.session.recentFiles().size())
-            {
-                activateRecentFile(state, state.session.recentFiles().at(index));
-            }
         }
     }
 
