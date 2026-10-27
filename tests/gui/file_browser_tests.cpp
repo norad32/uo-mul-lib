@@ -504,6 +504,40 @@ TEST_CASE("genericOpenCandidateSelection_Should_PreserveFormatAndMapDimensions")
     std::filesystem::remove(path, error);
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+TEST_CASE("genericOpen_Should_ValidateCustomMapDimensionsExactly")
+{
+    const auto directory = std::filesystem::temp_directory_path();
+    const auto path = directory / "generic-custom-map.mul";
+    const uomul::Dimensions dimensions{.widthTiles = 24U, .heightTiles = 24U};
+    std::error_code error;
+    std::filesystem::remove(path, error);
+    REQUIRE(uomul::MapEditor::createEmpty(path, dimensions));
+
+    const auto summary = inspectFileBrowserSelection(path);
+    const auto setupCandidate = std::ranges::find_if(summary.assetCandidates,
+                                                     [](const auto & candidate)
+                                                     { return candidate.kind == MulAssetKind::map && !candidate.dimensions; });
+    REQUIRE(setupCandidate != summary.assetCandidates.end());
+    REQUIRE_FALSE(setupCandidate->openable);
+
+    const auto valid = inspectMapCandidate(path, dimensions);
+    REQUIRE(valid.has_value());
+    REQUIRE(valid->valid);
+    REQUIRE(valid->missingBlocks == 0U);
+    REQUIRE(valid->trailingBytes == 0U);
+
+    const auto size = std::filesystem::file_size(path);
+    REQUIRE(size > uomul::mapBlockByteCount);
+    std::filesystem::resize_file(path, size - uomul::mapBlockByteCount);
+    REQUIRE_FALSE(inspectMapCandidate(path, dimensions).has_value());
+
+    std::filesystem::resize_file(path, size + 1U);
+    REQUIRE_FALSE(inspectMapCandidate(path, dimensions).has_value());
+
+    std::filesystem::remove(path, error);
+}
+
 TEST_CASE("genericOpenSelector_Should_KeepMultipleCandidatesAvailable_If_MultipleCandidatesExist")
 {
     const FileBrowserResult result{

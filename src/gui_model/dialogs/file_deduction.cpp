@@ -3,12 +3,14 @@
 #include "gui_model/dialogs/file_browser_model.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
+#include "uomul/mul_common/mul_common.h"
 #include "uomul/radarcol/radarcol.h"
 #include "uomul/texmaps/texmaps.h"
 #include "uomul/tiledata/tiledata.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <expected>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -296,6 +298,27 @@ void appendMapSetupCandidate(FileBrowserSummary & summary, const std::filesystem
 
 } // namespace
 
+std::expected<FileBrowserMapCandidate, uomul::Error> inspectMapCandidate(const std::filesystem::path & path,
+                                                                         uomul::Dimensions dimensions)
+{
+    auto reader = uomul::MapReader::open(path, dimensions, {.recoverTruncatedMap = false});
+    if (!reader)
+    {
+        return std::unexpected(reader.error());
+    }
+
+    return FileBrowserMapCandidate{
+        .presetName = {},
+        .facet = {},
+        .dimensions = dimensions,
+        .expectedBlocks = reader->completeBlocks(),
+        .completeBlocks = reader->completeBlocks(),
+        .missingBlocks = reader->missingBlocks(),
+        .trailingBytes = reader->ignoredTrailingBytes(),
+        .valid = reader->missingBlocks() == 0U && reader->ignoredTrailingBytes() == 0U,
+    };
+}
+
 void deduceFileCandidates(FileBrowserSummary & summary, const std::filesystem::path & path)
 {
     const auto filename = lowercase(path.filename().string());
@@ -303,8 +326,9 @@ void deduceFileCandidates(FileBrowserSummary & summary, const std::filesystem::p
     deduceRadarcolCandidates(summary, path, filename);
     deduceTexmapsCandidates(summary, path, filename);
     deduceTiledataCandidates(summary, path, filename);
-    if (!std::ranges::any_of(summary.assetCandidates,
-                             [](const auto & candidate) { return candidate.validated && candidate.openable; }))
+    const bool hasOpenableCandidate = std::ranges::any_of(
+        summary.assetCandidates, [](const auto & candidate) { return candidate.validated && candidate.openable; });
+    if (!hasOpenableCandidate || (summary.mapCandidates.empty() && filenameContains(filename, "map")))
     {
         appendMapSetupCandidate(summary, path);
     }

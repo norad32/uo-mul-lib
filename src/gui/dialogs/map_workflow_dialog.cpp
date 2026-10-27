@@ -10,6 +10,7 @@
 #include "gui/workbench/notification_state.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/dialogs/dialog_host.h"
+#include "gui_model/dialogs/file_deduction.h"
 #include "gui_model/documents/map_document_manager.h"
 #include "gui_model/documents/map_document_state.h"
 #include "gui_model/operations/operation_controller.h"
@@ -297,19 +298,18 @@ void saveDirtyMap(MapDocumentManager & mapDocument, NewFileDialogState & state)
 
 void requestOperation(MapDocumentManager & mapDocument, NewFileDialogState & state)
 {
-    if (!beginControlledOperation(state, mapDocument))
-    {
-        return;
-    }
-
     if (state.operation.kind == PendingMapOperationKind::openMap)
     {
-        const auto candidate = uomul::MapReader::open(state.operation.path, state.operation.dimensions);
-        if (!candidate)
+        if (const auto candidate = inspectMapCandidate(state.operation.path, state.operation.dimensions); !candidate)
         {
             showError(state, candidate.error());
             return;
         }
+    }
+
+    if (!beginControlledOperation(state, mapDocument))
+    {
+        return;
     }
 
     if (state.operation.kind == PendingMapOperationKind::newMap)
