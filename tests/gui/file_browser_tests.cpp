@@ -2,6 +2,7 @@
 #include "gui/dialogs/file_selector_dialog.h"
 #include "gui/presentation/file_size.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/dialogs/file_browser_model.h"
 #include "gui_model/profile/data_profile.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"

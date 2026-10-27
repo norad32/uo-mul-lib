@@ -7,14 +7,32 @@
 #include "gui/workbench/workbench_state.h"
 #include "gui/workflows/file_workflow.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/documents/document_contracts.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/providers/data_providers.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <optional>
+#include <string_view>
 #include <system_error>
+#include <tuple>
 #include <utility>
+
+using uo_mule::gui::completeDialogResult;
+using uo_mule::gui::DataFileRole;
+using uo_mule::gui::DialogAction;
+using uo_mule::gui::DialogId;
+using uo_mule::gui::DialogRequest;
+using uo_mule::gui::DocumentKind;
+using uo_mule::gui::FileBrowserAssetCandidate;
+using uo_mule::gui::FileBrowserMode;
+using uo_mule::gui::FileBrowserResult;
+using uo_mule::gui::FileBrowserTarget;
+using uo_mule::gui::MulAssetKind;
+using uo_mule::gui::requestFileBrowser;
+using uo_mule::gui::requestPreferencesDialog;
+using uo_mule::gui::WorkbenchState;
 
 namespace
 {
@@ -334,4 +352,202 @@ TEST_CASE("defaultRadarcolWorkflow_Should_CreateNothingIfFileBrowserIsCancelled"
     REQUIRE(uo_mule::gui::handleFileWorkflowEscape(state));
     REQUIRE_FALSE(std::filesystem::exists(path));
     REQUIRE(state.activeProfile.files.find(uo_mule::gui::DataFileRole::radarcol) == state.activeProfile.files.end());
+}
+
+TEST_CASE("newAssetWorkflow_Should_CreateTiledataAndTexmapsFromBrowserResults")
+{
+    const TemporaryDirectory directory;
+    for (const auto & [target, filename, companion] : {
+             std::tuple{uo_mule::gui::FileBrowserTarget::newTiledataOutput, "tiledata.mul", ""},
+             std::tuple{uo_mule::gui::FileBrowserTarget::newTexmapsData, "texmaps.mul", "texidx.mul"},
+         })
+    {
+        uo_mule::gui::WorkbenchState state;
+        const auto path = directory.path() / filename;
+        uo_mule::gui::requestFileBrowser(state.fileBrowser,
+                                         {
+                                             .mode = uo_mule::gui::FileBrowserMode::saveFile,
+                                             .target = target,
+                                             .initialPath = path,
+                                             .extension = ".mul",
+                                             .title = "Create",
+                                         });
+        const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+        const uo_mule::gui::FileBrowserResult result{
+            .target = target,
+            .path = path,
+            .mapCandidates = {},
+            .assetCandidates = {},
+            .assetCandidate = std::nullopt,
+        };
+
+        REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
+                                                         {.id = uo_mule::gui::DialogId::fileBrowser,
+                                                          .action = uo_mule::gui::DialogAction::accept,
+                                                          .payload = result,
+                                                          .generation = generation}));
+        applyDeferredActions(state);
+
+        REQUIRE(std::filesystem::exists(path));
+        if (!std::string_view(companion).empty())
+        {
+            REQUIRE(std::filesystem::exists(directory.path() / companion));
+        }
+    }
+}
+
+TEST_CASE("genericOpenWorkflow_Should_ReportUnsupportedResult")
+{
+    uo_mule::gui::WorkbenchState state;
+    const auto path = std::filesystem::temp_directory_path() / "unsupported-workflow.mul";
+    uo_mule::gui::requestFileBrowser(state.fileBrowser,
+                                     {
+                                         .mode = uo_mule::gui::FileBrowserMode::openFile,
+                                         .target = uo_mule::gui::FileBrowserTarget::genericOpen,
+                                         .initialPath = path,
+                                         .extension = ".mul",
+                                         .title = "Open",
+                                     });
+    const auto generation = state.dialogHost.active.value_or(uo_mule::gui::DialogRequest{}).generation;
+    const uo_mule::gui::FileBrowserResult result{
+        .target = uo_mule::gui::FileBrowserTarget::genericOpen,
+        .path = path,
+        .mapCandidates = {},
+        .assetCandidates = {},
+        .assetCandidate = std::nullopt,
+    };
+
+    REQUIRE_FALSE(uo_mule::gui::completeDialogResult(state,
+                                                     {.id = uo_mule::gui::DialogId::fileBrowser,
+                                                      .action = uo_mule::gui::DialogAction::accept,
+                                                      .payload = result,
+                                                      .generation = generation}));
+    REQUIRE_FALSE(state.notifications.entries.empty());
+    REQUIRE(state.notifications.entries.back().severity == uo_mule::gui::NotificationSeverity::error);
+}
+
+TEST_CASE("genericOpenWorkflow_Should_DeferOpenableStandaloneAsset")
+{
+    const TemporaryDirectory directory;
+    const auto path = directory.path() / "standalone-radarcol.mul";
+    auto editor = uomul::RadarColEditor::createEmpty(path);
+    REQUIRE(editor);
+    REQUIRE(editor->commit());
+
+    WorkbenchState state;
+    requestFileBrowser(state.fileBrowser,
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::genericOpen,
+                           .initialPath = path,
+                           .extension = ".mul",
+                           .title = "Open",
+                       });
+    const auto generation = state.dialogHost.active.value_or(DialogRequest{}).generation;
+    const FileBrowserAssetCandidate candidate{
+        .kind = MulAssetKind::radarcol,
+        .path = path,
+        .companionPath = {},
+        .label = "Radar colors",
+        .facet = {},
+        .reason = {},
+        .warning = {},
+        .score = 0,
+        .itemCount = 0,
+        .dimensions = std::nullopt,
+        .validated = true,
+        .openable = true,
+    };
+    const FileBrowserResult result{
+        .target = FileBrowserTarget::genericOpen,
+        .path = path,
+        .mapCandidates = {},
+        .assetCandidates = {candidate},
+        .assetCandidate = std::nullopt,
+    };
+
+    REQUIRE_FALSE(completeDialogResult(
+        state, {.id = DialogId::fileBrowser, .action = DialogAction::accept, .payload = result, .generation = generation}));
+    applyDeferredActions(state);
+
+    REQUIRE_FALSE(state.session.recentFiles().empty());
+    REQUIRE(state.session.recentFiles().front().kind == DocumentKind::radarcol);
+}
+
+TEST_CASE("fileWorkflow_Should_RouteTexmapsSetToPreferences")
+{
+    WorkbenchState state;
+    requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
+    requestFileBrowser(state.fileBrowser,
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::texmapsIndex,
+                           .initialPath = {},
+                           .extension = ".mul",
+                           .title = "Choose Texmaps",
+                       });
+    const auto generation = state.dialogHost.active.value_or(DialogRequest{}).generation;
+    const FileBrowserAssetCandidate candidate{
+        .kind = MulAssetKind::texmapsSet,
+        .path = "texidx.mul",
+        .companionPath = "texmaps.mul",
+        .label = "Texmaps",
+        .facet = {},
+        .reason = {},
+        .warning = {},
+        .score = 0,
+        .itemCount = 0,
+        .dimensions = std::nullopt,
+        .validated = true,
+        .openable = true,
+    };
+    const FileBrowserResult result{
+        .target = FileBrowserTarget::texmapsIndex,
+        .role = DataFileRole::texmaps,
+        .path = candidate.path,
+        .mapCandidates = {},
+        .assetCandidates = {},
+        .assetCandidate = candidate,
+    };
+
+    REQUIRE_FALSE(completeDialogResult(
+        state, {.id = DialogId::fileBrowser, .action = DialogAction::accept, .payload = result, .generation = generation}));
+
+    REQUIRE(state.menuBarState.preferencesDialog.visible);
+    REQUIRE(state.dialogHost.owns(DialogId::preferences));
+}
+
+TEST_CASE("imageWorkflow_Should_DeferEachRegisteredCallback")
+{
+    const auto path = std::filesystem::temp_directory_path() / "replacement.png";
+    for (const auto target : {
+             FileBrowserTarget::imageOpen,
+             FileBrowserTarget::imageFolderOpen,
+             FileBrowserTarget::texmapExportFile,
+             FileBrowserTarget::texmapExportFolder,
+         })
+    {
+        WorkbenchState state;
+        bool called = false;
+        state.texmapsState.replacementFilePicked = [&](const auto &) { called = true; };
+        state.texmapsState.folderReplacementFolderPicked = [&](const auto &) { called = true; };
+        state.texmapsState.exportFilePicked = [&](const auto &) { called = true; };
+        state.texmapsState.exportFolderPicked = [&](const auto &) { called = true; };
+        requestFileBrowser(
+            state.fileBrowser,
+            {.mode = FileBrowserMode::openFile, .target = target, .initialPath = path, .extension = {}, .title = "Choose"});
+        const auto generation = state.dialogHost.active.value_or(DialogRequest{}).generation;
+        const FileBrowserResult result{
+            .target = target,
+            .path = path,
+            .mapCandidates = {},
+            .assetCandidates = {},
+            .assetCandidate = std::nullopt,
+        };
+
+        REQUIRE_FALSE(completeDialogResult(
+            state, {.id = DialogId::fileBrowser, .action = DialogAction::accept, .payload = result, .generation = generation}));
+        applyDeferredActions(state);
+        REQUIRE(called);
+    }
 }
