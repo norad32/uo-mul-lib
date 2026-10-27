@@ -185,6 +185,31 @@ TEST_CASE("DataProfileStore_Should_DeleteProfile")
     REQUIRE_FALSE(std::filesystem::exists(store.path(profile.name)));
 }
 
+TEST_CASE("DataProfileStore_Should_ValidateProfileNamesAndSanitizedCollisions")
+{
+    const TemporaryProfileDirectory directory;
+    const uo_mule::gui::DataProfileStore store(directory.path());
+
+    REQUIRE_FALSE(store.validateProfileName("").valid());
+    REQUIRE_FALSE(store.validateProfileName("   \t").valid());
+    REQUIRE_FALSE(store.validateProfileName("path/to-profile").valid());
+    REQUIRE_FALSE(store.validateProfileName("path\\to-profile").valid());
+    REQUIRE_FALSE(store.validateProfileName(".").valid());
+    REQUIRE_FALSE(store.validateProfileName("..").valid());
+    REQUIRE(store.validateProfileName("distinct-profile").valid());
+
+    uo_mule::gui::DataProfile existing;
+    existing.name = "Friendly Profile";
+    store.save(existing);
+
+    const auto sameName = store.validateProfileName(existing.name);
+    REQUIRE(sameName.valid());
+
+    const auto collision = store.validateProfileName("Friendly_Profile");
+    REQUIRE_FALSE(collision.valid());
+    REQUIRE(collision.message.find("Friendly Profile") != std::string::npos);
+}
+
 TEST_CASE("DataProfileValidation_Should_ReportIncompleteTexmapsSet")
 {
     const TemporaryProfileDirectory directory;

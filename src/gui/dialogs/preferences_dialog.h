@@ -2,10 +2,10 @@
 
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui_model/persistence/preferences.h"
-#include "gui_model/profile/data_discovery.h"
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/profile/data_validation.h"
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <map>
@@ -42,8 +42,9 @@ struct PreferencesDialogState
     std::map<DataFileRole, std::array<char, preferencesDialogBufferSize>> overrides;
     std::map<DataFileRole, bool> metadataOverrides;
     std::vector<std::filesystem::path> profiles;
+    bool profileListRefreshRequested = false;
+    std::size_t profileScanCount = 0;
     DataProfile workingProfile;
-    DataDiscoveryResult discovery;
     DataProfileValidation validation;
     FileBrowserState * browser = nullptr;
     bool profileSaveRequested = false;

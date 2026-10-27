@@ -68,6 +68,7 @@ void initializeDialogFields(PreferencesDialogState & state)
 
 void refreshProfiles(PreferencesDialogState & state)
 {
+    ++state.profileScanCount;
     state.profiles.clear();
     std::error_code error;
     for (const auto & entry : std::filesystem::directory_iterator(dataProfilesDirectory(), error))
@@ -155,8 +156,8 @@ void searchMetadataFolder(PreferencesDialogState & state, const std::filesystem:
 {
     copyToBuffer(state.sourceRoot, root);
     state.workingProfile.sourceRoot = root;
-    state.discovery = discoverDataFiles(root, DiscoveryMode::folder);
-    applyDiscovery(state.workingProfile, state.discovery);
+    const auto discovery = discoverDataFiles(root, DiscoveryMode::folder);
+    applyDiscovery(state.workingProfile, discovery);
     initializeDialogFields(state);
     validateWorkingProfile(state);
 }
@@ -175,7 +176,11 @@ void drawProfileSection(PreferencesDialogState & state)
     dialogFieldWidth(pathInputWidth);
     ImGui::InputText("##Name", state.profileName.data(), state.profileName.size());
 
-    refreshProfiles(state);
+    if (state.profileListRefreshRequested)
+    {
+        refreshProfiles(state);
+        state.profileListRefreshRequested = false;
+    }
     dialogFieldLabel(strings::openProfile());
     dialogFieldWidth(pathInputWidth);
     if (ImGui::BeginCombo("##OpenProfile",
@@ -199,10 +204,15 @@ void drawProfileSection(PreferencesDialogState & state)
         ImGui::EndCombo();
     }
 
+    ImGui::SameLine();
+    if (ImGui::Button(strings::refresh()))
+    {
+        state.profileListRefreshRequested = true;
+    }
+
     if (ImGui::Button(iconLabel(IconId::save, strings::saveProfile()).c_str()))
     {
         requestProfileSave(state);
-        refreshProfiles(state);
     }
 
     ImGui::SameLine();
@@ -397,6 +407,9 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
     state.profilePersistenceError.reset();
     state.profilePersistenceRetryRequested = false;
     state.profileSwitchRetryRequested = false;
+    state.profileListRefreshRequested = true;
+    refreshProfiles(state);
+    state.profileListRefreshRequested = false;
     initializeDialogFields(state);
     syncWorkingProfile(state);
     state.validation = validateDataProfile(state.workingProfile);

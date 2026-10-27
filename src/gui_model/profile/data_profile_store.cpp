@@ -5,6 +5,8 @@
 #include "gui_model/persistence/preferences_store.h"
 #include "gui_model/persistence/schema_validation.h"
 #include "gui_model/profile/data_profile.h"
+#include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -13,6 +15,7 @@
 #include <istream>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -350,8 +353,52 @@ DataProfileLoadResult DataProfileStore::load(std::string_view profileName) const
     return loadDataProfile(path(profileName));
 }
 
+ProfileNameValidation DataProfileStore::validateProfileName(std::string_view profileName) const
+{
+    if (profileName.empty())
+    {
+        return {.message = "Profile name cannot be empty."};
+    }
+
+    const auto whitespaceOnly = std::ranges::all_of(
+        profileName, [](const char character) { return std::isspace(static_cast<unsigned char>(character)); });
+    if (whitespaceOnly)
+    {
+        return {.message = "Profile name cannot contain only whitespace."};
+    }
+
+    if (profileName == "." || profileName == ".." || profileName.contains('/') || profileName.contains('\\'))
+    {
+        return {.message = "Profile name cannot contain path separators or be '.' or '..'."};
+    }
+
+    const auto profilePath = path(profileName);
+    std::error_code error;
+    const bool profileExists = std::filesystem::exists(profilePath, error);
+    if (error)
+    {
+        return {.message = "Cannot inspect the existing profile file."};
+    }
+    if (!profileExists)
+    {
+        return {};
+    }
+
+    const auto existing = loadDataProfile(profilePath);
+    if (!existing.profile.name.empty() && existing.profile.name != profileName)
+    {
+        return {.message = "Profile name conflicts with existing profile '" + existing.profile.name + "'."};
+    }
+    return {};
+}
+
 void DataProfileStore::save(const DataProfile & profile) const
 {
+    const auto validation = validateProfileName(profile.name);
+    if (!validation.valid())
+    {
+        throw std::invalid_argument(validation.message);
+    }
     saveDataProfile(profile, path(profile.name));
 }
 

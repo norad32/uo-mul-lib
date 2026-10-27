@@ -751,6 +751,24 @@ void evictClosedDocumentState(WorkbenchState & state, DocumentId id);
 template <typename DocumentStates>
 void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind kind, const DocumentStates & documentStates);
 
+[[nodiscard]] bool showProfileNameValidationError(WorkbenchState & state, std::string_view profileName)
+{
+    const auto validation = state.profileStore.validateProfileName(profileName);
+    if (validation.valid())
+    {
+        return false;
+    }
+
+    auto & preferencesDialog = state.menuBarState.preferencesDialog;
+    preferencesDialog.profileSaveRequested = false;
+    preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::save;
+    preferencesDialog.profilePersistenceError = validation.message;
+    preferencesDialog.profilePersistenceRetryRequested = false;
+    preferencesDialog.visible = true;
+    activatePreferencesDialog(preferencesDialog);
+    return true;
+}
+
 [[nodiscard]] bool prepareConfiguredMetadataForProfileSwitch(WorkbenchState & state)
 {
     std::vector<DocumentId> configuredDocumentIds;
@@ -829,6 +847,12 @@ void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind ki
             .preferences = result.preferences,
             .profileName = {},
         };
+        state.pendingPreferencesResult.reset();
+        return false;
+    }
+
+    if (showProfileNameValidationError(state, result.profile.name))
+    {
         state.pendingPreferencesResult.reset();
         return false;
     }
@@ -2307,6 +2331,7 @@ void drawPreferencesPersistenceFailure(WorkbenchState & state)
                 {
                     preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
                     preferencesDialog.profilePersistenceError.reset();
+                    preferencesDialog.profileListRefreshRequested = true;
                     return false;
                 }
                 state.activeProfile = std::move(profile);
@@ -2315,6 +2340,7 @@ void drawPreferencesPersistenceFailure(WorkbenchState & state)
                 state.workbenchLayoutApplied = false;
                 preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
                 preferencesDialog.profilePersistenceError.reset();
+                preferencesDialog.profileListRefreshRequested = true;
                 return true;
             }
             case PendingPreferenceCommitKind::profileSwitch :
@@ -2336,6 +2362,7 @@ void drawPreferencesPersistenceFailure(WorkbenchState & state)
                 state.workbenchLayoutApplied = false;
                 preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
                 preferencesDialog.profilePersistenceError.reset();
+                preferencesDialog.profileListRefreshRequested = true;
                 return true;
             }
             case PendingPreferenceCommitKind::preferences :
@@ -2454,6 +2481,10 @@ void drawPreferencesPersistenceFailure(WorkbenchState & state)
         if (preferencesDialog.profilePersistenceOperation == ProfilePersistenceOperation::switchProfile)
         {
             kind = PendingPreferenceCommitKind::profileSwitch;
+        }
+        if (showProfileNameValidationError(state, preferencesDialog.workingProfile.name))
+        {
+            return false;
         }
         state.pendingPreferenceCommit = PendingPreferenceCommit{
             .kind = kind,
@@ -2644,6 +2675,11 @@ void updateNativeWindowMode(GLFWwindow * window, WorkbenchState & state, bool we
 }
 
 } // namespace
+
+bool applyPendingWorkbenchPersistence(WorkbenchState & state)
+{
+    return applyPendingPersistence(state);
+}
 
 void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchState & state)
 {

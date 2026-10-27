@@ -10,5 +10,6 @@ namespace uo_mule::gui
 struct WorkbenchState;
 
 void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchState & state);
+[[nodiscard]] bool applyPendingWorkbenchPersistence(WorkbenchState & state);
 
 } // namespace uo_mule::gui

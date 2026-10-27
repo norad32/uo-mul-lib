@@ -1,10 +1,12 @@
 #include "gui/dialogs/file_browser_dialog.h"
 #include "gui/dialogs/preferences_dialog.h"
+#include "gui/workbench/workbench.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/dialogs/dialog_host.h"
 #include "gui_model/persistence/preferences.h"
 #include "gui_model/profile/data_profile.h"
+#include "gui_model/profile/data_profile_store.h"
 #include "imgui_test_support.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
@@ -12,10 +14,13 @@
 #include <optional>
 #include <string>
 #include <system_error>
+#include <utility>
 
 using uo_mule::gui::applyFileBrowserResult;
+using uo_mule::gui::applyPendingWorkbenchPersistence;
 using uo_mule::gui::DataFileRole;
 using uo_mule::gui::DataProfile;
+using uo_mule::gui::DataProfileStore;
 using uo_mule::gui::DialogHostState;
 using uo_mule::gui::DialogId;
 using uo_mule::gui::drawPreferencesDialog;
@@ -25,8 +30,11 @@ using uo_mule::gui::FileBrowserTarget;
 using uo_mule::gui::IdFormat;
 using uo_mule::gui::knownDataFileRoles;
 using uo_mule::gui::MapViewTileSource;
+using uo_mule::gui::PendingPreferenceCommit;
+using uo_mule::gui::PendingPreferenceCommitKind;
 using uo_mule::gui::Preferences;
 using uo_mule::gui::PreferencesDialogState;
+using uo_mule::gui::ProfilePersistenceOperation;
 using uo_mule::gui::requestPreferencesDialog;
 using uo_mule::gui::WorkbenchState;
 using uo_mule::gui::test::ImGuiFrame;
@@ -96,6 +104,74 @@ TEST_CASE("preferencesDialog_Should_ActivateDialogHostWhenRequested")
     REQUIRE(state.dialogHost.owns(DialogId::preferences));
 }
 
+TEST_CASE("preferencesPersistence_Should_RetryFailedProfileDeletionOnlyExplicitly")
+{
+    const TemporaryProfileDirectory directory;
+    const auto blockedPath = directory.path() / "blocked-profile-store";
+    std::ofstream(blockedPath).close();
+
+    const std::string requestedProfileName = "original-profile";
+    DataProfile requestedProfile;
+    requestedProfile.name = requestedProfileName;
+    DataProfileStore validStore(directory.path());
+    validStore.save(requestedProfile);
+
+    WorkbenchState state;
+    state.profileStore = DataProfileStore(blockedPath);
+    state.activeProfile.name = "active-profile";
+    state.session.updateProfile(state.activeProfile);
+    PendingPreferenceCommit firstRequest;
+    firstRequest.kind = PendingPreferenceCommitKind::profileDelete;
+    firstRequest.profileName = requestedProfileName;
+    state.pendingPreferenceCommit = std::move(firstRequest);
+    state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::remove;
+
+    REQUIRE_FALSE(applyPendingWorkbenchPersistence(state));
+    REQUIRE(state.failedPreferenceCommit.has_value());
+    REQUIRE_FALSE(state.menuBarState.preferencesDialog.profileDeleteRequested.has_value());
+    REQUIRE(state.activeProfile.name == "active-profile");
+
+    REQUIRE_FALSE(applyPendingWorkbenchPersistence(state));
+    REQUIRE(state.failedPreferenceCommit.has_value());
+
+    state.menuBarState.preferencesDialog.workingProfile.name = "mutated-profile";
+    state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
+    REQUIRE_FALSE(applyPendingWorkbenchPersistence(state));
+    REQUIRE_FALSE(state.failedPreferenceCommit.has_value());
+    REQUIRE(std::filesystem::exists(validStore.path(requestedProfileName)));
+
+    state.profileStore = DataProfileStore(blockedPath);
+    PendingPreferenceCommit secondRequest;
+    secondRequest.kind = PendingPreferenceCommitKind::profileDelete;
+    secondRequest.profileName = requestedProfileName;
+    state.pendingPreferenceCommit = std::move(secondRequest);
+    state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::remove;
+    REQUIRE_FALSE(applyPendingWorkbenchPersistence(state));
+    REQUIRE(state.failedPreferenceCommit.has_value());
+
+    state.profileStore = DataProfileStore(directory.path());
+    state.menuBarState.preferencesDialog.profilePersistenceRetryRequested = true;
+    REQUIRE_FALSE(applyPendingWorkbenchPersistence(state));
+    REQUIRE_FALSE(state.failedPreferenceCommit.has_value());
+    REQUIRE_FALSE(std::filesystem::exists(validStore.path(requestedProfileName)));
+}
+
+TEST_CASE("preferencesPersistence_Should_BlockInvalidProfileNamesBeforeSave")
+{
+    const TemporaryProfileDirectory directory;
+    WorkbenchState state;
+    state.profileStore = DataProfileStore(directory.path());
+    state.menuBarState.preferencesDialog.workingProfile.name = "invalid/name";
+    state.menuBarState.preferencesDialog.profileSaveRequested = true;
+    state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::save;
+
+    REQUIRE_FALSE(applyPendingWorkbenchPersistence(state));
+    REQUIRE_FALSE(state.pendingPreferenceCommit.has_value());
+    REQUIRE_FALSE(state.failedPreferenceCommit.has_value());
+    REQUIRE(state.menuBarState.preferencesDialog.profilePersistenceError.has_value());
+    REQUIRE_FALSE(std::filesystem::exists(state.profileStore.path("invalid/name")));
+}
+
 TEST_CASE("preferencesDialog_Should_ApplySearchRootAndOverrideResults")
 {
     const TemporaryProfileDirectory directory;
@@ -127,6 +203,8 @@ TEST_CASE("preferencesDialog_Should_ApplySearchRootAndOverrideResults")
                            });
     REQUIRE(state.metadataOverrides.at(DataFileRole::radarcol));
     REQUIRE(state.overrides.at(DataFileRole::radarcol).data() == overridePath.string());
+    REQUIRE(state.validation.find(DataFileRole::radarcol) != nullptr);
+    REQUIRE(state.validation.find(DataFileRole::radarcol)->status == uo_mule::gui::DataFileStatus::invalid);
 
     applyFileBrowserResult(state,
                            FileBrowserResult{
@@ -150,6 +228,29 @@ TEST_CASE("preferencesDialog_Should_RenderWithoutSelection")
 
     REQUIRE_FALSE(drawPreferencesDialog(state, browser).has_value());
     REQUIRE(state.visible);
+}
+
+TEST_CASE("preferencesDialog_Should_NotRescanProfilesEveryFrame")
+{
+    PreferencesDialogState state;
+    FileBrowserState browser;
+    const DataProfile profile;
+    const Preferences preferences;
+    requestPreferencesDialog(state, profile, preferences);
+    REQUIRE(state.profileScanCount == 1U);
+
+    {
+        const ImGuiFrame frame;
+        REQUIRE_FALSE(drawPreferencesDialog(state, browser).has_value());
+    }
+    REQUIRE(state.profileScanCount == 1U);
+
+    state.profileListRefreshRequested = true;
+    {
+        const ImGuiFrame frame;
+        REQUIRE_FALSE(drawPreferencesDialog(state, browser).has_value());
+    }
+    REQUIRE(state.profileScanCount == 2U);
 }
 
 TEST_CASE("preferencesDialog_Should_ReturnNothingWhenClosed")
