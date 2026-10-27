@@ -452,6 +452,16 @@ void selectGreetingIfNeeded(WorkbenchState & state)
 
 } // namespace
 
+void releaseWelcomeBannerTexture() noexcept
+{
+    auto & texture = welcomeBannerTexture();
+    if (texture.handle != 0U)
+    {
+        glDeleteTextures(1, &texture.handle);
+    }
+    texture = {};
+}
+
 void drawWelcomeView(WorkbenchState & state)
 {
     selectGreetingIfNeeded(state);

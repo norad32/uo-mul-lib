@@ -2,6 +2,7 @@
 #include "core/app_info.h"
 #include "gui/application/gui_resources.h"
 #include "gui/application/layout_store.h"
+#include "gui/application/welcome_view.h"
 #include "gui/commands/menu_bar.h"
 #include "gui/presentation/imgui_fonts.h"
 #include "gui/presentation/theme.h"
@@ -307,6 +308,18 @@ private:
     bool initialized_ = false;
 };
 
+class WelcomeBannerTextureLifetime
+{
+public:
+    WelcomeBannerTextureLifetime() = default;
+    ~WelcomeBannerTextureLifetime() { releaseWelcomeBannerTexture(); }
+
+    WelcomeBannerTextureLifetime(const WelcomeBannerTextureLifetime &) = delete;
+    WelcomeBannerTextureLifetime & operator=(const WelcomeBannerTextureLifetime &) = delete;
+    WelcomeBannerTextureLifetime(WelcomeBannerTextureLifetime &&) = delete;
+    WelcomeBannerTextureLifetime & operator=(WelcomeBannerTextureLifetime &&) = delete;
+};
+
 void renderFrame(GLFWwindow * window)
 {
     ImGui::Render();
@@ -458,6 +471,7 @@ int Application::run()
     theme::applyImGuiStyle();
     const GlfwBackend glfwBackend(window.get());
     const OpenGLBackend openGLBackend;
+    const WelcomeBannerTextureLifetime welcomeBannerTextureLifetime;
 
     ImGui::GetIO().IniFilename = nullptr;
     ImGui::GetIO().ConfigFlags = static_cast<ImGuiConfigFlags>(static_cast<unsigned int>(ImGui::GetIO().ConfigFlags) |
