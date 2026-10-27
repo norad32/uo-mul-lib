@@ -2247,6 +2247,8 @@ void applyPendingPersistence(WorkbenchState & state)
         {
             state.profileStore.remove(profileName);
             state.menuBarState.preferencesDialog.profileDeleteRequested.reset();
+            state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
+            state.menuBarState.preferencesDialog.profilePersistenceError.reset();
             if (state.activeProfile.name == profileName)
             {
                 state.activeProfile = {};
@@ -2262,8 +2264,11 @@ void applyPendingPersistence(WorkbenchState & state)
         }
         catch (const std::exception & error)
         {
-            state.menuBarState.preferencesDialog.profileDeleteRequested.reset();
-            state.notifications.add(NotificationSeverity::error, "Profile deletion failed: " + std::string(error.what()));
+            state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::remove;
+            state.menuBarState.preferencesDialog.profilePersistenceError =
+                "Profile deletion failed: " + std::string(error.what());
+            state.menuBarState.preferencesDialog.visible = true;
+            activatePreferencesDialog(state.menuBarState.preferencesDialog);
         }
     }
     if (state.menuBarState.preferencesDialog.profileSaveRequested)
@@ -2282,10 +2287,16 @@ void applyPendingPersistence(WorkbenchState & state)
                 state.activeProfile = std::move(profile);
             }
             state.menuBarState.preferencesDialog.profileSaveRequested = false;
+            state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
+            state.menuBarState.preferencesDialog.profilePersistenceError.reset();
         }
         catch (const std::exception & error)
         {
-            state.notifications.add(NotificationSeverity::error, "Profile save failed: " + std::string(error.what()));
+            state.menuBarState.preferencesDialog.profileSaveRequested = false;
+            state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::save;
+            state.menuBarState.preferencesDialog.profilePersistenceError = "Profile save failed: " + std::string(error.what());
+            state.menuBarState.preferencesDialog.visible = true;
+            activatePreferencesDialog(state.menuBarState.preferencesDialog);
         }
     }
     if (state.preferences != state.persistedPreferences)

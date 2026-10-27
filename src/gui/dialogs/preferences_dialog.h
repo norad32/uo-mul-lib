@@ -20,6 +20,13 @@ struct DialogHostState;
 
 inline constexpr std::size_t preferencesDialogBufferSize = 1024;
 
+enum class ProfilePersistenceOperation : std::uint8_t
+{
+    none,
+    save,
+    remove,
+};
+
 struct PreferencesDialogState
 {
     DialogHostState * dialogHost = nullptr;
@@ -40,6 +47,8 @@ struct PreferencesDialogState
     FileBrowserState * browser = nullptr;
     bool profileSaveRequested = false;
     std::optional<std::string> profileDeleteRequested;
+    ProfilePersistenceOperation profilePersistenceOperation = ProfilePersistenceOperation::none;
+    std::optional<std::string> profilePersistenceError;
 };
 
 struct PreferencesDialogResult

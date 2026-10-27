@@ -105,10 +105,42 @@ void validateWorkingProfile(PreferencesDialogState & state)
     state.validation = validateDataProfile(state.workingProfile);
 }
 
+void drawProfilePersistenceFailure(PreferencesDialogState & state)
+{
+    if (!state.profilePersistenceError)
+    {
+        return;
+    }
+
+    ImGui::TextColored(theme::imguiColor(theme::error), "%s", state.profilePersistenceError->c_str());
+    if (ImGui::Button("Retry##profile-persistence"))
+    {
+        if (state.profilePersistenceOperation == ProfilePersistenceOperation::save)
+        {
+            state.profileSaveRequested = true;
+        }
+        else if (state.profilePersistenceOperation == ProfilePersistenceOperation::remove)
+        {
+            state.profileDeleteRequested = state.workingProfile.name;
+        }
+        state.profilePersistenceError.reset();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel##profile-persistence"))
+    {
+        state.profileSaveRequested = false;
+        state.profileDeleteRequested.reset();
+        state.profilePersistenceOperation = ProfilePersistenceOperation::none;
+        state.profilePersistenceError.reset();
+    }
+}
+
 void requestProfileSave(PreferencesDialogState & state)
 {
     state.workingProfile.name = state.profileName.data();
     state.profileSaveRequested = true;
+    state.profilePersistenceOperation = ProfilePersistenceOperation::save;
+    state.profilePersistenceError.reset();
 }
 
 void searchMetadataFolder(PreferencesDialogState & state, const std::filesystem::path & root)
@@ -173,6 +205,8 @@ void drawProfileSection(PreferencesDialogState & state)
         if (ImGui::Button(strings::deleteProfile()))
         {
             state.profileDeleteRequested = state.workingProfile.name;
+            state.profilePersistenceOperation = ProfilePersistenceOperation::remove;
+            state.profilePersistenceError.reset();
         }
     }
     else
@@ -181,6 +215,8 @@ void drawProfileSection(PreferencesDialogState & state)
         ImGui::Button(strings::deleteProfile());
         ImGui::EndDisabled();
     }
+
+    drawProfilePersistenceFailure(state);
 }
 
 void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
@@ -349,6 +385,8 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
     state.closeRequested = false;
     state.profileSaveRequested = false;
     state.profileDeleteRequested.reset();
+    state.profilePersistenceOperation = ProfilePersistenceOperation::none;
+    state.profilePersistenceError.reset();
     initializeDialogFields(state);
     syncWorkingProfile(state);
     state.validation = validateDataProfile(state.workingProfile);
