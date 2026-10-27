@@ -32,6 +32,7 @@ using uo_mule::gui::FileBrowserAssetCandidate;
 using uo_mule::gui::FileBrowserMode;
 using uo_mule::gui::FileBrowserResult;
 using uo_mule::gui::FileBrowserTarget;
+using uo_mule::gui::makeDialogRequest;
 using uo_mule::gui::MapFileDialogMode;
 using uo_mule::gui::MapOverwriteKind;
 using uo_mule::gui::MulAssetKind;
@@ -458,6 +459,19 @@ TEST_CASE("fileSelectorEscape_Should_ReturnToTheOriginatingFileBrowser")
     REQUIRE(state.fileBrowser.directory == selectedPath.parent_path());
     REQUIRE_FALSE(state.fileSelector.visible);
     REQUIRE(state.menuBarState.fileDialog.mode == uo_mule::gui::MapFileDialogMode::none);
+}
+
+TEST_CASE("preferencesEscape_Should_LeaveHostForRendererPopupCleanup")
+{
+    WorkbenchState state;
+    state.menuBarState.preferencesDialog.visible = true;
+    state.dialogHost.activate(makeDialogRequest(DialogId::preferences));
+
+    REQUIRE(uo_mule::gui::handleFileWorkflowEscape(state));
+
+    REQUIRE_FALSE(state.menuBarState.preferencesDialog.visible);
+    REQUIRE(state.menuBarState.preferencesDialog.closeRequested);
+    REQUIRE(state.dialogHost.owns(DialogId::preferences));
 }
 
 TEST_CASE("defaultRadarcolWorkflow_Should_CreateAndBindProfile")

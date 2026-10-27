@@ -745,7 +745,6 @@ bool handleFileWorkflowEscape(WorkbenchState & state)
         case DialogId::preferences :
             state.menuBarState.preferencesDialog.visible = false;
             state.menuBarState.preferencesDialog.closeRequested = true;
-            state.dialogHost.cancel();
             break;
         case DialogId::none :
             return false;
