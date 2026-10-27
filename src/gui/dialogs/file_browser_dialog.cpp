@@ -75,6 +75,7 @@ void navigate(FileBrowserState & state, const std::filesystem::path & path, bool
     state.directory = directory;
     state.selectedPath.clear();
     state.summary = {};
+    state.listingDirty = true;
     state.error.clear();
     copyToBuffer(state.location, directory);
 
@@ -92,16 +93,6 @@ void navigate(FileBrowserState & state, const std::filesystem::path & path, bool
         state.historyIndex = state.history.size() - 1U;
     }
     state.recentFoldersDirty = recordRecentFolder(state.recentFolders, directory) || state.recentFoldersDirty;
-}
-
-[[nodiscard]] bool selectableEntry(const FileBrowserState & state, const std::filesystem::directory_entry & entry)
-{
-    const auto metadata = inspectFileBrowserEntry(entry.path());
-    if (metadata.directory)
-    {
-        return true;
-    }
-    return metadata.regularFile && fileBrowserMatchesFilter(entry.path(), state.request.extension);
 }
 
 [[nodiscard]] std::filesystem::path savePath(const FileBrowserState & state)
@@ -444,6 +435,10 @@ void drawBrowserToolbar(FileBrowserState & state)
     {
         ImGui::SetTooltip("%s", strings::showHidden());
     }
+    if (ImGui::IsItemEdited())
+    {
+        state.listingDirty = true;
+    }
     ImGui::SameLine();
     ImGui::Checkbox("##browser.show-hidden", &state.showHidden);
     if (ImGui::IsItemHovered())
@@ -535,56 +530,57 @@ void drawCreateFolderPopup(FileBrowserState & state)
     ImGui::EndPopup();
 }
 
-[[nodiscard]] std::vector<std::filesystem::directory_entry> browserEntries(const FileBrowserState & state)
+void rebuildBrowserListing(FileBrowserState & state)
 {
-    std::vector<std::filesystem::directory_entry> entries;
+    state.listingRows.clear();
+    state.listingScanCount++;
     std::error_code error;
     for (const auto & entry : std::filesystem::directory_iterator(state.directory, error))
     {
-        const auto name = entry.path().filename().string();
+        const auto & path = entry.path();
+        const auto name = path.filename().string();
         if (!state.showHidden && !name.empty() && name.front() == '.')
         {
             continue;
         }
-        if (selectableEntry(state, entry))
+        const auto metadata = inspectFileBrowserEntry(path);
+        if (metadata.directory || (metadata.regularFile && fileBrowserMatchesFilter(path, state.request.extension)))
         {
-            entries.push_back(entry);
+            state.listingRows.push_back(FileBrowserRowView{.path = path, .metadata = metadata});
         }
     }
 
-    std::ranges::sort(entries,
-                      [](const auto & left, const auto & right)
+    std::ranges::sort(state.listingRows,
+                      [](const FileBrowserRowView & left, const FileBrowserRowView & right)
                       {
-                          const bool leftDirectory = inspectFileBrowserEntry(left.path()).directory;
-                          const bool rightDirectory = inspectFileBrowserEntry(right.path()).directory;
+                          const bool leftDirectory = left.metadata.directory;
+                          const bool rightDirectory = right.metadata.directory;
                           if (leftDirectory != rightDirectory)
                           {
                               return leftDirectory > rightDirectory;
                           }
-                          return normalizeFileBrowserText(left.path().filename().string()) <
-                                 normalizeFileBrowserText(right.path().filename().string());
+                          return normalizeFileBrowserText(left.path.filename().string()) <
+                                 normalizeFileBrowserText(right.path.filename().string());
                       });
-    return entries;
+    state.listingDirty = false;
 }
 
-std::optional<DialogResult>
-drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory_entry & entry, std::uint64_t generation)
+std::optional<DialogResult> drawBrowserEntry(FileBrowserState & state, const FileBrowserRowView & row, std::uint64_t generation)
 {
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
-    const bool selected = state.selectedPath == entry.path();
-    const bool clicked =
-        ImGui::Selectable(entry.path().filename().string().c_str(), selected, ImGuiSelectableFlags_SpanAllColumns);
+    const bool selected = state.selectedPath == row.path;
+    const bool clicked = ImGui::Selectable(row.path.filename().string().c_str(), selected, ImGuiSelectableFlags_SpanAllColumns);
     const bool keyboardActivated = (ImGui::IsItemFocused() || selected) && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
     if (clicked)
     {
-        selectPath(state, entry.path());
+        selectPath(state, row.path);
     }
     if ((ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) || keyboardActivated)
     {
-        if (isFileBrowserDirectory(entry.path()))
+        if (row.metadata.directory)
         {
-            navigate(state, entry.path(), true);
+            navigate(state, row.path, true);
         }
         else if (state.request.mode == FileBrowserMode::openFile)
         {
@@ -596,11 +592,10 @@ drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory_entr
         }
     }
     ImGui::TableNextColumn();
-    const auto metadata = inspectFileBrowserEntry(entry.path());
-    const auto size = metadata.size ? formatFileSize(*metadata.size) : "";
+    const auto size = row.metadata.size ? formatFileSize(*row.metadata.size) : "";
     ImGui::TextUnformatted(size.c_str());
     ImGui::TableNextColumn();
-    ImGui::TextUnformatted(metadata.modified.c_str());
+    ImGui::TextUnformatted(row.metadata.modified.c_str());
     return std::nullopt;
 }
 
@@ -615,9 +610,13 @@ std::optional<DialogResult> drawBrowserEntries(FileBrowserState & state, std::ui
     ImGui::TableSetupColumn(strings::sizeLabel(), ImGuiTableColumnFlags_WidthFixed, 100.0F);
     ImGui::TableSetupColumn(strings::dateLabel(), ImGuiTableColumnFlags_WidthFixed, dateColumnWidth);
     ImGui::TableHeadersRow();
-    for (const auto & entry : browserEntries(state))
+    if (state.listingDirty)
     {
-        if (const auto result = drawBrowserEntry(state, entry, generation))
+        rebuildBrowserListing(state);
+    }
+    for (const auto & row : state.listingRows)
+    {
+        if (const auto result = drawBrowserEntry(state, row, generation))
         {
             ImGui::EndTable();
             return result;

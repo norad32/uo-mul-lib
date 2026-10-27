@@ -6,6 +6,7 @@
 #include "gui_model/dialogs/file_browser_model.h"
 #include "gui_model/dialogs/file_deduction.h"
 #include "gui_model/profile/data_profile.h"
+#include "imgui_test_support.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
 #include "uomul/radarcol/radarcol.h"
@@ -18,6 +19,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <imgui.h>
 #include <ios>
 #include <iterator>
 #include <optional>
@@ -169,6 +171,65 @@ TEST_CASE("fileBrowserRequest_Should_FallbackSilentlyForAnInvalidInitialDirector
     REQUIRE(state.visible);
     REQUIRE(isFileBrowserDirectory(state.directory));
     REQUIRE(state.error.empty());
+}
+
+TEST_CASE("fileBrowser_Should_CacheRowsAndRefreshAfterListingInvalidation")
+{
+    const auto root = std::filesystem::temp_directory_path() / "uo-mule-file-browser-row-cache";
+    const auto directory = root / "z-directory";
+    const auto file = root / "a-file.mul";
+    const auto hiddenFile = root / ".hidden.mul";
+    std::error_code error;
+    std::filesystem::remove_all(root, error);
+    std::filesystem::create_directories(directory, error);
+    std::ofstream(file) << "file";
+    std::ofstream(hiddenFile) << "hidden";
+    REQUIRE_FALSE(error);
+
+    FileBrowserState state;
+    requestFileBrowser(state,
+                       {
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::openGeneric,
+                           .initialPath = root,
+                           .extension = {},
+                           .title = "Open",
+                       });
+
+    const uo_mule::gui::test::ImGuiFrame frame;
+    REQUIRE_FALSE(drawFileBrowser(state, 1U).has_value());
+    REQUIRE(state.listingScanCount == 1U);
+    REQUIRE(state.listingRows.size() == 2U);
+    REQUIRE(state.listingRows.at(0).path.filename() == directory.filename());
+    REQUIRE(state.listingRows.at(0).metadata.directory);
+    REQUIRE(state.listingRows.at(1).path.filename() == file.filename());
+    REQUIRE(state.listingRows.at(1).metadata.regularFile);
+
+    ImGui::EndFrame();
+    ImGui::NewFrame();
+    REQUIRE_FALSE(drawFileBrowser(state, 1U).has_value());
+    REQUIRE(state.listingScanCount == 1U);
+
+    state.showHidden = true;
+    state.listingDirty = true;
+    ImGui::EndFrame();
+    ImGui::NewFrame();
+    REQUIRE_FALSE(drawFileBrowser(state, 1U).has_value());
+    REQUIRE(state.listingScanCount == 2U);
+    REQUIRE(state.listingRows.size() == 3U);
+
+    const auto newDirectory = root / "new-directory";
+    REQUIRE(std::filesystem::create_directory(newDirectory, error));
+    state.listingDirty = true;
+    ImGui::EndFrame();
+    ImGui::NewFrame();
+    REQUIRE_FALSE(drawFileBrowser(state, 1U).has_value());
+    REQUIRE(state.listingScanCount == 3U);
+    REQUIRE(std::ranges::any_of(state.listingRows,
+                                [&newDirectory](const FileBrowserRowView & row) { return row.path == newDirectory; }));
+
+    cancelFileBrowser(state);
+    std::filesystem::remove_all(root, error);
 }
 
 TEST_CASE("fileBrowser_Should_IdentifyValidRadarColorTable")

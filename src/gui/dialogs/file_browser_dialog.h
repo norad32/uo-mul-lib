@@ -14,6 +14,12 @@ namespace uo_mule::gui
 
 struct DialogHostState;
 
+struct FileBrowserRowView
+{
+    std::filesystem::path path;
+    FileBrowserEntryMetadata metadata;
+};
+
 struct FileBrowserState
 {
     DialogHostState * dialogHost = nullptr;
@@ -29,6 +35,9 @@ struct FileBrowserState
     std::array<char, fileBrowserBufferSize> newFolderName{};
     std::vector<std::filesystem::path> history;
     std::size_t historyIndex = 0;
+    std::vector<FileBrowserRowView> listingRows;
+    bool listingDirty = true;
+    std::size_t listingScanCount = 0;
     std::vector<std::filesystem::path> recentFolders;
     FileBrowserSummary summary{};
     std::string error;
