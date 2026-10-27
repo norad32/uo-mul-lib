@@ -88,6 +88,11 @@ struct WorkbenchState
     PendingPreferenceChanges pendingPreferenceChanges;
     std::optional<PreferencesDialogResult> pendingPreferencesResult;
     bool pendingPreferencesPersistenceBlocked = false;
+    bool preferencesPersistenceBlocked = false;
+    bool preferencesPersistenceRetryRequested = false;
+    bool preferencesPersistenceSuppressed = false;
+    std::optional<Preferences> preferencesPersistenceSuppressedFor;
+    std::string preferencesPersistenceError;
     std::vector<std::function<void()>> deferredWorkflowActions;
     CoordinateDialogState coordinateDialog;
     MenuBarState menuBarState;

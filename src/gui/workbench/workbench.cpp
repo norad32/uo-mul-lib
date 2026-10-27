@@ -2241,8 +2241,60 @@ void evictClosedDocumentState(WorkbenchState & state, DocumentId id)
     state.tiledataState.documentAssetViews.erase(id);
 }
 
+void drawPreferencesPersistenceFailure(WorkbenchState & state)
+{
+    if (!state.preferencesPersistenceBlocked)
+    {
+        return;
+    }
+
+    const std::string title = "Preferences persistence failed###preferences.persistence-failure";
+    if (!beginAutoSizeDialog(title.c_str(), nullptr))
+    {
+        return;
+    }
+
+    ImGui::TextWrapped("%s", state.preferencesPersistenceError.c_str());
+    if (ImGui::Button("Retry##preferences-persistence"))
+    {
+        state.preferencesPersistenceRetryRequested = true;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel##preferences-persistence"))
+    {
+        state.preferencesPersistenceSuppressed = true;
+        state.preferencesPersistenceSuppressedFor = state.preferences;
+        state.preferencesPersistenceBlocked = false;
+        state.preferencesPersistenceError.clear();
+        ImGui::CloseCurrentPopup();
+    }
+    endDialog();
+}
+
 void persistPreferenceChanges(WorkbenchState & state)
 {
+    if (state.preferencesPersistenceSuppressed)
+    {
+        if (state.preferencesPersistenceSuppressedFor && state.preferences == *state.preferencesPersistenceSuppressedFor)
+        {
+            return;
+        }
+        state.preferencesPersistenceSuppressed = false;
+        state.preferencesPersistenceSuppressedFor.reset();
+    }
+    if (state.preferencesPersistenceBlocked)
+    {
+        if (!state.preferencesPersistenceRetryRequested)
+        {
+            return;
+        }
+        state.preferencesPersistenceRetryRequested = false;
+        state.preferencesPersistenceBlocked = false;
+        state.preferencesPersistenceError.clear();
+        state.preferencesPersistenceSuppressed = false;
+        state.preferencesPersistenceSuppressedFor.reset();
+    }
     try
     {
         if (!state.activeProfile.name.empty())
@@ -2258,9 +2310,13 @@ void persistPreferenceChanges(WorkbenchState & state)
         globalPreferences.activeDataProfile = state.activeProfile.name;
         savePreferences(globalPreferences);
         state.persistedPreferences = state.preferences;
+        state.preferencesPersistenceSuppressed = false;
+        state.preferencesPersistenceSuppressedFor.reset();
     }
     catch (const std::exception & error)
     {
+        state.preferencesPersistenceBlocked = true;
+        state.preferencesPersistenceError = "Preferences save failed: " + std::string(error.what());
         state.notifications.add(NotificationSeverity::error, "Preferences save failed: " + std::string(error.what()));
     }
 }
@@ -2506,6 +2562,7 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
         applyProfileChange(state);
     }
     applyPendingPreferenceChanges(state);
+    drawPreferencesPersistenceFailure(state);
     applyPendingPersistence(state);
     drawToolCursor(window, state);
 }
