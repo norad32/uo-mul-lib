@@ -735,7 +735,7 @@ bool handleFileWorkflowEscape(WorkbenchState & state)
             }
             else
             {
-                state.dialogHost.cancel();
+                cancelFileDialog(state.menuBarState.fileDialog);
             }
             break;
         case DialogId::fileSelector :

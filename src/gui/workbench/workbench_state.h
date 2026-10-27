@@ -53,6 +53,22 @@ struct PendingPreferenceChanges
     [[nodiscard]] bool empty() const noexcept { return !showWelcomeOnStartup; }
 };
 
+enum class PendingPreferenceCommitKind : std::uint8_t
+{
+    profile,
+    profileSwitch,
+    profileDelete,
+    preferences,
+};
+
+struct PendingPreferenceCommit
+{
+    PendingPreferenceCommitKind kind = PendingPreferenceCommitKind::preferences;
+    DataProfile profile;
+    Preferences preferences;
+    std::string profileName;
+};
+
 struct WorkbenchState
 {
     explicit WorkbenchState(Preferences initialPreferences = {});
@@ -86,6 +102,7 @@ struct WorkbenchState
     std::optional<PendingChangesAction> pendingDocumentCloseAction;
     std::optional<DocumentId> pendingDocumentFocus;
     PendingPreferenceChanges pendingPreferenceChanges;
+    std::optional<PendingPreferenceCommit> pendingPreferenceCommit;
     std::optional<PreferencesDialogResult> pendingPreferencesResult;
     bool pendingPreferencesPersistenceBlocked = false;
     bool preferencesPersistenceBlocked = false;

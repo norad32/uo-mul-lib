@@ -98,6 +98,35 @@ TEST_CASE("OperationController_Should_RouteMapSaveAsThroughSavePhase")
     REQUIRE(controller.completeSave(true).kind == OperationTransitionKind::execute);
 }
 
+TEST_CASE("OperationController_Should_CancelAwaitingSaveAndResetToIdle")
+{
+    OperationController controller;
+    OperationRequest request{
+        .kind = OperationKind::saveAs,
+        .documentId = std::nullopt,
+        .path = "map-copy.mul",
+        .dimensions = uomul::Dimensions(),
+        .initialTile = uomul::MapTile(),
+    };
+
+    REQUIRE(controller.begin(request, false, false, OutputCollisionPolicy::confirm).kind ==
+            OperationTransitionKind::showSaveDialog);
+    REQUIRE(controller.phase() == OperationPhase::awaitingSave);
+    REQUIRE(controller.cancel().kind == OperationTransitionKind::cancelled);
+    REQUIRE(controller.phase() == OperationPhase::idle);
+    REQUIRE(controller.request().kind == OperationKind::none);
+}
+
+TEST_CASE("OperationController_Should_IgnoreRepeatedCancel")
+{
+    OperationController controller;
+
+    REQUIRE(controller.cancel().kind == OperationTransitionKind::cancelled);
+    REQUIRE(controller.phase() == OperationPhase::idle);
+    REQUIRE(controller.cancel().kind == OperationTransitionKind::cancelled);
+    REQUIRE(controller.phase() == OperationPhase::idle);
+}
+
 TEST_CASE("OperationController_Should_RouteSaveAsCollisionBeforeSave")
 {
     OperationController controller;

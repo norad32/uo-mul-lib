@@ -823,7 +823,12 @@ void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind ki
     const PreferencesDialogResult result = *state.pendingPreferencesResult;
     if (!result.applyProfile)
     {
-        state.preferences = result.preferences;
+        state.pendingPreferenceCommit = PendingPreferenceCommit{
+            .kind = PendingPreferenceCommitKind::preferences,
+            .profile = state.activeProfile,
+            .preferences = result.preferences,
+            .profileName = {},
+        };
         state.pendingPreferencesResult.reset();
         return false;
     }
@@ -851,27 +856,15 @@ void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind ki
         activatePreferencesDialog(preferencesDialog);
         return false;
     }
+    state.pendingPreferenceCommit = PendingPreferenceCommit{
+        .kind = profileChanged ? PendingPreferenceCommitKind::profileSwitch : PendingPreferenceCommitKind::profile,
+        .profile = result.profile,
+        .preferences = result.preferences,
+        .profileName = {},
+    };
+    state.menuBarState.preferencesDialog.profileSaveRequested = false;
     state.pendingPreferencesResult.reset();
-    state.activeProfile = result.profile;
-    if (profileChanged)
-    {
-        state.preferences = state.activeProfile.preferences;
-        state.preferences.activeDataProfile = state.activeProfile.name;
-        state.toolState.loadPreferences(state.preferences.tools);
-        state.panelRegistry.resetToDefaults();
-        state.windowRegistry.resetToDefaults();
-        state.layout = {};
-        loadProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
-        state.workbenchLayoutApplied = false;
-    }
-    else
-    {
-        state.preferences = result.preferences;
-        state.preferences.activeDataProfile = state.activeProfile.name;
-        state.activeProfile.preferences = state.preferences;
-        state.workbenchLayoutApplied = false;
-    }
-    return true;
+    return false;
 }
 
 void applyLogPanelRequest(WorkbenchState & state, logger::GuiLogSink & logSink)
@@ -2272,13 +2265,184 @@ void drawPreferencesPersistenceFailure(WorkbenchState & state)
     endDialog();
 }
 
-void persistPreferenceChanges(WorkbenchState & state)
+[[nodiscard]] bool commitPendingPreference(WorkbenchState & state, PendingPreferenceCommit request)
 {
+    auto & preferencesDialog = state.menuBarState.preferencesDialog;
+    try
+    {
+        switch (request.kind)
+        {
+            case PendingPreferenceCommitKind::profileDelete :
+                state.profileStore.remove(request.profileName);
+                preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
+                preferencesDialog.profilePersistenceError.reset();
+                if (state.activeProfile.name == request.profileName)
+                {
+                    const Preferences globalPreferences;
+                    savePreferences(globalPreferences);
+                    state.activeProfile = {};
+                    state.preferences = {};
+                    state.persistedPreferences = state.preferences;
+                    state.toolState.loadPreferences(state.preferences.tools);
+                    state.panelRegistry.resetToDefaults();
+                    state.windowRegistry.resetToDefaults();
+                    state.layout = {};
+                    state.workbenchLayoutApplied = false;
+                    requestPreferencesDialog(preferencesDialog, state.activeProfile, state.preferences);
+                    return true;
+                }
+                requestPreferencesDialog(preferencesDialog, state.activeProfile, state.preferences);
+                return false;
+            case PendingPreferenceCommitKind::profile :
+            {
+                DataProfile profile = std::move(request.profile);
+                if (profile.name == state.activeProfile.name)
+                {
+                    profile.preferences = request.preferences;
+                    profile.preferences.activeDataProfile = profile.name;
+                    saveProfileLayout(profile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+                }
+                state.profileStore.save(profile);
+                if (profile.name != state.activeProfile.name)
+                {
+                    preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
+                    preferencesDialog.profilePersistenceError.reset();
+                    return false;
+                }
+                state.activeProfile = std::move(profile);
+                state.preferences = state.activeProfile.preferences;
+                state.persistedPreferences = state.preferences;
+                state.workbenchLayoutApplied = false;
+                preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
+                preferencesDialog.profilePersistenceError.reset();
+                return true;
+            }
+            case PendingPreferenceCommitKind::profileSwitch :
+            {
+                DataProfile profile = std::move(request.profile);
+                profile.preferences.activeDataProfile = profile.name;
+                state.profileStore.save(profile);
+                Preferences globalPreferences;
+                globalPreferences.activeDataProfile = profile.name;
+                savePreferences(globalPreferences);
+                state.activeProfile = std::move(profile);
+                state.preferences = state.activeProfile.preferences;
+                state.persistedPreferences = state.preferences;
+                state.toolState.loadPreferences(state.preferences.tools);
+                state.panelRegistry.resetToDefaults();
+                state.windowRegistry.resetToDefaults();
+                state.layout = {};
+                loadProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+                state.workbenchLayoutApplied = false;
+                preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
+                preferencesDialog.profilePersistenceError.reset();
+                return true;
+            }
+            case PendingPreferenceCommitKind::preferences :
+            {
+                DataProfile profile = state.activeProfile;
+                profile.preferences = request.preferences;
+                profile.preferences.activeDataProfile = profile.name;
+                if (!profile.name.empty())
+                {
+                    saveProfileLayout(profile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+                    state.profileStore.save(profile);
+                }
+                Preferences globalPreferences;
+                globalPreferences.activeDataProfile = profile.name;
+                savePreferences(globalPreferences);
+                state.activeProfile = std::move(profile);
+                state.preferences = request.preferences;
+                state.preferences.activeDataProfile = state.activeProfile.name;
+                state.persistedPreferences = state.preferences;
+                state.preferencesPersistenceSuppressed = false;
+                state.preferencesPersistenceSuppressedFor.reset();
+                return false;
+            }
+        }
+    }
+    catch (const std::exception & error)
+    {
+        const std::string message = error.what();
+        if (request.kind == PendingPreferenceCommitKind::preferences)
+        {
+            state.preferencesPersistenceBlocked = true;
+            state.preferencesPersistenceError = "Preferences save failed: " + message;
+            state.notifications.add(NotificationSeverity::error, "Preferences save failed: " + message);
+        }
+        else
+        {
+            preferencesDialog.profileSaveRequested = request.kind != PendingPreferenceCommitKind::profileDelete;
+            preferencesDialog.profileDeleteRequested = request.kind == PendingPreferenceCommitKind::profileDelete
+                                                           ? std::optional<std::string>(request.profileName)
+                                                           : std::nullopt;
+            if (request.kind == PendingPreferenceCommitKind::profileDelete)
+            {
+                preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::remove;
+            }
+            else if (request.kind == PendingPreferenceCommitKind::profileSwitch)
+            {
+                preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::switchProfile;
+            }
+            else
+            {
+                preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::save;
+            }
+            preferencesDialog.profilePersistenceError = "Profile save failed: " + message;
+            preferencesDialog.visible = true;
+            activatePreferencesDialog(preferencesDialog);
+        }
+        return false;
+    }
+
+    return false;
+}
+
+[[nodiscard]] bool queuePendingPreferenceCommit(WorkbenchState & state)
+{
+    if (state.pendingPreferenceCommit)
+    {
+        return true;
+    }
+
+    auto & preferencesDialog = state.menuBarState.preferencesDialog;
+    if (preferencesDialog.profileDeleteRequested)
+    {
+        PendingPreferenceCommit request;
+        request.kind = PendingPreferenceCommitKind::profileDelete;
+        request.profileName = *preferencesDialog.profileDeleteRequested;
+        state.pendingPreferenceCommit = std::move(request);
+        preferencesDialog.profileDeleteRequested.reset();
+        return true;
+    }
+
+    if (preferencesDialog.profileSaveRequested)
+    {
+        PendingPreferenceCommitKind kind = PendingPreferenceCommitKind::profile;
+        if (preferencesDialog.profilePersistenceOperation == ProfilePersistenceOperation::switchProfile)
+        {
+            kind = PendingPreferenceCommitKind::profileSwitch;
+        }
+        state.pendingPreferenceCommit = PendingPreferenceCommit{
+            .kind = kind,
+            .profile = preferencesDialog.workingProfile,
+            .preferences = state.preferences,
+            .profileName = {},
+        };
+        preferencesDialog.profileSaveRequested = false;
+        return true;
+    }
+
+    if (state.preferences == state.persistedPreferences)
+    {
+        return false;
+    }
+
     if (state.preferencesPersistenceSuppressed)
     {
         if (state.preferencesPersistenceSuppressedFor && state.preferences == *state.preferencesPersistenceSuppressedFor)
         {
-            return;
+            return false;
         }
         state.preferencesPersistenceSuppressed = false;
         state.preferencesPersistenceSuppressedFor.reset();
@@ -2287,109 +2451,36 @@ void persistPreferenceChanges(WorkbenchState & state)
     {
         if (!state.preferencesPersistenceRetryRequested)
         {
-            return;
+            return false;
         }
         state.preferencesPersistenceRetryRequested = false;
         state.preferencesPersistenceBlocked = false;
         state.preferencesPersistenceError.clear();
-        state.preferencesPersistenceSuppressed = false;
-        state.preferencesPersistenceSuppressedFor.reset();
     }
-    try
-    {
-        if (!state.activeProfile.name.empty())
-        {
-            DataProfile profile = state.activeProfile;
-            profile.preferences = state.preferences;
-            saveProfileLayout(profile.layout, state.panelRegistry, state.windowRegistry, state.layout);
-            state.profileStore.save(profile);
-            state.activeProfile = std::move(profile);
-        }
 
-        Preferences globalPreferences;
-        globalPreferences.activeDataProfile = state.activeProfile.name;
-        savePreferences(globalPreferences);
-        state.persistedPreferences = state.preferences;
-        state.preferencesPersistenceSuppressed = false;
-        state.preferencesPersistenceSuppressedFor.reset();
-    }
-    catch (const std::exception & error)
-    {
-        state.preferencesPersistenceBlocked = true;
-        state.preferencesPersistenceError = "Preferences save failed: " + std::string(error.what());
-        state.notifications.add(NotificationSeverity::error, "Preferences save failed: " + std::string(error.what()));
-    }
+    state.pendingPreferenceCommit = PendingPreferenceCommit{
+        .kind = PendingPreferenceCommitKind::preferences,
+        .profile = state.activeProfile,
+        .preferences = state.preferences,
+        .profileName = {},
+    };
+    return true;
 }
 
-void applyPendingPersistence(WorkbenchState & state)
+[[nodiscard]] bool applyPendingPersistence(WorkbenchState & state)
 {
     // Tool state is edited directly through the palette and is persisted in the
     // regular preferences record. Keep that record synchronized before the
     // change check below so tool changes are saved during the session too.
     state.toolState.savePreferences(state.preferences.tools);
+    static_cast<void>(queuePendingPreferenceCommit(state));
 
-    if (state.menuBarState.preferencesDialog.profileDeleteRequested)
+    bool profileChanged = false;
+    if (state.pendingPreferenceCommit)
     {
-        const std::string profileName = *state.menuBarState.preferencesDialog.profileDeleteRequested;
-        try
-        {
-            state.profileStore.remove(profileName);
-            state.menuBarState.preferencesDialog.profileDeleteRequested.reset();
-            state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
-            state.menuBarState.preferencesDialog.profilePersistenceError.reset();
-            if (state.activeProfile.name == profileName)
-            {
-                state.activeProfile = {};
-                state.preferences = {};
-                state.toolState.loadPreferences(state.preferences.tools);
-                state.panelRegistry.resetToDefaults();
-                state.windowRegistry.resetToDefaults();
-                state.layout = {};
-                state.workbenchLayoutApplied = false;
-                applyProfileChange(state);
-            }
-            requestPreferencesDialog(state.menuBarState.preferencesDialog, state.activeProfile, state.preferences);
-        }
-        catch (const std::exception & error)
-        {
-            state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::remove;
-            state.menuBarState.preferencesDialog.profilePersistenceError =
-                "Profile deletion failed: " + std::string(error.what());
-            state.menuBarState.preferencesDialog.visible = true;
-            activatePreferencesDialog(state.menuBarState.preferencesDialog);
-        }
-    }
-    if (state.menuBarState.preferencesDialog.profileSaveRequested)
-    {
-        try
-        {
-            DataProfile profile = state.menuBarState.preferencesDialog.workingProfile;
-            if (profile.name == state.activeProfile.name)
-            {
-                profile.preferences = state.preferences;
-                saveProfileLayout(profile.layout, state.panelRegistry, state.windowRegistry, state.layout);
-            }
-            state.profileStore.save(profile);
-            if (profile.name == state.activeProfile.name)
-            {
-                state.activeProfile = std::move(profile);
-            }
-            state.menuBarState.preferencesDialog.profileSaveRequested = false;
-            state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::none;
-            state.menuBarState.preferencesDialog.profilePersistenceError.reset();
-        }
-        catch (const std::exception & error)
-        {
-            state.menuBarState.preferencesDialog.profileSaveRequested = false;
-            state.menuBarState.preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::save;
-            state.menuBarState.preferencesDialog.profilePersistenceError = "Profile save failed: " + std::string(error.what());
-            state.menuBarState.preferencesDialog.visible = true;
-            activatePreferencesDialog(state.menuBarState.preferencesDialog);
-        }
-    }
-    if (state.preferences != state.persistedPreferences)
-    {
-        persistPreferenceChanges(state);
+        PendingPreferenceCommit request = std::move(*state.pendingPreferenceCommit);
+        state.pendingPreferenceCommit.reset();
+        profileChanged = commitPendingPreference(state, std::move(request));
     }
     if (state.assetStateResetRequested)
     {
@@ -2419,6 +2510,7 @@ void applyPendingPersistence(WorkbenchState & state)
     captureConfiguredMetadataAssetState(state, DocumentKind::radarcol, state.radarcolState.documentAssetViews);
     captureConfiguredMetadataAssetState(state, DocumentKind::texmaps, state.texmapsState.documentAssetViews);
     captureConfiguredMetadataAssetState(state, DocumentKind::tiledata, state.tiledataState.documentAssetViews);
+    return profileChanged;
 }
 
 [[nodiscard]] bool welcomeShell(const WorkbenchState & state) noexcept
@@ -2557,13 +2649,13 @@ void drawWorkbench(GLFWwindow * window, logger::GuiLogSink & logSink, WorkbenchS
     applyDeferredWorkflowActions(state);
     applyLogPanelRequest(state, logSink);
     const bool preferencesProfileChanged = applyPendingPreferencesDialog(window, state);
-    if (profileChanged || welcomeProfileChanged || preferencesProfileChanged)
+    applyPendingPreferenceChanges(state);
+    drawPreferencesPersistenceFailure(state);
+    const bool persistedProfileChanged = applyPendingPersistence(state);
+    if (profileChanged || welcomeProfileChanged || preferencesProfileChanged || persistedProfileChanged)
     {
         applyProfileChange(state);
     }
-    applyPendingPreferenceChanges(state);
-    drawPreferencesPersistenceFailure(state);
-    applyPendingPersistence(state);
     drawToolCursor(window, state);
 }
 

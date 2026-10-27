@@ -50,6 +50,8 @@ constexpr ImGuiWindowFlags hostFlags = static_cast<ImGuiWindowFlags>(
     static_cast<unsigned int>(ImGuiWindowFlags_NoBringToFrontOnFocus));
 constexpr float dialogCenterPivot = 0.5F;
 
+void cancelControlledOperation(const NewFileDialogState & state);
+
 void closeDialogPopup(NewFileDialogState & state)
 {
     state.activePopup = MapFileDialogMode::none;
@@ -95,6 +97,7 @@ void deferWorkflow(const NewFileDialogState & state, std::function<void()> actio
 
 void closeDialog(NewFileDialogState & state)
 {
+    cancelControlledOperation(state);
     if (state.dialogHost != nullptr && state.dialogHost->owns(DialogId::mapWorkflow))
     {
         state.dialogHost->cancel();
@@ -102,7 +105,9 @@ void closeDialog(NewFileDialogState & state)
     closeDialogPopup(state);
     state.operation = {};
     state.overwriteKind = MapOverwriteKind::none;
+    state.operationOverwriteOutput = false;
     state.saveForPendingOperation = false;
+    state.savePath.fill('\0');
     state.standaloneOverwritePath.clear();
     state.standaloneOverwriteDecision = {};
     state.mode = MapFileDialogMode::none;
@@ -989,13 +994,16 @@ void drawDialogContent(MapDocumentManager & mapDocument, NewFileDialogState & st
 
 void cancelFileDialog(NewFileDialogState & state)
 {
+    cancelControlledOperation(state);
     if (state.dialogHost != nullptr && state.dialogHost->owns(DialogId::mapWorkflow))
     {
         state.dialogHost->cancel();
     }
     state.operation = {};
     state.overwriteKind = MapOverwriteKind::none;
+    state.operationOverwriteOutput = false;
     state.saveForPendingOperation = false;
+    state.savePath.fill('\0');
     state.mode = MapFileDialogMode::none;
     state.activePopup = MapFileDialogMode::none;
     state.openWithoutReview = false;
@@ -1158,12 +1166,7 @@ void drawNewFileDialog(MapDocumentManager & mapDocument,
             : beginDialog(popupName(currentMode), nullptr, mapDialogSpec(), ImGuiWindowFlags_AlwaysAutoResize);
     if (!dialogVisible)
     {
-        if (state.dialogHost != nullptr && state.dialogHost->owns(DialogId::mapWorkflow))
-        {
-            state.dialogHost->cancel();
-        }
-        state.mode = MapFileDialogMode::none;
-        state.activePopup = MapFileDialogMode::none;
+        cancelFileDialog(state);
         ImGui::PopID();
         ImGui::End();
         return;
