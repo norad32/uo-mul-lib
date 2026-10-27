@@ -103,6 +103,7 @@ struct WorkbenchState
     std::optional<DocumentId> pendingDocumentFocus;
     PendingPreferenceChanges pendingPreferenceChanges;
     std::optional<PendingPreferenceCommit> pendingPreferenceCommit;
+    std::optional<PendingPreferenceCommit> failedPreferenceCommit;
     std::optional<PreferencesDialogResult> pendingPreferencesResult;
     bool pendingPreferencesPersistenceBlocked = false;
     bool preferencesPersistenceBlocked = false;

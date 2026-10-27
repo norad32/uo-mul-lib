@@ -50,6 +50,7 @@ struct PreferencesDialogState
     std::optional<std::string> profileDeleteRequested;
     ProfilePersistenceOperation profilePersistenceOperation = ProfilePersistenceOperation::none;
     std::optional<std::string> profilePersistenceError;
+    bool profilePersistenceRetryRequested = false;
     bool profileSwitchRetryRequested = false;
 };
 

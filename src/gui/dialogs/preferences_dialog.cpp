@@ -115,13 +115,14 @@ void drawProfilePersistenceFailure(PreferencesDialogState & state)
     ImGui::TextColored(theme::imguiColor(theme::error), "%s", state.profilePersistenceError->c_str());
     if (ImGui::Button("Retry##profile-persistence"))
     {
+        state.profilePersistenceRetryRequested = true;
         if (state.profilePersistenceOperation == ProfilePersistenceOperation::save)
         {
-            state.profileSaveRequested = true;
+            state.profileSaveRequested = false;
         }
         else if (state.profilePersistenceOperation == ProfilePersistenceOperation::remove)
         {
-            state.profileDeleteRequested = state.workingProfile.name;
+            state.profileDeleteRequested.reset();
         }
         else if (state.profilePersistenceOperation == ProfilePersistenceOperation::switchProfile)
         {
@@ -137,6 +138,7 @@ void drawProfilePersistenceFailure(PreferencesDialogState & state)
         state.profileDeleteRequested.reset();
         state.profilePersistenceOperation = ProfilePersistenceOperation::none;
         state.profilePersistenceError.reset();
+        state.profilePersistenceRetryRequested = false;
         state.profileSwitchRetryRequested = false;
     }
 }
@@ -393,6 +395,7 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
     state.profileDeleteRequested.reset();
     state.profilePersistenceOperation = ProfilePersistenceOperation::none;
     state.profilePersistenceError.reset();
+    state.profilePersistenceRetryRequested = false;
     state.profileSwitchRetryRequested = false;
     initializeDialogFields(state);
     syncWorkingProfile(state);

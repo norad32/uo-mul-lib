@@ -2363,8 +2363,10 @@ void drawPreferencesPersistenceFailure(WorkbenchState & state)
     }
     catch (const std::exception & error)
     {
+        const auto failedKind = request.kind;
+        state.failedPreferenceCommit = std::move(request);
         const std::string message = error.what();
-        if (request.kind == PendingPreferenceCommitKind::preferences)
+        if (failedKind == PendingPreferenceCommitKind::preferences)
         {
             state.preferencesPersistenceBlocked = true;
             state.preferencesPersistenceError = "Preferences save failed: " + message;
@@ -2372,15 +2374,13 @@ void drawPreferencesPersistenceFailure(WorkbenchState & state)
         }
         else
         {
-            preferencesDialog.profileSaveRequested = request.kind != PendingPreferenceCommitKind::profileDelete;
-            preferencesDialog.profileDeleteRequested = request.kind == PendingPreferenceCommitKind::profileDelete
-                                                           ? std::optional<std::string>(request.profileName)
-                                                           : std::nullopt;
-            if (request.kind == PendingPreferenceCommitKind::profileDelete)
+            preferencesDialog.profileSaveRequested = false;
+            preferencesDialog.profileDeleteRequested.reset();
+            if (failedKind == PendingPreferenceCommitKind::profileDelete)
             {
                 preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::remove;
             }
-            else if (request.kind == PendingPreferenceCommitKind::profileSwitch)
+            else if (failedKind == PendingPreferenceCommitKind::profileSwitch)
             {
                 preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::switchProfile;
             }
@@ -2406,6 +2406,38 @@ void drawPreferencesPersistenceFailure(WorkbenchState & state)
     }
 
     auto & preferencesDialog = state.menuBarState.preferencesDialog;
+    if (state.failedPreferenceCommit)
+    {
+        const bool retryRequested =
+            preferencesDialog.profilePersistenceRetryRequested || state.preferencesPersistenceRetryRequested;
+        if (retryRequested)
+        {
+            state.pendingPreferenceCommit = std::move(state.failedPreferenceCommit);
+            state.failedPreferenceCommit.reset();
+            preferencesDialog.profilePersistenceRetryRequested = false;
+            preferencesDialog.profileSaveRequested = false;
+            preferencesDialog.profileDeleteRequested.reset();
+            preferencesDialog.profilePersistenceError.reset();
+            state.preferencesPersistenceRetryRequested = false;
+            state.preferencesPersistenceBlocked = false;
+            state.preferencesPersistenceError.clear();
+            return true;
+        }
+
+        const bool failedPreferences = state.failedPreferenceCommit->kind == PendingPreferenceCommitKind::preferences;
+        bool cancelled = !state.preferencesPersistenceBlocked;
+        if (!failedPreferences)
+        {
+            cancelled = preferencesDialog.profilePersistenceOperation == ProfilePersistenceOperation::none;
+        }
+        if (cancelled)
+        {
+            state.failedPreferenceCommit.reset();
+            return false;
+        }
+        return false;
+    }
+
     if (preferencesDialog.profileDeleteRequested)
     {
         PendingPreferenceCommit request;
