@@ -144,6 +144,33 @@ TEST_CASE("fileBrowserModel_Should_ProvideNormalizedEntryMetadata")
     std::filesystem::remove_all(directory, error);
 }
 
+TEST_CASE("fileBrowserModel_Should_NormalizeWithoutAcceptingInvalidDirectories")
+{
+    const auto path = std::filesystem::temp_directory_path() / "uo-mule-file-browser-missing-directory";
+    const auto normalized = normalizeFileBrowserDirectory(path);
+
+    REQUIRE(normalized == std::filesystem::absolute(path).lexically_normal());
+    REQUIRE_FALSE(isFileBrowserDirectory(normalized));
+}
+
+TEST_CASE("fileBrowserRequest_Should_FallbackSilentlyForAnInvalidInitialDirectory")
+{
+    FileBrowserState state;
+    requestFileBrowser(
+        state,
+        {
+            .mode = FileBrowserMode::openFile,
+            .target = FileBrowserTarget::openGeneric,
+            .initialPath = std::filesystem::temp_directory_path() / "uo-mule-file-browser-missing-initial-directory",
+            .extension = ".mul",
+            .title = "Open",
+        });
+
+    REQUIRE(state.visible);
+    REQUIRE(isFileBrowserDirectory(state.directory));
+    REQUIRE(state.error.empty());
+}
+
 TEST_CASE("fileBrowser_Should_IdentifyValidRadarColorTable")
 {
     const auto path = std::filesystem::temp_directory_path() / "radarcol.mul";

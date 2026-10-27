@@ -77,12 +77,12 @@ std::string normalizeFileBrowserText(std::string value)
 std::filesystem::path normalizeFileBrowserDirectory(const std::filesystem::path & path)
 {
     std::error_code error;
-    auto absolute = std::filesystem::absolute(path, error).lexically_normal();
-    if (!error && isDirectory(absolute))
+    const auto absolute = std::filesystem::absolute(path, error);
+    if (error)
     {
-        return absolute;
+        return {};
     }
-    return std::filesystem::current_path(error);
+    return absolute.lexically_normal();
 }
 
 bool isFileBrowserDirectory(const std::filesystem::path & path)
@@ -135,6 +135,10 @@ void saveRecentFolders(const std::vector<std::filesystem::path> & folders)
 bool recordRecentFolder(std::vector<std::filesystem::path> & folders, const std::filesystem::path & folder)
 {
     const auto normalized = normalizeFileBrowserDirectory(folder);
+    if (normalized.empty() || !isDirectory(normalized))
+    {
+        return false;
+    }
     if (!folders.empty() && folders.front() == normalized)
     {
         return false;

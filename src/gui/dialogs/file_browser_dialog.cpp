@@ -66,7 +66,7 @@ void updateSummary(FileBrowserState & state)
 void navigate(FileBrowserState & state, const std::filesystem::path & path, bool addHistory)
 {
     const auto directory = normalizeFileBrowserDirectory(path);
-    if (!isFileBrowserDirectory(directory))
+    if (directory.empty() || !isFileBrowserDirectory(directory))
     {
         state.error = strings::pathNotDirectory();
         return;
@@ -324,6 +324,17 @@ void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
     {
         state.recentFolders = loadRecentFolders();
     }
+    const auto staleRecentFolder = [](const std::filesystem::path & folder)
+    {
+        const auto normalized = normalizeFileBrowserDirectory(folder);
+        return normalized.empty() || !isFileBrowserDirectory(normalized);
+    };
+    const auto removedRecentFolders = std::ranges::remove_if(state.recentFolders, staleRecentFolder);
+    if (removedRecentFolders.begin() != removedRecentFolders.end())
+    {
+        state.recentFolders.erase(removedRecentFolders.begin(), removedRecentFolders.end());
+        state.recentFoldersDirty = true;
+    }
     state.visible = true;
     state.request = std::move(request);
     std::filesystem::path initial = state.request.initialPath;
@@ -334,19 +345,25 @@ void requestFileBrowser(FileBrowserState & state, FileBrowserRequest request)
     const auto initialMetadata = inspectFileBrowserEntry(initial);
     const bool initialIsFile = initialMetadata.regularFile;
     const bool initialIsSavePath = state.request.mode == FileBrowserMode::saveFile && !initialMetadata.exists;
-    if (initialIsFile || initialIsSavePath)
+    const auto requestedDirectory = initialIsFile || initialIsSavePath ? initial.parent_path() : initial;
+    const auto normalizedRequestedDirectory = normalizeFileBrowserDirectory(requestedDirectory);
+    const bool requestedDirectoryIsValid =
+        !normalizedRequestedDirectory.empty() && isFileBrowserDirectory(normalizedRequestedDirectory);
+    auto initialDirectory = normalizedRequestedDirectory;
+    if (!requestedDirectoryIsValid)
     {
-        state.directory = normalizeFileBrowserDirectory(initial.parent_path());
-        if (state.request.mode == FileBrowserMode::saveFile)
-        {
-            copyToBuffer(state.filename, initial.filename());
-        }
+        std::error_code error;
+        initialDirectory = normalizeFileBrowserDirectory(std::filesystem::current_path(error));
     }
-    else
+    state.directory = std::move(initialDirectory);
+    if (initialIsSavePath)
     {
-        state.directory = normalizeFileBrowserDirectory(initial);
+        copyToBuffer(state.filename, initial.filename());
     }
-    navigate(state, state.directory, true);
+    if (!state.directory.empty())
+    {
+        navigate(state, state.directory, true);
+    }
     if (!initial.empty() && initialIsFile)
     {
         selectPath(state, initial);
