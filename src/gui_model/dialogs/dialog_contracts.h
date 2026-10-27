@@ -24,25 +24,22 @@ enum class FileBrowserMode : std::uint8_t
 
 enum class FileBrowserTarget : std::uint8_t
 {
-    genericOpen,
-    mapOpen,
-    newMapOutput,
-    mapSaveAs,
-    dataSearchRoot,
-    dataOverride,
-    radarcolSource,
-    radarcolOutput,
-    texmapsIndex,
-    texmapsData,
-    texmapsCompanion,
-    newRadarcolOutput,
-    defaultRadarcolOutput,
-    newTexmapsData,
-    newTiledataOutput,
-    imageOpen,
-    imageFolderOpen,
-    texmapExportFile,
-    texmapExportFolder,
+    openGeneric,
+    openMap,
+    createMap,
+    saveMapAs,
+    chooseDataSearchRoot,
+    chooseDataOverride,
+    saveRadarcolAs,
+    chooseTexmapsCompanion,
+    createRadarcol,
+    createDefaultRadarcol,
+    createTexmaps,
+    createTiledata,
+    openImage,
+    chooseImageFolder,
+    exportTexmapFile,
+    exportTexmapFolder,
 };
 
 enum class MulAssetKind : std::uint8_t
@@ -57,7 +54,7 @@ enum class MulAssetKind : std::uint8_t
 struct FileBrowserRequest
 {
     FileBrowserMode mode = FileBrowserMode::openFile;
-    FileBrowserTarget target = FileBrowserTarget::mapOpen;
+    FileBrowserTarget target = FileBrowserTarget::openMap;
     DataFileRole role = DataFileRole::radarcol;
     std::filesystem::path initialPath;
     std::string extension;
@@ -91,11 +88,12 @@ struct FileBrowserAssetCandidate
     std::optional<uomul::Dimensions> dimensions;
     bool validated = false;
     bool openable = false;
+    std::string filenameWarning;
 };
 
 struct FileBrowserResult
 {
-    FileBrowserTarget target = FileBrowserTarget::mapOpen;
+    FileBrowserTarget target = FileBrowserTarget::openMap;
     DataFileRole role = DataFileRole::radarcol;
     std::filesystem::path path;
     std::vector<FileBrowserMapCandidate> mapCandidates;

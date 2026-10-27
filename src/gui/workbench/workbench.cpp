@@ -440,7 +440,7 @@ void configureTexmapExportCallbacks(WorkbenchState & state)
             requestFileBrowser(state.fileBrowser,
                                {
                                    .mode = FileBrowserMode::saveFile,
-                                   .target = FileBrowserTarget::texmapExportFile,
+                                   .target = FileBrowserTarget::exportTexmapFile,
                                    .initialPath = std::filesystem::current_path() / filename,
                                    .extension = filename.substr(filename.find_last_of('.')),
                                    .title = strings::exportTexmap(),
@@ -451,7 +451,7 @@ void configureTexmapExportCallbacks(WorkbenchState & state)
             requestFileBrowser(state.fileBrowser,
                                {
                                    .mode = FileBrowserMode::chooseDirectory,
-                                   .target = FileBrowserTarget::texmapExportFolder,
+                                   .target = FileBrowserTarget::exportTexmapFolder,
                                    .initialPath = {},
                                    .extension = {},
                                    .title = strings::chooseTexmapExportFolder(),
@@ -504,7 +504,7 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
         requestFileBrowser(state.fileBrowser,
                            {
                                .mode = FileBrowserMode::chooseDirectory,
-                               .target = FileBrowserTarget::imageFolderOpen,
+                               .target = FileBrowserTarget::chooseImageFolder,
                                .initialPath = {},
                                .extension = {},
                                .title = strings::chooseTextureReplacementFolder(),
@@ -610,7 +610,7 @@ void configureMapPanelCallbacks(WorkbenchState & state)
         requestFileBrowser(state.fileBrowser,
                            {
                                .mode = FileBrowserMode::openFile,
-                               .target = FileBrowserTarget::imageOpen,
+                               .target = FileBrowserTarget::openImage,
                                .initialPath = state.texmapsState.replacement.sourcePath,
                                .extension = ".bmp,.png",
                                .title = strings::openTextureImage(),
@@ -738,17 +738,9 @@ void applyPendingPreferenceChanges(WorkbenchState & state)
         return;
     }
 
-    if (state.pendingPreferenceChanges.texmapsHideUnused)
-    {
-        state.preferences.texmapsHideUnused = *state.pendingPreferenceChanges.texmapsHideUnused;
-    }
     if (state.pendingPreferenceChanges.showWelcomeOnStartup)
     {
         state.preferences.showWelcomeOnStartup = *state.pendingPreferenceChanges.showWelcomeOnStartup;
-    }
-    if (state.pendingPreferenceChanges.texmapsTablePresentation)
-    {
-        state.preferences.texmapsTablePresentation = *state.pendingPreferenceChanges.texmapsTablePresentation;
     }
     state.pendingPreferenceChanges = {};
 }
@@ -882,7 +874,7 @@ void drawRadarcolFallbackWorkflow(WorkbenchState & state)
         requestFileBrowser(state.fileBrowser,
                            {
                                .mode = FileBrowserMode::saveFile,
-                               .target = FileBrowserTarget::defaultRadarcolOutput,
+                               .target = FileBrowserTarget::createDefaultRadarcol,
                                .initialPath = initialPath,
                                .extension = ".mul",
                                .title = strings::createDefaultRadarcol(),
@@ -1368,6 +1360,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         auto [assetView, inserted] = state.texmapsState.documentAssetViews.try_emplace(document.summary.identity.id);
         if (inserted)
         {
+            assetView->second.hideEmpty = true;
             restoreConfiguredMetadataDocumentAssetState(state, document, assetView->second);
         }
         bool visible = true;
@@ -1376,8 +1369,6 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
                                   *document.texmaps,
                                   visible,
                                   state.preferences.idFormat,
-                                  state.preferences,
-                                  state.pendingPreferenceChanges,
                                   windowName,
                                   [&state, id = document.summary.identity.id] { requestDocumentActivation(state, id); });
         if (!visible)
@@ -2136,7 +2127,6 @@ void evictClosedDocumentState(WorkbenchState & state, DocumentId id)
     state.texmapsState.documentAssetViews.erase(id);
     state.texmapsState.documentTexturePreviews.erase(id);
     state.texmapsState.documentTexturePreviewRevisions.erase(id);
-    state.texmapsState.documentHideUnused.erase(id);
     state.tiledataState.documentAssetViews.erase(id);
 }
 

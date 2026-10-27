@@ -45,8 +45,6 @@ struct Preferences
     std::string activeDataProfile;
     bool showWelcomeOnStartup = true;
     IdFormat idFormat = IdFormat::hexadecimal;
-    bool texmapsHideUnused = true;
-    bool texmapsTablePresentation = false;
     bool fullscreen = false;
     bool maximized = false;
     MapViewTileSource mapViewTileSource = MapViewTileSource::textures;
@@ -58,10 +56,9 @@ struct Preferences
                logPanelCollapsed == other.logPanelCollapsed &&
                std::bit_cast<std::uint32_t>(logPanelHeight) == std::bit_cast<std::uint32_t>(other.logPanelHeight) &&
                activeDataProfile == other.activeDataProfile && showWelcomeOnStartup == other.showWelcomeOnStartup &&
-               idFormat == other.idFormat && texmapsHideUnused == other.texmapsHideUnused &&
-               texmapsTablePresentation == other.texmapsTablePresentation && fullscreen == other.fullscreen &&
-               maximized == other.maximized && mapViewTileSource == other.mapViewTileSource &&
-               tools.activeTool == other.tools.activeTool && tools.selectionGranularity == other.tools.selectionGranularity &&
+               idFormat == other.idFormat && fullscreen == other.fullscreen && maximized == other.maximized &&
+               mapViewTileSource == other.mapViewTileSource && tools.activeTool == other.tools.activeTool &&
+               tools.selectionGranularity == other.tools.selectionGranularity &&
                tools.activeTileSet == other.tools.activeTileSet && tools.activeTile == other.tools.activeTile &&
                tools.fillIdEnabled == other.tools.fillIdEnabled && tools.fillZEnabled == other.tools.fillZEnabled &&
                tools.replaceIdEnabled == other.tools.replaceIdEnabled && tools.replaceZEnabled == other.tools.replaceZEnabled &&

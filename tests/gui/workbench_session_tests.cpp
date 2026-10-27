@@ -214,7 +214,7 @@ TEST_CASE("recentFileStore_Should_RoundTripAllRecentDocumentKinds")
     REQUIRE(loaded.files().at(1).companionPath.empty());
 }
 
-TEST_CASE("recentFiles_Should_RetainUnknownKindsAsUnavailable")
+TEST_CASE("recentFiles_Should_IgnoreUnsupportedDocumentKinds")
 {
     const TemporaryDirectory directory;
     const auto recentPath = directory.path() / "recent.conf";
@@ -228,9 +228,7 @@ TEST_CASE("recentFiles_Should_RetainUnknownKindsAsUnavailable")
 
     const auto loaded = uo_mule::gui::loadRecentFiles(recentPath);
 
-    REQUIRE(loaded.size() == 1);
-    REQUIRE(loaded.front().kind == uo_mule::gui::DocumentKind::unavailable);
-    REQUIRE(loaded.front().failure.find("future_kind") != std::string::npos);
+    REQUIRE(loaded.empty());
 }
 
 TEST_CASE("welcomeGreeting_Should_SelectAConfiguredGreeting")

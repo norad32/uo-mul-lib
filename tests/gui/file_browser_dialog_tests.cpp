@@ -59,7 +59,7 @@ TEST_CASE("fileBrowserDialog_Should_RenderOpenFileListing")
     requestFileBrowser(state,
                        FileBrowserRequest{
                            .mode = FileBrowserMode::openFile,
-                           .target = FileBrowserTarget::genericOpen,
+                           .target = FileBrowserTarget::openGeneric,
                            .initialPath = directory.path(),
                            .extension = ".mul",
                            .title = "Open",
@@ -78,7 +78,7 @@ TEST_CASE("fileBrowserDialog_Should_RenderSaveFileFooter")
     requestFileBrowser(state,
                        FileBrowserRequest{
                            .mode = FileBrowserMode::saveFile,
-                           .target = FileBrowserTarget::newMapOutput,
+                           .target = FileBrowserTarget::createMap,
                            .initialPath = directory.path() / "created.mul",
                            .extension = ".mul",
                            .title = "Save",
@@ -96,7 +96,7 @@ TEST_CASE("fileBrowserDialog_Should_RenderDirectoryFooterAndCreateFolderPopup")
     requestFileBrowser(state,
                        FileBrowserRequest{
                            .mode = FileBrowserMode::chooseDirectory,
-                           .target = FileBrowserTarget::dataSearchRoot,
+                           .target = FileBrowserTarget::chooseDataSearchRoot,
                            .initialPath = directory.path(),
                            .extension = {},
                            .title = "Choose",

@@ -3,10 +3,13 @@
 #include "gui/presentation/file_size.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/dialogs/file_browser_model.h"
+#include "gui_model/dialogs/file_deduction.h"
 #include "gui_model/profile/data_profile.h"
 #include "uomul/facet_sizes.h"
 #include "uomul/map/map.h"
 #include "uomul/radarcol/radarcol.h"
+#include "uomul/texmaps/texmaps.h"
+#include "uomul/tiledata/tiledata.h"
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
@@ -17,6 +20,7 @@
 #include <iterator>
 #include <optional>
 #include <system_error>
+#include <vector>
 
 namespace uo_mule::gui
 {
@@ -27,9 +31,21 @@ constexpr std::uint16_t radarValueMask = 0x7FFFU;
 constexpr std::uint16_t byteMask = 0xFFU;
 constexpr unsigned byteShift = 8U;
 constexpr std::streamsize emptyTextureIndexBytes = 12;
-constexpr int directTextureScore = 90;
 constexpr int mapCandidateScore = 80;
 constexpr int radarCandidateScore = 20;
+constexpr std::uint16_t fixtureTextureValue = 0x1234U;
+
+void createTexmapsFixture(const std::filesystem::path & indexPath, const std::filesystem::path & dataPath)
+{
+    auto editor = uomul::TexMapsEditor::createEmpty(indexPath, dataPath);
+    REQUIRE(editor);
+    const uomul::TextureImage image{
+        .dimension = uomul::textureSmallDimension,
+        .pixels = std::vector<std::uint16_t>(uomul::textureSmallPixelCount, fixtureTextureValue),
+    };
+    REQUIRE(editor->editTexture(0, image));
+    REQUIRE(editor->commit());
+}
 
 TEST_CASE("fileBrowser_Should_MatchExtensionsCaseInsensitively")
 {
@@ -99,39 +115,28 @@ TEST_CASE("fileBrowser_Should_NotTreatIndexFileAsOpenableTexmapsSet_If_SetIsMiss
     }
 
     const auto summary = inspectFileBrowserSelection(indexPath);
+    REQUIRE(summary.assetCandidates.size() == 2U);
+    REQUIRE(std::ranges::any_of(summary.assetCandidates,
+                                [](const auto & candidate)
+                                { return candidate.kind == MulAssetKind::radarcol && candidate.openable; }));
     REQUIRE(std::ranges::any_of(summary.assetCandidates,
                                 [](const auto & candidate)
                                 { return candidate.kind == MulAssetKind::texmapsSet && !candidate.openable; }));
 
+    FileSelectorState selector;
+    openFileSelector(selector,
+                     {
+                         .target = FileBrowserTarget::openGeneric,
+                         .path = indexPath,
+                         .mapCandidates = {},
+                         .assetCandidates = summary.assetCandidates,
+                         .assetCandidate = std::nullopt,
+                     });
+    REQUIRE(std::ranges::any_of(selector.candidates,
+                                [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsSet; }));
+
     std::error_code error;
     std::filesystem::remove(indexPath, error);
-}
-
-TEST_CASE("fileSelector_Should_RejectDirectTextureIndexResult")
-{
-    FileSelectorState state;
-    FileBrowserResult result;
-    result.target = FileBrowserTarget::texmapsIndex;
-    result.path = "texidx.mul";
-    result.assetCandidates.push_back(FileBrowserAssetCandidate{
-        .kind = MulAssetKind::texmapsSet,
-        .path = result.path,
-        .companionPath = {},
-        .label = "Textmaps",
-        .facet = {},
-        .reason = "A matching texmaps-set is required",
-        .warning = {},
-        .score = directTextureScore,
-        .dimensions = std::nullopt,
-        .validated = false,
-        .openable = false,
-    });
-    openFileSelector(state, result);
-
-    REQUIRE(state.visible);
-    const auto selected = selectedFileSelectorResult(state);
-    REQUIRE(selected.assetCandidate.has_value());
-    REQUIRE_FALSE(selected.assetCandidate.value_or(FileBrowserAssetCandidate{}).openable);
 }
 
 TEST_CASE("fileBrowser_Should_TreatEmptyTexmapsSetAsOneOpenableAsset")
@@ -153,10 +158,254 @@ TEST_CASE("fileBrowser_Should_TreatEmptyTexmapsSetAsOneOpenableAsset")
     REQUIRE(set->openable);
     REQUIRE(set->path == indexPath);
     REQUIRE(set->companionPath == dataPath);
+    REQUIRE(std::ranges::any_of(summary.assetCandidates,
+                                [](const auto & candidate)
+                                { return candidate.kind == MulAssetKind::texmapsSet && candidate.warning.empty(); }));
 
     std::error_code error;
     std::filesystem::remove(indexPath, error);
     std::filesystem::remove(dataPath, error);
+}
+
+TEST_CASE("fileBrowser_Should_DeduceTexmapsSetFromEitherTestFile")
+{
+    const auto directory = std::filesystem::temp_directory_path() / "uo-mule-either-texmaps-file";
+    std::error_code error;
+    std::filesystem::remove_all(directory, error);
+    error.clear();
+    std::filesystem::create_directories(directory, error);
+    REQUIRE_FALSE(error);
+    const auto indexPath = directory / "texidx.mul";
+    const auto dataPath = directory / "texmaps.mul";
+    createTexmapsFixture(indexPath, dataPath);
+
+    for (const auto & selectedPath : {indexPath, dataPath})
+    {
+        const auto summary = inspectFileBrowserSelection(selectedPath);
+        const auto set = std::ranges::find_if(
+            summary.assetCandidates, [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsSet; });
+
+        REQUIRE(set != summary.assetCandidates.end());
+        REQUIRE(set->openable);
+        REQUIRE(set->path == indexPath);
+        REQUIRE(set->companionPath == dataPath);
+    }
+
+    std::filesystem::remove_all(directory, error);
+}
+
+void verifyNumberedRadarcol(const std::filesystem::path & directory)
+{
+    const auto radarPath = directory / "radarcol12.mul";
+    auto radarEditor = uomul::RadarColEditor::createEmpty(radarPath);
+    REQUIRE(radarEditor);
+    REQUIRE(radarEditor->commit());
+    const auto radarSummary = inspectFileBrowserSelection(radarPath);
+    const auto radar = std::ranges::find_if(radarSummary.assetCandidates,
+                                            [](const auto & candidate) { return candidate.kind == MulAssetKind::radarcol; });
+    REQUIRE(radar != radarSummary.assetCandidates.end());
+    REQUIRE(radar->warning.empty());
+    REQUIRE(selectConfidentFileBrowserCandidate(radarSummary.assetCandidates).has_value());
+}
+
+void verifyNumberedTiledata(const std::filesystem::path & directory)
+{
+    const auto tiledataPath = directory / "tiledata12.mul";
+    auto tiledata = uomul::TiledataEditor::createEmpty(tiledataPath, uomul::TiledataLayout::extended64);
+    REQUIRE(tiledata);
+    REQUIRE(tiledata->commit());
+    const auto tiledataSummary = inspectFileBrowserSelection(tiledataPath);
+    const auto tiledataCandidate = std::ranges::find_if(
+        tiledataSummary.assetCandidates, [](const auto & candidate) { return candidate.kind == MulAssetKind::tiledata; });
+    REQUIRE(tiledataCandidate != tiledataSummary.assetCandidates.end());
+    REQUIRE(tiledataCandidate->warning.empty());
+}
+
+void verifyNumberedTexmaps(const std::filesystem::path & directory)
+{
+    const auto indexPath = directory / "texidx12.mul";
+    const auto dataPath = directory / "texmaps12.mul";
+    createTexmapsFixture(indexPath, dataPath);
+    const auto texmapsSummary = inspectFileBrowserSelection(indexPath);
+    const auto texmaps = std::ranges::find_if(
+        texmapsSummary.assetCandidates, [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsSet; });
+    REQUIRE(texmaps != texmapsSummary.assetCandidates.end());
+    REQUIRE(texmaps->openable);
+    REQUIRE(selectConfidentFileBrowserCandidate(texmapsSummary.assetCandidates).has_value());
+}
+
+void verifyNumberedMap(const std::filesystem::path & directory)
+{
+    const auto mapPath = directory / "map12.mul";
+    const auto facet = uomul::knownFacetSizes().front();
+    REQUIRE(uomul::MapEditor::createEmpty(mapPath,
+                                          uomul::Dimensions{.widthTiles = facet.widthTiles, .heightTiles = facet.heightTiles}));
+    const auto mapSummary = inspectFileBrowserSelection(mapPath);
+    const auto map = std::ranges::find_if(mapSummary.assetCandidates,
+                                          [](const auto & candidate) { return candidate.kind == MulAssetKind::map; });
+    REQUIRE(map != mapSummary.assetCandidates.end());
+    REQUIRE(map->warning.empty());
+}
+
+TEST_CASE("fileDeduction_Should_RecognizeNumberedCanonicalNames")
+{
+    const auto directory = std::filesystem::temp_directory_path() / "uo-mule-numbered-canonical-files";
+    std::error_code error;
+    std::filesystem::remove_all(directory, error);
+    error.clear();
+    std::filesystem::create_directories(directory, error);
+    REQUIRE_FALSE(error);
+
+    verifyNumberedRadarcol(directory);
+    verifyNumberedTiledata(directory);
+    verifyNumberedTexmaps(directory);
+    verifyNumberedMap(directory);
+
+    std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("fileBrowser_Should_SuggestRenamedIndexWithoutPairingCanonicalFiles")
+{
+    const auto directory = std::filesystem::temp_directory_path();
+    std::error_code error;
+    const auto indexPath = directory / "xidxet.mul";
+    const auto dataPath = directory / "texmaps.mul";
+    std::filesystem::remove(indexPath, error);
+    error.clear();
+    std::filesystem::remove(dataPath, error);
+    createTexmapsFixture(indexPath, dataPath);
+
+    const auto summary = inspectFileBrowserSelection(indexPath);
+    const auto set = std::ranges::find_if(summary.assetCandidates,
+                                          [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsSet; });
+    REQUIRE(set != summary.assetCandidates.end());
+    REQUIRE_FALSE(set->openable);
+    REQUIRE(set->path == indexPath);
+    REQUIRE(set->companionPath.empty());
+    REQUIRE(set->warning == "Matching idx/maps file missing");
+    REQUIRE(set->filenameWarning == "Unexpected filename");
+
+    std::filesystem::remove(indexPath, error);
+    error.clear();
+    std::filesystem::remove(dataPath, error);
+}
+
+TEST_CASE("fileBrowser_Should_SuggestTexmapsForRenamedIndexWithoutCompanion")
+{
+    const auto directory = std::filesystem::temp_directory_path() / "uo-mule-missing-texmaps-companion";
+    std::error_code error;
+    std::filesystem::create_directories(directory, error);
+    REQUIRE_FALSE(error);
+
+    const auto indexPath = directory / "xidxet.mul";
+    const auto dataPath = directory / "texmaps.mul";
+    createTexmapsFixture(indexPath, dataPath);
+    std::filesystem::remove(dataPath, error);
+
+    const auto summary = inspectFileBrowserSelection(indexPath);
+    const auto set = std::ranges::find_if(summary.assetCandidates,
+                                          [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsSet; });
+    REQUIRE(set != summary.assetCandidates.end());
+    REQUIRE_FALSE(set->openable);
+    REQUIRE(set->warning == "Matching idx/maps file missing");
+    REQUIRE(set->filenameWarning == "Unexpected filename");
+
+    std::filesystem::remove_all(directory, error);
+}
+
+void verifyUnavailableNoncanonicalTexmaps(const std::filesystem::path & selectedPath)
+{
+    const auto summary = inspectFileBrowserSelection(selectedPath);
+    const auto possibleTexmaps = std::ranges::find_if(
+        summary.assetCandidates, [](const auto & candidate) { return candidate.kind == MulAssetKind::texmapsSet; });
+    REQUIRE(possibleTexmaps != summary.assetCandidates.end());
+    REQUIRE_FALSE(possibleTexmaps->openable);
+    REQUIRE(possibleTexmaps->companionPath.empty());
+}
+
+TEST_CASE("fileDeduction_Should_ValidateNoncanonicalTexmapsFixturesAfterCompanionSelection")
+{
+    const auto directory = std::filesystem::temp_directory_path() / "uo-mule-noncanonical-texmaps-fixtures";
+    std::error_code error;
+    std::filesystem::remove_all(directory, error);
+    error.clear();
+    std::filesystem::create_directories(directory, error);
+    REQUIRE_FALSE(error);
+    const auto indexPath = directory / "xdixet.mul";
+    const auto dataPath = directory / "spamxet.mul";
+    createTexmapsFixture(indexPath, dataPath);
+
+    verifyUnavailableNoncanonicalTexmaps(indexPath);
+    verifyUnavailableNoncanonicalTexmaps(dataPath);
+
+    const auto fromIndex = inspectTexmapsCompanion(indexPath, dataPath);
+    REQUIRE(fromIndex.openable);
+    REQUIRE(fromIndex.path == indexPath);
+    REQUIRE(fromIndex.companionPath == dataPath);
+
+    const auto fromData = inspectTexmapsCompanion(dataPath, indexPath);
+    REQUIRE(fromData.openable);
+    REQUIRE(fromData.path == indexPath);
+    REQUIRE(fromData.companionPath == dataPath);
+
+    std::filesystem::remove_all(directory, error);
+}
+
+TEST_CASE("fileDeduction_Should_SelectOnlyConfidentCandidates")
+{
+    FileBrowserAssetCandidate radarcol{
+        .kind = MulAssetKind::radarcol,
+        .path = "radarcol.mul",
+        .companionPath = {},
+        .label = "Radarcol",
+        .facet = {},
+        .reason = {},
+        .warning = "Unexpected filename",
+        .score = 0,
+        .itemCount = 0,
+        .dimensions = std::nullopt,
+        .validated = true,
+        .openable = true,
+        .filenameWarning = {},
+    };
+    REQUIRE_FALSE(selectConfidentFileBrowserCandidate({radarcol}).has_value());
+
+    radarcol.warning.clear();
+    const FileBrowserAssetCandidate texmaps{
+        .kind = MulAssetKind::texmapsSet,
+        .path = "texidx.mul",
+        .companionPath = "texmaps.mul",
+        .label = "Texmaps",
+        .facet = {},
+        .reason = {},
+        .warning = {},
+        .score = 0,
+        .itemCount = 0,
+        .dimensions = std::nullopt,
+        .validated = true,
+        .openable = true,
+        .filenameWarning = {},
+    };
+    const auto selected = selectConfidentFileBrowserCandidate({radarcol, texmaps});
+    const auto selectedCandidate = selected.value_or(FileBrowserAssetCandidate{});
+    REQUIRE(selectedCandidate.kind == MulAssetKind::texmapsSet);
+
+    const FileBrowserAssetCandidate tiledata{
+        .kind = MulAssetKind::tiledata,
+        .path = "tiledata.mul",
+        .companionPath = {},
+        .label = "Tiledata",
+        .facet = {},
+        .reason = {},
+        .warning = {},
+        .score = 0,
+        .itemCount = 0,
+        .dimensions = std::nullopt,
+        .validated = true,
+        .openable = true,
+        .filenameWarning = {},
+    };
+    REQUIRE_FALSE(selectConfidentFileBrowserCandidate({radarcol, tiledata}).has_value());
 }
 
 TEST_CASE("genericOpenCandidateSelection_Should_PreserveFormatAndMapDimensions")
@@ -171,7 +420,7 @@ TEST_CASE("genericOpenCandidateSelection_Should_PreserveFormatAndMapDimensions")
 
     const auto summary = inspectFileBrowserSelection(path);
     const FileBrowserResult result{
-        .target = FileBrowserTarget::genericOpen,
+        .target = FileBrowserTarget::openGeneric,
         .path = path,
         .mapCandidates = summary.mapCandidates,
         .assetCandidates = summary.assetCandidates,
@@ -197,7 +446,7 @@ TEST_CASE("genericOpenCandidateSelection_Should_PreserveFormatAndMapDimensions")
 TEST_CASE("genericOpenSelector_Should_KeepMultipleCandidatesAvailable_If_MultipleCandidatesExist")
 {
     const FileBrowserResult result{
-        .target = FileBrowserTarget::genericOpen,
+        .target = FileBrowserTarget::openGeneric,
         .role = DataFileRole::radarcol,
         .path = "ambiguous.mul",
         .mapCandidates = {},
@@ -215,6 +464,7 @@ TEST_CASE("genericOpenSelector_Should_KeepMultipleCandidatesAvailable_If_Multipl
                     .dimensions = std::nullopt,
                     .validated = true,
                     .openable = true,
+                    .filenameWarning = {},
                 },
                 FileBrowserAssetCandidate{
                     .kind = MulAssetKind::radarcol,
@@ -228,6 +478,7 @@ TEST_CASE("genericOpenSelector_Should_KeepMultipleCandidatesAvailable_If_Multipl
                     .dimensions = std::nullopt,
                     .validated = true,
                     .openable = true,
+                    .filenameWarning = {},
                 },
             },
         .assetCandidate = std::nullopt,
@@ -241,7 +492,7 @@ TEST_CASE("genericOpenSelector_Should_KeepMultipleCandidatesAvailable_If_Multipl
     REQUIRE(selectedFileSelectorResult(selector).assetCandidate.has_value());
 }
 
-TEST_CASE("genericOpen_Should_ExposeUnsupportedMulAsExplicitDiagnostic")
+TEST_CASE("genericOpen_Should_OfferTexmapsAndMapSetupForUnknownMul")
 {
     const auto path = std::filesystem::temp_directory_path() / "unknown-generic.mul";
     {
@@ -250,8 +501,12 @@ TEST_CASE("genericOpen_Should_ExposeUnsupportedMulAsExplicitDiagnostic")
     }
 
     const auto summary = inspectFileBrowserSelection(path);
-    REQUIRE(summary.assetCandidates.empty());
-    REQUIRE_FALSE(summary.error.empty());
+    REQUIRE(std::ranges::any_of(summary.assetCandidates,
+                                [](const auto & candidate)
+                                { return candidate.kind == MulAssetKind::texmapsSet && !candidate.openable; }));
+    REQUIRE(std::ranges::any_of(summary.assetCandidates,
+                                [](const auto & candidate)
+                                { return candidate.kind == MulAssetKind::map && !candidate.openable; }));
 
     std::error_code error;
     std::filesystem::remove(path, error);
@@ -264,7 +519,7 @@ TEST_CASE("fileBrowserSaveRequest_Should_PreserveInitialFilename")
     requestFileBrowser(state,
                        {
                            .mode = FileBrowserMode::saveFile,
-                           .target = FileBrowserTarget::newMapOutput,
+                           .target = FileBrowserTarget::createMap,
                            .initialPath = path,
                            .extension = ".mul",
                            .title = "Save",
@@ -288,7 +543,7 @@ TEST_CASE("fileBrowser_Should_ReuseLastNavigatedFolder_If_SameSession")
     requestFileBrowser(state,
                        {
                            .mode = FileBrowserMode::openFile,
-                           .target = FileBrowserTarget::genericOpen,
+                           .target = FileBrowserTarget::openGeneric,
                            .initialPath = directory,
                            .extension = ".mul",
                            .title = "Open",
@@ -299,7 +554,7 @@ TEST_CASE("fileBrowser_Should_ReuseLastNavigatedFolder_If_SameSession")
     requestFileBrowser(state,
                        {
                            .mode = FileBrowserMode::openFile,
-                           .target = FileBrowserTarget::genericOpen,
+                           .target = FileBrowserTarget::openGeneric,
                            .initialPath = {},
                            .extension = ".mul",
                            .title = "Open",
@@ -328,7 +583,7 @@ TEST_CASE("fileBrowser_Should_AccumulateMultipleRecentFolders")
         requestFileBrowser(state,
                            {
                                .mode = FileBrowserMode::openFile,
-                               .target = FileBrowserTarget::genericOpen,
+                               .target = FileBrowserTarget::openGeneric,
                                .initialPath = folder,
                                .extension = ".mul",
                                .title = "Open",

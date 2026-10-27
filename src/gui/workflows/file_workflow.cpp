@@ -8,6 +8,7 @@
 #include "gui/workbench/notification_state.h"
 #include "gui/workbench/workbench_state.h"
 #include "gui_model/dialogs/dialog_contracts.h"
+#include "gui_model/dialogs/file_deduction.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/documents/radarcol_document.h"
@@ -164,18 +165,18 @@ void createNewAsset(WorkbenchState & state,
                     bool useEmbeddedColors,
                     const std::array<float, 3> & defaultColor)
 {
-    if (target == FileBrowserTarget::defaultRadarcolOutput)
+    if (target == FileBrowserTarget::createDefaultRadarcol)
     {
         static_cast<void>(createDefaultRadarcolImpl(state, path));
         return;
     }
-    if (target == FileBrowserTarget::newRadarcolOutput)
+    if (target == FileBrowserTarget::createRadarcol)
     {
         static_cast<void>(createNewRadarcol(state, path, useEmbeddedColors, defaultColor));
         return;
     }
 
-    if (target == FileBrowserTarget::newTiledataOutput)
+    if (target == FileBrowserTarget::createTiledata)
     {
         auto created = uomul::TiledataEditor::createEmpty(path, uomul::TiledataLayout::extended64);
         if (!created)
@@ -214,7 +215,7 @@ bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, 
     if (candidate.kind == MulAssetKind::map)
     {
         auto mapResult = result;
-        mapResult.target = FileBrowserTarget::mapOpen;
+        mapResult.target = FileBrowserTarget::openMap;
         applyFileBrowserResult(state.menuBarState.fileDialog, mapResult);
         return false;
     }
@@ -267,23 +268,6 @@ bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, 
     return false;
 }
 
-bool routeSetResult(WorkbenchState & state, const FileBrowserResult & result, const FileBrowserAssetCandidate & set)
-{
-    auto indexResult = result;
-    indexResult.target = FileBrowserTarget::texmapsIndex;
-    indexResult.path = set.path;
-    auto dataResult = result;
-    dataResult.target = FileBrowserTarget::texmapsData;
-    dataResult.path = set.companionPath;
-    applyFileBrowserResult(state.menuBarState.preferencesDialog, indexResult);
-    applyFileBrowserResult(state.menuBarState.preferencesDialog, dataResult);
-    if (state.menuBarState.preferencesDialog.visible)
-    {
-        activatePreferencesDialog(state.menuBarState.preferencesDialog);
-    }
-    return false;
-}
-
 void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 {
     applyFileBrowserResult(state.menuBarState.fileDialog, result);
@@ -296,7 +280,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     {
         activatePreferencesDialog(state.menuBarState.preferencesDialog);
     }
-    if (result.target == FileBrowserTarget::radarcolOutput)
+    if (result.target == FileBrowserTarget::saveRadarcolAs)
     {
         if (auto * active = state.session.activeDocumentRecord(); active != nullptr && active->radarcol)
         {
@@ -314,7 +298,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 {
     switch (result.target)
     {
-        case FileBrowserTarget::imageOpen :
+        case FileBrowserTarget::openImage :
             if (state.texmapsState.replacementFilePicked)
             {
                 const auto path = result.path;
@@ -328,7 +312,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
                     });
             }
             return true;
-        case FileBrowserTarget::imageFolderOpen :
+        case FileBrowserTarget::chooseImageFolder :
             if (state.texmapsState.folderReplacementFolderPicked)
             {
                 const auto path = result.path;
@@ -342,7 +326,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
                     });
             }
             return true;
-        case FileBrowserTarget::texmapExportFile :
+        case FileBrowserTarget::exportTexmapFile :
             if (state.texmapsState.exportFilePicked)
             {
                 const auto path = result.path;
@@ -356,7 +340,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
                     });
             }
             return true;
-        case FileBrowserTarget::texmapExportFolder :
+        case FileBrowserTarget::exportTexmapFolder :
             if (state.texmapsState.exportFolderPicked)
             {
                 const auto path = result.path;
@@ -377,21 +361,19 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 
 [[nodiscard]] bool routeCompanionResult(WorkbenchState & state, const FileBrowserResult & result)
 {
-    if (result.target != FileBrowserTarget::texmapsCompanion)
+    if (result.target != FileBrowserTarget::chooseTexmapsCompanion)
     {
         return false;
     }
-    if (applyFileSelectorCompanion(state.fileSelector, result.path))
-    {
-        activateFileSelector(state.fileSelector);
-    }
+    static_cast<void>(applyFileSelectorCompanion(state.fileSelector, result.path));
+    activateFileSelector(state.fileSelector);
     return true;
 }
 
 [[nodiscard]] bool routeNewAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 {
-    if (result.target != FileBrowserTarget::newRadarcolOutput && result.target != FileBrowserTarget::defaultRadarcolOutput &&
-        result.target != FileBrowserTarget::newTexmapsData && result.target != FileBrowserTarget::newTiledataOutput)
+    if (result.target != FileBrowserTarget::createRadarcol && result.target != FileBrowserTarget::createDefaultRadarcol &&
+        result.target != FileBrowserTarget::createTexmaps && result.target != FileBrowserTarget::createTiledata)
     {
         return false;
     }
@@ -407,7 +389,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 
 [[nodiscard]] bool routeNewMapResult(WorkbenchState & state, const FileBrowserResult & result)
 {
-    if (result.target != FileBrowserTarget::newMapOutput)
+    if (result.target != FileBrowserTarget::createMap)
     {
         return false;
     }
@@ -419,7 +401,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 
 [[nodiscard]] bool routeUnsupportedGenericResult(WorkbenchState & state, const FileBrowserResult & result)
 {
-    if (result.target != FileBrowserTarget::genericOpen || result.assetCandidate || !result.assetCandidates.empty())
+    if (result.target != FileBrowserTarget::openGeneric || result.assetCandidate || !result.assetCandidates.empty())
     {
         return false;
     }
@@ -434,9 +416,7 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
 
 [[nodiscard]] bool routeFileSelectorResult(WorkbenchState & state, const FileBrowserResult & result)
 {
-    if (result.assetCandidate ||
-        (result.target != FileBrowserTarget::genericOpen && result.target != FileBrowserTarget::radarcolSource &&
-         result.target != FileBrowserTarget::texmapsIndex && result.target != FileBrowserTarget::texmapsData))
+    if (result.assetCandidate || result.target != FileBrowserTarget::openGeneric)
     {
         return false;
     }
@@ -452,10 +432,10 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
         return false;
     }
 
-    if (!result.assetCandidate && result.target == FileBrowserTarget::genericOpen && result.assetCandidates.size() == 1U &&
-        result.assetCandidates.front().openable)
+    const auto candidateToOpen = selectConfidentFileBrowserCandidate(result.assetCandidates);
+    if (!result.assetCandidate && result.target == FileBrowserTarget::openGeneric && candidateToOpen)
     {
-        const auto candidate = result.assetCandidates.front();
+        const auto & candidate = *candidateToOpen;
         state.deferWorkflowAction([&state, result, candidate]
                                   { static_cast<void>(openGenericAsset(state, result, candidate)); });
         return false;
@@ -466,17 +446,12 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
         return false;
     }
 
-    if (result.target == FileBrowserTarget::genericOpen && result.assetCandidate)
+    if (result.target == FileBrowserTarget::openGeneric && result.assetCandidate)
     {
         const auto candidate = *result.assetCandidate;
         state.deferWorkflowAction([&state, result, candidate]
                                   { static_cast<void>(openGenericAsset(state, result, candidate)); });
         return false;
-    }
-
-    if (result.assetCandidate && result.assetCandidate->kind == MulAssetKind::texmapsSet)
-    {
-        return routeSetResult(state, result, *result.assetCandidate);
     }
 
     state.deferWorkflowAction([&state, result] { applyAssetResult(state, result); });
@@ -521,11 +496,10 @@ bool handleDialogResult(WorkbenchState & state, DialogResult result)
         std::holds_alternative<FileBrowserResult>(result.payload))
     {
         const auto original = std::get<FileBrowserResult>(result.payload);
-        cancelFileSelector(state.fileSelector);
         requestFileBrowser(state.fileBrowser,
                            {
                                .mode = FileBrowserMode::openFile,
-                               .target = FileBrowserTarget::texmapsCompanion,
+                               .target = FileBrowserTarget::chooseTexmapsCompanion,
                                .initialPath = original.path.parent_path(),
                                .extension = ".mul",
                                .title = "Choose Texmaps Companion",

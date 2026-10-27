@@ -207,7 +207,7 @@ void drawMetadataPath(PreferencesDialogState & state, DataFileRole role)
         requestFileBrowser(*state.browser,
                            {
                                .mode = FileBrowserMode::openFile,
-                               .target = FileBrowserTarget::dataOverride,
+                               .target = FileBrowserTarget::chooseDataOverride,
                                .role = role,
                                .initialPath = bufferPath(path->second),
                                .extension = ".mul",
@@ -279,7 +279,7 @@ void drawMetadataSection(PreferencesDialogState & state)
         requestFileBrowser(*state.browser,
                            {
                                .mode = FileBrowserMode::chooseDirectory,
-                               .target = FileBrowserTarget::dataSearchRoot,
+                               .target = FileBrowserTarget::chooseDataSearchRoot,
                                .initialPath = bufferPath(state.sourceRoot),
                                .extension = {},
                                .title = strings::searchMetadataFolder(),
@@ -370,10 +370,10 @@ void applyFileBrowserResult(PreferencesDialogState & state, const FileBrowserRes
 {
     switch (result.target)
     {
-        case FileBrowserTarget::dataSearchRoot :
+        case FileBrowserTarget::chooseDataSearchRoot :
             searchMetadataFolder(state, result.path);
             return;
-        case FileBrowserTarget::dataOverride :
+        case FileBrowserTarget::chooseDataOverride :
         {
             auto & buffer = state.overrides[result.role];
             copyToBuffer(buffer, result.path);

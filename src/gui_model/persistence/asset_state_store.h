@@ -9,7 +9,7 @@
 namespace uo_mule::gui::assets
 {
 
-inline constexpr std::uint32_t currentAssetStateSchemaVersion = 0;
+inline constexpr std::uint32_t currentAssetStateSchemaVersion = 1;
 
 struct AssetStateRecord
 {

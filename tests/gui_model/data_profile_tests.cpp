@@ -2,6 +2,7 @@
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/profile/data_profile_store.h"
 #include "gui_model/profile/data_validation.h"
+#include "gui_model/tools/tool_contracts.h"
 #include "uomul/radarcol/radarcol.h"
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
@@ -11,6 +12,11 @@
 
 namespace
 {
+
+constexpr int profileWindowX = 37;
+constexpr int profileWindowY = 42;
+constexpr int profileWindowWidth = 1440;
+constexpr int profileWindowHeight = 900;
 
 void createFile(const std::filesystem::path & path)
 {
@@ -61,10 +67,10 @@ TEST_CASE("DataProfile_Should_RoundTripRolePathsAndPolicies")
     expected.preferences.tools.fuzzy.name = "granite floor";
     expected.layout.window = {
         .geometryValid = true,
-        .x = 37,
-        .y = 42,
-        .width = 1440,
-        .height = 900,
+        .x = profileWindowX,
+        .y = profileWindowY,
+        .width = profileWindowWidth,
+        .height = profileWindowHeight,
     };
     expected.layout.dockingIni = "[Window][Map]\nDockId=0x1234,1\n";
     expected.layout.panels["panel.tool-palette"] = false;

@@ -232,14 +232,6 @@ void applyGeneralPreference(Preferences & preferences, std::string_view key, std
     {
         preferences.idFormat = value == "decimal" ? IdFormat::decimal : IdFormat::hexadecimal;
     }
-    else if (key == "texmaps_hide_unused")
-    {
-        preferences.texmapsHideUnused = value == "1";
-    }
-    else if (key == "texmaps_table_presentation")
-    {
-        preferences.texmapsTablePresentation = value == "1";
-    }
     else if (key == "fullscreen")
     {
         preferences.fullscreen = value == "1";
@@ -373,8 +365,6 @@ void appendSerializedPreferences(std::ostream & output, const Preferences & pref
     write("logs_panel_collapsed", static_cast<int>(preferences.logPanelCollapsed));
     write("show_welcome_on_startup", static_cast<int>(preferences.showWelcomeOnStartup));
     write("id_format", std::string_view(preferences.idFormat == IdFormat::decimal ? "decimal" : "hexadecimal"));
-    write("texmaps_hide_unused", static_cast<int>(preferences.texmapsHideUnused));
-    write("texmaps_table_presentation", static_cast<int>(preferences.texmapsTablePresentation));
     write("fullscreen", static_cast<int>(preferences.fullscreen));
     write("maximized", static_cast<int>(preferences.maximized));
     write("map_view_tile_source",

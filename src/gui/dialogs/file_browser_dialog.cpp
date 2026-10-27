@@ -327,6 +327,10 @@ void drawSummary(const FileBrowserState & state)
         {
             ImGui::TextColored(theme::imguiColor(theme::warning), "%s", candidate.warning.c_str());
         }
+        if (!candidate.filenameWarning.empty())
+        {
+            ImGui::TextColored(theme::imguiColor(theme::warning), "%s", candidate.filenameWarning.c_str());
+        }
         ImGui::TextColored(candidate.openable ? theme::imguiColor(theme::success) : theme::imguiColor(theme::warning),
                            "%s",
                            candidate.openable ? strings::openable() : strings::requiresSelection());

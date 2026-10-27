@@ -1,8 +1,6 @@
 #include "gui/application/layout_store.h"
-#include "core/app_info.h"
 #include "gui_model/layout/panel_registry.h"
 #include "gui_model/layout/window_registry.h"
-#include "gui_model/persistence/config_paths.h"
 #include "gui_model/profile/data_profile.h"
 #include <cstddef>
 #include <filesystem>
@@ -59,23 +57,6 @@ void loadDockingIni(std::ifstream & file, AppLayout & layout)
 
 } // namespace
 
-std::filesystem::path layoutPath()
-{
-    const auto config = configDirectory();
-    return config.empty() ? std::filesystem::path{} : config / std::string(core::applicationName()) / "layout.ini";
-}
-
-void loadLayout(PanelRegistry & panels, WindowRegistry & windows, AppLayout & layout)
-{
-    const auto path = layoutPath();
-    if (path.empty())
-    {
-        return;
-    }
-
-    loadLayout(path, panels, windows, layout);
-}
-
 void loadLayout(const std::filesystem::path & path, PanelRegistry & panels, WindowRegistry & windows, AppLayout & layout)
 {
     if (path.empty())
@@ -109,17 +90,6 @@ void loadLayout(const std::filesystem::path & path, PanelRegistry & panels, Wind
             std::getline(file, value);
         }
     }
-}
-
-void saveLayout(const PanelRegistry & panels, const WindowRegistry & windows, const AppLayout & layout)
-{
-    const auto path = layoutPath();
-    if (path.empty())
-    {
-        return;
-    }
-
-    saveLayout(path, panels, windows, layout);
 }
 
 void saveLayout(const std::filesystem::path & path,

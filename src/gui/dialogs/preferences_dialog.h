@@ -38,7 +38,6 @@ struct PreferencesDialogState
     DataDiscoveryResult discovery;
     DataProfileValidation validation;
     FileBrowserState * browser = nullptr;
-    DiscoveryMode discoveryMode = DiscoveryMode::folder;
     bool profileSaveRequested = false;
     std::optional<std::string> profileDeleteRequested;
 };

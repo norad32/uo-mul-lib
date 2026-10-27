@@ -6,9 +6,8 @@
 #include "gui/presentation/theme.h"
 #include "gui_model/dialogs/dialog_contracts.h"
 #include "gui_model/dialogs/dialog_host.h"
-#include "gui_model/dialogs/file_browser_model.h"
+#include "gui_model/dialogs/file_deduction.h"
 #include <algorithm>
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <imgui.h>
@@ -23,15 +22,28 @@ namespace uo_mule::gui
 namespace
 {
 
-bool drawCandidate(FileSelectorState & state, std::size_t index)
+enum class CandidateAction : std::uint8_t
+{
+    none,
+    chooseCompanion,
+    openMapSetup,
+};
+
+CandidateAction drawCandidate(FileSelectorState & state, std::size_t index)
 {
     const auto & candidate = state.candidates.at(index);
     const bool selected = state.selectedCandidate == index;
     const std::string selectableLabel = candidate.label + "##candidate-" + std::to_string(index);
-    ImGui::BeginDisabled(!candidate.openable);
+    const bool setupCandidate = candidate.kind == MulAssetKind::map && !candidate.dimensions;
+    ImGui::BeginDisabled(!candidate.openable && !setupCandidate);
     if (ImGui::Selectable(selectableLabel.c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
     {
         state.selectedCandidate = index;
+        if (setupCandidate)
+        {
+            ImGui::EndDisabled();
+            return CandidateAction::openMapSetup;
+        }
     }
     ImGui::EndDisabled();
     if (candidate.kind == MulAssetKind::map && candidate.dimensions)
@@ -51,12 +63,22 @@ bool drawCandidate(FileSelectorState & state, std::size_t index)
         ImGui::TextColored(theme::imguiColor(theme::warning), "%s", candidate.warning.c_str());
         ImGui::Unindent();
     }
+    if (!candidate.filenameWarning.empty())
+    {
+        ImGui::Indent();
+        ImGui::TextColored(theme::imguiColor(theme::warning), "%s", candidate.filenameWarning.c_str());
+        ImGui::Unindent();
+    }
     ImGui::Indent();
     ImGui::TextColored(candidate.openable ? theme::imguiColor(theme::success) : theme::imguiColor(theme::warning),
                        "%s",
                        candidate.openable ? "Openable" : "Requires selection");
     ImGui::Unindent();
-    return candidate.kind == MulAssetKind::texmapsSet && !candidate.openable && ImGui::SmallButton("Choose companion");
+    if (candidate.kind == MulAssetKind::texmapsSet && !candidate.openable && ImGui::SmallButton("Choose companion"))
+    {
+        return CandidateAction::chooseCompanion;
+    }
+    return CandidateAction::none;
 }
 
 } // namespace
@@ -69,16 +91,8 @@ void openFileSelector(FileSelectorState & state, FileBrowserResult result)
     state.visible = true;
     state.browserResult = std::move(result);
     state.candidates = state.browserResult.assetCandidates;
-    if (state.browserResult.target == FileBrowserTarget::radarcolSource)
-    {
-        std::erase_if(state.candidates, [](const auto & candidate) { return candidate.kind != MulAssetKind::radarcol; });
-    }
-    else if (state.browserResult.target == FileBrowserTarget::texmapsIndex ||
-             state.browserResult.target == FileBrowserTarget::texmapsData)
-    {
-        std::erase_if(state.candidates, [](const auto & candidate) { return candidate.kind != MulAssetKind::texmapsSet; });
-    }
     sortFileBrowserCandidates(state.candidates);
+    state.selectedCandidate = state.candidates.size();
     const auto firstOpenable =
         std::ranges::find_if(state.candidates, [](const auto & candidate) { return candidate.openable; });
     if (firstOpenable != state.candidates.end())
@@ -117,17 +131,7 @@ FileBrowserResult selectedFileSelectorResult(const FileSelectorState & state)
 
 bool applyFileSelectorCompanion(FileSelectorState & state, const std::filesystem::path & path)
 {
-    const auto selectedName = state.browserResult.path.filename().string();
-    const auto lowerSelectedName = [&selectedName]
-    {
-        std::string value = selectedName;
-        std::ranges::transform(
-            value, value.begin(), [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
-        return value;
-    }();
-    const bool selectedIsIndex = lowerSelectedName == "texidx.mul";
-    const auto set =
-        selectedIsIndex ? inspectTexmapsSet(state.browserResult.path, path) : inspectTexmapsSet(path, state.browserResult.path);
+    const auto set = inspectTexmapsCompanion(state.browserResult.path, path);
     if (!set.openable)
     {
         state.error = set.reason;
@@ -167,9 +171,19 @@ std::optional<DialogResult> drawFileSelector(FileSelectorState & state, std::uin
     }
     for (std::size_t index = 0; index < state.candidates.size(); index++)
     {
-        if (drawCandidate(state, index))
+        const auto action = drawCandidate(state, index);
+        if (action == CandidateAction::chooseCompanion || action == CandidateAction::openMapSetup)
         {
             endDialog();
+            if (action == CandidateAction::openMapSetup)
+            {
+                return DialogResult{
+                    .id = DialogId::fileSelector,
+                    .action = DialogAction::accept,
+                    .payload = selectedFileSelectorResult(state),
+                    .generation = generation,
+                };
+            }
             return DialogResult{
                 .id = DialogId::fileSelector,
                 .action = DialogAction::chooseCompanion,

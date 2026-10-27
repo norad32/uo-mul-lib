@@ -349,7 +349,7 @@ void openDialog(WorkbenchState & state, MapFileDialogMode mode)
         requestFileBrowser(state.fileBrowser,
                            {
                                .mode = FileBrowserMode::openFile,
-                               .target = FileBrowserTarget::genericOpen,
+                               .target = FileBrowserTarget::openGeneric,
                                .initialPath = {},
                                .extension = ".mul",
                                .title = strings::openMulFile(),
@@ -686,7 +686,7 @@ void registerFileSaveCommands(CommandRegistry & registry)
                 requestFileBrowser(state.fileBrowser,
                                    {
                                        .mode = FileBrowserMode::saveFile,
-                                       .target = FileBrowserTarget::radarcolOutput,
+                                       .target = FileBrowserTarget::saveRadarcolAs,
                                        .initialPath = active->radarcol->sourcePath(),
                                        .extension = ".mul",
                                        .title = "Save Radarcol As",
@@ -707,7 +707,7 @@ void registerFileSaveCommands(CommandRegistry & registry)
                 requestFileBrowser(state.fileBrowser,
                                    {
                                        .mode = FileBrowserMode::saveFile,
-                                       .target = FileBrowserTarget::mapSaveAs,
+                                       .target = FileBrowserTarget::saveMapAs,
                                        .initialPath = state.mapDocuments.active().changes().originalPath,
                                        .extension = ".mul",
                                        .title = "Save Map As",

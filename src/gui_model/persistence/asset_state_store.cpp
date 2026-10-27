@@ -31,7 +31,7 @@ void writeSource(std::ostream & output, const AssetSourceContext & context)
     }
 }
 
-bool readRecord(std::istream & file, AssetStateRecord & record, std::uint32_t schemaVersion)
+bool readRecord(std::istream & file, AssetStateRecord & record)
 {
     file >> std::quoted(record.profileIdentity) >> std::quoted(record.assetWindowIdentity);
     std::string marker;
@@ -65,24 +65,14 @@ bool readRecord(std::istream & file, AssetStateRecord & record, std::uint32_t sc
         record.state.presentation = static_cast<AssetPresentation>(presentation);
     }
     file >> marker;
+    if (marker == "hide_empty")
+    {
+        file >> record.state.hideEmpty;
+        file >> marker;
+    }
     if (marker == "query")
     {
         file >> std::quoted(record.state.query.filter);
-        if (schemaVersion == 0U)
-        {
-            std::string unusedSortKey;
-            bool unusedSortAscending = true;
-            file >> std::quoted(unusedSortKey) >> unusedSortAscending;
-        }
-    }
-    if (schemaVersion == 0U)
-    {
-        file >> marker;
-        if (marker == "details")
-        {
-            bool unusedDetailsCollapsed = false;
-            file >> unusedDetailsCollapsed;
-        }
     }
     file >> marker;
     if (marker == "view_mode")
@@ -146,16 +136,26 @@ std::vector<AssetStateRecord> loadAssetState(const std::filesystem::path & path)
     std::ifstream file(path);
     std::string key;
     std::uint32_t schemaVersion = 0;
+    bool schemaValidated = false;
     while (file >> key)
     {
         if (key == "schema_version")
         {
             file >> schemaVersion;
+            if (schemaVersion != currentAssetStateSchemaVersion)
+            {
+                return {};
+            }
+            schemaValidated = true;
         }
         else if (key == "record")
         {
+            if (!schemaValidated)
+            {
+                return {};
+            }
             AssetStateRecord record;
-            if (readRecord(file, record, schemaVersion))
+            if (readRecord(file, record))
             {
                 records.push_back(std::move(record));
             }
@@ -165,6 +165,10 @@ std::vector<AssetStateRecord> loadAssetState(const std::filesystem::path & path)
             std::string ignored;
             std::getline(file, ignored);
         }
+    }
+    if (!schemaValidated)
+    {
+        return {};
     }
     return records;
 }
@@ -183,8 +187,8 @@ void saveAssetState(const std::filesystem::path & path, const std::vector<AssetS
     {
         file << "record " << std::quoted(record.profileIdentity) << ' ' << std::quoted(record.assetWindowIdentity) << ' ';
         writeSource(file, record.context);
-        file << "presentation " << static_cast<int>(record.state.presentation) << "\nquery "
-             << std::quoted(record.state.query.filter) << " \"\" 1\ndetails 0\nview_mode " << std::quoted(record.state.viewMode)
+        file << "presentation " << static_cast<int>(record.state.presentation) << "\nhide_empty " << record.state.hideEmpty
+             << "\nquery " << std::quoted(record.state.query.filter) << "\nview_mode " << std::quoted(record.state.viewMode)
              << "\nscroll " << record.state.scrollPosition << "\nselection " << record.state.selection.selected.size();
         for (const auto & selected : record.state.selection.selected)
         {
@@ -231,6 +235,7 @@ void restoreAssetState(const AssetStateRecord & record, AssetWindowState & state
 {
     resetContext(state);
     state.presentation = record.state.presentation;
+    state.hideEmpty = record.state.hideEmpty;
     state.presentationContext = presentationContextKey(record.context);
     state.presentations.clear();
     state.presentations[state.presentationContext] = state.presentation;

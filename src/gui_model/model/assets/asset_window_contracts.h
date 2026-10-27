@@ -150,6 +150,7 @@ struct AssetDragPayload
 struct AssetWindowState
 {
     AssetPresentation presentation = AssetPresentation::grid;
+    bool hideEmpty = false;
     std::string presentationContext;
     std::map<std::string, AssetPresentation> presentations;
     // Optional view-specific mode, such as the Radarcol or Tiledata map/static

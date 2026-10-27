@@ -97,7 +97,7 @@ TEST_CASE("dialogHost_Should_PublishTypedFileBrowserAcceptance")
     REQUIRE(host.request(makeDialogRequest(DialogId::fileBrowser)));
     const auto generation = host.active.value_or(uo_mule::gui::DialogRequest{}).generation;
     const FileBrowserResult selected{
-        .target = FileBrowserTarget::mapOpen,
+        .target = FileBrowserTarget::openMap,
         .role = DataFileRole::radarcol,
         .path = "map0.mul",
         .mapCandidates = {},

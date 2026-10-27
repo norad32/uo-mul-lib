@@ -10,16 +10,6 @@ TEST_CASE("pendingPreferences_Should_StartEmpty")
     REQUIRE(changes.empty());
 }
 
-TEST_CASE("pendingPreferences_Should_TrackTexmapChanges")
-{
-    PendingPreferenceChanges changes;
-    changes.texmapsHideUnused = false;
-    REQUIRE_FALSE(changes.empty());
-    changes.texmapsTablePresentation = true;
-    REQUIRE(*changes.texmapsHideUnused == false);
-    REQUIRE(*changes.texmapsTablePresentation == true);
-}
-
 TEST_CASE("pendingPreferences_Should_TrackWelcomeScreenChanges")
 {
     PendingPreferenceChanges changes;

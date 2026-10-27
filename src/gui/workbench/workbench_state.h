@@ -49,13 +49,8 @@ struct MenuBarState
 struct PendingPreferenceChanges
 {
     std::optional<bool> showWelcomeOnStartup;
-    std::optional<bool> texmapsHideUnused;
-    std::optional<bool> texmapsTablePresentation;
 
-    [[nodiscard]] bool empty() const noexcept
-    {
-        return !showWelcomeOnStartup && !texmapsHideUnused && !texmapsTablePresentation;
-    }
+    [[nodiscard]] bool empty() const noexcept { return !showWelcomeOnStartup; }
 };
 
 struct WorkbenchState
@@ -91,7 +86,6 @@ struct WorkbenchState
     std::optional<PendingChangesAction> pendingDocumentCloseAction;
     PendingPreferenceChanges pendingPreferenceChanges;
     std::optional<PreferencesDialogResult> pendingPreferencesResult;
-    std::optional<DataProfile> pendingProfileSave;
     std::vector<std::function<void()>> deferredWorkflowActions;
     CoordinateDialogState coordinateDialog;
     MenuBarState menuBarState;

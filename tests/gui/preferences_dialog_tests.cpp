@@ -104,7 +104,7 @@ TEST_CASE("preferencesDialog_Should_ApplySearchRootAndOverrideResults")
 
     applyFileBrowserResult(state,
                            FileBrowserResult{
-                               .target = FileBrowserTarget::dataSearchRoot,
+                               .target = FileBrowserTarget::chooseDataSearchRoot,
                                .path = directory.path(),
                                .mapCandidates = {},
                                .assetCandidates = {},
@@ -116,7 +116,7 @@ TEST_CASE("preferencesDialog_Should_ApplySearchRootAndOverrideResults")
     std::ofstream(overridePath) << "invalid";
     applyFileBrowserResult(state,
                            FileBrowserResult{
-                               .target = FileBrowserTarget::dataOverride,
+                               .target = FileBrowserTarget::chooseDataOverride,
                                .role = DataFileRole::radarcol,
                                .path = overridePath,
                                .mapCandidates = {},
@@ -128,7 +128,7 @@ TEST_CASE("preferencesDialog_Should_ApplySearchRootAndOverrideResults")
 
     applyFileBrowserResult(state,
                            FileBrowserResult{
-                               .target = FileBrowserTarget::genericOpen,
+                               .target = FileBrowserTarget::openGeneric,
                                .path = "ignored.mul",
                                .mapCandidates = {},
                                .assetCandidates = {},

@@ -406,7 +406,7 @@ void drawOpenDialog(MapDocumentManager & mapDocument, NewFileDialogState & state
         requestFileBrowser(*state.browser,
                            {
                                .mode = FileBrowserMode::openFile,
-                               .target = FileBrowserTarget::mapOpen,
+                               .target = FileBrowserTarget::openMap,
                                .initialPath = state.openPath.data(),
                                .extension = ".mul",
                                .title = strings::openMulFile(),
@@ -467,20 +467,20 @@ void startNewMapOperation(MapDocumentManager & mapDocument, NewFileDialogState &
 
 void requestNewFileOutput(NewFileDialogState & state)
 {
-    FileBrowserTarget target = FileBrowserTarget::newMapOutput;
+    FileBrowserTarget target = FileBrowserTarget::createMap;
     switch (state.newFileKind)
     {
         case NewFileKind::map :
-            target = FileBrowserTarget::newMapOutput;
+            target = FileBrowserTarget::createMap;
             break;
         case NewFileKind::radarcol :
-            target = FileBrowserTarget::newRadarcolOutput;
+            target = FileBrowserTarget::createRadarcol;
             break;
         case NewFileKind::texmaps :
-            target = FileBrowserTarget::newTexmapsData;
+            target = FileBrowserTarget::createTexmaps;
             break;
         case NewFileKind::tiledata :
-            target = FileBrowserTarget::newTiledataOutput;
+            target = FileBrowserTarget::createTiledata;
             break;
     }
 
@@ -690,7 +690,7 @@ void drawSaveAsDialog(MapDocumentManager & mapDocument, NewFileDialogState & sta
         requestFileBrowser(*state.browser,
                            {
                                .mode = FileBrowserMode::saveFile,
-                               .target = FileBrowserTarget::mapSaveAs,
+                               .target = FileBrowserTarget::saveMapAs,
                                .initialPath = state.savePath.data(),
                                .extension = ".mul",
                                .title = "Save Map",
@@ -743,7 +743,7 @@ void drawDirtyDialog(MapDocumentManager & mapDocument, NewFileDialogState & stat
         requestFileBrowser(*state.browser,
                            {
                                .mode = FileBrowserMode::saveFile,
-                               .target = FileBrowserTarget::mapSaveAs,
+                               .target = FileBrowserTarget::saveMapAs,
                                .initialPath = mapDocument.active().changes().originalPath,
                                .extension = ".mul",
                                .title = "Save Map As",
@@ -1010,7 +1010,7 @@ void returnToFileBrowser(NewFileDialogState & state, FileBrowserState & browser)
     requestFileBrowser(browser,
                        {
                            .mode = FileBrowserMode::openFile,
-                           .target = FileBrowserTarget::genericOpen,
+                           .target = FileBrowserTarget::openGeneric,
                            .initialPath = initialPath,
                            .extension = ".mul",
                            .title = strings::openMulFile(),
@@ -1021,7 +1021,7 @@ void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult 
 {
     switch (result.target)
     {
-        case FileBrowserTarget::mapOpen :
+        case FileBrowserTarget::openMap :
             copyToBuffer(state.openPath, result.path);
             state.openCandidates = result.mapCandidates;
             state.openFacet = 0;
@@ -1054,14 +1054,14 @@ void applyFileBrowserResult(NewFileDialogState & state, const FileBrowserResult 
             }
             requestMapDialog(state, MapFileDialogMode::selectMapFacet);
             break;
-        case FileBrowserTarget::newMapOutput :
+        case FileBrowserTarget::createMap :
             copyToBuffer(state.newMapPath, result.path);
             if (state.mode != MapFileDialogMode::none)
             {
                 requestMapDialog(state, state.mode);
             }
             break;
-        case FileBrowserTarget::mapSaveAs :
+        case FileBrowserTarget::saveMapAs :
             copyToBuffer(state.savePath, result.path);
             if (state.mode != MapFileDialogMode::none)
             {

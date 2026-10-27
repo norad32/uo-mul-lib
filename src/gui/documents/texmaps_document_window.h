@@ -21,8 +21,6 @@
 namespace uo_mule::gui
 {
 
-struct PendingPreferenceChanges;
-
 struct TexmapsTexturePreview
 {
     std::uint32_t width = 0;
@@ -70,8 +68,6 @@ struct TexmapsDocumentWindowState
     std::unordered_map<DocumentId, std::unordered_map<std::uint32_t, TexmapsTexturePreview>> documentTexturePreviews;
     std::unordered_map<DocumentId, std::uint64_t> documentTexturePreviewRevisions;
     std::uint64_t texturePreviewRevision = 0;
-    bool hideUnused = false;
-    std::unordered_map<DocumentId, bool> documentHideUnused;
     TexmapsReplacementState replacement;
     TexmapsFolderReplacementState folderReplacement;
     TexmapsExportState exportState;
@@ -98,8 +94,6 @@ void drawTexmapsDocumentWindow(TexmapsDocumentWindowState & state,
                                TexmapsDocument & document,
                                bool & visible,
                                IdFormat idFormat,
-                               const Preferences & preferences,
-                               PendingPreferenceChanges & pendingChanges,
                                std::string windowIdentity,
                                const std::function<void()> & becameVisible = {});
 

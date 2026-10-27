@@ -89,10 +89,6 @@ const char * details() noexcept
 {
     return "Details";
 }
-const char * hideUnused() noexcept
-{
-    return "Hide unused";
-}
 const char * hideEmpty() noexcept
 {
     return "Hide empty";

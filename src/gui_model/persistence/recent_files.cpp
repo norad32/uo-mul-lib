@@ -75,7 +75,7 @@ void refreshEntryValidity(RecentFile & file)
     {
         file.failure = error ? error.message() : "File is missing";
     }
-    else if (file.kind != DocumentKind::unavailable)
+    else
     {
         file.failure.clear();
     }
@@ -105,8 +105,7 @@ void refreshEntryValidity(RecentFile & file)
     }
     else
     {
-        result.kind = DocumentKind::unavailable;
-        result.failure = "Unsupported document kind: " + kind;
+        return std::nullopt;
     }
     result.companionPath = companionPath;
     file >> result.lastOpened >> result.lastModified;
@@ -137,25 +136,34 @@ std::vector<RecentFile> loadRecentFiles(const std::filesystem::path & path)
 {
     std::vector<RecentFile> result;
     std::ifstream file(path);
+    bool schemaValidated = false;
     std::string key;
     while (file >> key)
     {
         if (key == "schema_version")
         {
-            std::getline(file, key);
+            std::uint32_t version = 0;
+            if (!(file >> version) || version != recentFilesSchemaVersion)
+            {
+                return {};
+            }
+            schemaValidated = true;
             continue;
         }
-        if (key != "map" && key != "file")
+        if (!schemaValidated || key != "map")
         {
-            std::string ignored;
-            std::getline(file, ignored);
-            continue;
+            return {};
         }
 
         if (const auto map = loadRecentEntry(file))
         {
             result.push_back(*map);
         }
+    }
+
+    if (!schemaValidated)
+    {
+        return {};
     }
 
     for (auto & map : result)

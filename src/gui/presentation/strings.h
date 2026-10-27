@@ -32,7 +32,6 @@ namespace uo_mule::gui::strings
 [[nodiscard]] const char * table() noexcept;
 [[nodiscard]] const char * item() noexcept;
 [[nodiscard]] const char * details() noexcept;
-[[nodiscard]] const char * hideUnused() noexcept;
 [[nodiscard]] const char * hideEmpty() noexcept;
 [[nodiscard]] const char * dimensions() noexcept;
 [[nodiscard]] const char * facet() noexcept;

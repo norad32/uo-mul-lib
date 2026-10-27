@@ -108,7 +108,7 @@ TEST_CASE("mapWorkflowDialog_Should_ApplyMapBrowserCandidatesAndFacet")
     };
     applyFileBrowserResult(state,
                            {
-                               .target = FileBrowserTarget::mapOpen,
+                               .target = FileBrowserTarget::openMap,
                                .path = "map0.mul",
                                .mapCandidates = {invalid, valid},
                                .assetCandidates = {},
@@ -128,7 +128,7 @@ TEST_CASE("mapWorkflowDialog_Should_ApplyOutputResultsOnlyToMatchingModes")
     state.mode = MapFileDialogMode::newType;
     applyFileBrowserResult(state,
                            {
-                               .target = FileBrowserTarget::newMapOutput,
+                               .target = FileBrowserTarget::createMap,
                                .path = "new.map",
                                .mapCandidates = {},
                                .assetCandidates = {},
@@ -139,7 +139,7 @@ TEST_CASE("mapWorkflowDialog_Should_ApplyOutputResultsOnlyToMatchingModes")
     state.mode = MapFileDialogMode::saveAs;
     applyFileBrowserResult(state,
                            {
-                               .target = FileBrowserTarget::mapSaveAs,
+                               .target = FileBrowserTarget::saveMapAs,
                                .path = "saved.map",
                                .mapCandidates = {},
                                .assetCandidates = {},
@@ -150,7 +150,7 @@ TEST_CASE("mapWorkflowDialog_Should_ApplyOutputResultsOnlyToMatchingModes")
     const auto previousPath = std::string(state.savePath.data());
     applyFileBrowserResult(state,
                            {
-                               .target = FileBrowserTarget::genericOpen,
+                               .target = FileBrowserTarget::openGeneric,
                                .path = "ignored.mul",
                                .mapCandidates = {},
                                .assetCandidates = {},
@@ -175,7 +175,7 @@ TEST_CASE("mapWorkflowDialog_Should_ReturnToGenericFileBrowser")
 
     REQUIRE(state.mode == MapFileDialogMode::none);
     REQUIRE(browser.visible);
-    REQUIRE(browser.request.target == FileBrowserTarget::genericOpen);
+    REQUIRE(browser.request.target == FileBrowserTarget::openGeneric);
     REQUIRE(browser.directory == (root / "maps").lexically_normal());
     std::filesystem::remove_all(root, error);
 }

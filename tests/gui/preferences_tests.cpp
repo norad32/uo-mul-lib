@@ -30,8 +30,6 @@ TEST_CASE("loadPreferences_Should_UseDefaults_If_FileIsMissing")
     REQUIRE(std::abs(preferences.logPanelHeight) < heightTolerance);
     REQUIRE(preferences.showWelcomeOnStartup);
     REQUIRE(preferences.idFormat == uo_mule::gui::IdFormat::hexadecimal);
-    REQUIRE(preferences.texmapsHideUnused);
-    REQUIRE_FALSE(preferences.texmapsTablePresentation);
     std::filesystem::remove_all(preferencesFile.parent_path());
 }
 
@@ -48,8 +46,6 @@ TEST_CASE("savePreferences_Should_PersistOnlyActiveProfileSelector")
         .activeDataProfile = "Classic UO Felucca",
         .showWelcomeOnStartup = false,
         .idFormat = uo_mule::gui::IdFormat::decimal,
-        .texmapsHideUnused = true,
-        .texmapsTablePresentation = true,
         .fullscreen = true,
     };
 
@@ -64,8 +60,6 @@ TEST_CASE("savePreferences_Should_PersistOnlyActiveProfileSelector")
     REQUIRE(std::abs(actual.logPanelHeight) < heightTolerance);
     REQUIRE(actual.showWelcomeOnStartup);
     REQUIRE(actual.idFormat == uo_mule::gui::IdFormat::hexadecimal);
-    REQUIRE(actual.texmapsHideUnused);
-    REQUIRE_FALSE(actual.texmapsTablePresentation);
     REQUIRE_FALSE(actual.fullscreen);
     REQUIRE(actual.activeDataProfile == "Classic UO Felucca");
     std::filesystem::remove_all(configDirectory);
