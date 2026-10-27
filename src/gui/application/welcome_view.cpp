@@ -8,8 +8,8 @@
 #include "gui/presentation/iconography.h"
 #include "gui/presentation/strings.h"
 #include "gui/presentation/theme.h"
-#include "gui/workbench/notification_state.h"
 #include "gui/workbench/workbench_state.h"
+#include "gui/workflows/file_workflow.h"
 #include "gui_model/documents/document_contracts.h"
 #include "gui_model/documents/document_identity.h"
 #include "gui_model/persistence/preferences.h"
@@ -17,7 +17,6 @@
 #include "gui_model/profile/data_profile.h"
 #include "gui_model/profile/data_validation.h"
 #include "gui_model/session/workbench_session.h"
-#include "gui_model/source/source_identity.h"
 #include "image_codec/image_codec.h"
 #include "uomul/facet_sizes.h"
 #include <GL/gl.h>
@@ -31,7 +30,6 @@
 #include <random>
 #include <string>
 #include <string_view>
-#include <utility>
 
 namespace uo_mule::gui
 {
@@ -312,28 +310,13 @@ void drawProfileSummary(const DataProfile & profile)
 
 void openRecentAsset(WorkbenchState & state, const RecentFile & recent)
 {
-    DocumentSummary summary;
-    summary.identity.kind = recent.kind;
-    if (recent.kind == DocumentKind::texmaps)
-    {
-        summary.identity.source = makeRoleAwareDocumentSourceIdentity(
-            {{.role = SourceRole::index, .path = recent.path}, {.role = SourceRole::data, .path = recent.companionPath}});
-    }
-    else
-    {
-        summary.identity.source = makeDocumentSourceIdentity({recent.path});
-    }
-    summary.displayName = recent.displayName;
-    const DocumentId id = state.session.openDocument(std::move(summary));
-    if (id == 0)
-    {
-        return;
-    }
-    const auto activated = state.session.activateDocument(id, state.mapDocuments);
-    if (!activated)
-    {
-        state.notifications.add(NotificationSeverity::error, activated.error().message);
-    }
+    static_cast<void>(
+        openStandaloneAsset(state,
+                            recent.kind,
+                            recent.path,
+                            recent.companionPath,
+                            recent.failure.empty() ? DocumentValidationState::valid : DocumentValidationState::invalid,
+                            recent.itemCount));
 }
 
 void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size_t index)

@@ -328,7 +328,7 @@ void DocumentManager::syncAssetDocuments() noexcept
             const auto source = document.texmaps->sourceIdentity();
             const bool configured = configuredtexmapsSource_.has_value() && source == *configuredtexmapsSource_;
             document.summary.identity.source = source;
-            document.summary.displayName = document.texmaps->sourceIndexPath().filename().string();
+            document.summary.displayName = document.texmaps->sourceDataPath().filename().string();
             document.summary.sourceKind = configured ? DocumentSourceKind::configuredMetadata : DocumentSourceKind::standalone;
             document.summary.dirty = document.texmaps->dirty();
             document.summary.validation =

@@ -554,9 +554,10 @@ void configureFolderReplacementCallbacks(WorkbenchState & state)
         return nullptr;
     }
 
+    const auto * displayPath = kind == DocumentKind::texmaps ? source->path(SourceRole::data) : path;
     const DocumentSummary summary{
         .identity = {.kind = kind, .source = *source},
-        .displayName = path->filename().string(),
+        .displayName = (displayPath == nullptr ? *path : *displayPath).filename().string(),
         .sourceKind = DocumentSourceKind::configuredMetadata,
         .validation = DocumentValidationState::unknown,
         .facetKey = std::nullopt,
@@ -1054,14 +1055,47 @@ void activateDocumentOrNotify(WorkbenchState & state, DocumentId id)
 
 void requestDocumentActivation(WorkbenchState & state, DocumentId id)
 {
-    state.documentLifecycle.requestActivation(id);
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+    {
+        state.documentLifecycle.requestActivation(id);
+    }
 }
 
-void dockDocumentWindow()
+void dockDocumentWindow(const WorkbenchState & state, DocumentId id)
 {
     if (const ImGuiID centralNode = documentDockNodeId(); centralNode != 0U)
     {
-        ImGui::SetNextWindowDockID(centralNode, ImGuiCond_FirstUseEver);
+        const ImGuiCond condition = state.pendingDocumentFocus == id ? ImGuiCond_Always : ImGuiCond_FirstUseEver;
+        ImGui::SetNextWindowDockID(centralNode, condition);
+        if (state.pendingDocumentFocus == id)
+        {
+            ImGui::SetNextWindowFocus();
+        }
+    }
+}
+
+void finishDocumentWindowFocus(WorkbenchState & state, DocumentId id, const std::string & windowName)
+{
+    if (state.pendingDocumentFocus == id)
+    {
+        if (ImGuiWindow * window = ImGui::FindWindowByName(windowName.c_str()); window != nullptr)
+        {
+            // SetWindowFocus() updates navigation focus, but Dear ImGui does not
+            // select the corresponding tab for an already-docked window. Update
+            // the dock tab state explicitly so reopening a document promotes it
+            // in a stacked center node.
+            ImGui::FocusWindow(window);
+            if (ImGuiDockNode * dockNode = window->DockNode; dockNode != nullptr)
+            {
+                dockNode->SelectedTabId = window->TabId;
+                if (dockNode->TabBar != nullptr)
+                {
+                    dockNode->TabBar->SelectedTabId = window->TabId;
+                    dockNode->TabBar->NextSelectedTabId = window->TabId;
+                }
+            }
+        }
+        state.pendingDocumentFocus.reset();
     }
 }
 
@@ -1274,10 +1308,11 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
     {
         return;
     }
+    const DocumentId id = document.summary.identity.id;
     if (document.summary.identity.kind == DocumentKind::map && document.map)
     {
         bool visible = true;
-        dockDocumentWindow();
+        dockDocumentWindow(state, id);
         drawMapDocumentWindow(
             state.mapDocuments,
             state.toolState,
@@ -1305,6 +1340,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
         {
             requestDocumentClose(state, document.summary.identity.id);
         }
+        finishDocumentWindowFocus(state, id, windowName);
         return;
     }
 
@@ -1316,7 +1352,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             restoreConfiguredMetadataDocumentAssetState(state, document, assetView->second);
         }
         bool visible = true;
-        dockDocumentWindow();
+        dockDocumentWindow(state, id);
         drawRadarcolDocumentWindow(state.radarcolState,
                                    *document.radarcol,
                                    visible,
@@ -1328,6 +1364,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             hideConfiguredMetadataView(state, document.summary);
             requestDocumentClose(state, document.summary.identity.id);
         }
+        finishDocumentWindowFocus(state, id, windowName);
         return;
     }
 
@@ -1339,7 +1376,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             restoreConfiguredMetadataDocumentAssetState(state, document, assetView->second);
         }
         bool visible = true;
-        dockDocumentWindow();
+        dockDocumentWindow(state, id);
         drawTiledataDocumentWindow(state.tiledataState,
                                    *document.tiledata,
                                    visible,
@@ -1352,6 +1389,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             hideConfiguredMetadataView(state, document.summary);
             requestDocumentClose(state, document.summary.identity.id);
         }
+        finishDocumentWindowFocus(state, id, windowName);
         return;
     }
 
@@ -1364,7 +1402,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             restoreConfiguredMetadataDocumentAssetState(state, document, assetView->second);
         }
         bool visible = true;
-        dockDocumentWindow();
+        dockDocumentWindow(state, id);
         drawTexmapsDocumentWindow(state.texmapsState,
                                   *document.texmaps,
                                   visible,
@@ -1376,11 +1414,12 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
             hideConfiguredMetadataView(state, document.summary);
             requestDocumentClose(state, document.summary.identity.id);
         }
+        finishDocumentWindowFocus(state, id, windowName);
         return;
     }
 
     bool visible = true;
-    dockDocumentWindow();
+    dockDocumentWindow(state, id);
     if (ImGui::Begin(windowName.c_str(), &visible))
     {
         requestDocumentActivation(state, document.summary.identity.id);
@@ -1394,6 +1433,7 @@ void drawDocumentWindow(WorkbenchState & state, DocumentRecord & document)
     {
         requestDocumentClose(state, document.summary.identity.id);
     }
+    finishDocumentWindowFocus(state, id, windowName);
 }
 
 void drawDocumentWindows(WorkbenchState & state)
@@ -1527,7 +1567,7 @@ void applyDeferredWorkflowActions(WorkbenchState & state)
     }
     if (record != nullptr && record->texmaps)
     {
-        const std::string filename = record->texmaps->sourceIndexPath().filename().string();
+        const std::string filename = record->texmaps->sourceDataPath().filename().string();
         return filename.empty() ? record->summary.displayName : filename;
     }
     if (record != nullptr && record->map)

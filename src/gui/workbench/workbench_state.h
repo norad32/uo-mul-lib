@@ -84,6 +84,7 @@ struct WorkbenchState
     DocumentLifecycleController documentLifecycle;
     std::optional<DocumentId> pendingDocumentCloseDecision;
     std::optional<PendingChangesAction> pendingDocumentCloseAction;
+    std::optional<DocumentId> pendingDocumentFocus;
     PendingPreferenceChanges pendingPreferenceChanges;
     std::optional<PreferencesDialogResult> pendingPreferencesResult;
     std::vector<std::function<void()>> deferredWorkflowActions;

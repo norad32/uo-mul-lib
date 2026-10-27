@@ -21,13 +21,16 @@
 #include "uomul/tiledata/tiledata.h"
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace uo_mule::gui
 {
@@ -59,43 +62,101 @@ void queueFileBrowserPersistence(WorkbenchState & state)
     state.deferWorkflowAction([&state] { persistFileBrowserRecentFolders(state.fileBrowser); });
 }
 
-void openCreatedAsset(WorkbenchState & state,
-                      DocumentKind kind,
-                      const std::filesystem::path & primaryPath,
-                      const std::filesystem::path & companionPath = {})
+[[nodiscard]] std::filesystem::path texmapsIndexPath(const std::filesystem::path & path)
+{
+    const std::string stem = path.stem().string();
+    const std::string extension = path.extension().empty() ? ".mul" : path.extension().string();
+    if (stem == "texmaps")
+    {
+        return path.parent_path() / ("texidx" + extension);
+    }
+
+    std::string indexStem = stem;
+    if (const std::size_t mapsPosition = indexStem.find("maps"); mapsPosition != std::string::npos)
+    {
+        indexStem.replace(mapsPosition, 4U, "idx");
+    }
+    else
+    {
+        indexStem += "idx";
+    }
+    return path.parent_path() / (indexStem + extension);
+}
+
+[[nodiscard]] std::vector<std::filesystem::path> standaloneCreationOutputs(FileBrowserTarget target,
+                                                                           const std::filesystem::path & path)
+{
+    if (target == FileBrowserTarget::createTexmaps)
+    {
+        return {path, texmapsIndexPath(path)};
+    }
+    return {path};
+}
+
+[[nodiscard]] std::optional<bool>
+standaloneCreationCollides(WorkbenchState & state, FileBrowserTarget target, const std::filesystem::path & path)
+{
+    for (const auto & output : standaloneCreationOutputs(target, path))
+    {
+        std::error_code filesystemError;
+        const bool exists = std::filesystem::exists(output, filesystemError);
+        if (filesystemError)
+        {
+            state.notifications.add(NotificationSeverity::error, output.string() + ": " + filesystemError.message());
+            return std::nullopt;
+        }
+        if (exists)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] bool openStandaloneAssetImpl(WorkbenchState & state,
+                                           DocumentKind kind,
+                                           const std::filesystem::path & primaryPath,
+                                           const std::filesystem::path & companionPath = {},
+                                           DocumentValidationState validation = DocumentValidationState::valid,
+                                           std::uint32_t itemCount = 0)
 {
     const DocumentSourceIdentity source = companionPath.empty() ? makeDocumentSourceIdentity({primaryPath})
                                                                 : makeRoleAwareDocumentSourceIdentity({
                                                                       {.role = SourceRole::index, .path = primaryPath},
                                                                       {.role = SourceRole::data, .path = companionPath},
                                                                   });
+    const std::filesystem::path & displayPath =
+        kind == DocumentKind::texmaps && !companionPath.empty() ? companionPath : primaryPath;
     const auto summary = state.documentDescriptors.createSummary({
         .kind = kind,
         .source = source,
-        .displayName = primaryPath.filename().string(),
-        .validation = DocumentValidationState::valid,
+        .displayName = displayPath.filename().string(),
+        .validation = validation,
         .facetKey = std::nullopt,
         .dimensions = std::nullopt,
     });
     if (!summary)
     {
         state.notifications.add(NotificationSeverity::error, "Document kind is not available");
-        return;
+        return false;
     }
     const DocumentId id = state.session.openDocument(*summary);
     if (id == 0)
     {
-        return;
+        return false;
     }
+    state.pendingDocumentFocus = id;
     if (auto activated = state.session.activateDocument(id, state.mapDocuments); !activated)
     {
         state.notifications.add(NotificationSeverity::error, activated.error().message);
     }
+    state.session.recordRecentFile(primaryPath, kind, companionPath, itemCount);
+    return true;
 }
 
-bool createDefaultRadarcolImpl(WorkbenchState & state, const std::filesystem::path & path)
+bool createDefaultRadarcolImpl(WorkbenchState & state, const std::filesystem::path & path, bool overwriteOutput)
 {
-    auto created = uomul::RadarColEditor::createEmpty(path);
+    auto created = uomul::RadarColEditor::createEmpty(path, {.overwriteOutput = overwriteOutput});
     if (!created)
     {
         state.notifications.add(NotificationSeverity::error, strings::formatError(created.error()));
@@ -128,9 +189,10 @@ bool createDefaultRadarcolImpl(WorkbenchState & state, const std::filesystem::pa
 bool createNewRadarcol(WorkbenchState & state,
                        const std::filesystem::path & path,
                        bool useEmbeddedColors,
-                       const std::array<float, 3> & defaultColor)
+                       const std::array<float, 3> & defaultColor,
+                       bool overwriteOutput)
 {
-    auto created = uomul::RadarColEditor::createEmpty(path);
+    auto created = uomul::RadarColEditor::createEmpty(path, {.overwriteOutput = overwriteOutput});
     if (!created)
     {
         state.notifications.add(NotificationSeverity::error, strings::formatError(created.error()));
@@ -155,7 +217,7 @@ bool createNewRadarcol(WorkbenchState & state,
         state.notifications.add(NotificationSeverity::error, strings::formatError(committed.error()));
         return false;
     }
-    openCreatedAsset(state, DocumentKind::radarcol, path);
+    static_cast<void>(openStandaloneAssetImpl(state, DocumentKind::radarcol, path));
     return true;
 }
 
@@ -163,22 +225,24 @@ void createNewAsset(WorkbenchState & state,
                     FileBrowserTarget target,
                     const std::filesystem::path & path,
                     bool useEmbeddedColors,
-                    const std::array<float, 3> & defaultColor)
+                    const std::array<float, 3> & defaultColor,
+                    bool overwriteOutput = false)
 {
     if (target == FileBrowserTarget::createDefaultRadarcol)
     {
-        static_cast<void>(createDefaultRadarcolImpl(state, path));
+        static_cast<void>(createDefaultRadarcolImpl(state, path, overwriteOutput));
         return;
     }
     if (target == FileBrowserTarget::createRadarcol)
     {
-        static_cast<void>(createNewRadarcol(state, path, useEmbeddedColors, defaultColor));
+        static_cast<void>(createNewRadarcol(state, path, useEmbeddedColors, defaultColor, overwriteOutput));
         return;
     }
 
     if (target == FileBrowserTarget::createTiledata)
     {
-        auto created = uomul::TiledataEditor::createEmpty(path, uomul::TiledataLayout::extended64);
+        auto created =
+            uomul::TiledataEditor::createEmpty(path, uomul::TiledataLayout::extended64, {.overwriteOutput = overwriteOutput});
         if (!created)
         {
             state.notifications.add(NotificationSeverity::error, strings::formatError(created.error()));
@@ -189,14 +253,12 @@ void createNewAsset(WorkbenchState & state,
             state.notifications.add(NotificationSeverity::error, strings::formatError(committed.error()));
             return;
         }
-        openCreatedAsset(state, DocumentKind::tiledata, path);
+        static_cast<void>(openStandaloneAssetImpl(state, DocumentKind::tiledata, path));
         return;
     }
 
-    const std::filesystem::path indexPath = path.filename() == "texmaps.mul"
-                                                ? path.parent_path() / "texidx.mul"
-                                                : path.parent_path() / (path.stem().string() + ".idx");
-    auto created = uomul::TexMapsEditor::createEmpty(indexPath, path);
+    const std::filesystem::path indexPath = texmapsIndexPath(path);
+    auto created = uomul::TexMapsEditor::createEmpty(indexPath, path, {.overwriteOutput = overwriteOutput});
     if (!created)
     {
         state.notifications.add(NotificationSeverity::error, strings::formatError(created.error()));
@@ -207,7 +269,7 @@ void createNewAsset(WorkbenchState & state,
         state.notifications.add(NotificationSeverity::error, strings::formatError(committed.error()));
         return;
     }
-    openCreatedAsset(state, DocumentKind::texmaps, indexPath, path);
+    static_cast<void>(openStandaloneAssetImpl(state, DocumentKind::texmaps, indexPath, path));
 }
 
 bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, const FileBrowserAssetCandidate & candidate)
@@ -234,37 +296,13 @@ bool openGenericAsset(WorkbenchState & state, const FileBrowserResult & result, 
     {
         kind = DocumentKind::tiledata;
     }
-    const DocumentSourceIdentity source = candidate.kind == MulAssetKind::radarcol || candidate.kind == MulAssetKind::tiledata
-                                              ? makeDocumentSourceIdentity({candidate.path})
-                                              : makeRoleAwareDocumentSourceIdentity({
-                                                    {.role = SourceRole::index, .path = candidate.path},
-                                                    {.role = SourceRole::data, .path = candidate.companionPath},
-                                                });
-    const auto summary = state.documentDescriptors.createSummary({
-        .kind = kind,
-        .source = source,
-        .displayName = candidate.path.filename().string(),
-        .validation = candidate.validated ? DocumentValidationState::valid : DocumentValidationState::invalid,
-        .facetKey = std::nullopt,
-        .dimensions = std::nullopt,
-    });
-    if (!summary)
-    {
-        state.notifications.add(NotificationSeverity::error, "Document kind is not available");
-        return false;
-    }
-    const DocumentId id = state.session.openDocument(*summary);
-    if (id == 0)
-    {
-        return false;
-    }
-
-    const auto activated = state.session.activateDocument(id, state.mapDocuments);
-    if (!activated)
-    {
-        state.notifications.add(NotificationSeverity::error, activated.error().message);
-    }
-    state.session.recordRecentFile(candidate.path, kind, candidate.companionPath, candidate.itemCount);
+    static_cast<void>(
+        openStandaloneAssetImpl(state,
+                                kind,
+                                candidate.path,
+                                candidate.companionPath,
+                                candidate.validated ? DocumentValidationState::valid : DocumentValidationState::invalid,
+                                candidate.itemCount));
     return false;
 }
 
@@ -382,6 +420,27 @@ void applyAssetResult(WorkbenchState & state, const FileBrowserResult & result)
     const bool useEmbeddedColors = state.menuBarState.fileDialog.useEmbeddedRadarColors;
     const auto defaultColor = state.menuBarState.fileDialog.radarDefaultColor;
     cancelFileDialog(state.menuBarState.fileDialog);
+    const auto collision = standaloneCreationCollides(state, target, path);
+    if (!collision)
+    {
+        return true;
+    }
+    if (*collision)
+    {
+        auto & dialog = state.menuBarState.fileDialog;
+        dialog.overwriteKind = MapOverwriteKind::standaloneAsset;
+        dialog.standaloneOverwritePath = path;
+        dialog.standaloneOverwriteDecision = [&state, target, path, useEmbeddedColors, defaultColor](bool overwrite)
+        {
+            if (overwrite)
+            {
+                state.deferWorkflowAction([&state, target, path, useEmbeddedColors, defaultColor]
+                                          { createNewAsset(state, target, path, useEmbeddedColors, defaultColor, true); });
+            }
+        };
+        requestMapDialog(dialog, MapFileDialogMode::overwrite);
+        return true;
+    }
     state.deferWorkflowAction([&state, target, path, useEmbeddedColors, defaultColor]
                               { createNewAsset(state, target, path, useEmbeddedColors, defaultColor); });
     return true;
@@ -589,7 +648,17 @@ bool completeDialogResult(WorkbenchState & state, DialogResult result)
 
 bool createDefaultRadarcol(WorkbenchState & state, const std::filesystem::path & path)
 {
-    return createDefaultRadarcolImpl(state, path);
+    return createDefaultRadarcolImpl(state, path, false);
+}
+
+bool openStandaloneAsset(WorkbenchState & state,
+                         DocumentKind kind,
+                         const std::filesystem::path & primaryPath,
+                         const std::filesystem::path & companionPath,
+                         DocumentValidationState validation,
+                         std::uint32_t itemCount)
+{
+    return openStandaloneAssetImpl(state, kind, primaryPath, companionPath, validation, itemCount);
 }
 
 bool drawFileWorkflow(WorkbenchState & state)

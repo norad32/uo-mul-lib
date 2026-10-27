@@ -102,6 +102,8 @@ void closeDialog(NewFileDialogState & state)
     state.operation = {};
     state.overwriteKind = MapOverwriteKind::none;
     state.saveForPendingOperation = false;
+    state.standaloneOverwritePath.clear();
+    state.standaloneOverwriteDecision = {};
     state.mode = MapFileDialogMode::none;
     state.activePopup = MapFileDialogMode::none;
     state.openWithoutReview = false;
@@ -179,6 +181,8 @@ void executeOperation(MapDocumentManager & mapDocument,
     state.operation = {};
     state.overwriteKind = MapOverwriteKind::none;
     state.saveForPendingOperation = false;
+    state.standaloneOverwritePath.clear();
+    state.standaloneOverwriteDecision = {};
     closeDialogPopup(state);
     state.mode = MapFileDialogMode::none;
     state.activePopup = MapFileDialogMode::none;
@@ -819,13 +823,38 @@ void handleOverwriteNewMap(MapDocumentManager & mapDocument, NewFileDialogState 
 
 void drawOverwriteDialog(MapDocumentManager & mapDocument, NewFileDialogState & state)
 {
-    const std::filesystem::path path =
-        state.overwriteKind == MapOverwriteKind::save ? std::filesystem::path(state.savePath.data()) : state.operation.path;
+    std::filesystem::path path = state.operation.path;
+    if (state.overwriteKind == MapOverwriteKind::save)
+    {
+        path = state.savePath.data();
+    }
+    else if (state.overwriteKind == MapOverwriteKind::standaloneAsset)
+    {
+        path = state.standaloneOverwritePath;
+    }
     ImGui::TextWrapped("The file already exists:\n%s\nReplace it?", path.string().c_str());
 
     beginDialogFooter({"Overwrite", "Cancel"});
     if (dialogButton(iconLabel(IconId::ok, "Overwrite").c_str()))
     {
+        if (state.overwriteKind == MapOverwriteKind::standaloneAsset)
+        {
+            deferWorkflow(state,
+                          [&state]
+                          {
+                              const auto decision = std::move(state.standaloneOverwriteDecision);
+                              state.standaloneOverwritePath.clear();
+                              state.standaloneOverwriteDecision = {};
+                              closeDialog(state);
+                              if (decision)
+                              {
+                                  decision(true);
+                              }
+                          });
+            closeDialogPopup(state);
+            endDialogFooter();
+            return;
+        }
         deferWorkflow(state,
                       [&mapDocument, &state, path]
                       {
@@ -849,6 +878,14 @@ void drawOverwriteDialog(MapDocumentManager & mapDocument, NewFileDialogState & 
 
     if (dialogButton(iconLabel(IconId::cancel, "Cancel").c_str()))
     {
+        if (state.overwriteKind == MapOverwriteKind::standaloneAsset)
+        {
+            state.standaloneOverwritePath.clear();
+            state.standaloneOverwriteDecision = {};
+            closeDialog(state);
+            endDialogFooter();
+            return;
+        }
         deferWorkflow(state,
                       [&state]
                       {

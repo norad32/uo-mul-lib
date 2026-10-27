@@ -1,5 +1,13 @@
 # Project Roadmap
 
+## Current milestone — Fix stacked-tab activation on reopen
+
+- Reopening an already-open document must activate its existing tab when
+  documents are stacked in the center dockspace.
+- Preserve document reuse without duplicate tabs or status-bar errors.
+- Confirm the behavior manually in the GUI before marking this milestone
+  complete; the current implementation does not reliably activate the tab.
+
 ## v0.1.0 — Editing
 
 - Tiledata editor: single-entry editing, CSV import, and CSV export.

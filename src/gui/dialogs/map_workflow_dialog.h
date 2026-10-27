@@ -56,6 +56,7 @@ enum class MapOverwriteKind : std::uint8_t
     none,
     newMap,
     save,
+    standaloneAsset,
 };
 
 struct PendingMapOperation
@@ -98,6 +99,8 @@ struct NewFileDialogState
     MapOverwriteKind overwriteKind = MapOverwriteKind::none;
     bool saveForPendingOperation = false;
     bool operationOverwriteOutput = false;
+    std::filesystem::path standaloneOverwritePath;
+    std::function<void(bool)> standaloneOverwriteDecision;
     std::string error;
 };
 
