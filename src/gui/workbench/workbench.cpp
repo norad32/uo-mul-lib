@@ -772,9 +772,19 @@ void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind ki
     captureConfiguredMetadataAssetState(state, DocumentKind::radarcol, state.radarcolState.documentAssetViews);
     captureConfiguredMetadataAssetState(state, DocumentKind::texmaps, state.texmapsState.documentAssetViews);
     captureConfiguredMetadataAssetState(state, DocumentKind::tiledata, state.tiledataState.documentAssetViews);
-    state.activeProfile.preferences = state.preferences;
-    saveProfileLayout(state.activeProfile.layout, state.panelRegistry, state.windowRegistry, state.layout);
-    state.profileStore.save(state.activeProfile);
+    try
+    {
+        DataProfile profile = state.activeProfile;
+        profile.preferences = state.preferences;
+        saveProfileLayout(profile.layout, state.panelRegistry, state.windowRegistry, state.layout);
+        state.profileStore.save(profile);
+        state.activeProfile = std::move(profile);
+    }
+    catch (const std::exception & error)
+    {
+        state.notifications.add(NotificationSeverity::error, "Profile save failed: " + std::string(error.what()));
+        return false;
+    }
 
     for (const auto id : configuredDocumentIds)
     {
@@ -790,16 +800,31 @@ void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind ki
 
 [[nodiscard]] bool applyPendingPreferencesDialog(GLFWwindow * window, WorkbenchState & state)
 {
+    auto & preferencesDialog = state.menuBarState.preferencesDialog;
+    if (preferencesDialog.profileSwitchRetryRequested)
+    {
+        preferencesDialog.profileSwitchRetryRequested = false;
+        state.pendingPreferencesPersistenceBlocked = false;
+    }
+    if (state.pendingPreferencesPersistenceBlocked)
+    {
+        if (preferencesDialog.profilePersistenceOperation == ProfilePersistenceOperation::none)
+        {
+            state.pendingPreferencesResult.reset();
+            state.pendingPreferencesPersistenceBlocked = false;
+        }
+        return false;
+    }
     if (!state.pendingPreferencesResult)
     {
         return false;
     }
 
-    const PreferencesDialogResult result = std::move(*state.pendingPreferencesResult);
-    state.pendingPreferencesResult.reset();
+    const PreferencesDialogResult result = *state.pendingPreferencesResult;
     if (!result.applyProfile)
     {
         state.preferences = result.preferences;
+        state.pendingPreferencesResult.reset();
         return false;
     }
 
@@ -818,8 +843,15 @@ void captureConfiguredMetadataAssetState(WorkbenchState & state, DocumentKind ki
     }
     if (profileChanged && !state.activeProfile.name.empty() && !prepareConfiguredMetadataForProfileSwitch(state))
     {
+        preferencesDialog.profileSaveRequested = false;
+        preferencesDialog.profilePersistenceOperation = ProfilePersistenceOperation::switchProfile;
+        preferencesDialog.profilePersistenceError = "Profile save failed. Retry or cancel the profile switch.";
+        preferencesDialog.visible = true;
+        state.pendingPreferencesPersistenceBlocked = true;
+        activatePreferencesDialog(preferencesDialog);
         return false;
     }
+    state.pendingPreferencesResult.reset();
     state.activeProfile = result.profile;
     if (profileChanged)
     {

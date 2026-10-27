@@ -123,6 +123,11 @@ void drawProfilePersistenceFailure(PreferencesDialogState & state)
         {
             state.profileDeleteRequested = state.workingProfile.name;
         }
+        else if (state.profilePersistenceOperation == ProfilePersistenceOperation::switchProfile)
+        {
+            state.profileSaveRequested = true;
+            state.profileSwitchRetryRequested = true;
+        }
         state.profilePersistenceError.reset();
     }
     ImGui::SameLine();
@@ -132,6 +137,7 @@ void drawProfilePersistenceFailure(PreferencesDialogState & state)
         state.profileDeleteRequested.reset();
         state.profilePersistenceOperation = ProfilePersistenceOperation::none;
         state.profilePersistenceError.reset();
+        state.profileSwitchRetryRequested = false;
     }
 }
 
@@ -387,6 +393,7 @@ void requestPreferencesDialog(PreferencesDialogState & state, const DataProfile 
     state.profileDeleteRequested.reset();
     state.profilePersistenceOperation = ProfilePersistenceOperation::none;
     state.profilePersistenceError.reset();
+    state.profileSwitchRetryRequested = false;
     initializeDialogFields(state);
     syncWorkingProfile(state);
     state.validation = validateDataProfile(state.workingProfile);
@@ -483,6 +490,12 @@ std::optional<PreferencesDialogResult> drawPreferencesDialog(PreferencesDialogSt
     if (dialogButton(cancelLabel.c_str()))
     {
         state.visible = false;
+        if (state.profilePersistenceOperation == ProfilePersistenceOperation::switchProfile)
+        {
+            state.profilePersistenceOperation = ProfilePersistenceOperation::none;
+            state.profilePersistenceError.reset();
+            state.profileSwitchRetryRequested = false;
+        }
     }
 
     endDialogFooter();

@@ -25,6 +25,7 @@ enum class ProfilePersistenceOperation : std::uint8_t
     none,
     save,
     remove,
+    switchProfile,
 };
 
 struct PreferencesDialogState
@@ -49,6 +50,7 @@ struct PreferencesDialogState
     std::optional<std::string> profileDeleteRequested;
     ProfilePersistenceOperation profilePersistenceOperation = ProfilePersistenceOperation::none;
     std::optional<std::string> profilePersistenceError;
+    bool profileSwitchRetryRequested = false;
 };
 
 struct PreferencesDialogResult

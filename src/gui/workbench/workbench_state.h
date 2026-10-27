@@ -87,6 +87,7 @@ struct WorkbenchState
     std::optional<DocumentId> pendingDocumentFocus;
     PendingPreferenceChanges pendingPreferenceChanges;
     std::optional<PreferencesDialogResult> pendingPreferencesResult;
+    bool pendingPreferencesPersistenceBlocked = false;
     std::vector<std::function<void()>> deferredWorkflowActions;
     CoordinateDialogState coordinateDialog;
     MenuBarState menuBarState;
