@@ -113,6 +113,7 @@ struct WorkbenchState
     std::filesystem::path recentMapRecordedPath;
     std::string welcomeGreeting;
     bool welcomeGreetingSelected = false;
+    std::optional<std::size_t> welcomeRecentKeyboardSelection;
     std::uint64_t radarcolNotificationRevision = 0;
     bool radarcolFallbackPromptVisible = false;
     ProviderRevisions providerRevisions;

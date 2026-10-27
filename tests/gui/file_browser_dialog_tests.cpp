@@ -71,6 +71,33 @@ TEST_CASE("fileBrowserDialog_Should_RenderOpenFileListing")
     REQUIRE(state.selectedPath.empty());
 }
 
+TEST_CASE("fileBrowserDialog_Should_ActivateSelectedEntryWithEnter")
+{
+    const TemporaryBrowserDirectory directory;
+    const auto path = directory.path() / "visible.mul";
+    FileBrowserState state;
+    requestFileBrowser(state,
+                       FileBrowserRequest{
+                           .mode = FileBrowserMode::openFile,
+                           .target = FileBrowserTarget::openGeneric,
+                           .initialPath = path,
+                           .extension = ".mul",
+                           .title = "Open",
+                       });
+
+    const ImGuiFrame frame;
+    auto & io = ImGui::GetIO();
+    ImGui::EndFrame();
+    io.AddKeyEvent(ImGuiKey_Enter, true);
+    ImGui::NewFrame();
+
+    const auto result = drawFileBrowser(state, 11U);
+    const auto dialogResult = result.value_or(uo_mule::gui::DialogResult{});
+
+    REQUIRE(result.has_value());
+    REQUIRE(dialogResult.action == uo_mule::gui::DialogAction::accept);
+}
+
 TEST_CASE("fileBrowserDialog_Should_RenderSaveFileFooter")
 {
     const TemporaryBrowserDirectory directory;

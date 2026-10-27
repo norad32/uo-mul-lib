@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <imgui.h>
 #include <optional>
 #include <string>
 #include <system_error>
@@ -93,4 +94,25 @@ TEST_CASE("welcomeView_Should_RenderRecentMapAndAssetRows")
     std::filesystem::remove(recentPath, error);
     std::filesystem::remove(mapPath, error);
     std::filesystem::remove(radarcolPath, error);
+}
+
+TEST_CASE("welcomeView_Should_SelectRecentRowWithTab")
+{
+    const InvalidWelcomeBanner banner;
+    uo_mule::gui::WorkbenchState state;
+    state.session.recordRecentFile("keyboard-map.mul",
+                                   uomul::Dimensions{.widthTiles = recentMapWidth, .heightTiles = recentMapHeight});
+
+    const uo_mule::gui::test::ImGuiFrame frame;
+    auto & io = ImGui::GetIO();
+    io.ConfigFlags = static_cast<ImGuiConfigFlags>(static_cast<unsigned int>(io.ConfigFlags) |
+                                                   static_cast<unsigned int>(ImGuiConfigFlags_NavEnableKeyboard));
+    uo_mule::gui::drawWelcomeView(state);
+
+    ImGui::EndFrame();
+    io.AddKeyEvent(ImGuiKey_Tab, true);
+    ImGui::NewFrame();
+    uo_mule::gui::drawWelcomeView(state);
+
+    REQUIRE(state.welcomeRecentKeyboardSelection == 0U);
 }

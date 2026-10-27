@@ -556,11 +556,14 @@ drawBrowserEntry(FileBrowserState & state, const std::filesystem::directory_entr
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
     const bool selected = state.selectedPath == entry.path();
-    if (ImGui::Selectable(entry.path().filename().string().c_str(), selected, ImGuiSelectableFlags_SpanAllColumns))
+    const bool clicked =
+        ImGui::Selectable(entry.path().filename().string().c_str(), selected, ImGuiSelectableFlags_SpanAllColumns);
+    const bool keyboardActivated = (ImGui::IsItemFocused() || selected) && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
+    if (clicked)
     {
         selectPath(state, entry.path());
     }
-    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+    if ((ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) || keyboardActivated)
     {
         if (isFileBrowserDirectory(entry.path()))
         {

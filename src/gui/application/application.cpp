@@ -408,7 +408,8 @@ int Application::run()
 
     ImGui::GetIO().IniFilename = nullptr;
     ImGui::GetIO().ConfigFlags = static_cast<ImGuiConfigFlags>(static_cast<unsigned int>(ImGui::GetIO().ConfigFlags) |
-                                                               static_cast<unsigned int>(ImGuiConfigFlags_DockingEnable));
+                                                               static_cast<unsigned int>(ImGuiConfigFlags_DockingEnable) |
+                                                               static_cast<unsigned int>(ImGuiConfigFlags_NavEnableKeyboard));
     if (!state.layout.dockingIni.empty())
     {
         ImGui::LoadIniSettingsFromMemory(state.layout.dockingIni.c_str(), state.layout.dockingIni.size());

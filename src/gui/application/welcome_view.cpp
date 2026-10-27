@@ -319,6 +319,17 @@ void openRecentAsset(WorkbenchState & state, const RecentFile & recent)
                             recent.itemCount));
 }
 
+void activateRecentFile(WorkbenchState & state, const RecentFile & recent)
+{
+    if (recent.kind == DocumentKind::map)
+    {
+        applyRecentMapToOpenDialog(state.menuBarState.fileDialog, recent);
+        return;
+    }
+
+    state.deferWorkflowAction([&state, recent] { openRecentAsset(state, recent); });
+}
+
 void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size_t index)
 {
     const bool unavailable = !recent.failure.empty();
@@ -328,6 +339,17 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     const float rowHeight = unavailable ? unavailableRecentRowHeight : recentRowHeight;
+    const ImVec2 rowStart = ImGui::GetCursorPos();
+    [&]
+    {
+        static_cast<void>(
+            ImGui::InvisibleButton("##welcome.recent.activate", ImVec2(ImGui::GetContentRegionAvail().x, rowHeight)));
+        if (ImGui::IsItemFocused())
+        {
+            state.welcomeRecentKeyboardSelection = index;
+        }
+    }();
+    ImGui::SetCursorPos(rowStart);
     const std::size_t lineCount = unavailable ? 3U : 2U;
     const float lineHeight = ImGui::GetTextLineHeight();
     const float contentHeight =
@@ -344,6 +366,12 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
         const theme::Color rowColor =
             rowHovered && ImGui::IsMouseDown(ImGuiMouseButton_Left) ? theme::activeSurface : theme::hoveredSurface;
         ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(rowColor));
+    }
+    else if (state.welcomeRecentKeyboardSelection == index)
+    {
+        const ImVec2 rowMin = ImGui::GetWindowPos();
+        const ImVec2 rowMax = ImVec2(rowMin.x + ImGui::GetWindowSize().x, rowMin.y + ImGui::GetWindowSize().y);
+        ImGui::GetWindowDrawList()->AddRectFilled(rowMin, rowMax, theme::packedColor(theme::activeSurface));
     }
     else
     {
@@ -381,16 +409,33 @@ void drawRecentFile(WorkbenchState & state, const RecentFile & recent, std::size
     ImGui::EndChild();
     if (rowDoubleClicked)
     {
-        if (recent.kind == DocumentKind::map)
-        {
-            applyRecentMapToOpenDialog(state.menuBarState.fileDialog, recent);
-        }
-        else
-        {
-            state.deferWorkflowAction([&state, recent] { openRecentAsset(state, recent); });
-        }
+        activateRecentFile(state, recent);
     }
     ImGui::PopID();
+}
+
+void updateRecentKeyboardSelection(WorkbenchState & state, std::size_t recentCount)
+{
+    if (recentCount == 0U || !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+    {
+        state.welcomeRecentKeyboardSelection.reset();
+        return;
+    }
+
+    if (ImGui::IsKeyPressed(ImGuiKey_Tab, false) && !state.welcomeRecentKeyboardSelection)
+    {
+        state.welcomeRecentKeyboardSelection = 0U;
+    }
+    else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, false))
+    {
+        const std::size_t current = state.welcomeRecentKeyboardSelection.value_or(0U);
+        state.welcomeRecentKeyboardSelection = std::min(current + 1U, recentCount - 1U);
+    }
+    else if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, false))
+    {
+        const std::size_t current = state.welcomeRecentKeyboardSelection.value_or(0U);
+        state.welcomeRecentKeyboardSelection = current == 0U ? 0U : current - 1U;
+    }
 }
 
 void selectGreetingIfNeeded(WorkbenchState & state)
@@ -454,6 +499,8 @@ void drawWelcomeView(WorkbenchState & state)
     dialogHeading(iconLabel(IconId::bookmark, strings::recentFiles()).c_str());
     ImGui::Spacing();
 
+    updateRecentKeyboardSelection(state, state.session.recentFiles().size());
+
     if (state.session.recentFiles().empty())
     {
         ImGui::BeginChild("###welcome.recent-empty",
@@ -469,6 +516,15 @@ void drawWelcomeView(WorkbenchState & state)
         for (std::size_t index = 0; index < state.session.recentFiles().size(); index++)
         {
             drawRecentFile(state, state.session.recentFiles().at(index), index);
+        }
+
+        if (state.welcomeRecentKeyboardSelection && ImGui::IsKeyPressed(ImGuiKey_Enter, false))
+        {
+            const std::size_t index = *state.welcomeRecentKeyboardSelection;
+            if (index < state.session.recentFiles().size())
+            {
+                activateRecentFile(state, state.session.recentFiles().at(index));
+            }
         }
     }
 
