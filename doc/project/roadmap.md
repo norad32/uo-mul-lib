@@ -1,12 +1,12 @@
 # Project Roadmap
 
-## Current milestone — Fix stacked-tab activation on reopen
+## Known issues
+
+### Reopening an already open document
 
 - Reopening an already-open document must activate its existing tab when
   documents are stacked in the center dockspace.
 - Preserve document reuse without duplicate tabs or status-bar errors.
-- Confirm the behavior manually in the GUI before marking this milestone
-  complete; the current implementation does not reliably activate the tab.
 
 ## v0.1.0 — Editing
 
